@@ -1,6 +1,18 @@
+#include <iomanip>
 #include "term.hpp"
 
 namespace prologcoin { namespace common {
+
+std::string cell::str() const
+{
+    switch (tag()) {
+    case tag_t::REF: return static_cast<const ref_cell &>(*this).str();
+    case tag_t::CON: return static_cast<const con_cell &>(*this).str();
+    case tag_t::STR: return static_cast<const str_cell &>(*this).str();
+    case tag_t::INT: return static_cast<const int_cell &>(*this).str();
+    default: return "?";
+    }
+}
 
 con_cell::con_cell(const std::string &name, size_t arity) : cell(tag_t::CON)
 {
@@ -71,9 +83,19 @@ std::string con_cell::name_and_arity() const
 
 std::string con_cell::str() const
 {
-    std::string s = (is_direct() ? name() : "[" + boost::lexical_cast<std::string>(value()) + "]") + "/" + boost::lexical_cast<std::string>(arity());
+    std::string s = (is_direct() ? name() : "[" + boost::lexical_cast<std::string>(value()) + "]");
+    if (arity() > 0) s += "/" + boost::lexical_cast<std::string>(arity());
 
     return "|" + std::string(std::max(0,20 - static_cast<int>(s.length())), ' ') + s + " : " + static_cast<std::string>(tag()) + " |";
+}
+
+void heap::print(std::ostream &out) const
+{
+    out << std::setw(8) << " " << std::setw(0) << "  ." << std::string(27, '-') << "." << "\n";
+    for (size_t i = 0; i < size_; i++) {
+	out << std::setw(8) << i << std::setw(0) << ": " << get(i).str() << "\n";
+    }
+    out << std::setw(8) << " " << std::setw(0) << "  `" << std::string(27, '-') << "´" << "\n";
 }
 
 }}

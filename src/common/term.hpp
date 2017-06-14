@@ -5,7 +5,10 @@
 
 #include <stdint.h>
 #include <algorithm>
+#include <vector>
+#include <memory>
 #include <boost/lexical_cast.hpp>
+#include <boost/noncopyable.hpp>
 
 //
 // term
@@ -113,6 +116,14 @@ private:
     kind_t kind_;
 };
 
+class ref_cell; // Forward
+
+template<tag_t::kind_t T> struct enum_to_cell_type {};
+
+template<> struct enum_to_cell_type<tag_t::REF> {
+    typedef ref_cell cell_type;
+};
+
 //
 // cell
 //
@@ -140,22 +151,26 @@ public:
 
     inline int64_t value_signed() const { return static_cast<int64_t>(raw_value_) >> 3; }
 
+    std::string str() const;
+
 private:
     value_t raw_value_;
 };
 
 //
-// REF cells (61 bits index)
-// Like in WAM / Warren's Abstract Machine but with integer "pointers"
+// ptr_cell this is not a real cell, but any class that uses the upper
+// bits for referencing another cell is inheriting from this class:
 //
 //  Integer value        REF 
 // [xxxxxxxxxxxxxxxxxxxx 000]
 //  bits 63-3       bits 0-2
 //
 //
-class ref_cell : public cell {
+
+class ptr_cell : public cell {
 public:
-    inline ref_cell(size_t index) : cell( tag_t::REF, static_cast<value_t>(index) ) { }
+    inline ptr_cell(const ptr_cell &other) : cell( other ) { }
+    inline ptr_cell(tag_t tag, size_t index) : cell( tag, static_cast<value_t>(index) ) { }
 
     inline operator size_t () const { return static_cast<value_t>(value()); }
 
@@ -172,6 +187,26 @@ public:
 	return str();
     }
 };
+
+//
+// REF cells
+// Like in WAM / Warren's Abstract Machine.
+//
+class ref_cell : public ptr_cell {
+public:
+    inline ref_cell(size_t index) : ptr_cell(tag_t::REF, index) { }
+};
+
+//
+// STR cells
+// Like in WAM / Warren's Abstract Machine.
+//
+class str_cell : public ptr_cell {
+public:
+    inline str_cell(ptr_cell pcell) : ptr_cell(pcell) { }
+    inline str_cell(size_t index) : ptr_cell(tag_t::STR, index) { }
+};
+
 
 // 
 // CON cells (61 bits)
@@ -265,6 +300,170 @@ public:
        return str();
    }
 };
+
+//
+// heap_block
+//
+// We don't want to keep _all_ heap blocks in memory. We can
+// cache those that are frequent.
+//
+class heap_block : private boost::noncopyable {
+public:
+    inline heap_block() : index_(0), offset_(0) { }
+    inline heap_block(size_t index, size_t offset)
+        : index_(index), offset_(offset) { }
+
+    inline size_t index() const { return index_; }
+    inline size_t offset() const { return offset_; }
+
+    inline cell & operator [] (size_t offset) {
+	return cells_[offset - offset_];
+    }
+
+    inline const cell & operator [] (size_t offset) const {
+	return cells_[offset - offset_];
+    }
+
+
+    inline void allocate(size_t n) {
+	size_t top = cells_.size();
+	cells_.resize(top + n);
+    }
+
+private:
+    size_t index_;
+    size_t offset_;
+    std::vector<cell> cells_;
+};
+
+class cell_ptr {
+public:
+    inline cell_ptr(heap_block &block, ptr_cell pcell) :
+	block_(block), pcell_(pcell) { }
+
+    inline size_t index() const {
+	return pcell_.index();
+    }
+
+    inline size_t index(int delta) const {
+	return pcell_.index() + delta;
+    }
+
+    inline cell arg(size_t i) const {
+	return block_[pcell_.index() - block_.offset() + i];
+    }
+
+    inline cell & arg(size_t i) {
+	return block_[pcell_.index() - block_.offset() + i];
+    }
+
+    inline cell & operator [] (size_t index) { return arg(index); }
+    inline cell & operator * () { return arg(0); }
+
+private:
+    heap_block &block_;
+    ptr_cell pcell_;
+};
+
+//
+// heap
+//
+// This is just a stack of heap_blocks.
+//
+
+class heap {
+public:
+    inline heap() : size_(0) { new_block(0); }
+
+    inline void new_block(size_t offset)
+    {
+	std::unique_ptr<heap_block> p(new heap_block(blocks_.size(), offset));
+	blocks_.push_back(std::move(p));
+    }
+
+    inline size_t size() const { return size_; }
+
+    struct _block_compare
+    {
+	bool operator () (const std::unique_ptr<heap_block> &left, size_t right) {
+	    return left->offset() < right;
+	}
+    };
+
+    inline cell & operator [] (size_t index)
+    {
+	return find_block(index)[index];
+    }
+
+    inline const cell & operator [] (size_t index) const
+    {
+	return get(index);
+    }
+
+    inline const cell & get(size_t index) const
+    {
+	return find_block(index)[index];
+    }
+
+    inline size_t find_block_index(size_t index) const
+    {
+	auto found =
+	    std::lower_bound(blocks_.begin(),
+			     blocks_.end(),
+			     index,
+			     _block_compare());
+	if (found != blocks_.begin()) {
+	    --found;
+	}
+	auto block_index = (*found)->index();
+	return block_index;
+    }
+
+    inline heap_block & find_block(size_t index)
+    {
+	return *blocks_[find_block_index(index)];
+    }
+
+    inline const heap_block & find_block(size_t index) const
+    {
+	return *blocks_[find_block_index(index)];
+    }
+
+    inline cell_ptr allocate(tag_t::kind_t tag, size_t n) {
+	std::unique_ptr<heap_block> &block = blocks_.back();
+	block->allocate(n);
+	ptr_cell new_cell(tag, size_);
+	(*block)[size_] = new_cell;
+	size_ += n;
+	return cell_ptr((*block), new_cell);
+    }
+
+    inline cell_ptr new_str(con_cell con)
+    {
+	size_t index = size_;
+	cell_ptr chunk = allocate(tag_t::STR, con.arity() + 2);
+	static_cast<ptr_cell &>(*chunk).set_index(index+1);
+	chunk[1] = con;
+	return chunk;
+    }
+
+    inline cell_ptr new_ref()
+    {
+	size_t index = size_;
+	cell_ptr cellp = allocate(tag_t::REF, 1);
+	*cellp = ref_cell(index);
+	return cellp;
+    }
+
+    void print(std::ostream &out) const;
+
+private:
+    typedef std::vector<std::unique_ptr<heap_block> >::iterator block_iterator;
+
+    size_t size_;
+    std::vector<std::unique_ptr<heap_block> > blocks_;
+};
+
 
 } }
 

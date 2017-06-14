@@ -7,12 +7,14 @@ using namespace prologcoin::common;
 
 void header( const std::string &str )
 {
+    std::cout << "\n";
     std::cout << "--- [" + str + "] " + std::string(60 - str.length(), '-') << "\n";
+    std::cout << "\n";
 }
 
 void test_ref_cells()
 {
-    header( "Cells / REF" );
+    header( "test_ref_cells()" );
 
     ref_cell a( 10 );
     ref_cell b( 42 );
@@ -29,7 +31,7 @@ void test_ref_cells()
 
 void test_con_cells()
 {
-    header( "Cells / CON" );
+    header( "test_con_cells()" );
 
     con_cell foo3( "foo", 3 );
     con_cell bars2( "bars", 2 );
@@ -55,7 +57,7 @@ void test_con_cells()
 
 void test_int_cells()
 {
-    header( "Cells / INT" );
+    header( "test_int_cells()" );
 
     int_cell a( 123 );
     int_cell b( 456 );
@@ -80,10 +82,28 @@ void test_int_cells()
     std::cout << "---- r1 String : " << r1.str() << "\n";
 }    
 
+void test_heap_simple()
+{
+    header( "test_heap_simple()" );
+
+    heap h;
+
+    cell_ptr cp = h.new_str( con_cell("foo", 3) );
+    cp[2] = ref_cell(cp.index(2));
+    cp[3] = int_cell(4711);
+    cp[4] = con_cell("bar",0);
+
+    h.print(std::cout);
+
+    (void)cp;
+}
+
 
 int main(int argc, char *argv[])
 {
     test_ref_cells();
     test_con_cells();
     test_int_cells();
+
+    test_heap_simple();
 }
