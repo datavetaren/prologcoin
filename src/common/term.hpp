@@ -7,6 +7,73 @@
 #include <algorithm>
 #include <boost/lexical_cast.hpp>
 
+//
+// term
+//
+// A term comes from mathematics, where the more commonly known "formula"
+// consists of terms. For example, the left hand side of '=', X + 3, is a
+// term. Likewise, the right hand side '=', f(17, Y), is another term.
+//
+// X + 3 = f(17, Y)
+//
+// Terms can be decomposed into terms, and the grammar is quite simple:
+//
+// term ::= constant
+//        | functor(<term>, <term>, ..., <term>)
+//        | Variable
+//
+// Terms can be efficiently represented with cells. A cell is typically
+// a fixed sized integer word (preferbly matching the machine's word
+// size.) In our case a cell is represented with an (unsigned) 64-bit
+// integer.
+//
+// The lower 3 bits of this cell represents a TAG (which gives us 8
+// combinations.) In WAM (Warren's Abstract Machine) the cells of
+// REF, INT, CON, STR are usually enough to represent anything.
+// However, other datatypes can be added such as DBL (double),
+// BIG (bignums), ...
+//
+// The cell type REF (reference) is used to represent variables that
+// can be bound. For unbound variables, following a chain of REF cells
+// always ends up at a REF cell pointing at itself. For example,
+//
+// The term: p(Z, h(Z,W), f(W)) as:
+//
+// Heap
+//
+// [0]:    | 1    STR |
+// [1]:    | h/2  CON |    (functor h with 2 args)
+// [2]:    | 2    REF |
+// [3]:    | 3    REF |
+// [4]:    | 5    STR |
+// [5]:    | f/1  CON |    (functor f with 1 arg)
+// [6]:    | 3    REF |
+// [7]:    | 8    STR | <--- p(Z, h(Z,W), f(W))
+// [8]:    | p/3  CON |    (functor p with 3 args)
+// [9]:    | 2    REF |
+// [10]:   | 1    STR |
+// [11]:   | 5    STR |
+//
+// This example is taken from the book
+// "Warren's Abstract Machine (A Tutorial Reconstruction)"
+// by Hassan Ait-Kaci
+//
+// (An excellent book in my opinion that tells how you can compile
+//  Prolog programs into an efficient representation.)
+//
+// In Prologcoin we have a (supposed) common heap among all nodes
+// in the system. However, when we send a term from one node to
+// another, some parts may refer to the common heap whereas other
+// parts don't yet have definitive addresses. Once the term is
+// committed to the (common) heap, these addresses will be definitive.
+// Therefore, we need tentitive (relative) addresses for some cells.
+// We'll use the upper bit (bit 63) to represent a relative reference.
+//
+// You can also view this as if the upper bit 63 tells whether the
+// reference is refering to a secondary (tentative) heap or not.
+// 
+//
+
 namespace prologcoin { namespace common {
 
 //
