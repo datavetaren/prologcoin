@@ -2,6 +2,7 @@
 #include <iomanip>
 #include <assert.h>
 #include <common/term.hpp>
+#include <common/term_ops.hpp>
 
 using namespace prologcoin::common;
 
@@ -98,6 +99,18 @@ void test_heap_simple()
     (void)cp;
 }
 
+void test_term_ops()
+{
+    header( "test_term_ops()" );
+    
+    term_ops ops;
+
+    // ops.put( "foobar", 377, term_ops::XFY );
+    // ops.put( "div", 313, term_ops::XFY );
+
+    ops.print(std::cout);
+}
+
 
 int main(int argc, char *argv[])
 {
@@ -106,4 +119,6 @@ int main(int argc, char *argv[])
     test_int_cells();
 
     test_heap_simple();
+
+    test_term_ops();
 }
