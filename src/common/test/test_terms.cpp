@@ -89,10 +89,10 @@ void test_heap_simple()
 
     heap h;
 
-    cell_ptr cp = h.new_str( con_cell("foo", 3) );
-    cp[2] = ref_cell(cp.index(2));
-    cp[3] = int_cell(4711);
-    cp[4] = con_cell("bar",0);
+    str_cell cp = h.new_str( con_cell("foo", 3) );
+    h.set_arg(cp, 1, ref_cell(cp.index()));
+    h.set_arg(cp, 2, int_cell(4711));
+    h.set_arg(cp, 3, con_cell("bar",0));
 
     h.print(std::cout);
 

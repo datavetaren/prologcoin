@@ -151,10 +151,34 @@ public:
 
     inline int64_t value_signed() const { return static_cast<int64_t>(raw_value_) >> 3; }
 
+    inline bool operator == (const cell other) const { return value() == other.value(); }
+    inline bool operator != (const cell other) const { return value() != other.value(); }
+
     std::string str() const;
 
 private:
     value_t raw_value_;
+};
+
+//
+// Exceptions
+//
+
+class term_exception : public ::std::runtime_error {
+public:
+    term_exception(const std::string &msg) : ::std::runtime_error(msg) { }
+};
+
+class heap_index_out_of_range_exception : public term_exception {
+public:
+    heap_index_out_of_range_exception(size_t index, size_t max)
+	: term_exception( std::string("Heap index ") + boost::lexical_cast<std::string>(index) + " exceeded " + boost::lexical_cast<std::string>(max)) { }
+};
+
+class expected_con_cell_exception : public term_exception {
+public:
+    expected_con_cell_exception(size_t index, cell c)
+	: term_exception( std::string("Expected CON cell at index ") + boost::lexical_cast<std::string>(index) + "; was " + c.tag().str()) { }
 };
 
 //
@@ -194,6 +218,7 @@ public:
 //
 class ref_cell : public ptr_cell {
 public:
+    inline ref_cell() : ptr_cell(tag_t::REF, 0) { }
     inline ref_cell(size_t index) : ptr_cell(tag_t::REF, index) { }
 };
 
@@ -289,6 +314,10 @@ public:
 
     inline int_cell operator / (const int_cell other) const {
 	return bin_op( std::divides<T>(), *this, other );
+    }
+
+    inline bool operator == (const int other) const {
+	return value() == other;
     }
 
     inline std::string str () const {
@@ -390,6 +419,13 @@ public:
 	}
     };
 
+    inline void check_index(size_t index) const
+    {
+	if (index >= size()) {
+	    throw heap_index_out_of_range_exception(index, size());
+	}
+    }
+
     inline cell & operator [] (size_t index)
     {
 	return find_block(index)[index];
@@ -402,7 +438,30 @@ public:
 
     inline const cell & get(size_t index) const
     {
+	check_index(index);
 	return find_block(index)[index];
+    }
+
+    inline con_cell functor(const str_cell &s) const
+    {
+	size_t index = s.index();
+	cell c = get(index);
+	if (c.tag() != tag_t::CON) {
+	    throw expected_con_cell_exception(index, c);
+	}
+	const con_cell &cc = static_cast<const con_cell &>(c);
+	return cc;
+    }
+
+    inline cell arg(const str_cell &s, size_t index) const
+    {
+	return get(s.index() + index + 1);
+    }
+
+    void set_arg(const str_cell &s, size_t index, cell c)
+    {
+	size_t i = s.index() + index + 1;
+	(*this)[i] = c;
     }
 
     inline size_t find_block_index(size_t index) const
@@ -429,6 +488,11 @@ public:
 	return *blocks_[find_block_index(index)];
     }
 
+    inline const bool in_range(size_t index) const
+    {
+	return index < size();
+    }
+
     inline cell_ptr allocate(tag_t::kind_t tag, size_t n) {
 	std::unique_ptr<heap_block> &block = blocks_.back();
 	block->allocate(n);
@@ -438,21 +502,22 @@ public:
 	return cell_ptr((*block), new_cell);
     }
 
-    inline cell_ptr new_str(con_cell con)
+    inline str_cell new_str(con_cell con)
     {
 	size_t index = size_;
 	cell_ptr chunk = allocate(tag_t::STR, con.arity() + 2);
 	static_cast<ptr_cell &>(*chunk).set_index(index+1);
 	chunk[1] = con;
-	return chunk;
+	return static_cast<str_cell &>(chunk[0]);
     }
 
-    inline cell_ptr new_ref()
+    inline ref_cell new_ref()
     {
 	size_t index = size_;
 	cell_ptr cellp = allocate(tag_t::REF, 1);
-	*cellp = ref_cell(index);
-	return cellp;
+	auto ref = ref_cell(index);
+	*cellp = ref;
+	return ref;
     }
 
     void print(std::ostream &out) const;
