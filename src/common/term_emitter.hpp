@@ -16,21 +16,10 @@ namespace prologcoin { namespace common {
 //
 class term_emitter {
 public:
-    inline term_emitter(std::ostream &out, heap &h, term_ops &ops)
-        : out_(out),
-	  heap_(h),
-	  ops_(ops),
-          column_(0),
-          line_(0),
-          indent_level_(0),
-          indent_width_(0)
-        { set_indent_width(2);
-	  set_max_column(78);
-	}
+    term_emitter(std::ostream &out, heap &h, term_ops &ops);
 
     void print(cell c);
 
-    void set_indent_width( size_t width );
     void set_max_column( size_t max_column );
 
     std::string name_ref(size_t index) const;
@@ -81,10 +70,18 @@ private:
     void emit_functor(const elem &a);
     void push_functor_args(size_t index, size_t arity);
     void emit_ref(const elem &a);
+    void emit_int(const elem &a);
     void increment_indent_level();
     void decrement_indent_level();
 
-    void print_from_stack();
+    void mark_indent_column();
+    bool will_wrap(size_t len) const;
+    bool at_beginning() const;
+    bool exceeding_half() const;
+
+    size_t get_emit_length(cell c);
+
+    void print_from_stack(size_t top = 0);
 
     std::ostream &out_;
     heap &heap_;
@@ -93,10 +90,10 @@ private:
     size_t column_;
     size_t line_;
     size_t indent_level_;
-    size_t indent_width_;
     size_t max_column_;
+    bool scan_mode_;
 
-    std::string indent_token_;
+    std::vector<size_t> indent_table_;
 
     std::vector<elem> stack_;
 };

@@ -46,7 +46,171 @@ void test_simple_term()
     assert(ss.str() == "p(E, h(E, F), f(F))");
 }
 
+static size_t my_rand(size_t bound)
+{
+    static uint64_t state = 4711;
+
+    if (bound == 0) {
+	state = 4711;
+	return 0;
+    }
+    
+    state = 13*state + 734672631;
+
+    return state % bound;
+}
+
+static cell new_term(heap &heap, size_t max_depth, size_t depth = 0)
+{
+    size_t arity = (depth >= max_depth) ? 0 : my_rand(6);
+    char functorName[2];
+    functorName[0] = 'a' + (char)arity;
+    functorName[1] = '\0';
+    str_cell str = heap.new_str(con_cell(functorName, arity));
+    for (size_t j = 0; j < arity; j++) {
+	cell arg = new_term(heap, max_depth, depth+1);
+	heap.set_arg(str, j, arg);
+    }
+    return str;
+}
+
+const char *BIG_TERM_GOLD =
+"e(b(e(b(e(a, a, a, a)), b(e(a, a, a, a)), b(e(a, a, a, a)), b(c(a, a)))), \n"
+"  f(e(b(e(a, a, a, a)), f(a, f(a, a, a, a, a), a, f(a, a, a, a, a), a), \n"
+"      b(e(a, a, a, a)), b(e(a, a, a, a))), \n"
+"    d(c(b(a), c(a, a)), f(a, b(a), a, d(a, a, a), e(a, a, a, a)), \n"
+"      f(c(a, a), b(a), c(a, a), f(a, a, a, a, a), a)), \n"
+"    b(e(f(a, a, a, a, a), e(a, a, a, a), b(a), c(a, a))), \n"
+"    f(e(f(a, a, a, a, a), c(a, a), b(a), e(a, a, a, a)), b(c(a, a)), \n"
+"      f(c(a, a), f(a, a, a, a, a), a, b(a), e(a, a, a, a)), \n"
+"      d(a, d(a, a, a), e(a, a, a, a)), b(e(a, a, a, a))), \n"
+"    d(c(b(a), c(a, a)), b(e(a, a, a, a)), d(e(a, a, a, a), d(a, a, a), a))), \n"
+"  b(e(d(e(a, a, a, a), f(a, a, a, a, a), c(a, a)), \n"
+"      f(c(a, a), f(a, a, a, a, a), c(a, a), b(a), e(a, a, a, a)), \n"
+"      b(e(a, a, a, a)), d(e(a, a, a, a), b(a), c(a, a)))), \n"
+"  f(a, \n"
+"    d(a, d(e(a, a, a, a), f(a, a, a, a, a), a), \n"
+"      f(c(a, a), b(a), e(a, a, a, a), b(a), a)), \n"
+"    d(a, d(c(a, a), b(a), c(a, a)), b(e(a, a, a, a))), b(a), \n"
+"    d(a, b(a), \n"
+"      f(e(a, a, a, a), d(a, a, a), c(a, a), d(a, a, a), e(a, a, a, a)))))\n";
+
+static std::string cut(const char *from, const char *to)
+{
+    std::string r;
+    for (const char *p = from; p < to; p++) {
+	r += (char)*p;
+    }
+    return r;
+}
+
+void test_big_term()
+{
+    header("test_big_term()");
+
+    heap h;
+
+    const size_t DEPTH = 5;
+
+    cell term = new_term(h, DEPTH);
+
+    std::stringstream ss;
+    term_ops ops;
+    term_emitter emitter(ss, h, ops);
+    emitter.set_max_column(78);
+    emitter.print(term);
+    ss << "\n";
+
+    std::string str = ss.str();
+
+    const char *goldScan = BIG_TERM_GOLD;
+    const char *actScan = str.c_str();
+
+    size_t lineCnt = 0;
+    bool err = false;
+
+    while (goldScan[0] != '\0') {
+	const char *goldNextLine = strchr(goldScan, '\n');
+	const char *actNextLine = strchr(actScan, '\n');
+
+	if (goldNextLine == NULL && actNextLine != NULL) {
+	    std::cout << "There was no next line in gold template.\n";
+	    std::cout << "Actual: " << cut(actScan, actNextLine) << "\n";
+	    err = true;
+	    break;
+	}
+	if (goldNextLine != NULL && actNextLine == NULL) {
+	    std::cout << "Actual feed terminated to early.\n";
+	    std::cout << "Expect: " << cut(goldScan, goldNextLine) << "\n";
+	    err = true;
+	    break;
+	}
+	size_t goldNextLineLen = goldNextLine - goldScan;
+	size_t actNextLineLen = actNextLine - actScan;
+	if (goldNextLineLen != actNextLineLen) {
+	    std::cout << "Difference at line " << lineCnt << ":\n";
+	    std::cout << "(Due to different lengths: ExpectLen: " << goldNextLineLen << " ActualLen: "<< actNextLineLen << ")\n";
+	    std::cout << "Actual: " << cut(actScan, actNextLine) << "\n";
+	    std::cout << "Expect: " << cut(goldScan, goldNextLine) << "\n";
+	    err = true;
+	    break;
+	}
+	std::string actual = cut(actScan, actNextLine);
+	std::string expect = cut(goldScan, goldNextLine);
+	if (actual != expect) {
+	    std::cout << "Difference at line " << lineCnt << ":\n";
+	    for (size_t i = 0; i < actual.length(); i++) {
+		if (actual[i] != expect[i]) {
+		    std::cout << "(at column " << i << ")\n";
+		    break;
+		}
+	    }
+	    std::cout << "Actual: " << actual << "\n";
+	    std::cout << "Expect: " << expect << "\n";
+	    err = true;
+	    break;
+	}
+	goldScan = &goldNextLine[1];
+	actScan = &actNextLine[1];
+	lineCnt++;
+    }
+
+    if (!err) {
+	std::cout << str;
+	std::cout << "OK\n";
+    }
+    std::cout << "\n";
+
+    assert(!err);
+}
+
+void test_ops()
+{
+    header("test_ops()");
+
+    heap h;
+    term_ops ops;
+    term_emitter emit(std::cout, h, ops);
+
+    con_cell plus_2("+", 2);
+    con_cell times_2("*", 2);
+
+    str_cell plus_expr = h.new_str(plus_2);
+    h.set_arg(plus_expr, 0, int_cell(1));
+    h.set_arg(plus_expr, 1, int_cell(2));
+
+    str_cell times_expr = h.new_str(times_2);
+    h.set_arg(times_expr, 0, int_cell(42));
+    h.set_arg(times_expr, 1, plus_expr);
+
+    std::cout << "Expr: ";
+    emit.print(times_expr);
+    std::cout << "\n";
+}
+
 int main(int argc, char *argv[])
 {
     test_simple_term();
+    test_big_term();
+    test_ops();
 }
