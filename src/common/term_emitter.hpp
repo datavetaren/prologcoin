@@ -65,14 +65,26 @@ private:
 	void set_as_token(bool b) { set_flag(AS_TOKEN, b); }
     };
 
-    void emit_error(const elem &e, const std::string &msg);
+    void emit_error(const std::string &msg);
 
-    void emit_functor(const elem &a);
+    std::tuple<bool, cell, size_t> check_functor(cell c);
+    bool is_begin_alphanum(con_cell c) const;
+    bool is_end_alphanum(con_cell c) const;
+    bool is_begin_alphanum(cell c) const;
+    bool is_end_alphanum(cell c) const;
+    void emit_char(char ch);
+    void emit_space();
+    void emit_xf(cell x, con_cell f, bool wrap_x);
+    void emit_fx(con_cell f, cell x, bool wrap_x);
+    void emit_xfy(cell x, con_cell f, cell y, bool wrap_x, bool wrap_y);
+    void emit_functor_elem(const elem &a);
+    void emit_functor(const con_cell &f, size_t index);
     void push_functor_args(size_t index, size_t arity);
     void emit_ref(const elem &a);
     void emit_int(const elem &a);
     void increment_indent_level();
     void decrement_indent_level();
+    void wrap_paren(const term_emitter::elem &e);
 
     void mark_indent_column();
     bool will_wrap(size_t len) const;
@@ -91,6 +103,7 @@ private:
     size_t line_;
     size_t indent_level_;
     size_t max_column_;
+    char last_char_;
     bool scan_mode_;
 
     std::vector<size_t> indent_table_;

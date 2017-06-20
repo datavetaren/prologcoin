@@ -190,22 +190,43 @@ void test_ops()
 
     heap h;
     term_ops ops;
-    term_emitter emit(std::cout, h, ops);
+    std::stringstream ss;
+    term_emitter emit(ss, h, ops);
 
     con_cell plus_2("+", 2);
     con_cell times_2("*", 2);
+    con_cell mod_2("mod", 2);
+    con_cell pow_2("^", 2);
+    con_cell minus_1("-", 1);
 
     str_cell plus_expr = h.new_str(plus_2);
-    h.set_arg(plus_expr, 0, int_cell(1));
-    h.set_arg(plus_expr, 1, int_cell(2));
+    str_cell plus_expr1 = h.new_str(plus_2);
+    h.set_arg(plus_expr1, 0, int_cell(1));
+    h.set_arg(plus_expr1, 1, int_cell(2));
+    h.set_arg(plus_expr, 0, plus_expr1);
+    h.set_arg(plus_expr, 1, int_cell(3));
 
     str_cell times_expr = h.new_str(times_2);
     h.set_arg(times_expr, 0, int_cell(42));
     h.set_arg(times_expr, 1, plus_expr);
 
-    std::cout << "Expr: ";
-    emit.print(times_expr);
-    std::cout << "\n";
+    str_cell mod_expr = h.new_str(mod_2);
+    h.set_arg(mod_expr, 0, times_expr);
+    h.set_arg(mod_expr, 1, int_cell(100));
+
+    str_cell pow_expr = h.new_str(pow_2);
+    h.set_arg(pow_expr, 0, mod_expr);
+    h.set_arg(pow_expr, 1, int_cell(123));
+
+    str_cell minus1_expr = h.new_str(minus_1);
+    h.set_arg(minus1_expr, 0, pow_expr);
+
+    str_cell minus1_expr1 = h.new_str(minus_1);
+    h.set_arg(minus1_expr1, 0, minus1_expr);
+
+    emit.print(minus1_expr1);
+    std::cout << "Expr: " << ss.str() << "\n";
+    assert( ss.str() == "- - (42*(1+2+3) mod 100)^123" );
 }
 
 int main(int argc, char *argv[])
