@@ -132,7 +132,7 @@ void term_emitter::emit_token(const std::string &str)
     if (strchr(exempt, last_char_) == nullptr &&
 	strchr(exempt, next_char) == nullptr) {
 	bool follow_char_alnum = isalnum(next_char);
-	if (isalnum(last_char_) == follow_char_alnum) {
+	if (static_cast<bool>(isalnum(last_char_)) == follow_char_alnum) {
 	    emit_char(' ');
 	}
     }

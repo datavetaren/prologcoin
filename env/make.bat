@@ -2,13 +2,27 @@
 
 REM -- Change settings here -------------------------------------------
 
-SET CHOOSEVC=
 REM To set a specific VC: SET CHOOSEVC=VS110 (VS120, VS130, ...)
+SET CHOOSEVC=
+
+REM To set debug mode, set DEBUGMODE=1
+SET DEBUGMODE=1
+
 
 SET CCFLAGS=/nologo /c /EHsc
 SET LINKFLAGS=/nologo
 
+SET CCFLAGS_DEBUG=/nologo /DDEBUG /c /EHsc /Zi
+SET LINKFLAGS_DEBUG=/nologo /debug
+
 REM -------------------------------------------------------------------
+
+REM
+REM It's hopeless to use gmake and fix gmake so it works under Windows.
+REM Normally, users would use Visual Studio and not the command line.
+REM However, this provides a simple way of building without relying
+REM on external tools.
+REM
 
 REM
 REM Check if cl.exe is present on path
@@ -75,11 +89,11 @@ set %3=!VCARG!
 
 GOTO :EOF
 
+:MAIN
+
 REM ----------------------------------------------------
 REM  MAIN
 REM ----------------------------------------------------
-
-:MAIN
 
 IF "%1"=="help" (
 GOTO :HELP
@@ -89,19 +103,49 @@ SETLOCAL ENABLEEXTENSIONS
 SETLOCAL ENABLEDELAYEDEXPANSION
 
 REM
-REM It's hopeless to use gmake and fix gmake so it works under Windows.
-REM Normally, users would use Visual Studio and not the command line.
-REM However, this provides a simple way of building without relying
-REM on external tools.
+REM Retrocheck version of Visual Studio from the CL command
 REM
 
-set ROOT=..
+SET VCVER=
+CALL :GETVCVER VCVER
+IF "!VCVER!"=="" (
+   ECHO Couldn't determine version of Visual C++ from CL command
+   ECHO Where cl.exe is
+   WHERE cl.exe
+   GOTO :EOF
+)
+
+SET BOOST=
+CALL :CHECKBOOST !VCVER! BOOST
+IF "!BOOST!"=="" (
+   GOTO :EOF
+)
+
+IF "%DEBUGMODE%"=="1" (
+   SET CCFLAGS=!CCFLAGS_DEBUG!
+   SET LINKFLAGS=!LINKFLAGS_DEBUG!
+)
+
+IF NOT "%DOLIB%"=="" (
+   SET LINKFLAGS=!LINKFLAGS:/debug=!
+)
+
+SET CCFLAGS=!CCFLAGS! /I"!BOOST!"
+
 set ABSROOT=%~dp0
 
 set ENV=%ROOT%\env
 set SRC=%ROOT%\src
 set OUT=%ROOT%\out
 set BIN=%ROOT%\bin
+
+REM
+REM Is this a LIB target? Update goal appropriately.
+REM
+IF NOT "%DOLIB%"=="" (
+   SET GOAL=%BIN%\%DOLIB%.lib
+   SET LINKCMD=lib.exe
+)
 
 IF "%1"=="clean" (
 GOTO :CLEAN
@@ -111,16 +155,15 @@ IF "%1"=="vcxproj" (
 GOTO :VCXPROJ
 )
 
-REM
-REM Main goal file
-REM
-set GOAL=%BIN%\omegal.exe
+IF "%DEBUGMODE%"=="1" (
+   echo [DEBUG MODE]
+)
 
 REM
 REM Get all .cpp files
 REM
 set CPP_FILES=
-FOR %%S IN (%SRC%\*.cpp) DO (
+FOR %%S IN (%SRC%\%SUBDIR%\*.cpp) DO (
     set CPP_FILES=!CPP_FILES! %%S
 )
 
@@ -129,6 +172,9 @@ REM Ensure that out directory is present
 REM
 IF NOT EXIST %OUT% (
 mkdir %OUT%
+)
+IF NOT EXIST %OUT%\%SUBDIR% (
+mkdir %OUT%\%SUBDIR%
 )
 
 REM
@@ -139,8 +185,12 @@ for %%i in (!CPP_FILES!) DO (
     set CPPFILE=%%i
     set OBJFILE=!CPPFILE:.cpp=.obj!
     set OBJFILE=!OBJFILE:%SRC%=%OUT%!
+
     IF NOT EXIST !OBJFILE! (
-        cl %CCFLAGS% /Fo:!OBJFILE! !CPPFILE!
+        set PDBFILE=
+        IF "!DEBUGMODE!"=="1" set PDBFILE=/Fd:!OBJFILE:.obj=.pdb!
+        cl.exe !CCFLAGS! /Fo:!OBJFILE! !PDBFILE! !CPPFILE!
+REM        echo cl.exe !CCFLAGS! /Fo:!OBJFILE! !PDBFILE! !CPPFILE!
         IF ERRORLEVEL 1 GOTO :EOF
     )
     set OBJ_FILES=!OBJ_FILES! "!OBJFILE!"
@@ -154,7 +204,7 @@ mkdir %BIN%
 )
 
 REM
-REM Dispatch to test if requestedd
+REM Dispatch to test if requested
 REM
 IF "%1"=="test" (
 GOTO :TEST
@@ -168,7 +218,11 @@ GOTO :EOF
 REM
 REM Link final goal
 REM
-link %LINKFLAGS% /out:"!GOAL!" !OBJ_FILES!
+ECHO %GOAL%
+
+set PDBFILE=
+IF "!DEBUGMODE!"=="1" IF "!DOLIB!"=="" set PDBFILE=/pdb:"!GOAL:.exe=.pdb!"
+%LINKCMD% %LINKFLAGS% /out:"!GOAL!" !PDBFILE! !OBJ_FILES!
 
 GOTO :EOF
 
@@ -181,8 +235,8 @@ REM ----------------------------------------------------
 REM
 REM Ensure that out\test and bin\test directories are present
 REM
-IF NOT EXIST %OUT%\test (
-mkdir %OUT%\test
+IF NOT EXIST %OUT%\%SUBDIR%\test (
+mkdir %OUT%\%SUBDIR%\test
 )
 IF NOT EXIST %BIN%\test (
 mkdir %BIN%\test
@@ -197,7 +251,7 @@ for %%i in (!OBJ_FILES!) DO (
         set OBJ_FILES0=!OBJ_FILES0! %%i
     )
 )
-for %%S in (%SRC%\test\*.cpp) DO (
+for %%S in (%SRC%\%SUBDIR%\test\*.cpp) DO (
     set CPPFILE=%%S
     set OBJFILE=!CPPFILE:.cpp=.obj!
     set OBJFILE=!OBJFILE:%SRC%=%OUT%!
@@ -207,10 +261,17 @@ for %%S in (%SRC%\test\*.cpp) DO (
     for %%i in (!CPPFILE!) do set BINEXEFILE=%BIN%\test\%%~ni.exe
     for %%i in (!CPPFILE!) do set BINLOGFILE=%BIN%\test\%%~ni.log
     IF NOT EXIST !BINOKFILE! (
-        cl %CCFLAGS% /I%SRC% /Fo:!OBJFILE! !CPPFILE!
+	set PDBFILE=
+        IF "!DEBUGMODE!"=="1" set PDBFILE=/Fd:!OBJFILE:.obj=.pdb!
+        cl.exe !CCFLAGS! /I%SRC% /Fo:!OBJFILE! !PDBFILE! !CPPFILE!
         IF ERRORLEVEL 1 GOTO :EOF
-	link %LINKFLAGS% /out:!BINEXEFILE! !OBJ_FILES0! !OBJFILE!
+
+	set PDBFILE=
+	IF "!DEBUGMODE!"=="1" set PDBFILE=/debug /pdb:"!BINEXEFILE:.exe=.pdb!"
+	link !LINKFLAGS! /out:!BINEXEFILE! !PDBFILE! !OBJ_FILES0! !OBJFILE!
         IF ERRORLEVEL 1 GOTO :EOF
+	ECHO Running !BINEXEFILE!
+	ECHO   [output to !BINLOGFILE!]
 	!BINEXEFILE! 1>!BINLOGFILE! 2>&1
         IF ERRORLEVEL 1 GOTO :EOF
 	for %%i in (!BINLOGFILE!) do if %%~zi==0 (
@@ -232,6 +293,66 @@ del /S /F /Q %OUT%
 del /S /F /Q %BIN%
 rmdir /S /Q %OUT%
 rmdir /S /Q %BIN%
+
+GOTO :EOF
+
+REM ----------------------------------------------------
+REM  GETVCVER
+REM ----------------------------------------------------
+
+:GETVCVER
+SET VCVER=
+WHERE cl.exe >%TEMP%\cl.txt
+SET /P CLTXT=<%TEMP%\cl.txt
+
+IF "!VCVER!"=="" IF NOT "!CLTXT:Microsoft Visual Studio 14.0=!"=="!CLTXT!" (
+   SET VCVER=14
+)
+IF "!VCVER!"=="" IF NOT "!CLTXT:Microsoft Visual Studio 13.0=!"=="!CLTXT!" (
+   SET VCVER=13
+)
+IF "!VCVER!"=="" IF NOT "!CLTXT:Microsoft Visual Studio 12.0=!"=="!CLTXT!" (
+   SET VCVER=12
+)
+IF "!VCVER!"=="" IF NOT "!CLTXT:Microsoft Visual Studio 11.0=!"=="!CLTXT!" (
+   SET VCVER=11
+)
+SET %1=!VCVER!
+
+GOTO :EOF
+
+REM ----------------------------------------------------
+REM  BOOST
+REM ----------------------------------------------------
+
+:CHECKBOOST
+
+REM
+REM Determine version of BOOST from version of Visual C++
+REM
+
+SET VCVER=%1
+
+SET BOOSTVER=boost_1_55_0
+
+IF "!VCVER!"=="14" (
+   SET BOOSTVER=boost_1_59_0
+)
+
+SET BOOST=
+
+IF EXIST "%PROGRAMFILES%\boost\!BOOSTVER!" (
+    SET BOOST=%PROGRAMFILES%\boost\!BOOSTVER!
+)
+
+IF "!BOOST!"=="" (
+   ECHO This package requires BOOST !BOOSTVER! and couldn't find it.
+   ECHO Tried the following locations:
+   ECHO     %PROGRAMFILES%\boost\!BOOSTVER!
+   GOTO :EOF
+)
+
+SET %2=!BOOST!
 
 GOTO :EOF
 
