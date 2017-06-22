@@ -7,14 +7,14 @@
 
 using namespace prologcoin::common;
 
-void header( const std::string &str )
+static void header( const std::string &str )
 {
     std::cout << "\n";
     std::cout << "--- [" + str + "] " + std::string(60 - str.length(), '-') << "\n";
     std::cout << "\n";
 }
 
-void test_simple_term()
+static void test_simple_term()
 {
     header("test_simple_term()");
 
@@ -104,7 +104,7 @@ static std::string cut(const char *from, const char *to)
     return r;
 }
 
-void test_big_term()
+static void test_big_term()
 {
     header("test_big_term()");
 
@@ -184,7 +184,7 @@ void test_big_term()
     assert(!err);
 }
 
-void test_ops()
+static void test_ops()
 {
     header("test_ops()");
 
@@ -234,4 +234,6 @@ int main(int argc, char *argv[])
     test_simple_term();
     test_big_term();
     test_ops();
+
+    return 0;
 }

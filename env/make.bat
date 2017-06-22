@@ -155,6 +155,10 @@ IF "%1"=="vcxproj" (
 GOTO :VCXPROJ
 )
 
+IF "%1"=="vssln" (
+GOTO :VSSLN
+)
+
 IF "%DEBUGMODE%"=="1" (
    echo [DEBUG MODE]
 )
@@ -381,7 +385,36 @@ mkdir %BIN%
 echo Compiling make_vcxproj.cs
 csc.exe /nologo /reference:Microsoft.Build.dll /reference:Microsoft.Build.Framework.dll /out:%BIN%\make_vcxproj.exe %ENV%\make_vcxproj.cs
 IF ERRORLEVEL 1 GOTO :EOF
-%BIN%\make_vcxproj.exe env=%VCNAME% src=%SRC% out=%OUT% bin=%BIN%
+%BIN%\make_vcxproj.exe env=%VCNAME% src=%SRC% out=%OUT% bin=%BIN% boost="!BOOST!"
+
+GOTO :EOF
+
+REM ----------------------------------------------------
+REM  VSSLN
+REM ----------------------------------------------------
+
+:VSSLN
+
+REM
+REM Check if csc.exe is present on path
+REM
+WHERE /q csc.exe
+IF ERRORLEVEL 1 (
+echo Cannot find csc.exe
+GOTO :EOF
+)
+
+REM
+REM Ensure that bin directory is present
+REM
+IF NOT EXIST %BIN% (
+mkdir %BIN%
+)
+
+echo Compiling make_vssln.cs
+csc.exe /nologo /reference:Microsoft.Build.dll /reference:Microsoft.Build.Framework.dll /out:%BIN%\make_vssln.exe %ENV%\make_vssln.cs
+IF ERRORLEVEL 1 GOTO :EOF
+%BIN%\make_vssln.exe bin=%BIN%
 
 GOTO :EOF
 
@@ -393,6 +426,7 @@ echo  make          To build the application
 echo  make clean    To clean everything
 echo  make test     To build and run tests
 echo  make vcxproj  To build vcxproj file for Visual Studio
+echo  make vssln    To build sln file for Visual Studio
 echo --------------------------------------------------------
 
 GOTO :EOF

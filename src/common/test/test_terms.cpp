@@ -6,14 +6,14 @@
 
 using namespace prologcoin::common;
 
-void header( const std::string &str )
+static void header( const std::string &str )
 {
     std::cout << "\n";
     std::cout << "--- [" + str + "] " + std::string(60 - str.length(), '-') << "\n";
     std::cout << "\n";
 }
 
-void test_ref_cells()
+static void test_ref_cells()
 {
     header( "test_ref_cells()" );
 
@@ -30,7 +30,7 @@ void test_ref_cells()
     assert( c.index() == 4711 );
 }
 
-void test_con_cells()
+static void test_con_cells()
 {
     header( "test_con_cells()" );
 
@@ -56,7 +56,7 @@ void test_con_cells()
     assert(foobar6.name_and_arity() == "foobar/6");
 }
 
-void test_int_cells()
+static void test_int_cells()
 {
     header( "test_int_cells()" );
 
@@ -83,23 +83,23 @@ void test_int_cells()
     std::cout << "---- r1 String : " << r1.str() << "\n";
 }    
 
-void test_heap_simple()
+static void test_heap_simple()
 {
     header( "test_heap_simple()" );
 
     heap h;
 
     str_cell cp = h.new_str( con_cell("foo", 3) );
-    h.set_arg(cp, 1, ref_cell(cp.index()));
-    h.set_arg(cp, 2, int_cell(4711));
-    h.set_arg(cp, 3, con_cell("bar",0));
+    h.set_arg(cp, 0, ref_cell(cp.index()));
+    h.set_arg(cp, 1, int_cell(4711));
+    h.set_arg(cp, 2, con_cell("bar",0));
 
     h.print(std::cout);
 
     (void)cp;
 }
 
-void test_term_ops()
+static void test_term_ops()
 {
     header( "test_term_ops()" );
     
@@ -121,4 +121,6 @@ int main(int argc, char *argv[])
     test_heap_simple();
 
     test_term_ops();
+
+    return 0;
 }
