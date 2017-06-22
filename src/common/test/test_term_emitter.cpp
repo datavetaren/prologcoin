@@ -28,8 +28,8 @@ static void test_simple_term()
     con_cell p_3("p", 3);
 
     auto h_2_str = h.new_str(h_2);
-    auto Z = h.arg_ref(h_2_str, 0);
-    auto W = h.arg_ref(h_2_str, 1);
+    auto Z = h.arg(h_2_str, 0);
+    auto W = h.arg(h_2_str, 1);
     auto f_1_str = h.new_str(f_1);
     h.set_arg(f_1_str, 0, W);
     auto p_3_str = h.new_str(p_3);
@@ -37,9 +37,11 @@ static void test_simple_term()
     h.set_arg(p_3_str, 1, h_2_str);
     h.set_arg(p_3_str, 2, f_1_str);
 
+    emit.print(p_3_str);
+
     std::cout << ss.str() << "\n";
 
-    assert(ss.str() == "p(E, h(E, F), f(F))");
+    assert(ss.str() == "p(C, h(C, D), f(D))");
 }
 
 static size_t my_rand(size_t bound)
@@ -228,10 +230,8 @@ static void test_ops()
 int main(int argc, char *argv[])
 {
     test_simple_term();
-    /*
     test_big_term();
     test_ops();
-    */
 
     return 0;
 }

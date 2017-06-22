@@ -80,6 +80,8 @@
 
 namespace prologcoin { namespace common {
 
+class term_emitter;
+
 //
 // tag
 //
@@ -354,7 +356,6 @@ public:
 	return cells_[offset - offset_];
     }
 
-
     inline void allocate(size_t n) {
 	size_t top = cells_.size();
 	cells_.resize(top + n);
@@ -395,32 +396,30 @@ private:
     ptr_cell pcell_;
 };
 
+class heap; // Forward
+
 //
-// Typed cell references.
+// Externally typed cell references.
+//
 // We keep track of which heap the cell comes from. Also the heap
 // gets notified so that whenever a heap GC happens the address can be
 // updated.
 // 
 
-class heap; // Forward
-
-template<typename T> class ptr {
+template<typename T> class ext {
 public:
-    inline ptr(heap &h, cell *ptr) : heap_(h), ptr_(ptr) { ptr_register(h, ptr); }
-    inline ~ptr() { ptr_unregister(heap_, ptr_); }
+    inline ext(const heap &h, cell ptr) : heap_(h), ptr_(ptr)
+        { ext_register(h, &ptr_); }
+    inline ~ext() { ext_unregister(heap_, &ptr_); }
 
-    inline T get() { return *static_cast<T *>(ptr_); }
-
-    inline operator T & () { return *static_cast<T *>(ptr_); }
-    inline operator T () const { return *static_cast<T *>(ptr_); }
-    inline T * operator -> () { return static_cast<T *>(ptr_); }
+    inline operator T & () { return static_cast<T &>(ptr_); }
 
 private:
-    inline void ptr_register(heap &h, cell *p);
-    inline void ptr_unregister(heap &h, cell *p);
+    inline void ext_register(const heap &h, cell *p);
+    inline void ext_unregister(const heap &h, cell *p);
 
-    heap &heap_;
-    cell *ptr_;
+    const heap &heap_;
+    cell ptr_;
 };
 
 //
@@ -433,42 +432,13 @@ class heap {
 public:
     inline heap() : size_(0) { new_block(0); }
 
-    inline void new_block(size_t offset)
-    {
-	std::unique_ptr<heap_block> p(new heap_block(blocks_.size(), offset));
-	blocks_.push_back(std::move(p));
-    }
-
     inline size_t size() const { return size_; }
-
-    struct _block_compare
-    {
-	bool operator () (const std::unique_ptr<heap_block> &left, size_t right) {
-	    return left->offset() < right;
-	}
-    };
 
     inline void check_index(size_t index) const
     {
 	if (index >= size()) {
 	    throw heap_index_out_of_range_exception(index, size());
 	}
-    }
-
-    inline cell & operator [] (size_t index)
-    {
-	return find_block(index)[index];
-    }
-
-    inline const cell & operator [] (size_t index) const
-    {
-	return get(index);
-    }
-
-    inline const cell & get(size_t index) const
-    {
-	check_index(index);
-	return find_block(index)[index];
     }
 
     inline con_cell functor(const str_cell &s) const
@@ -482,25 +452,58 @@ public:
 	return cc;
     }
 
-    inline cell arg(const str_cell &s, size_t index) const
+    inline ext<cell> arg(const str_cell &s, size_t index) const
     {
-	return get(s.index() + index + 1);
-    }
-
-    inline ptr<cell> arg_ref(str_cell &s, size_t index)
-    {
-        return ptr<cell>(*this, &arg(s, index));
-    }
-
-    inline size_t arg_index(const str_cell &s, size_t index) const
-    {
-        return s.index() + index + 1;
+	return ext<cell>(*this, get(s.index() + index + 1));
     }
 
     void set_arg(const str_cell &s, size_t index, cell c)
     {
 	size_t i = s.index() + index + 1;
 	(*this)[i] = c;
+    }
+
+    inline ext<str_cell> new_str(con_cell con)
+    {
+	size_t index = size_;
+	size_t arity = con.arity();
+	cell *p = allocate(tag_t::STR, arity + 2);
+	static_cast<ptr_cell &>(*p).set_index(index+1);
+	p[1] = con;
+	for (size_t i = 0; i < arity; i++) {
+	    p[i+2] = ref_cell(index+i+2);
+	}
+	return ext<str_cell>(*this, *p);
+    }
+
+    inline ext<ref_cell> new_ref()
+    {
+	size_t index = size_;
+	cell *p = allocate(tag_t::REF, 1);
+	static_cast<ref_cell &>(*p).set_index(index);
+	return ext<ref_cell>(*this, *p);
+    }
+
+    void print(std::ostream &out) const;
+
+private:
+    friend class term_emitter;
+
+    // Memory at base of size isz moved to a new address, new_base.
+    void update_external_ptrs(void *base, size_t siz, void *new_base);
+
+    struct _block_compare
+    {
+	bool operator () (const std::unique_ptr<heap_block> &left,
+			  size_t right) {
+	    return left->offset() < right;
+	}
+    };
+
+    inline void new_block(size_t offset)
+    {
+	std::unique_ptr<heap_block> p(new heap_block(blocks_.size(), offset));
+	blocks_.push_back(std::move(p));
     }
 
     inline size_t find_block_index(size_t index) const
@@ -542,59 +545,53 @@ public:
 	return p;
     }
 
-    inline ptr<str_cell> new_str(con_cell con)
+    inline cell & operator [] (size_t index)
     {
-	size_t index = size_;
-	size_t arity = con.arity();
-	cell *p = allocate(tag_t::STR, arity + 2);
-	static_cast<ptr_cell &>(*p).set_index(index+1);
-	p[1] = con;
-	for (size_t i = 0; i < arity; i++) {
-	    p[i+2] = ref_cell(index+i+2);
-	}
-	return ptr<str_cell>(*this, p);
+	return find_block(index)[index];
     }
 
-    inline ptr<ref_cell> new_ref()
+    inline const cell & operator [] (size_t index) const
     {
-	size_t index = size_;
-	cell *p = allocate(tag_t::REF, 1);
-	static_cast<ref_cell &>(*p).set_index(index);
-	return ptr<ref_cell>(*this, p);
+	return get(index);
     }
 
-    inline void register_ptr(cell *p)
+    inline const cell & get(size_t index) const
+    {
+	check_index(index);
+	return find_block(index)[index];
+    }
+
+    inline void register_ext(cell *p) const
     {
         external_ptrs_.insert(p);
     }
 
-    inline void unregister_ptr(cell *p)
+    inline void unregister_ext(cell *p) const
     {
         external_ptrs_.erase(p);
     }
 
-    void print(std::ostream &out) const;
-
-private:
     typedef std::vector<std::unique_ptr<heap_block> >::iterator block_iterator;
 
     size_t size_;
     std::vector<std::unique_ptr<heap_block> > blocks_;
-    std::unordered_set<cell *> external_ptrs_;
+    mutable std::unordered_set<cell *> external_ptrs_;
+
+    template<typename T> friend class ext;
 };
 
 //
 //  register and unregister for ref.
 //
 
-template<typename T> void ptr<T>::ptr_register(heap &h, cell *p)
+template<typename T> void ext<T>::ext_register(const heap &h, cell *p)
 {
-    h.register_ptr(p);
+    h.register_ext(p);
 }
 
-template<typename T> void ptr<T>::ptr_unregister(heap &h, cell *p)
+template<typename T> void ext<T>::ext_unregister(const heap &h, cell *p)
 {
-    h.unregister_ptr(p);
+    h.unregister_ext(p);
 }
 
 } }

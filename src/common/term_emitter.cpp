@@ -16,7 +16,6 @@ term_emitter::term_emitter(std::ostream &out, heap &h, term_ops &ops)
     set_max_column(78);
 }
 
-
 void term_emitter::print(cell c)
 {
     stack_.push_back(elem(c,0));

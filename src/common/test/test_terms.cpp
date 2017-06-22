@@ -89,8 +89,8 @@ static void test_heap_simple()
 
     heap h;
 
-    ptr<str_cell> cp = h.new_str( con_cell("foo", 3) );
-    h.set_arg(cp, 0, ref_cell(cp->index()));
+    auto cp = h.new_str( con_cell("foo", 3) );
+    h.set_arg(cp, 0, h.arg(cp, 0));
     h.set_arg(cp, 1, int_cell(4711));
     h.set_arg(cp, 2, con_cell("bar",0));
 
