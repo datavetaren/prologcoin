@@ -27,19 +27,15 @@ static void test_simple_term()
     con_cell f_1("f", 1);
     con_cell p_3("p", 3);
 
-    ref_cell Z, W;
-
-    str_cell h_2_str = h.new_str(h_2);
-    h.set_arg(h_2_str, 0, Z = h.new_ref());
-    h.set_arg(h_2_str, 1, W = h.new_ref());
-    str_cell f_1_str = h.new_str(f_1);
+    auto h_2_str = h.new_str(h_2);
+    auto Z = h.arg_ref(h_2_str, 0);
+    auto W = h.arg_ref(h_2_str, 1);
+    auto f_1_str = h.new_str(f_1);
     h.set_arg(f_1_str, 0, W);
-    str_cell p_3_str = h.new_str(p_3);
+    auto p_3_str = h.new_str(p_3);
     h.set_arg(p_3_str, 0, Z);
     h.set_arg(p_3_str, 1, h_2_str);
     h.set_arg(p_3_str, 2, f_1_str);
-
-    emit.print(p_3_str);
 
     std::cout << ss.str() << "\n";
 
@@ -232,8 +228,10 @@ static void test_ops()
 int main(int argc, char *argv[])
 {
     test_simple_term();
+    /*
     test_big_term();
     test_ops();
+    */
 
     return 0;
 }

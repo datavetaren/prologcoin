@@ -7,6 +7,7 @@
 #include <algorithm>
 #include <vector>
 #include <memory>
+#include <unordered_set>
 #include <boost/lexical_cast.hpp>
 #include <boost/noncopyable.hpp>
 
@@ -395,6 +396,34 @@ private:
 };
 
 //
+// Typed cell references.
+// We keep track of which heap the cell comes from. Also the heap
+// gets notified so that whenever a heap GC happens the address can be
+// updated.
+// 
+
+class heap; // Forward
+
+template<typename T> class ptr {
+public:
+    inline ptr(heap &h, cell *ptr) : heap_(h), ptr_(ptr) { ptr_register(h, ptr); }
+    inline ~ptr() { ptr_unregister(heap_, ptr_); }
+
+    inline T get() { return *static_cast<T *>(ptr_); }
+
+    inline operator T & () { return *static_cast<T *>(ptr_); }
+    inline operator T () const { return *static_cast<T *>(ptr_); }
+    inline T * operator -> () { return static_cast<T *>(ptr_); }
+
+private:
+    inline void ptr_register(heap &h, cell *p);
+    inline void ptr_unregister(heap &h, cell *p);
+
+    heap &heap_;
+    cell *ptr_;
+};
+
+//
 // heap
 //
 // This is just a stack of heap_blocks.
@@ -458,6 +487,16 @@ public:
 	return get(s.index() + index + 1);
     }
 
+    inline ptr<cell> arg_ref(str_cell &s, size_t index)
+    {
+        return ptr<cell>(*this, &arg(s, index));
+    }
+
+    inline size_t arg_index(const str_cell &s, size_t index) const
+    {
+        return s.index() + index + 1;
+    }
+
     void set_arg(const str_cell &s, size_t index, cell c)
     {
 	size_t i = s.index() + index + 1;
@@ -493,31 +532,45 @@ public:
 	return index < size();
     }
 
-    inline cell_ptr allocate(tag_t::kind_t tag, size_t n) {
+    inline cell * allocate(tag_t::kind_t tag, size_t n) {
 	std::unique_ptr<heap_block> &block = blocks_.back();
 	block->allocate(n);
 	ptr_cell new_cell(tag, size_);
-	(*block)[size_] = new_cell;
+	cell *p = &(*block)[size_];
+	*p = new_cell;
 	size_ += n;
-	return cell_ptr((*block), new_cell);
+	return p;
     }
 
-    inline str_cell new_str(con_cell con)
+    inline ptr<str_cell> new_str(con_cell con)
     {
 	size_t index = size_;
-	cell_ptr chunk = allocate(tag_t::STR, con.arity() + 2);
-	static_cast<ptr_cell &>(*chunk).set_index(index+1);
-	chunk[1] = con;
-	return static_cast<str_cell &>(chunk[0]);
+	size_t arity = con.arity();
+	cell *p = allocate(tag_t::STR, arity + 2);
+	static_cast<ptr_cell &>(*p).set_index(index+1);
+	p[1] = con;
+	for (size_t i = 0; i < arity; i++) {
+	    p[i+2] = ref_cell(index+i+2);
+	}
+	return ptr<str_cell>(*this, p);
     }
 
-    inline ref_cell new_ref()
+    inline ptr<ref_cell> new_ref()
     {
 	size_t index = size_;
-	cell_ptr cellp = allocate(tag_t::REF, 1);
-	auto ref = ref_cell(index);
-	*cellp = ref;
-	return ref;
+	cell *p = allocate(tag_t::REF, 1);
+	static_cast<ref_cell &>(*p).set_index(index);
+	return ptr<ref_cell>(*this, p);
+    }
+
+    inline void register_ptr(cell *p)
+    {
+        external_ptrs_.insert(p);
+    }
+
+    inline void unregister_ptr(cell *p)
+    {
+        external_ptrs_.erase(p);
     }
 
     void print(std::ostream &out) const;
@@ -527,8 +580,22 @@ private:
 
     size_t size_;
     std::vector<std::unique_ptr<heap_block> > blocks_;
+    std::unordered_set<cell *> external_ptrs_;
 };
 
+//
+//  register and unregister for ref.
+//
+
+template<typename T> void ptr<T>::ptr_register(heap &h, cell *p)
+{
+    h.register_ptr(p);
+}
+
+template<typename T> void ptr<T>::ptr_unregister(heap &h, cell *p)
+{
+    h.unregister_ptr(p);
+}
 
 } }
 
