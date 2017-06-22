@@ -98,4 +98,9 @@ void heap::print(std::ostream &out) const
     out << std::setw(8) << " " << std::setw(0) << "  `" << std::string(27, '-') << "´" << "\n";
 }
 
+void heap::print_status(std::ostream &out) const
+{
+    out << "Heap status: Size: " << size_ << " External refs: " << external_ptr_count() << " (at most it was " << external_ptrs_max_ << ")\n";
+}
+
 }}

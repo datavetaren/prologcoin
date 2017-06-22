@@ -95,6 +95,7 @@ static void test_heap_simple()
     h.set_arg(cp, 2, con_cell("bar",0));
 
     h.print(std::cout);
+    h.print_status(std::cout);
 
     (void)cp;
 }

@@ -401,7 +401,7 @@ private:
 
 class heap {
 public:
-    inline heap() : size_(0) { new_block(0); }
+    inline heap() : size_(0), external_ptrs_max_(0) { new_block(0); }
 
     inline size_t size() const { return size_; }
 
@@ -455,13 +455,17 @@ public:
 	return ext<ref_cell>(*this, *p);
     }
 
+    inline size_t external_ptr_count() const
+    {
+	return external_ptrs_.size();
+    }
+
+    void print_status(std::ostream &out) const;
+
     void print(std::ostream &out) const;
 
 private:
     friend class term_emitter;
-
-    // Memory at base of size isz moved to a new address, new_base.
-    void update_external_ptrs(void *base, size_t siz, void *new_base);
 
     struct _block_compare
     {
@@ -534,6 +538,9 @@ private:
 
     inline void register_ext(cell *p) const
     {
+	if (external_ptrs_.size() > external_ptrs_max_) {
+	    external_ptrs_max_ = external_ptrs_.size();
+	}
         external_ptrs_.insert(p);
     }
 
@@ -547,6 +554,7 @@ private:
     size_t size_;
     std::vector<std::unique_ptr<heap_block> > blocks_;
     mutable std::unordered_set<cell *> external_ptrs_;
+    mutable size_t external_ptrs_max_;
 
     template<typename T> friend class ext;
 };
