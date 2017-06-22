@@ -367,35 +367,6 @@ private:
     std::vector<cell> cells_;
 };
 
-class cell_ptr {
-public:
-    inline cell_ptr(heap_block &block, ptr_cell pcell) :
-	block_(block), pcell_(pcell) { }
-
-    inline size_t index() const {
-	return pcell_.index();
-    }
-
-    inline size_t index(int delta) const {
-	return pcell_.index() + delta;
-    }
-
-    inline cell arg(size_t i) const {
-	return block_[pcell_.index() - block_.offset() + i];
-    }
-
-    inline cell & arg(size_t i) {
-	return block_[pcell_.index() - block_.offset() + i];
-    }
-
-    inline cell & operator [] (size_t index) { return arg(index); }
-    inline cell & operator * () { return arg(0); }
-
-private:
-    heap_block &block_;
-    ptr_cell pcell_;
-};
-
 class heap; // Forward
 
 //
