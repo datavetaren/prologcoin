@@ -90,7 +90,7 @@ class term_emitter;
 //
 class tag_t {
 public:
-    enum kind_t { REF = 0, CON = 1, STR = 2, INT = 3, BIG = 4 };
+    enum kind_t { REF = 0, GBL = 1, CON = 2, STR = 3, INT = 4, BIG = 5 };
 
     inline tag_t( kind_t k ) : kind_(k) { }
 
@@ -103,6 +103,7 @@ public:
     inline operator std::string () const {
 	switch (kind_) {
 	case REF: return "REF";
+	case GBL: return "GBL";
 	case CON: return "CON";
 	case STR: return "STR";
 	case INT: return "INT";
@@ -223,6 +224,16 @@ class ref_cell : public ptr_cell {
 public:
     inline ref_cell() : ptr_cell(tag_t::REF, 0) { }
     inline ref_cell(size_t index) : ptr_cell(tag_t::REF, index) { }
+};
+
+//
+// GBL (global) cells
+// Like REF cells but they refer a cell in the global (shared) heap.
+//
+class gbl_cell : public ptr_cell {
+public:
+    inline gbl_cell() : ptr_cell(tag_t::GBL, 0) { }
+    inline gbl_cell(size_t index) : ptr_cell(tag_t::GBL, index) { }
 };
 
 //
