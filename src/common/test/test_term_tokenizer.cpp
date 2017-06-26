@@ -105,10 +105,61 @@ static void test_tokens()
     }
 }
 
+static void test_negative_tokens()
+{
+    header( "test_negative_tokens()" );
+
+    struct entry { std::string str;
+                   token_exception *exc;
+    };
+
+    entry table[] =
+      {  { "'foo",     new token_exception_unterminated_quoted_name("") }
+	,{ "'esc\\",   new token_exception_unterminated_escape("") }
+	,{ "'esc\\x",  new token_exception_unterminated_escape("") }
+	,{ "'esc\\x3", new token_exception_unterminated_escape("") }
+	,{ "'esc\\^",  new token_exception_unterminated_escape("") }
+	,{ "'esc\\^\t",  new token_exception_control_char("") }
+	,{ "'esc\\xg",  new token_exception_hex_code("") }
+	,{ "0'",       new token_exception_no_char_code("") }
+	,{ "11'",      new token_exception_missing_number_after_base("") }
+	,{ "1.",      new token_exception_missing_decimal("") }
+	,{ "1.e",     new token_exception_missing_decimal("") }
+	,{ "1e",      new token_exception_missing_exponent("") }
+	,{ "1e+",     new token_exception_missing_exponent("") }
+	,{ "1e-",     new token_exception_missing_exponent("") }
+	,{ "2E-",     new token_exception_missing_exponent("") }
+	,{ "\"foo",  new token_exception_unterminated_string("") }
+      };
+
+    for (auto e : table) {
+        std::stringstream ss(e.str);
+	term_ops ops;
+        term_tokenizer tt(ss, ops);
+
+	try {
+	    std::cout << "Testing token: " << e.str << "\n";
+	    tt.next_token();
+	    std::cout << " (Expected exception '" << typeid(e.exc).name() << "' not thrown)\n";
+	    assert(false);
+	} catch (token_exception &exc) {
+  	    std::string actual = typeid(exc).name();
+	    std::string expected = typeid(*e.exc).name();
+	    std::cout << "  Thrown: " << actual << "\n";
+	    if (actual != expected) {
+	        std::cout << " (Expected exception '" << expected
+		  	  << "' but got '" << actual << "'\n";
+	        assert(false);
+	    }
+	}
+    }
+}
+
 int main( int argc, char *argv[] )
 {
     test_is_symbol_char();
     test_tokens();
+    test_negative_tokens();
 
     return 0;
 }

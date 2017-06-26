@@ -151,6 +151,10 @@ IF "%1"=="clean" (
 GOTO :CLEAN
 )
 
+IF "%1"=="testclean" (
+GOTO :TESTCLEAN
+)
+
 IF "%1"=="vcxproj" (
 GOTO :VCXPROJ
 )
@@ -297,6 +301,18 @@ del /S /F /Q %OUT%
 del /S /F /Q %BIN%
 rmdir /S /Q %OUT%
 rmdir /S /Q %BIN%
+
+GOTO :EOF
+
+REM ----------------------------------------------------
+REM  TESTCLEAN
+REM ----------------------------------------------------
+
+:TESTCLEAN
+del /S /F /Q %OUT%\!SUBDIR!\test
+del /S /F /Q %BIN%\test
+rmdir /S /Q %OUT%\!SUBDIR!\test
+rmdir /S /Q %BIN%\test
 
 GOTO :EOF
 

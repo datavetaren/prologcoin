@@ -21,21 +21,63 @@ public:
 class token_exception_control_char : public token_exception
 {
 public:
-    token_exception_control_char(const std::string &msg)
+    token_exception_control_char(const std::string &msg = "")
        : token_exception(msg) { }
 };
 
 class token_exception_hex_code : public token_exception
 {
 public:
-    token_exception_hex_code(const std::string &msg)
+    token_exception_hex_code(const std::string &msg = "")
        : token_exception(msg) { }
 };
 
 class token_exception_no_char_code : public token_exception
 {
 public:
-    token_exception_no_char_code(const std::string &msg)
+    token_exception_no_char_code(const std::string &msg = "")
+        : token_exception(msg) { }
+};
+
+class token_exception_missing_number_after_base : public token_exception
+{
+public:
+    token_exception_missing_number_after_base(const std::string &msg = "")
+        : token_exception(msg) { }
+};
+
+class token_exception_missing_decimal : public token_exception
+{
+public:
+    token_exception_missing_decimal(const std::string &msg = "")
+        : token_exception(msg) { }
+};
+
+class token_exception_missing_exponent : public token_exception
+{
+public:
+    token_exception_missing_exponent(const std::string &msg = "")
+        : token_exception(msg) { }
+};
+
+class token_exception_unterminated_string : public token_exception
+{
+public:
+    token_exception_unterminated_string(const std::string &msg = "")
+        : token_exception(msg) { }
+};
+
+class token_exception_unterminated_quoted_name : public token_exception
+{
+public:
+    token_exception_unterminated_quoted_name(const std::string &msg = "")
+        : token_exception(msg) { }
+};
+
+class token_exception_unterminated_escape : public token_exception
+{
+public:
+    token_exception_unterminated_escape(const std::string &msg = "")
         : token_exception(msg) { }
 };
 
@@ -112,6 +154,7 @@ private:
 
     bool is_eof() const
     {
+        (void) peek_char();
 	return in_.eof();
     }
 
@@ -122,7 +165,9 @@ private:
 
     inline void add_to_lexeme(int ch)
     {
-	current_.lexeme_ += static_cast<char>(ch);
+        if (ch != -1) {
+    	    current_.lexeme_ += static_cast<char>(ch);
+	}
     }
 
     inline void consume_next_char()
@@ -133,14 +178,14 @@ private:
     bool is_comment_begin() const;
     bool is_full_stop() const;
     bool is_full_stop(int ch) const;
-    void next_xs( const std::function<bool(int)> &predicate );
-    void next_digits();
+    size_t next_xs( const std::function<bool(int)> &predicate );
+    size_t next_digits();
+    size_t next_alphas();
     void next_char_code();
     void next_number();
     void next_float();
     void next_decimal();
     void next_exponent();
-    void next_alphas();
     void next_quoted_name();
     void next_escape_sequence();
     void next_word();

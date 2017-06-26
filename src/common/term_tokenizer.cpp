@@ -143,6 +143,8 @@
 //                    |  ^ small-letter
 //                                { the control character alpha mod 32 }
 //                    |  c ?layout-char... { ignored }
+//                    | layout-char { single layout char is ignored }
+//                    | other { any other character represents itself }
  
 
 namespace prologcoin { namespace common {
@@ -186,17 +188,21 @@ void term_tokenizer::next_quoted_name()
 
     current_.type_ = TOKEN_NAME;
 
-    while (!is_eof()) {
+    bool cont = true;
+    while (cont) {
+        if (is_eof()) {
+	    throw token_exception_unterminated_quoted_name("Unterminated quoted name");
+        }
 	ch = next_char();
 	if (ch == '\'') {
 	    // Check if next is also a '
 	    if (peek_char() == '\'') {
 		current_.lexeme_ += '\'';
 	    } else {
-		return;
+	        cont = false;
 	    }
 	} else if (ch != '\\') {
-	    current_.lexeme_ += static_cast<char>(ch);
+	    add_to_lexeme(ch);
 	} else {
 	    next_escape_sequence();
 	}
@@ -205,6 +211,9 @@ void term_tokenizer::next_quoted_name()
 
 void term_tokenizer::next_escape_sequence()
 {
+    if (is_eof()) {
+        throw token_exception_unterminated_escape("Unterminated escape sequence");
+    }
     int ch = next_char();
 
     char c;
@@ -220,7 +229,13 @@ void term_tokenizer::next_escape_sequence()
     case 'd': c = 127; break;
     case 'a': c = 7; break;
     case 'x':{
+        if (is_eof()) {
+            throw token_exception_unterminated_escape("Unterminated escape sequence");	  
+        }
 	int v1 = parse_hex_digit();
+        if (is_eof()) {
+            throw token_exception_unterminated_escape("Unterminated escape sequence");	  
+        }
 	int v2 = parse_hex_digit();
 	c = (v1 << 8) | v2;
 	break;
@@ -232,6 +247,9 @@ void term_tokenizer::next_escape_sequence()
 	return;
         }
     case '^': {
+        if (is_eof()) {
+            throw token_exception_unterminated_escape("Unterminated escape sequence");	  
+        }
 	ch = next_char();
 	if (ch == '?') {
 	    c = 127; break;
@@ -421,19 +439,22 @@ bool term_tokenizer::is_full_stop(int ch) const
     return ch == '.';
 }
 
-void term_tokenizer::next_xs( const std::function<bool(int)> &predicate )
+size_t term_tokenizer::next_xs( const std::function<bool(int)> &predicate )
 {
-    while (predicate(peek_char())) {
+    size_t cnt = 0;
+    while (!is_eof() && predicate(peek_char())) {
 	consume_next_char();
+	cnt++;
     }
+    return cnt;
 }
 
-void term_tokenizer::next_digits()
+size_t term_tokenizer::next_digits()
 {
-    return next_xs( [](int ch) { return is_digit(ch); } );
+    return next_xs( is_digit );
 }
 
-void term_tokenizer::next_alphas()
+size_t term_tokenizer::next_alphas()
 {
     return next_xs( is_alpha );
 }
@@ -462,6 +483,10 @@ void term_tokenizer::next_number()
 {
     next_digits();
 
+    if (is_eof()) {
+        return;
+    }
+
     int ch = peek_char();
 
     if (ch == '\'') {
@@ -470,7 +495,11 @@ void term_tokenizer::next_number()
 	if (current_.lexeme_ == "0'") {
 	    next_char_code();
 	} else {
-	    next_alphas();
+	    size_t len = next_alphas();
+	    if (len == 0) {
+	        throw token_exception_missing_number_after_base(
+					"No number after base'");
+	    }
 	}
     } else if (ch == '.' || ch == 'e' || ch == 'E') {
 	set_token_type(TOKEN_UNSIGNED_FLOAT);
@@ -491,7 +520,12 @@ void term_tokenizer::next_float()
 void term_tokenizer::next_decimal()
 {
     consume_next_char();
-    next_digits();
+    if (next_digits() == 0) {
+        throw token_exception_missing_decimal("Missing decimal");
+    }
+    if (is_eof()) {
+        return;
+    }
     int ch = peek_char();
     if (ch == 'e' || ch == 'E') {
 	next_exponent();
@@ -501,19 +535,29 @@ void term_tokenizer::next_decimal()
 void term_tokenizer::next_exponent()
 {
     consume_next_char();
+
     int ch = peek_char();
     if (ch == '+' || ch == '-') {
 	consume_next_char();
     }
-    next_digits();
+    size_t len = next_digits();
+    if (len  == 0) {
+         throw token_exception_missing_exponent("Missing exponent");
+    }
 }
 
 void term_tokenizer::next_string()
 {
+    if (is_eof() || peek_char() != '\"') {
+        return; // This wasn't a string!
+    }
+
     next_char(); // Skip "
 
     bool cont = true;
     while (cont) {
+        if (is_eof()) {
+            throw token_exception_unterminated_string("Unterminated string");	        }
 	int ch = next_char();
 	if (ch == '\"') {
 	    if (peek_char() == '\"') {
@@ -524,11 +568,7 @@ void term_tokenizer::next_string()
 	} else if (ch == '\\') {
 	    next_escape_sequence();
 	} else {
-	    if (is_eof()) {
-		cont = false;
-	    } else {
-		add_to_lexeme(ch);
-	    }
+	    add_to_lexeme(ch);
 	}
     }
 }
