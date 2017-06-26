@@ -52,40 +52,40 @@ static void test_tokens()
 {
     header( "test_tokens()" );
 
-    std::string s = "this is a test'\\^?\\^Z\\^a'\t\n+=/*bla/* ha */ xx *q*/\001%To/*themoon\xf0\n'foo'!0'a0'\\^g4242 42.4711 42e3 47.11e-12Foo_Bar\"string\"\"\\^g\" _Baz__ 'bar\x55'[;].";
+    std::string s = "this is a test'\\^?\\^Z\\^a'\t\n\t+=/*bla/* ha */ xx *q*/\001%To/*themoon\xf0\n'foo'!0'a0'\\^g4242 42.4711 42e3 47.11e-12Foo_Bar\"string\"\"\\^g\" _Baz__ 'bar\x55'[;].";
 
-    std::string expected[] = { "token<NAME>[this]",
-			       "token<LAYOUT_TEXT>[\\x20]",
-			       "token<NAME>[is]",
-			       "token<LAYOUT_TEXT>[\\x20]",
-			       "token<NAME>[a]",
-			       "token<LAYOUT_TEXT>[\\x20]",
-			       "token<NAME>[test]",
-			       "token<NAME>[\\x7f\\x1a\\x01]",
-			       "token<LAYOUT_TEXT>[\\x09\\x0a]",
-			       "token<NAME>[+=]",
-			       "token<LAYOUT_TEXT>[/*bla/*\\x20ha\\x20*/\\x20xx\\x20*q*/\\x01%To/*themoon\\xf0\\x0a]",
-			       "token<NAME>[foo]",
-			       "token<NAME>[!]",
-			       "token<NATURAL_NUMBER>[97]",
-			       "token<NATURAL_NUMBER>[7]",
-			       "token<NATURAL_NUMBER>[4242]",
-			       "token<LAYOUT_TEXT>[\\x20]",
-			       "token<UNSIGNED_FLOAT>[42.4711]",
-			       "token<LAYOUT_TEXT>[\\x20]",
-			       "token<UNSIGNED_FLOAT>[42e3]",
-			       "token<LAYOUT_TEXT>[\\x20]",
-			       "token<UNSIGNED_FLOAT>[47.11e-12]",
-			       "token<VARIABLE>[Foo_Bar]",
-			       "token<STRING>[string\\x22\\x07]",
-			       "token<LAYOUT_TEXT>[\\x20]",
-			       "token<VARIABLE>[_Baz__]",
-			       "token<LAYOUT_TEXT>[\\x20]",
-			       "token<NAME>[barU]",
-			       "token<PUNCTUATION_CHAR>[[]",
-			       "token<NAME>[;]",
-			       "token<PUNCTUATION_CHAR>[]]",
-			       "token<FULL_STOP>[.]" };
+    std::string expected[] = { "token<NAME>[this]@(L1,C1)",
+			       "token<LAYOUT_TEXT>[\\x20]@(L1,C5)",
+			       "token<NAME>[is]@(L1,C6)",
+			       "token<LAYOUT_TEXT>[\\x20]@(L1,C8)",
+			       "token<NAME>[a]@(L1,C9)",
+			       "token<LAYOUT_TEXT>[\\x20]@(L1,C10)",
+			       "token<NAME>[test]@(L1,C11)",
+			       "token<NAME>[\\x7f\\x1a\\x01]@(L1,C15)",
+			       "token<LAYOUT_TEXT>[\\x09\\x0a\\x09]@(L1,C26)",
+			       "token<NAME>[+=]@(L2,C8)",
+			       "token<LAYOUT_TEXT>[/*bla/*\\x20ha\\x20*/\\x20xx\\x20*q*/\\x01%To/*themoon\\xf0\\x0a]@(L2,C10)",
+			       "token<NAME>[foo]@(L3,C1)",
+			       "token<NAME>[!]@(L3,C6)",
+			       "token<NATURAL_NUMBER>[97]@(L3,C7)",
+			       "token<NATURAL_NUMBER>[7]@(L3,C10)",
+			       "token<NATURAL_NUMBER>[4242]@(L3,C15)",
+			       "token<LAYOUT_TEXT>[\\x20]@(L3,C19)",
+			       "token<UNSIGNED_FLOAT>[42.4711]@(L3,C20)",
+			       "token<LAYOUT_TEXT>[\\x20]@(L3,C27)",
+			       "token<UNSIGNED_FLOAT>[42e3]@(L3,C28)",
+			       "token<LAYOUT_TEXT>[\\x20]@(L3,C32)",
+			       "token<UNSIGNED_FLOAT>[47.11e-12]@(L3,C33)",
+			       "token<VARIABLE>[Foo_Bar]@(L3,C42)",
+			       "token<STRING>[string\\x22\\x07]@(L3,C49)",
+			       "token<LAYOUT_TEXT>[\\x20]@(L3,C62)",
+			       "token<VARIABLE>[_Baz__]@(L3,C63)",
+			       "token<LAYOUT_TEXT>[\\x20]@(L3,C69)",
+			       "token<NAME>[barU]@(L3,C70)",
+			       "token<PUNCTUATION_CHAR>[[]@(L3,C76)",
+			       "token<NAME>[;]@(L3,C77)",
+			       "token<PUNCTUATION_CHAR>[]]@(L3,C78)",
+			       "token<FULL_STOP>[.]@(L3,C79)" };
 
     std::stringstream ss(s, (std::stringstream::in | std::stringstream::binary));
     term_ops ops;
@@ -113,23 +113,25 @@ static void test_negative_tokens()
                    token_exception *exc;
     };
 
+    auto p = [](int line, int col) { return token_position(line,col); };
+
     entry table[] =
-      {  { "'foo",     new token_exception_unterminated_quoted_name("") }
-	,{ "'esc\\",   new token_exception_unterminated_escape("") }
-	,{ "'esc\\x",  new token_exception_unterminated_escape("") }
-	,{ "'esc\\x3", new token_exception_unterminated_escape("") }
-	,{ "'esc\\^",  new token_exception_unterminated_escape("") }
-	,{ "'esc\\^\t",  new token_exception_control_char("") }
-	,{ "'esc\\xg",  new token_exception_hex_code("") }
-	,{ "0'",       new token_exception_no_char_code("") }
-	,{ "11'",      new token_exception_missing_number_after_base("") }
-	,{ "1.",      new token_exception_missing_decimal("") }
-	,{ "1.e",     new token_exception_missing_decimal("") }
-	,{ "1e",      new token_exception_missing_exponent("") }
-	,{ "1e+",     new token_exception_missing_exponent("") }
-	,{ "1e-",     new token_exception_missing_exponent("") }
-	,{ "2E-",     new token_exception_missing_exponent("") }
-	,{ "\"foo",  new token_exception_unterminated_string("") }
+      {  { "'foo",     new token_exception_unterminated_quoted_name(p(1,1)) }
+	 ,{ "'esc\\",   new token_exception_unterminated_escape(p(1,1)) }
+	 ,{ "'esc\\x",  new token_exception_unterminated_escape(p(1,1)) }
+	 ,{ "'esc\\x3", new token_exception_unterminated_escape(p(1,1)) }
+	 ,{ "'esc\\^",  new token_exception_unterminated_escape(p(1,1)) }
+	 ,{ "'esc\\^\t",  new token_exception_control_char(p(1,1)) }
+	 ,{ "'esc\\xg",  new token_exception_hex_code(p(1,1)) }
+	 ,{ "0'",       new token_exception_no_char_code(p(1,1)) }
+	 ,{ "11'",      new token_exception_missing_number_after_base(p(1,1)) }
+	 ,{ "1.",      new token_exception_missing_decimal(p(1,1)) }
+	 ,{ "1.e",     new token_exception_missing_decimal(p(1,1)) }
+	 ,{ "1e",      new token_exception_missing_exponent(p(1,1)) }
+	 ,{ "1e+",     new token_exception_missing_exponent(p(1,1)) }
+	 ,{ "1e-",     new token_exception_missing_exponent(p(1,1)) }
+	 ,{ "2E-",     new token_exception_missing_exponent(p(1,1)) }
+	 ,{ "\"foo",  new token_exception_unterminated_string(p(1,1)) }
       };
 
     for (auto e : table) {
@@ -151,6 +153,12 @@ static void test_negative_tokens()
 		  	  << "' but got '" << actual << "'\n";
 	        assert(false);
 	    }
+	    if (exc.pos() != e.exc->pos()) {
+	        std::cout << " (Expected position " << e.exc->pos().str()
+		          << " but got " << exc.pos().str() << ")\n";
+	        assert(false);
+	    }
+	    delete e.exc; // Free memory (good for valgrind)
 	}
     }
 }

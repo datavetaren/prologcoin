@@ -12,73 +12,122 @@
 
 namespace prologcoin { namespace common {
 
+class token_position {
+public:
+    inline token_position()
+      : line_(-1), column_(-1) { }
+    inline token_position( const token_position &other )
+      : line_(other.line_), column_(other.column_) { }
+    inline token_position( int line, int column )
+      : line_(line), column_(column) { }
+
+    inline void operator = (const token_position &other)
+    {
+        line_ = other.line_;
+        column_ = other.column_;
+    }
+
+    inline int line() const { return line_; }
+    inline int column() const { return column_; }
+        
+    inline void next_column() { if (column_ != -1) column_++; }
+    inline void prev_column() { if (column_ > 0) column_--; }
+    inline void new_line() { if (column_ != -1) { column_ = 1; line_++; } }
+    inline void next_tab()
+    {
+        if (column_ < 0) return;
+        column_ = ((column_ / 8) + 1) * 8;
+    }
+
+    inline bool operator == (const token_position &other) const
+    {
+        return line_ == other.line_ && column_ == other.column_;
+    }
+
+    inline bool operator != (const token_position &other) const
+    {
+      return ! operator == (other);
+    }
+  
+    const std::string str() const;
+
+private:
+    int line_;
+    int column_;
+};
+
 class token_exception : public ::std::runtime_error
 {
 public:
-    token_exception(const std::string &msg) : ::std::runtime_error(msg) { }
+    token_exception(const token_position &pos, const std::string &msg) : ::std::runtime_error(msg), pos_(pos) { }
+
+    const token_position & pos() const { return pos_; }
+
+private:
+    token_position pos_;
 };
 
 class token_exception_control_char : public token_exception
 {
 public:
-    token_exception_control_char(const std::string &msg = "")
-       : token_exception(msg) { }
+    token_exception_control_char(const token_position &pos, const std::string &msg = "")
+      : token_exception(pos, msg) { }
 };
 
 class token_exception_hex_code : public token_exception
 {
 public:
-    token_exception_hex_code(const std::string &msg = "")
-       : token_exception(msg) { }
+    token_exception_hex_code(const token_position &pos, const std::string &msg = "")
+      : token_exception(pos, msg) { }
 };
 
 class token_exception_no_char_code : public token_exception
 {
 public:
-    token_exception_no_char_code(const std::string &msg = "")
-        : token_exception(msg) { }
+    token_exception_no_char_code(const token_position &pos, const std::string &msg = "")
+      : token_exception(pos, msg) { }
 };
 
 class token_exception_missing_number_after_base : public token_exception
 {
 public:
-    token_exception_missing_number_after_base(const std::string &msg = "")
-        : token_exception(msg) { }
+    token_exception_missing_number_after_base(const token_position &pos, const std::string &msg = "")
+      : token_exception(pos, msg) { }
 };
 
 class token_exception_missing_decimal : public token_exception
 {
 public:
-    token_exception_missing_decimal(const std::string &msg = "")
-        : token_exception(msg) { }
+    token_exception_missing_decimal(const token_position &pos, const std::string &msg = "")
+      : token_exception(pos, msg) { }
 };
 
 class token_exception_missing_exponent : public token_exception
 {
 public:
-    token_exception_missing_exponent(const std::string &msg = "")
-        : token_exception(msg) { }
+    token_exception_missing_exponent(const token_position &pos, const std::string &msg = "")
+      : token_exception(pos, msg) { }
 };
 
 class token_exception_unterminated_string : public token_exception
 {
 public:
-    token_exception_unterminated_string(const std::string &msg = "")
-        : token_exception(msg) { }
+    token_exception_unterminated_string(const token_position &pos, const std::string &msg = "")
+      : token_exception(pos, msg) { }
 };
 
 class token_exception_unterminated_quoted_name : public token_exception
 {
 public:
-    token_exception_unterminated_quoted_name(const std::string &msg = "")
-        : token_exception(msg) { }
+    token_exception_unterminated_quoted_name(const token_position &pos, const std::string &msg = "")
+      : token_exception(pos, msg) { }
 };
 
 class token_exception_unterminated_escape : public token_exception
 {
 public:
-    token_exception_unterminated_escape(const std::string &msg = "")
-        : token_exception(msg) { }
+    token_exception_unterminated_escape(const token_position &pos, const std::string &msg = "")
+      : token_exception(pos, msg) { }
 };
 
 
@@ -92,34 +141,50 @@ public:
     term_tokenizer(std::istream &in, term_ops &ops);
 
     enum token_type {
-	TOKEN_NAME,
-	TOKEN_NATURAL_NUMBER,
-	TOKEN_UNSIGNED_FLOAT,
-	TOKEN_VARIABLE,
-	TOKEN_STRING,
-	TOKEN_PUNCTUATION_CHAR,
-	TOKEN_LAYOUT_TEXT,
-	TOKEN_FULL_STOP
+        TOKEN_UNKNOWN = 0,
+	TOKEN_NAME = 1,
+	TOKEN_NATURAL_NUMBER = 2,
+	TOKEN_UNSIGNED_FLOAT = 3,
+	TOKEN_VARIABLE = 4,
+	TOKEN_STRING = 5,
+	TOKEN_PUNCTUATION_CHAR = 6,
+	TOKEN_LAYOUT_TEXT = 7,
+	TOKEN_FULL_STOP = 8
     };
 
-    struct token {
-    private:
-        friend class term_tokenizer;
-
-	token_type type_;
-	std::string lexeme_;
-
-	void reset() { lexeme_.clear(); }
-
+    class token {
     public:
+        inline token()
+	  : type_(TOKEN_UNKNOWN),
+	    lexeme_(),
+	    position_() { }
+
+        inline token(const token &other)
+	  : type_(other.type_),
+	    lexeme_(other.lexeme_),
+	    position_(other.position_) { }
+
 	const std::string & lexeme() const { return lexeme_; }
 
         // Pretty print token
         const std::string str() const;
 
+        inline const token_position & pos() const
+        { return position_; }
+
         // String cast
         inline operator const std::string () const
         { return str(); }
+
+    private:
+        friend class term_tokenizer;
+
+	token_type type_;
+	std::string lexeme_;
+        token_position position_;
+
+	inline void reset() { lexeme_.clear(); }
+        inline void set_position(const token_position &pos) { position_ = pos; }
     };
 
     bool has_more_tokens() const {
@@ -134,9 +199,29 @@ public:
 private:
     inline int next_char()
     {
-	return in_.get();
+	int ch = in_.get();
+	update_position(ch);
+	return ch;
     }
 
+    inline void update_position(int ch)
+    {
+        if (ch == ' ' || !is_layout_char(ch)) {
+	    position_.next_column();
+        } else {
+	    if (ch == '\n') {
+	        position_.new_line();
+	    } else if (ch == '\b' || ch == 127) {
+	        position_.prev_column();
+	    } else if (ch == '\t') {
+	        position_.next_tab();
+	    } else {
+	        position_.next_column();
+	    }
+	}
+    }
+
+    // Lookahead version of next_char() (don't update position)
     inline int next_char_la() const
     {
 	return in_.get();
@@ -203,11 +288,15 @@ private:
 
     void next_number(std::string &s);
 
+    inline const token_position & pos() const 
+    {
+        return current_.pos();
+    }
+
     std::istream &in_;
     term_ops &ops_;
     token current_;
-    size_t column_;
-    size_t line_;
+    token_position position_;
 };
 
 }}
