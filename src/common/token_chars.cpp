@@ -41,4 +41,20 @@ std::string token_chars::escape(const std::string &str)
     return ss.str();
 }
 
+std::string token_chars::escape_ascii(const std::string &str)
+{
+    std::stringstream ss;
+    for (auto ch : str) {
+        int cp = ((int)ch) & 0xff;
+        if (cp >= 127 || should_be_escaped(cp)) {
+	    ss << "\\x";
+	    ss << std::setfill('0') << std::setw(2) << std::setbase(16) << cp;
+	} else {
+	    ss << ch;
+	}
+    }
+    return ss.str();
+}
+
+
 }}

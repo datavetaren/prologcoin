@@ -61,12 +61,23 @@ public:
     };
 
     struct token {
+    private:
+        friend class term_tokenizer;
+
 	token_type type_;
 	std::string lexeme_;
 
+	void reset() { lexeme_.clear(); }
+
+    public:
 	const std::string & lexeme() const { return lexeme_; }
 
-	void reset() { lexeme_.clear(); }
+        // Pretty print token
+        const std::string str() const;
+
+        // String cast
+        inline operator const std::string () const
+        { return str(); }
     };
 
     bool has_more_tokens() const {

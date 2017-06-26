@@ -147,6 +147,25 @@
 
 namespace prologcoin { namespace common {
 
+const std::string term_tokenizer::token::str() const
+{
+    std::string s("token<");
+    switch (type_) {
+    case TOKEN_NAME: s += "NAME"; break;
+    case TOKEN_NATURAL_NUMBER: s += "NATURAL_NUMBER"; break;
+    case TOKEN_UNSIGNED_FLOAT: s += "UNSIGNED_FLOAT"; break;
+    case TOKEN_VARIABLE: s += "VARIABLE"; break;
+    case TOKEN_STRING: s += "STRING"; break;
+    case TOKEN_PUNCTUATION_CHAR: s += "PUNCTUATION_CHAR"; break;
+    case TOKEN_LAYOUT_TEXT: s += "LAYOUT_TEXT"; break;
+    case TOKEN_FULL_STOP: s += "FULL_STOP"; break;
+    default: s += "?"; break;
+    }
+
+    s += ">[" + escape_ascii(lexeme()) + "]";
+    return s;
+}
+
 term_tokenizer::term_tokenizer(std::istream &in, term_ops &ops)
         : in_(in),
 	  ops_(ops),
@@ -519,6 +538,7 @@ const term_tokenizer::token & term_tokenizer::next_token()
     current_.reset();
 
     if (is_comment_begin()) {
+        set_token_type(TOKEN_LAYOUT_TEXT);
 	next_layout_text();
 	return current_;
     }

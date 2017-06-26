@@ -51,6 +51,7 @@ public:
     }
 
     static std::string escape(const std::string &str);
+    static std::string escape_ascii(const std::string &str);
 
 private:
     static const bool IS_SYMBOL [256];
