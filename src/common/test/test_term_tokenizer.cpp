@@ -88,9 +88,7 @@ static void test_tokens()
 			       "token<FULL_STOP>[.]@(L3,C79)" };
 
     std::stringstream ss(s, (std::stringstream::in | std::stringstream::binary));
-    term_ops ops;
-
-    term_tokenizer tt(ss, ops);
+    term_tokenizer tt(ss);
 
     int cnt = 0;
     while (tt.has_more_tokens()) {
@@ -136,8 +134,7 @@ static void test_negative_tokens()
 
     for (auto e : table) {
         std::stringstream ss(e.str);
-	term_ops ops;
-        term_tokenizer tt(ss, ops);
+        term_tokenizer tt(ss);
 
 	try {
 	    std::cout << "Testing token: " << e.str << "\n";

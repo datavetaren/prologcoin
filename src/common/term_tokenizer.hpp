@@ -7,7 +7,6 @@
 #include <exception>
 #include <string>
 #include "term.hpp"
-#include "term_ops.hpp"
 #include "token_chars.hpp"
 
 namespace prologcoin { namespace common {
@@ -138,7 +137,7 @@ public:
 //
 class term_tokenizer : public token_chars {
 public:
-    term_tokenizer(std::istream &in, term_ops &ops);
+    term_tokenizer(std::istream &in);
 
     enum token_type {
         TOKEN_UNKNOWN = 0,
@@ -294,7 +293,6 @@ private:
     }
 
     std::istream &in_;
-    term_ops &ops_;
     token current_;
     token_position position_;
 };

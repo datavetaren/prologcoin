@@ -176,15 +176,11 @@ const std::string term_tokenizer::token::str() const
     return s;
 }
 
-term_tokenizer::term_tokenizer(std::istream &in, term_ops &ops)
-        : in_(in),
-	  ops_(ops),
-          position_(1,1)
+term_tokenizer::term_tokenizer(std::istream &in)
+  : in_(in),
+    position_(1,1)
 {
-    (void)in_;
-    (void)ops_;
 }
-
 
 void term_tokenizer::next_quoted_name()
 {

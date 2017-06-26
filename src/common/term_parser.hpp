@@ -6,6 +6,7 @@
 #include <vector>
 #include "term.hpp"
 #include "term_ops.hpp"
+#include "term_tokenizer.hpp"
 
 namespace prologcoin { namespace common {
 
@@ -19,11 +20,9 @@ public:
     term_parser(std::istream &in, heap &h, term_ops &ops);
 
 private:
-    std::istream &in_;
+    term_tokenizer tokenizer_;
     heap &heap_;
     term_ops &ops_;
-    size_t column_;
-    size_t line_;
 };
 
 }}
