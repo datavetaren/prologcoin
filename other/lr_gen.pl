@@ -20,9 +20,19 @@
 %    code that better fits with the rest of the code.
 %
 
-test(Q) :-
+test :-
     read_grammar(G),
-    closure(G, (start :- 'DOT', subterm(_), full_stop), Q).
+    Start = state(0, [(start :- 'DOT', subterm(_), full_stop)], []),
+%    match_symbol(G, subterm(_), X),
+%    write(X), nl,
+    states(G, Start, States),
+    tell('states.txt'),
+    print_states(States),
+    told,
+%    closure(G, [(start :- 'DOT', subterm(_), full_stop)], Closure),
+%    print_closure(Closure),
+    true.
+%    lookahead(G, (start :- 'DOT', subterm(_), full_stop), Q).
 
 %
 % read_grammar(-G)
@@ -36,7 +46,168 @@ read_grammar(G) :-
     close(F).
 
 read_clauses(F, []) :- at_end_of_stream(F), !.
-read_clauses(F, [C|Cs]) :- read(F, C), read_clauses(F, Cs).
+read_clauses(F, Cs) :-
+        read(F, C),
+	(C = end_of_file -> Cs = []
+       ; Cs = [C|Cs1], read_clauses(F, Cs1)
+	).
+
+%
+% Pretty print states
+%
+print_states(States) :-
+    print_states(States, 100000).
+print_states([], _).
+print_states(_, 0) :- !.
+print_states([State|States], Cnt) :-
+    print_state(State),
+    Cnt1 is Cnt - 1,
+    print_states(States, Cnt1).
+
+print_state(state(N, KernelItems, Actions)) :-
+    write('--- State '), write(N), write(' ------------------------------'),nl,
+    print_kernel_items(KernelItems),
+    write('-----------------------------------'),nl,
+    print_actions(Actions),
+    nl, nl.
+
+print_kernel_items([]).
+print_kernel_items([Item|Items]) :-
+    print_kernel_item(Item),
+    print_kernel_items(Items).
+
+print_kernel_item(Item) :-
+    write('   '), write(Item), nl.
+
+print_actions([]).
+print_actions([Action|Actions]) :-
+    print_action(Action),
+    print_actions(Actions).
+
+print_action(shift(Symbol,N)) :-
+    write('   shift on \''), write(Symbol), write('\' and goto state '),
+    write(N), nl.
+
+print_action(reduce(LA,Rule)) :-
+    print_reduce(LA,Rule).
+
+
+print_reduce([LA|LAs],Rule) :-
+    write('   reduce on \''), write(LA), write('\' with rule '), write(Rule),
+    nl,
+    print_reduce(LAs,Rule).
+print_reduce([],_).
+
+%
+% Construct state machine
+%
+% states(+Grammar, +InitialState, -States)
+%
+
+states(Grammar, State, StatesOut) :-
+    states(Grammar, [State], State, StatesOut).
+
+states(Grammar, StatesIn, State, StatesOut) :-
+    State = state(_, KernelItems, _Actions),
+    closure(Grammar, KernelItems, Closure),
+    all_next_symbols(Closure, Symbols),
+    state_transitions(Symbols, Grammar, Closure, State, StatesIn, StatesOut1,
+		      UpdatedState, NewStates),
+    state_reductions(KernelItems, UpdatedState, UpdatedState1),
+    replace_state(StatesOut1, UpdatedState1, StatesOut2),
+    states_list(NewStates, Grammar, StatesOut2, StatesOut).
+
+states_list([], _, StatesOut, StatesOut).
+states_list([State|States], Grammar, StatesIn, StatesOut) :-
+    states(Grammar, StatesIn, State, StatesOut1),
+    states_list(States, Grammar, StatesOut1, StatesOut).
+
+state_transitions([], _, _, FromState, States, States, FromState, []).
+state_transitions([Symbol|Symbols], Grammar, Closure,
+		  FromState, StatesIn, StatesOut, UpdatedFromState, NewStates) :-
+    select_items(Closure, Symbol, KernelItems),
+    (\+ has_state(StatesIn, KernelItems) ->
+	 NewStates = [state(N,KernelItems,Actions)|NewStates0]
+       ; NewStates = NewStates0),
+    
+    add_state(StatesIn, KernelItems, StatesOut1, state(N,KernelItems,Actions)),
+%    write('shift \''), write(Symbol), write('\' --> goto '), write(N), nl,
+    state_add_action(FromState, shift(Symbol, N), FromState1),
+    state_transitions(Symbols, Grammar, Closure, FromState1, StatesOut1,
+		      StatesOut, UpdatedFromState, NewStates0).
+
+state_reductions(KernelItems,
+		 state(N,KernelItems,Actions),
+		 state(N,KernelItems,NewActions)) :-
+    items_get_reductions(KernelItems,Reductions),
+    append(Actions,Reductions,NewActions).
+
+items_get_reductions([],[]).
+items_get_reductions([Item|Items],Reductions) :-
+    item_at_end(Item),
+    !,
+    lookahead(_, Item, LA),
+    item_to_rule(Item, Rule),
+    Reductions = [reduce(LA, Rule)|Reductions0],
+    items_get_reductions(Items, Reductions0).
+items_get_reductions([_|Items],Reductions) :-
+    items_get_reductions(Items, Reductions).
+
+item_to_rule((Head :- Body), (Head :- NewBody)) :-
+    item_to_rule_body(Body, NewBody).
+
+item_to_rule_body((A, ('DOT', _)), A) :- !.
+item_to_rule_body((A, 'DOT'), A) :- !.
+item_to_rule_body((A, B), (A, NewB)) :-
+    item_to_rule_body(B, NewB).
+
+has_state([state(_,KernelItems,_)|_], KernelItems) :- !.
+has_state([_|States], KernelItems) :- has_state(States, KernelItems).
+
+add_state(StatesIn, KernelItems, StatesOut, State) :-
+    add_state(StatesIn, 0, KernelItems, StatesOut, State).
+
+add_state([], Cnt, KernelItems, [State], State) :-
+    State = state(Cnt, KernelItems, []).
+add_state([State|States], Cnt, KernelItems, [State|StatesOut], Found) :-
+    State = state(_N,StateKernelItems,_StateActions),
+    (\+ \+ KernelItems = StateKernelItems ->
+	 Found = State,
+	 States = StatesOut
+   ; Cnt1 is Cnt + 1,
+     add_state(States, Cnt1, KernelItems, StatesOut, Found)).
+
+replace_state([state(N,_,_)|States], state(N,KernelItems,Actions),
+	      [state(N,KernelItems,Actions)|States]).
+replace_state([State|States], UpdatedState, [State|NewStates]) :-
+    replace_state(States, UpdatedState, NewStates).
+
+state_add_action(state(N,KernelItems,Actions), Action,
+		 state(N,KernelItems,NewActions)) :-
+    append(Actions, [Action], NewActions).
+
+select_items([], _, []).
+select_items([Item|Items], Symbol, KernelItems) :-
+    (item_next_symbol(Item, Symbol) ->
+	item_move_next(Item, NewItem),
+	KernelItems = [NewItem|KernelItems0]
+      ; KernelItems0 = KernelItems
+    ),
+    select_items(Items, Symbol, KernelItems0).
+
+all_next_symbols(Items, Symbols) :-
+    all_next_symbols(Items, [], Symbols).
+all_next_symbols([], SymbolsOut, SymbolsOut).
+all_next_symbols([Item|Items], SymbolsIn, SymbolsOut) :-
+    item_next_symbol(Item, Symbol),
+    !,
+    (member(Symbol, SymbolsIn) ->
+	 SymbolsIn1 = SymbolsIn
+       ; SymbolsIn1 = [Symbol | SymbolsIn]
+    ),
+    all_next_symbols(Items, SymbolsIn1, SymbolsOut).
+all_next_symbols([_|Items], SymbolsIn, SymbolsOut) :-
+    all_next_symbols(Items, SymbolsIn, SymbolsOut).
 
 %
 % closure(+Grammar,+Item,-Closure)
@@ -44,32 +215,112 @@ read_clauses(F, [C|Cs]) :- read(F, C), read_clauses(F, Cs).
 % Compute closure for given Item. An item is a clause with
 % a 'DOT', symbolizing that we have read a prefix for it.
 %
-closure(Grammar,Item,Closure) :-
-    closure(Grammar,Item,[],Closure).
+
+closure(Grammar,KernelItems,Closure) :-
+    closure_kernel(KernelItems,Grammar,[],Closure).
+
+closure_kernel([],_,Closure,Closure).
+closure_kernel([KernelItem|KernelItems],Grammar,ClosureIn,ClosureOut) :-
+    closure(Grammar,KernelItem,ClosureIn,ClosureIn1),
+    closure_kernel(KernelItems,Grammar,ClosureIn1,ClosureOut).
 
 closure(Grammar,Item,ClosureIn,ClosureOut) :-
+%    write('Check Item '), write(Item), nl,
     \+ member(Item, ClosureIn), % We have not seen this before
     !, % Do not backtrack.
     copy_term(Item, ItemCopy),
+%    write('Item xxx '), write(ItemCopy), nl,
     lookahead(Grammar, ItemCopy, LA),
-    match(Grammar, Item, MatchedItems),
+%    write('Item yyy '), write(ItemCopy), nl,
+    match(Grammar, ItemCopy, MatchedItems),
+%    write('Matched '), write(MatchedItems), nl,
     add_lookaheads(MatchedItems, LA, NewItems),
-    closure_list(NewItems, Grammar, ClosureIn, ClosureOut).
+    append(ClosureIn, [Item], ClosureIn1),
+    closure_list(NewItems, Grammar, ClosureIn1, ClosureOut).
 closure(_,_,Closure,Closure).
 
 closure_list([], _, Closure, Closure).
 closure_list([Item|Items], Grammar, ClosureIn, ClosureOut) :-
-    closure(Item, Grammar, ClosureIn, ClosureOut0),
-    closure_list(Items, Grammar, ClosureOut0, ClosureOut).
+    closure(Grammar, Item, ClosureIn, ClosureIn1),
+    closure_list(Items, Grammar, ClosureIn1, ClosureOut).
+
+print_closure([]).
+print_closure([Item|Items]) :-
+        write(Item), nl,
+	print_closure(Items).
 
 %
 % lookahead(+Grammar, +Item, -LA)
 %
 % Compute the set of lookaheads for the given item.
 %
-%lookahead(Grammar, Item, LA) :-
-%	match(Grammar, Item, Matched).
+lookahead(Grammar, Item, LA) :-
+    lookahead(Grammar, Item, [], _, LA).
 
+lookahead(_, Item, Visited, Visited, LA) :-
+        item_at_end(Item), !, item_lookahead(Item, LA).
+lookahead(Grammar, Item, VisitedIn, VisitedOut, LA) :-
+        \+ member(Item, VisitedIn),
+        item_next_symbol(Item, Symbol),
+	!,
+	Visited1 = [Item | VisitedIn],
+	(terminal(Grammar, Symbol) ->
+	  LA = [Symbol], VisitedOut = VisitedIn
+        ; copy_term(Item, ItemCopy),
+	  match(Grammar, ItemCopy, MatchedItems),
+	  lookahead_list(MatchedItems, Grammar, Visited1, Visited2, LA1),
+	  (LA1 = [] ->
+	       item_move_next(Item, ItemNext),
+	       lookahead(Grammar, ItemNext, Visited2, VisitedOut, LA)
+	 ; LA = LA1, VisitedOut = Visited2
+	  )
+        ).
+lookahead(_, _, Visited, Visited, []).
+
+lookahead_list([], _, Visited, Visited, []).
+lookahead_list([Item|Items], Grammar, VisitedIn, VisitedOut, LA) :-
+    lookahead(Grammar, Item, VisitedIn, Visited1, LAItem),
+    lookahead_list(Items, Grammar, Visited1, VisitedOut, LAItems),
+    append(LAItem, LAItems, LA0),
+    sort(LA0, LA).
+
+item_at_end((_ :- Body)) :-
+    item_at_end_body(Body).
+
+item_at_end_body(('DOT', [_|_])) :- !.
+item_at_end_body(('DOT', [])) :- !.
+item_at_end_body('DOT') :- !.
+item_at_end_body((_,B)) :-
+    item_at_end_body(B).
+
+
+item_lookahead((_ :- Body), LA) :-
+    item_lookahead_body(Body, LA).
+
+item_lookahead_body([], []) :- !.
+item_lookahead_body([X|Xs], [X|Xs]) :- !.
+item_lookahead_body((_,B), LA) :-
+    !, item_lookahead_body(B, LA).
+item_lookahead_body(_, []).
+
+item_move_next((Head :- Body), (Head :- NewBody)) :-
+    item_move_next_body(Body, NewBody).
+
+item_move_next_body(('DOT', (A, B)), (A, ('DOT', B))) :- !.
+item_move_next_body(('DOT', A), (A, 'DOT')) :- !.
+item_move_next_body((A, B), (A, NewB)) :-
+    item_move_next_body(B, NewB).
+
+terminal([], _).
+terminal([(Head :- _) | Clauses], Symbol) :-
+        Head \= Symbol,
+	terminal(Clauses, Symbol).
+
+lookahead_symbol(Grammar, Symbol, LA) :-
+        terminal(Grammar, Symbol), !, LA = Symbol.
+lookahead_symbol(Grammar, NonTerminal, LA) :-
+        match_symbol(Grammar, NonTerminal, MatchedItems),
+	lookahead_list(MatchedItems, Grammar, LA).
 
 add_lookaheads([], _, []).
 add_lookaheads([Item|Items], LA, [NewItem | NewItems]) :-
@@ -93,26 +344,37 @@ add_lookaheads_body(X, LA, (X,LA)).
 % Return items that immediately follows given item.
 %
 match(Grammar, Item, FollowItems) :-
-	follow(Item, NonTerminal),
-	match_nt(Grammar, NonTerminal, FollowItems).
+	item_next_symbol(Item, Symbol),
+	!,
+	match_symbol(Grammar, Symbol, FollowItems).
+match(_, _, []).
 
-match_nt([], _, []).
-match_nt([C | Cs], NonTerminal, [Match | Matched]) :-
+item_next_symbol((_ :- Body), Symbol) :-
+    item_next_symbol_body(Body, Symbol).
+item_next_symbol_body(('DOT', X), Symbol) :-
+    !, item_next_symbol_found(X, Symbol).
+item_next_symbol_body((_,B), Symbol) :-
+    item_next_symbol_body(B, Symbol).
+
+item_next_symbol_found((Symbol, _), Symbol) :- !, \+ is_list(Symbol).
+item_next_symbol_found(Symbol, Symbol) :- \+ is_list(Symbol).
+
+match_symbol([], _, []).
+match_symbol([C | Cs], Symbol, [Match | Matched]) :-
 	C = (Head :- _),
-	\+ \+ Head = NonTerminal,
+	\+ \+ Head = Symbol,
 	!,
 	copy_term(C, (HeadCopy :- BodyCopy)),
 	Match = (HeadCopy :- ('DOT', BodyCopy)),
-	HeadCopy = NonTerminal,
-	match_nt(Cs, NonTerminal, Matched).
-match_nt([_ | Cs], NonTerminal, Matched) :-
-	match_nt(Cs, NonTerminal, Matched).
+	match_symbol(Cs, Symbol, Matched).
+match_symbol([_ | Cs], Symbol, Matched) :-
+	match_symbol(Cs, Symbol, Matched).
 
-follow((_ :- Body), NonTerminal) :-
-	follow_body(Body, NonTerminal).
+follow((_ :- Body), Symbol) :-
+	follow_body(Body, Symbol).
 
-follow_body(('DOT', Found), NonTerminal) :- !, follow_found(Found,NonTerminal).
-follow_body((_, Y), NonTerminal) :- follow_body(Y, NonTerminal).
+follow_body(('DOT', Found), Symbol) :- !, follow_found(Found, Symbol).
+follow_body((_, Y), Symbol) :- follow_body(Y, Symbol).
 
 follow_found((A,_), A) :- !.
 follow_found(A, A).

@@ -43,3 +43,7 @@ unsigned_number :- unsigned_float.
 atom :- name.
 
 functor :- name.
+
+sign :- plus.
+sign :- minus.
+
