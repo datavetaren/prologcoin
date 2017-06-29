@@ -1,15 +1,16 @@
-start :- subterm(N), full_stop.
+start :- subterm(10000), full_stop.
 
-subterm(N) :- term(M), [ M < N ].
+subterm(N) :- term('<'(N)).
 
-term(N) :- op(N,fx), subterm(M), [M < N].
+term(N) :- op(N,fx), subterm('<'(N)).
 term(N) :- op(N,fy), subterm(N).
-term(N) :- subterm(M), op(N,xfx), subterm(M), [M < N].
-term(N) :- subterm(M), op(N, xfy), subterm(N), [M < N].
-term(N) :- subterm(N), op(N, yfx), subterm(M), [M < N].
-term(N) :- subterm(M), op(N, xf), subterm(M), [M < N].
+term(N) :- subterm('<'(N)), op(N,xfx), subterm('<'(N)).
+term(N) :- subterm('<'(N)), op(N, xfy), subterm(N).
+term(N) :- subterm(N), op(N, yfx), subterm('<'(N)).
+term(N) :- subterm('<'(N)), op(N, xf), subterm('<'(N)).
 term(N) :- subterm(N), op(N, yf).
-term(N) :- subterm(M), comma, subterm(N), [M < N].
+
+term(1000) :- subterm(999), comma, subterm(1000).
 
 term(0) :- functor, lparen, arguments, rparen.
 term(0) :- lparen, subterm(1200), rparen.

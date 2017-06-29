@@ -20,16 +20,28 @@
 %    code that better fits with the rest of the code.
 %
 
+%
+% TODO:
+%
+% What remains for the state machine:
+%
+% We need to collapse items where only lookaheads are different.
+% Also we'd like to collapse even when the heads differ in the
+% case of f(N) and f('<'(N)). This will bring us closer to LALR(1)
+% (instead of LR(1)). Should reduce both conflicts and number of
+% states.
+%
+%
+
 test :-
-    read_grammar(G),
-    Start = state(0, [(start :- 'DOT', subterm(_), full_stop)], []),
-%    match_symbol(G, subterm(_), X),
-%    write(X), nl,
-    states(G, Start, States),
-    tell('states.txt'),
-    print_states(States),
-    told,
-%    closure(G, [(start :- 'DOT', subterm(_), full_stop)], Closure),
+	read_grammar(G),
+	StartItem = [(start :- 'DOT', subterm(10000), full_stop)],
+	Start = state(0, StartItem, []),
+	states(G, Start, States),
+	tell('states.txt'),
+	print_states(States),
+	told,
+%    closure(G, [(start :- 'DOT', subterm(10000), full_stop)], Closure),
 %    print_closure(Closure),
     true.
 %    lookahead(G, (start :- 'DOT', subterm(_), full_stop), Q).
@@ -69,6 +81,7 @@ print_state(state(N, KernelItems, Actions)) :-
     print_kernel_items(KernelItems),
     write('-----------------------------------'),nl,
     print_actions(Actions),
+    print_check_actions(Actions),
     nl, nl.
 
 print_kernel_items([]).
@@ -85,18 +98,29 @@ print_actions([Action|Actions]) :-
     print_actions(Actions).
 
 print_action(shift(Symbol,N)) :-
-    write('   shift on \''), write(Symbol), write('\' and goto state '),
-    write(N), nl.
+	write('   shift on \''), write(Symbol), write('\' '),
+	write(' and goto state '), write(N), nl.
 
 print_action(reduce(LA,Rule)) :-
     print_reduce(LA,Rule).
-
 
 print_reduce([LA|LAs],Rule) :-
     write('   reduce on \''), write(LA), write('\' with rule '), write(Rule),
     nl,
     print_reduce(LAs,Rule).
 print_reduce([],_).
+
+print_check_actions(Actions) :-
+	findall(Sym, member(shift(Sym,_), Actions), ShiftSyms),
+	findall(SymsList, member(reduce(SymsList,_), Actions), ReduceSymsList),
+	flatten(ReduceSymsList, ReduceSyms),
+	append(ShiftSyms, ReduceSyms, AllSyms),
+	print_check_syms(AllSyms).
+
+print_check_syms([]).
+print_check_syms([Sym|Syms]) :-
+	(member(Sym, Syms) -> write('Conflict on symbol '), write(Sym), nl ; true),
+	print_check_syms(Syms).
 
 %
 % Construct state machine
@@ -126,12 +150,13 @@ state_transitions([], _, _, FromState, States, States, FromState, []).
 state_transitions([Symbol|Symbols], Grammar, Closure,
 		  FromState, StatesIn, StatesOut, UpdatedFromState, NewStates) :-
     select_items(Closure, Symbol, KernelItems),
+%    compact_items(KernelItems1, KernelItems),
     (\+ has_state(StatesIn, KernelItems) ->
 	 NewStates = [state(N,KernelItems,Actions)|NewStates0]
        ; NewStates = NewStates0),
-    
     add_state(StatesIn, KernelItems, StatesOut1, state(N,KernelItems,Actions)),
 %    write('shift \''), write(Symbol), write('\' --> goto '), write(N), nl,
+%    lookahead_list(Grammar, KernelItems, ShiftLA),
     state_add_action(FromState, shift(Symbol, N), FromState1),
     state_transitions(Symbols, Grammar, Closure, FromState1, StatesOut1,
 		      StatesOut, UpdatedFromState, NewStates0).
@@ -188,12 +213,22 @@ state_add_action(state(N,KernelItems,Actions), Action,
 
 select_items([], _, []).
 select_items([Item|Items], Symbol, KernelItems) :-
-    (item_next_symbol(Item, Symbol) ->
+    (item_next_symbol(Item, Symbol0), match_heads(Symbol0, Symbol) ->
 	item_move_next(Item, NewItem),
 	KernelItems = [NewItem|KernelItems0]
       ; KernelItems0 = KernelItems
     ),
     select_items(Items, Symbol, KernelItems0).
+
+%compact_items([(head(N) :- Body) | Items],NewItems) :-
+%	compact_item_select(Items, (head('<'(N)) :- Body), Found, Rest),
+%
+%compact_item_select((head(N) :- Body1), (head('<'(N)) :- Body), Found, Rest),
+%	strip_lookaheads(Body1, StrippedBody),
+%	strip_lookaheads(Body, StrippedBody),
+%	% We have a match, so collapse them together.
+%	Found = 
+	
 
 all_next_symbols(Items, Symbols) :-
     all_next_symbols(Items, [], Symbols).
@@ -229,9 +264,8 @@ closure(Grammar,Item,ClosureIn,ClosureOut) :-
     \+ member(Item, ClosureIn), % We have not seen this before
     !, % Do not backtrack.
     copy_term(Item, ItemCopy),
-%    write('Item xxx '), write(ItemCopy), nl,
-    lookahead(Grammar, ItemCopy, LA),
-%    write('Item yyy '), write(ItemCopy), nl,
+    (item_move_next(ItemCopy, ItemCopyNext), lookahead(Grammar, ItemCopyNext, LA)
+     ; LA = []),
     match(Grammar, ItemCopy, MatchedItems),
 %    write('Matched '), write(MatchedItems), nl,
     add_lookaheads(MatchedItems, LA, NewItems),
@@ -256,6 +290,9 @@ print_closure([Item|Items]) :-
 %
 lookahead(Grammar, Item, LA) :-
     lookahead(Grammar, Item, [], _, LA).
+lookahead_list(Grammar, Items, LA) :-
+	lookahead_list(Items, Grammar, [], _, LA).
+
 
 lookahead(_, Item, Visited, Visited, LA) :-
         item_at_end(Item), !, item_lookahead(Item, LA).
@@ -313,6 +350,7 @@ item_move_next_body((A, B), (A, NewB)) :-
 
 terminal([], _).
 terminal([(Head :- _) | Clauses], Symbol) :-
+	functor(Symbol, _, 0),
         Head \= Symbol,
 	terminal(Clauses, Symbol).
 
@@ -362,13 +400,80 @@ item_next_symbol_found(Symbol, Symbol) :- \+ is_list(Symbol).
 match_symbol([], _, []).
 match_symbol([C | Cs], Symbol, [Match | Matched]) :-
 	C = (Head :- _),
-	\+ \+ Head = Symbol,
+	match_heads(Head, Symbol),
 	!,
 	copy_term(C, (HeadCopy :- BodyCopy)),
-	Match = (HeadCopy :- ('DOT', BodyCopy)),
+	copy_term(Symbol, CopySymbol),
+	unify_heads(HeadCopy, CopySymbol),
+	Match1 = (HeadCopy :- ('DOT', BodyCopy)),
+	process_arithmetics(Match1, Match),
 	match_symbol(Cs, Symbol, Matched).
 match_symbol([_ | Cs], Symbol, Matched) :-
 	match_symbol(Cs, Symbol, Matched).
+
+match_heads(X, Y) :-
+%	write('match_heads '), write(X), write( ' '), write(Y), nl,
+	X =.. [XF|XArgs],
+	Y =.. [YF|YArgs],
+	XF = YF,
+	match_args(XArgs, YArgs).
+
+match_args([], []).
+match_args([X|Xs], [Y|Ys]) :-
+	match_arg(X,Y),
+	match_args(Xs,Ys).
+
+match_arg(N,'<'(M)) :- number(N), !, N < M.
+match_arg(N,M) :- \+ N \= M.
+
+unify_heads(X, Y) :-
+	X =.. [XF|XArgs],
+	Y =.. [YF|YArgs],
+	XF = YF,
+	unify_args(XArgs, YArgs).
+
+unify_args([], []).
+unify_args([X|Xs], [Y|Ys]) :-
+	unify_arg(X,Y),
+	unify_args(Xs,Ys).
+
+unify_arg(N,'<'(M)) :- number(N), !, N < M.
+unify_arg(N,M) :- M = N.
+
+
+process_arithmetics(X, NewX) :-
+	var(X), !, NewX = X.
+process_arithmetics('<'('<'(X)), '<'(X)) :- !.
+process_arithmetics([X|Xs], New) :-
+	!, process_arithmetics_list([X|Xs], New).
+process_arithmetics((Head :- Body), (NewHead :- NewBody)) :-
+	!,
+	process_arithmetics(Head, NewHead),
+	process_arithmetics(Body, NewBody).
+process_arithmetics((A,B), (NewA, NewB)) :-
+	!,
+	process_arithmetics(A, NewA),
+	process_arithmetics(B, NewB).
+process_arithmetics(X, NewX) :-
+	X =.. [F|Args], Args \= [], !,
+	process_arithmetics_list(Args, NewArgs),
+	NewX =.. [F|NewArgs].
+process_arithmetics(X, X).
+
+process_arithmetics_list([],[]).
+process_arithmetics_list([X|Xs], [NewX|NewXs]) :-
+	process_arithmetics(X,NewX),
+	process_arithmetics_list(Xs,NewXs).
+
+strip_lookaheads((Head :- Body), (Head :- NewBody)) :-
+	strip_lookaheads_body(Body, NewBody).
+
+strip_lookaheads_body((A, [_|_]), A) :- !.
+strip_lookaheads_body((A, []), A) :- !.
+strip_lookaheads_body((A, B), (A, NewB)) :-
+	!, strip_lookaheads_body(B, NewB).
+strip_lookaheads_body(A, A).
+	
 
 follow((_ :- Body), Symbol) :-
 	follow_body(Body, Symbol).
