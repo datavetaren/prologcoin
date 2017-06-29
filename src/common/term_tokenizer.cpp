@@ -624,6 +624,20 @@ const term_tokenizer::token & term_tokenizer::next_token()
     return current_;
 }
 
+const term_tokenizer::token & term_tokenizer::peek_token()
+{
+    if (current_.type() == term_tokenizer::TOKEN_UNKNOWN) {
+	next_token();
+    }
+    return current_;
+}
+
+void term_tokenizer::clear_token()
+{
+    current_.type_ = TOKEN_UNKNOWN;
+    current_.reset();
+}
+
 }}
 
 

@@ -390,9 +390,10 @@ class heap; // Forward
 
 template<typename T> class ext {
 public:
-    inline ext(const heap &h, cell ptr) : heap_(h), ptr_(ptr)
+    inline ext() : heap_(nullptr), ptr_() { }
+    inline ext(const heap &h, cell ptr) : heap_(&h), ptr_(ptr)
         { ext_register(h, &ptr_); }
-    inline ~ext() { ext_unregister(heap_, &ptr_); }
+    inline ~ext() { if (heap_ != nullptr) ext_unregister(*heap_, &ptr_); }
 
     inline operator T & () { return static_cast<T &>(ptr_); }
 
@@ -400,7 +401,7 @@ private:
     inline void ext_register(const heap &h, cell *p);
     inline void ext_unregister(const heap &h, cell *p);
 
-    const heap &heap_;
+    const heap *heap_;
     cell ptr_;
 };
 
@@ -421,6 +422,11 @@ public:
 	if (index >= size()) {
 	    throw heap_index_out_of_range_exception(index, size());
 	}
+    }
+
+    inline con_cell atom(const std::string &name) const
+    {
+	return con_cell(name, 0);
     }
 
     inline con_cell functor(const str_cell &s) const

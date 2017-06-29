@@ -163,6 +163,8 @@ public:
 	    lexeme_(other.lexeme_),
 	    position_(other.position_) { }
 
+	token_type type() const { return type_; }
+
 	const std::string & lexeme() const { return lexeme_; }
 
         // Pretty print token
@@ -194,6 +196,8 @@ public:
     }
 
     const token & next_token();
+    const token & peek_token();
+    void clear_token();
 
 private:
     inline int next_char()
