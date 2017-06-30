@@ -34,15 +34,25 @@
 %
 
 test :-
-	read_grammar(G),
+    (retract(log_cnt(_)) ; true),
+    assert(log_cnt(0)),
+    !,
+    read_grammar(G),
 	StartItem = [(start :- 'DOT', subterm(1200), full_stop)],
 	Start = state(0, StartItem, []),
 	states(G, Start, States),
 	tell('states.txt'),
 	print_states(States),
 	told,
-%    closure(G, [(start :- 'DOT', subterm(10000), full_stop)], Closure),
+
+%    lookahead(G, (term(1200):-subterm(<(1200)),'DOT',op(1200,xfx),subterm(<(1200)),[full_stop]), LA),
+%     lookahead(G, (term(1200):-op(1200,fx),'DOT',subterm(<(1200)),[full_stop]), LA),
+%    write(LA), nl,
+
+%    tell('debug.txt'),
+%    closure(G, [(start :- 'DOT', subterm(1200), full_stop)], Closure),
 %    print_closure(Closure),
+%    told,
     true.
 %    lookahead(G, (start :- 'DOT', subterm(_), full_stop), Q).
 
@@ -55,7 +65,8 @@ test :-
 read_grammar(G) :-
     open('prolog_grammar.pl', read, F),
     read_clauses(F,G),
-    close(F).
+    close(F),
+    !.
 
 read_clauses(F, []) :- at_end_of_stream(F), !.
 read_clauses(F, Cs) :-
@@ -193,6 +204,7 @@ add_state(StatesIn, KernelItems, StatesOut, State) :-
     add_state(StatesIn, 0, KernelItems, StatesOut, State).
 
 add_state([], Cnt, KernelItems, [State], State) :-
+    write('new state '), write(Cnt), nl,
     State = state(Cnt, KernelItems, []).
 add_state([State|States], Cnt, KernelItems, [State|StatesOut], Found) :-
     State = state(_N,StateKernelItems,_StateActions),
@@ -266,7 +278,10 @@ all_next_symbols([_|Items], SymbolsIn, SymbolsOut) :-
 %
 
 closure(Grammar,KernelItems,Closure) :-
-    closure_kernel(KernelItems,Grammar,[],Closure).
+    closure_kernel(KernelItems,Grammar,[],Closure1),
+    sort(Closure1, Closure2),
+    closure_compact(Closure2, Closure3),
+    reverse(Closure3, Closure).
 
 closure_kernel([],_,Closure,Closure).
 closure_kernel([KernelItem|KernelItems],Grammar,ClosureIn,ClosureOut) :-
@@ -278,12 +293,11 @@ closure(Grammar,Item,ClosureIn,ClosureOut) :-
     \+ member(Item, ClosureIn), % We have not seen this before
     !, % Do not backtrack.
     copy_term(Item, ItemCopy),
-    (item_move_next(ItemCopy, ItemCopyNext), lookahead(Grammar, ItemCopyNext, LA)
-     ; LA = []),
+    (item_move_next(ItemCopy, ItemCopyNext),
+     lookahead(Grammar, ItemCopyNext, LA), ! ; LA = []),
     match(Grammar, ItemCopy, MatchedItems),
-%    write('Matched '), write(MatchedItems), nl,
+    ClosureIn1 = [Item | ClosureIn],
     add_lookaheads(MatchedItems, LA, NewItems),
-    append(ClosureIn, [Item], ClosureIn1),
     closure_list(NewItems, Grammar, ClosureIn1, ClosureOut).
 closure(_,_,Closure,Closure).
 
@@ -291,6 +305,24 @@ closure_list([], _, Closure, Closure).
 closure_list([Item|Items], Grammar, ClosureIn, ClosureOut) :-
     closure(Grammar, Item, ClosureIn, ClosureIn1),
     closure_list(Items, Grammar, ClosureIn1, ClosureOut).
+
+closure_compact([], []).
+closure_compact([Clause1,Clause2|Clauses], NewClauses) :-
+    Clause1 = (Head1 :- Body1),
+    Clause2 = (Head2 :- Body2),
+    Head1 == Head2,
+    same_bodies_ignore_lookahead(Body1, Body2),
+    !,
+    item_lookahead_body(Body1, LA1),
+    item_lookahead_body(Body2, LA2),
+    append(LA1, LA2, LA0),
+    sort(LA0, LA),
+    strip_lookaheads_body(Body1, NakedBody),
+    add_lookaheads_body(NakedBody, LA, MergedBody),
+    ClauseMerged = (Head1 :- MergedBody),
+    closure_compact([ClauseMerged|Clauses], NewClauses).
+closure_compact([C|Cs], [C|NewCs]) :-
+    closure_compact(Cs,NewCs).
 
 print_closure([]).
 print_closure([Item|Items]) :-
@@ -303,10 +335,10 @@ print_closure([Item|Items]) :-
 % Compute the set of lookaheads for the given item.
 %
 lookahead(Grammar, Item, LA) :-
+%    log('lookahead '), log(Item), log_nl,
     lookahead(Grammar, Item, [], _, LA).
 lookahead_list(Grammar, Items, LA) :-
 	lookahead_list(Items, Grammar, [], _, LA).
-
 
 lookahead(_, Item, Visited, Visited, LA) :-
         item_at_end(Item), !, item_lookahead(Item, LA).
@@ -330,7 +362,10 @@ lookahead(_, _, Visited, Visited, []).
 
 lookahead_list([], _, Visited, Visited, []).
 lookahead_list([Item|Items], Grammar, VisitedIn, VisitedOut, LA) :-
-    lookahead(Grammar, Item, VisitedIn, Visited1, LAItem),
+    (member(Item, VisitedIn) ->
+        Visited1 = VisitedIn
+      ; lookahead(Grammar, Item, VisitedIn, Visited1, LAItem)
+    ),
     lookahead_list(Items, Grammar, Visited1, VisitedOut, LAItems),
     append(LAItem, LAItems, LA0),
     sort(LA0, LA).
@@ -364,8 +399,10 @@ item_move_next_body((A, B), (A, NewB)) :-
 
 terminal([], _).
 terminal([(Head :- _) | Clauses], Symbol) :-
-	functor(Symbol, _, 0),
-        Head \= Symbol,
+	functor(Symbol, F1, N1),
+        functor(Head, F2, N2),
+        (F1 \= F2 ; N1 \= N2),
+        !,
 	terminal(Clauses, Symbol).
 
 lookahead_symbol(Grammar, Symbol, LA) :-
@@ -423,7 +460,7 @@ match_symbol([C | Cs], Symbol, [Match | Matched]) :-
 	process_arithmetics(Match1, Match),
 	match_symbol(Cs, Symbol, Matched).
 match_symbol([_ | Cs], Symbol, Matched) :-
-	match_symbol(Cs, Symbol, Matched).
+         match_symbol(Cs, Symbol, Matched).
 
 match_heads(X, Y) :-
 %	write('match_heads '), write(X), write( ' '), write(Y), nl,
@@ -479,6 +516,17 @@ process_arithmetics_list([X|Xs], [NewX|NewXs]) :-
 	process_arithmetics(X,NewX),
 	process_arithmetics_list(Xs,NewXs).
 
+same_bodies_ignore_lookahead('DOT', 'DOT') :- !.
+same_bodies_ignore_lookahead((A, B1), (A, B2)) :-
+    !, same_bodies_ignore_lookahead(B1, B2).
+same_bodies_ignore_lookahead((A, _), A) :- !.
+same_bodies_ignore_lookahead(A, (A, _)) :- !.
+same_bodies_ignore_lookahead(A, [_|_]) :- \+ functor(A, ',', _), !.
+same_bodies_ignore_lookahead([_|_], B) :- \+ functor(B, ',', _), !.
+same_bodies_ignore_lookahead(A, []) :- \+ functor(A, ',', _), !.
+same_bodies_ignore_lookahead([], B) :- \+ functor(B, ',', _).
+    
+
 strip_lookaheads((Head :- Body), (Head :- NewBody)) :-
 	strip_lookaheads_body(Body, NewBody).
 
@@ -497,3 +545,13 @@ follow_body((_, Y), Symbol) :- follow_body(Y, Symbol).
 
 follow_found((A,_), A) :- !.
 follow_found(A, A).
+
+log_nl :- log('\n').
+
+log(S) :-
+    (log_cnt(C), C < 500 ->
+        write(S),
+        retract(log_cnt(_)),
+        C1 is C + 1,
+        assert(log_cnt(C1))
+    ; stop).
