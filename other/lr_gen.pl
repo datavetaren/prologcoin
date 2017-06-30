@@ -35,7 +35,7 @@
 
 test :-
 	read_grammar(G),
-	StartItem = [(start :- 'DOT', subterm(10000), full_stop)],
+	StartItem = [(start :- 'DOT', subterm(1200), full_stop)],
 	Start = state(0, StartItem, []),
 	states(G, Start, States),
 	tell('states.txt'),
@@ -228,6 +228,20 @@ select_items([Item|Items], Symbol, KernelItems) :-
 %	strip_lookaheads(Body, StrippedBody),
 %	% We have a match, so collapse them together.
 %	Found = 
+
+%item_equal_structure((HeadA :- BodyA), (HeadB :- BodyB)) :-
+%	(match_heads(HeadA, HeadB) ; match_heads(HeadB, HeadA)),
+%	item_equal_structure_body(BodyA, BodyB).
+%
+%item_equal_structure_body((A1, A2), (B1, B2)) :-
+%	item_equal_structure_body(A1, B1),
+%	item_equal_structure_body(A2, B2).
+%item_equal_structure_body([_|_], []) :- !.
+%item_equal_structure_body([], [_|_]) :- !.
+%item_equal_structure_body([_|_], 'DOT') :- !.
+%item_equal_structure_body([], 'DOT') :- !.
+%item_equal_structure_body('DOT', [_|_]) :- !.
+%item_equal_structure_body('DOT', []) :- !.
 	
 
 all_next_symbols(Items, Symbols) :-

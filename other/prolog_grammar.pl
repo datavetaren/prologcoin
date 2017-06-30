@@ -1,6 +1,6 @@
-start :- subterm(10000), full_stop.
+start :- subterm(1200), full_stop.
 
-subterm(N) :- term('<'(N)).
+subterm(N) :- term(N).
 
 term(N) :- op(N,fx), subterm('<'(N)).
 term(N) :- op(N,fy), subterm(N).
@@ -12,7 +12,7 @@ term(N) :- subterm(N), op(N, yf).
 
 term(1000) :- subterm(999), comma, subterm(1000).
 
-term(0) :- functor, lparen, arguments, rparen.
+term(0) :- functor_lparen, arguments, rparen.
 term(0) :- lparen, subterm(1200), rparen.
 term(0) :- lbrace, subterm(1200), rbrace.
 term(0) :- list.
@@ -43,7 +43,7 @@ unsigned_number :- unsigned_float.
 
 atom :- name.
 
-functor :- name.
+functor_lparen :- name_lparen.
 
 sign :- plus.
 sign :- minus.
