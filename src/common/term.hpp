@@ -397,6 +397,9 @@ public:
 
     inline operator T & () { return static_cast<T &>(ptr_); }
 
+    inline operator ext<cell> & ()
+    { return static_cast<ext<cell> &>(*this); }
+
 private:
     inline void ext_register(const heap &h, cell *p);
     inline void ext_unregister(const heap &h, cell *p);

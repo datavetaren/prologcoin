@@ -16,16 +16,16 @@ subterm_999 :- term_999.
 subterm_999 :- term_0.
 subterm_0 :- term_0.
 
-term_1200 :- unary_op_1200, subterm_1200.
-term_1200 :- subterm_1200, bin_op_1200, subterm_1200.
+term_1200 :- op_1200, subterm_1200.
+term_1200 :- subterm_1200, op_1200, subterm_1200.
 
-term_1000 :- unary_op_1000, subterm_1000.
-term_1000 :- subterm_1000, bin_op_1000, subterm_1000.
+term_1000 :- op_1000, subterm_1000.
+term_1000 :- subterm_1000, op_1000, subterm_1000.
 
 term_1000 :- subterm_999, comma, subterm_1000.
 
-term_999 :- unary_op_999, subterm_999.
-term_999 :- subterm_999, bin_op_999, subterm_999.
+term_999 :- op_999, subterm_999.
+term_999 :- subterm_999, op_999, subterm_999.
 
 term_0 :- functor_lparen, arguments, rparen.
 term_0 :- lparen, subterm_1200, rparen.

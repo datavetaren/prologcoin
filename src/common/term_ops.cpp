@@ -78,10 +78,32 @@ term_ops::term_ops()
     }
 }
 
+void term_ops::put(const std::string &name, size_t arity, size_t precedence, term_ops::type_t type)
+{
+    con_cell c = con_cell( name, arity );
+    op_entry newE = {name, arity, precedence, type};
+    op_prec_[c] = newE;
+
+    const op_entry &e = name_prec_[name];
+    if (e.precedence < precedence) {
+      name_prec_[name] = newE;
+    }
+}
+
 const term_ops::op_entry & term_ops::prec(cell c) const
 {
     auto it = op_prec_.find(c);
     if (it == op_prec_.end()) {
+	return op_none_;
+    } else {
+	return it->second;
+    }
+}
+
+const term_ops::op_entry & term_ops::prec(const std::string &name) const
+{
+    auto it = name_prec_.find(name);
+    if (it == name_prec_.end()) {
 	return op_none_;
     } else {
 	return it->second;

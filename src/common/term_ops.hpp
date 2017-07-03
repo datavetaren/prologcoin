@@ -3,8 +3,8 @@
 #ifndef _common_term_ops_hpp
 #define _common_term_ops_hpp
 
-#include <unordered_map>
 #include <string>
+#include <unordered_map>
 #include <iostream>
 #include "term.hpp"
 
@@ -54,13 +54,15 @@ public:
 	bool operator < (const op_entry &other) const {
 	    return precedence < other.precedence;
 	}
+
+        bool is_none() const
+        {
+	    // Precedence cannot be 0 for registered operators.
+	    return precedence == 0;
+	}
     };
 
-    void put(const std::string &name, size_t arity, size_t precedence, type_t type)
-    {
-	con_cell c = con_cell( name, arity );
-        op_prec_[c] = { name, arity, precedence, type };
-    }
+    void put(const std::string &name, size_t arity, size_t precedence, type_t type);
 
     const op_entry & none() const
     {
@@ -69,8 +71,11 @@ public:
 
     const op_entry & prec(cell c) const;
 
+    const op_entry & prec(const std::string &name) const;
+
 private:
     std::unordered_map<cell, op_entry> op_prec_;
+    std::unordered_map<std::string, op_entry> name_prec_;
     op_entry op_none_;
 };
 
