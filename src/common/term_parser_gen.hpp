@@ -321,62 +321,6 @@ template<typename Base, typename... Args> class term_parser_gen : public Base {
    case 266: state266(); break;
    case 267: state267(); break;
    case 268: state268(); break;
-   case 269: state269(); break;
-   case 270: state270(); break;
-   case 271: state271(); break;
-   case 272: state272(); break;
-   case 273: state273(); break;
-   case 274: state274(); break;
-   case 275: state275(); break;
-   case 276: state276(); break;
-   case 277: state277(); break;
-   case 278: state278(); break;
-   case 279: state279(); break;
-   case 280: state280(); break;
-   case 281: state281(); break;
-   case 282: state282(); break;
-   case 283: state283(); break;
-   case 284: state284(); break;
-   case 285: state285(); break;
-   case 286: state286(); break;
-   case 287: state287(); break;
-   case 288: state288(); break;
-   case 289: state289(); break;
-   case 290: state290(); break;
-   case 291: state291(); break;
-   case 292: state292(); break;
-   case 293: state293(); break;
-   case 294: state294(); break;
-   case 295: state295(); break;
-   case 296: state296(); break;
-   case 297: state297(); break;
-   case 298: state298(); break;
-   case 299: state299(); break;
-   case 300: state300(); break;
-   case 301: state301(); break;
-   case 302: state302(); break;
-   case 303: state303(); break;
-   case 304: state304(); break;
-   case 305: state305(); break;
-   case 306: state306(); break;
-   case 307: state307(); break;
-   case 308: state308(); break;
-   case 309: state309(); break;
-   case 310: state310(); break;
-   case 311: state311(); break;
-   case 312: state312(); break;
-   case 313: state313(); break;
-   case 314: state314(); break;
-   case 315: state315(); break;
-   case 316: state316(); break;
-   case 317: state317(); break;
-   case 318: state318(); break;
-   case 319: state319(); break;
-   case 320: state320(); break;
-   case 321: state321(); break;
-   case 322: state322(); break;
-   case 323: state323(); break;
-   case 324: state324(); break;
   } }
 
  void state0() {
@@ -414,8 +358,11 @@ template<typename Base, typename... Args> class term_parser_gen : public Base {
 
  void state1() {
   switch (lookahead().ordinal()) {
+   case SYMBOL_BIN_OP_1000:
+   case SYMBOL_BIN_OP_1200:
    case SYMBOL_BIN_OP_999:
    case SYMBOL_COMMA:
+   case SYMBOL_FULL_STOP:
     Base::push(Base::lookahead().ordinal(), Base::reduce_atom__name(Base::args(1)));
     break;
   }
@@ -423,8 +370,11 @@ template<typename Base, typename... Args> class term_parser_gen : public Base {
 
  void state2() {
   switch (lookahead().ordinal()) {
+   case SYMBOL_BIN_OP_1000:
+   case SYMBOL_BIN_OP_1200:
    case SYMBOL_BIN_OP_999:
    case SYMBOL_COMMA:
+   case SYMBOL_FULL_STOP:
     Base::push(Base::lookahead().ordinal(), Base::reduce_constant__atom(Base::args(1)));
     break;
   }
@@ -432,8 +382,11 @@ template<typename Base, typename... Args> class term_parser_gen : public Base {
 
  void state3() {
   switch (lookahead().ordinal()) {
+   case SYMBOL_BIN_OP_1000:
+   case SYMBOL_BIN_OP_1200:
    case SYMBOL_BIN_OP_999:
    case SYMBOL_COMMA:
+   case SYMBOL_FULL_STOP:
     Base::push(Base::lookahead().ordinal(), Base::reduce_constant__number(Base::args(1)));
     break;
   }
@@ -490,9 +443,9 @@ template<typename Base, typename... Args> class term_parser_gen : public Base {
 
  void state6() {
   switch (lookahead().ordinal()) {
-   case SYMBOL_INF: Base::shift_and_goto_state(270); break;
-   case SYMBOL_NAN: Base::shift_and_goto_state(271); break;
-   case SYMBOL_UNSIGNED_NUMBER: Base::shift_and_goto_state(272); break;
+   case SYMBOL_INF: Base::shift_and_goto_state(243); break;
+   case SYMBOL_NAN: Base::shift_and_goto_state(244); break;
+   case SYMBOL_UNSIGNED_NUMBER: Base::shift_and_goto_state(245); break;
    case SYMBOL_NATURAL_NUMBER: Base::shift_and_goto_state(27); break;
    case SYMBOL_UNSIGNED_FLOAT: Base::shift_and_goto_state(28); break;
   }
@@ -500,8 +453,11 @@ template<typename Base, typename... Args> class term_parser_gen : public Base {
 
  void state7() {
   switch (lookahead().ordinal()) {
+   case SYMBOL_BIN_OP_1000:
+   case SYMBOL_BIN_OP_1200:
    case SYMBOL_BIN_OP_999:
    case SYMBOL_COMMA:
+   case SYMBOL_FULL_STOP:
     Base::push(Base::lookahead().ordinal(), Base::reduce_number__unsigned_number(Base::args(1)));
     break;
   }
@@ -556,6 +512,13 @@ template<typename Base, typename... Args> class term_parser_gen : public Base {
    case SYMBOL_COMMA:
     Base::push(Base::lookahead().ordinal(), Base::reduce_subterm_999__term_0(Base::args(1)));
     break;
+   case SYMBOL_BIN_OP_1200:
+   case SYMBOL_FULL_STOP:
+    Base::push(Base::lookahead().ordinal(), Base::reduce_subterm_1200__term_0(Base::args(1)));
+    break;
+   case SYMBOL_BIN_OP_1000:
+    Base::push(Base::lookahead().ordinal(), Base::reduce_subterm_1000__term_0(Base::args(1)));
+    break;
   }
  }
 
@@ -565,6 +528,10 @@ template<typename Base, typename... Args> class term_parser_gen : public Base {
    case SYMBOL_COMMA:
     Base::push(Base::lookahead().ordinal(), Base::reduce_subterm_999__term_999(Base::args(1)));
     break;
+   case SYMBOL_BIN_OP_1200:
+   case SYMBOL_FULL_STOP:
+    Base::push(Base::lookahead().ordinal(), Base::reduce_subterm_1200__term_999(Base::args(1)));
+    break;
    case SYMBOL_BIN_OP_1000:
     Base::push(Base::lookahead().ordinal(), Base::reduce_subterm_1000__term_999(Base::args(1)));
     break;
@@ -573,8 +540,11 @@ template<typename Base, typename... Args> class term_parser_gen : public Base {
 
  void state14() {
   switch (lookahead().ordinal()) {
+   case SYMBOL_BIN_OP_1000:
+   case SYMBOL_BIN_OP_1200:
    case SYMBOL_BIN_OP_999:
    case SYMBOL_COMMA:
+   case SYMBOL_FULL_STOP:
     Base::push(Base::lookahead().ordinal(), Base::reduce_term_0__constant(Base::args(1)));
     break;
   }
@@ -600,7 +570,7 @@ template<typename Base, typename... Args> class term_parser_gen : public Base {
    case SYMBOL_LPAREN: Base::shift_and_goto_state(69); break;
    case SYMBOL_STRING: Base::shift_and_goto_state(70); break;
    case SYMBOL_VARIABLE: Base::shift_and_goto_state(71); break;
-   case SYMBOL_ARGUMENTS: Base::shift_and_goto_state(273); break;
+   case SYMBOL_ARGUMENTS: Base::shift_and_goto_state(246); break;
    case SYMBOL_SUBTERM_999: Base::shift_and_goto_state(73); break;
    case SYMBOL_UNARY_OP_999: Base::shift_and_goto_state(74); break;
    case SYMBOL_NATURAL_NUMBER: Base::shift_and_goto_state(75); break;
@@ -610,41 +580,44 @@ template<typename Base, typename... Args> class term_parser_gen : public Base {
 
  void state16() {
   switch (lookahead().ordinal()) {
-   case SYMBOL_NAME: Base::shift_and_goto_state(1); break;
-   case SYMBOL_ATOM: Base::shift_and_goto_state(2); break;
-   case SYMBOL_NUMBER: Base::shift_and_goto_state(3); break;
+   case SYMBOL_NAME: Base::shift_and_goto_state(85); break;
+   case SYMBOL_ATOM: Base::shift_and_goto_state(86); break;
+   case SYMBOL_NUMBER: Base::shift_and_goto_state(87); break;
    case SYMBOL_NAME_LPAREN: Base::shift_and_goto_state(4); break;
-   case SYMBOL_LBRACKET: Base::shift_and_goto_state(5); break;
-   case SYMBOL_SIGN: Base::shift_and_goto_state(6); break;
-   case SYMBOL_UNSIGNED_NUMBER: Base::shift_and_goto_state(7); break;
+   case SYMBOL_LBRACKET: Base::shift_and_goto_state(88); break;
+   case SYMBOL_SIGN: Base::shift_and_goto_state(89); break;
+   case SYMBOL_UNSIGNED_NUMBER: Base::shift_and_goto_state(90); break;
    case SYMBOL_MINUS: Base::shift_and_goto_state(8); break;
    case SYMBOL_PLUS: Base::shift_and_goto_state(9); break;
-   case SYMBOL_TERM_1000: Base::shift_and_goto_state(85); break;
-   case SYMBOL_TERM_1200: Base::shift_and_goto_state(86); break;
-   case SYMBOL_TERM_0: Base::shift_and_goto_state(12); break;
-   case SYMBOL_TERM_999: Base::shift_and_goto_state(13); break;
-   case SYMBOL_CONSTANT: Base::shift_and_goto_state(14); break;
-   case SYMBOL_FUNCTOR_LPAREN: Base::shift_and_goto_state(15); break;
-   case SYMBOL_LBRACE: Base::shift_and_goto_state(16); break;
-   case SYMBOL_LIST: Base::shift_and_goto_state(17); break;
-   case SYMBOL_LPAREN: Base::shift_and_goto_state(18); break;
-   case SYMBOL_STRING: Base::shift_and_goto_state(19); break;
-   case SYMBOL_VARIABLE: Base::shift_and_goto_state(20); break;
-   case SYMBOL_SUBTERM_1000: Base::shift_and_goto_state(87); break;
-   case SYMBOL_UNARY_OP_1000: Base::shift_and_goto_state(88); break;
-   case SYMBOL_SUBTERM_1200: Base::shift_and_goto_state(275); break;
-   case SYMBOL_UNARY_OP_1200: Base::shift_and_goto_state(90); break;
-   case SYMBOL_SUBTERM_999: Base::shift_and_goto_state(91); break;
-   case SYMBOL_UNARY_OP_999: Base::shift_and_goto_state(26); break;
-   case SYMBOL_NATURAL_NUMBER: Base::shift_and_goto_state(27); break;
-   case SYMBOL_UNSIGNED_FLOAT: Base::shift_and_goto_state(28); break;
+   case SYMBOL_TERM_1000: Base::shift_and_goto_state(91); break;
+   case SYMBOL_TERM_1200: Base::shift_and_goto_state(92); break;
+   case SYMBOL_TERM_0: Base::shift_and_goto_state(93); break;
+   case SYMBOL_TERM_999: Base::shift_and_goto_state(94); break;
+   case SYMBOL_CONSTANT: Base::shift_and_goto_state(95); break;
+   case SYMBOL_FUNCTOR_LPAREN: Base::shift_and_goto_state(96); break;
+   case SYMBOL_LBRACE: Base::shift_and_goto_state(97); break;
+   case SYMBOL_LIST: Base::shift_and_goto_state(98); break;
+   case SYMBOL_LPAREN: Base::shift_and_goto_state(99); break;
+   case SYMBOL_STRING: Base::shift_and_goto_state(100); break;
+   case SYMBOL_VARIABLE: Base::shift_and_goto_state(101); break;
+   case SYMBOL_SUBTERM_1000: Base::shift_and_goto_state(102); break;
+   case SYMBOL_UNARY_OP_1000: Base::shift_and_goto_state(103); break;
+   case SYMBOL_SUBTERM_1200: Base::shift_and_goto_state(248); break;
+   case SYMBOL_UNARY_OP_1200: Base::shift_and_goto_state(105); break;
+   case SYMBOL_SUBTERM_999: Base::shift_and_goto_state(106); break;
+   case SYMBOL_UNARY_OP_999: Base::shift_and_goto_state(107); break;
+   case SYMBOL_NATURAL_NUMBER: Base::shift_and_goto_state(108); break;
+   case SYMBOL_UNSIGNED_FLOAT: Base::shift_and_goto_state(109); break;
   }
  }
 
  void state17() {
   switch (lookahead().ordinal()) {
+   case SYMBOL_BIN_OP_1000:
+   case SYMBOL_BIN_OP_1200:
    case SYMBOL_BIN_OP_999:
    case SYMBOL_COMMA:
+   case SYMBOL_FULL_STOP:
     Base::push(Base::lookahead().ordinal(), Base::reduce_term_0__list(Base::args(1)));
     break;
   }
@@ -652,41 +625,44 @@ template<typename Base, typename... Args> class term_parser_gen : public Base {
 
  void state18() {
   switch (lookahead().ordinal()) {
-   case SYMBOL_NAME: Base::shift_and_goto_state(1); break;
-   case SYMBOL_ATOM: Base::shift_and_goto_state(2); break;
-   case SYMBOL_NUMBER: Base::shift_and_goto_state(3); break;
+   case SYMBOL_NAME: Base::shift_and_goto_state(122); break;
+   case SYMBOL_ATOM: Base::shift_and_goto_state(123); break;
+   case SYMBOL_NUMBER: Base::shift_and_goto_state(124); break;
    case SYMBOL_NAME_LPAREN: Base::shift_and_goto_state(4); break;
-   case SYMBOL_LBRACKET: Base::shift_and_goto_state(5); break;
-   case SYMBOL_SIGN: Base::shift_and_goto_state(6); break;
-   case SYMBOL_UNSIGNED_NUMBER: Base::shift_and_goto_state(7); break;
+   case SYMBOL_LBRACKET: Base::shift_and_goto_state(125); break;
+   case SYMBOL_SIGN: Base::shift_and_goto_state(126); break;
+   case SYMBOL_UNSIGNED_NUMBER: Base::shift_and_goto_state(127); break;
    case SYMBOL_MINUS: Base::shift_and_goto_state(8); break;
    case SYMBOL_PLUS: Base::shift_and_goto_state(9); break;
-   case SYMBOL_TERM_1000: Base::shift_and_goto_state(131); break;
-   case SYMBOL_TERM_1200: Base::shift_and_goto_state(132); break;
-   case SYMBOL_TERM_0: Base::shift_and_goto_state(12); break;
-   case SYMBOL_TERM_999: Base::shift_and_goto_state(13); break;
-   case SYMBOL_CONSTANT: Base::shift_and_goto_state(14); break;
-   case SYMBOL_FUNCTOR_LPAREN: Base::shift_and_goto_state(15); break;
-   case SYMBOL_LBRACE: Base::shift_and_goto_state(16); break;
-   case SYMBOL_LIST: Base::shift_and_goto_state(17); break;
-   case SYMBOL_LPAREN: Base::shift_and_goto_state(18); break;
-   case SYMBOL_STRING: Base::shift_and_goto_state(19); break;
-   case SYMBOL_VARIABLE: Base::shift_and_goto_state(20); break;
-   case SYMBOL_SUBTERM_1000: Base::shift_and_goto_state(133); break;
-   case SYMBOL_UNARY_OP_1000: Base::shift_and_goto_state(134); break;
-   case SYMBOL_SUBTERM_1200: Base::shift_and_goto_state(277); break;
-   case SYMBOL_UNARY_OP_1200: Base::shift_and_goto_state(136); break;
-   case SYMBOL_SUBTERM_999: Base::shift_and_goto_state(137); break;
-   case SYMBOL_UNARY_OP_999: Base::shift_and_goto_state(26); break;
-   case SYMBOL_NATURAL_NUMBER: Base::shift_and_goto_state(27); break;
-   case SYMBOL_UNSIGNED_FLOAT: Base::shift_and_goto_state(28); break;
+   case SYMBOL_TERM_1000: Base::shift_and_goto_state(128); break;
+   case SYMBOL_TERM_1200: Base::shift_and_goto_state(129); break;
+   case SYMBOL_TERM_0: Base::shift_and_goto_state(130); break;
+   case SYMBOL_TERM_999: Base::shift_and_goto_state(131); break;
+   case SYMBOL_CONSTANT: Base::shift_and_goto_state(132); break;
+   case SYMBOL_FUNCTOR_LPAREN: Base::shift_and_goto_state(133); break;
+   case SYMBOL_LBRACE: Base::shift_and_goto_state(134); break;
+   case SYMBOL_LIST: Base::shift_and_goto_state(135); break;
+   case SYMBOL_LPAREN: Base::shift_and_goto_state(136); break;
+   case SYMBOL_STRING: Base::shift_and_goto_state(137); break;
+   case SYMBOL_VARIABLE: Base::shift_and_goto_state(138); break;
+   case SYMBOL_SUBTERM_1000: Base::shift_and_goto_state(139); break;
+   case SYMBOL_UNARY_OP_1000: Base::shift_and_goto_state(140); break;
+   case SYMBOL_SUBTERM_1200: Base::shift_and_goto_state(250); break;
+   case SYMBOL_UNARY_OP_1200: Base::shift_and_goto_state(142); break;
+   case SYMBOL_SUBTERM_999: Base::shift_and_goto_state(143); break;
+   case SYMBOL_UNARY_OP_999: Base::shift_and_goto_state(144); break;
+   case SYMBOL_NATURAL_NUMBER: Base::shift_and_goto_state(145); break;
+   case SYMBOL_UNSIGNED_FLOAT: Base::shift_and_goto_state(146); break;
   }
  }
 
  void state19() {
   switch (lookahead().ordinal()) {
+   case SYMBOL_BIN_OP_1000:
+   case SYMBOL_BIN_OP_1200:
    case SYMBOL_BIN_OP_999:
    case SYMBOL_COMMA:
+   case SYMBOL_FULL_STOP:
     Base::push(Base::lookahead().ordinal(), Base::reduce_term_0__string(Base::args(1)));
     break;
   }
@@ -694,8 +670,11 @@ template<typename Base, typename... Args> class term_parser_gen : public Base {
 
  void state20() {
   switch (lookahead().ordinal()) {
+   case SYMBOL_BIN_OP_1000:
+   case SYMBOL_BIN_OP_1200:
    case SYMBOL_BIN_OP_999:
    case SYMBOL_COMMA:
+   case SYMBOL_FULL_STOP:
     Base::push(Base::lookahead().ordinal(), Base::reduce_term_0__variable(Base::args(1)));
     break;
   }
@@ -703,7 +682,7 @@ template<typename Base, typename... Args> class term_parser_gen : public Base {
 
  void state21() {
   switch (lookahead().ordinal()) {
-   case SYMBOL_BIN_OP_1000: Base::shift_and_goto_state(279); break;
+   case SYMBOL_BIN_OP_1000: Base::shift_and_goto_state(252); break;
   }
  }
 
@@ -718,9 +697,9 @@ template<typename Base, typename... Args> class term_parser_gen : public Base {
    case SYMBOL_UNSIGNED_NUMBER: Base::shift_and_goto_state(7); break;
    case SYMBOL_MINUS: Base::shift_and_goto_state(8); break;
    case SYMBOL_PLUS: Base::shift_and_goto_state(9); break;
-   case SYMBOL_TERM_1000: Base::shift_and_goto_state(280); break;
-   case SYMBOL_TERM_0: Base::shift_and_goto_state(12); break;
-   case SYMBOL_TERM_999: Base::shift_and_goto_state(281); break;
+   case SYMBOL_TERM_1000: Base::shift_and_goto_state(253); break;
+   case SYMBOL_TERM_0: Base::shift_and_goto_state(254); break;
+   case SYMBOL_TERM_999: Base::shift_and_goto_state(255); break;
    case SYMBOL_CONSTANT: Base::shift_and_goto_state(14); break;
    case SYMBOL_FUNCTOR_LPAREN: Base::shift_and_goto_state(15); break;
    case SYMBOL_LBRACE: Base::shift_and_goto_state(16); break;
@@ -729,9 +708,9 @@ template<typename Base, typename... Args> class term_parser_gen : public Base {
    case SYMBOL_STRING: Base::shift_and_goto_state(19); break;
    case SYMBOL_VARIABLE: Base::shift_and_goto_state(20); break;
    case SYMBOL_UNARY_OP_1000: Base::shift_and_goto_state(22); break;
-   case SYMBOL_SUBTERM_1000: Base::shift_and_goto_state(319); break;
-   case SYMBOL_SUBTERM_999: Base::shift_and_goto_state(283); break;
-   case SYMBOL_UNARY_OP_999: Base::shift_and_goto_state(284); break;
+   case SYMBOL_SUBTERM_1000: Base::shift_and_goto_state(257); break;
+   case SYMBOL_SUBTERM_999: Base::shift_and_goto_state(25); break;
+   case SYMBOL_UNARY_OP_999: Base::shift_and_goto_state(26); break;
    case SYMBOL_NATURAL_NUMBER: Base::shift_and_goto_state(27); break;
    case SYMBOL_UNSIGNED_FLOAT: Base::shift_and_goto_state(28); break;
   }
@@ -739,8 +718,8 @@ template<typename Base, typename... Args> class term_parser_gen : public Base {
 
  void state23() {
   switch (lookahead().ordinal()) {
-   case SYMBOL_FULL_STOP: Base::shift_and_goto_state(320); break;
-   case SYMBOL_BIN_OP_1200: Base::shift_and_goto_state(321); break;
+   case SYMBOL_FULL_STOP: Base::shift_and_goto_state(258); break;
+   case SYMBOL_BIN_OP_1200: Base::shift_and_goto_state(259); break;
   }
  }
 
@@ -769,7 +748,7 @@ template<typename Base, typename... Args> class term_parser_gen : public Base {
    case SYMBOL_SUBTERM_1000: Base::shift_and_goto_state(21); break;
    case SYMBOL_UNARY_OP_1000: Base::shift_and_goto_state(22); break;
    case SYMBOL_UNARY_OP_1200: Base::shift_and_goto_state(24); break;
-   case SYMBOL_SUBTERM_1200: Base::shift_and_goto_state(323); break;
+   case SYMBOL_SUBTERM_1200: Base::shift_and_goto_state(261); break;
    case SYMBOL_SUBTERM_999: Base::shift_and_goto_state(25); break;
    case SYMBOL_UNARY_OP_999: Base::shift_and_goto_state(26); break;
    case SYMBOL_NATURAL_NUMBER: Base::shift_and_goto_state(27); break;
@@ -779,42 +758,45 @@ template<typename Base, typename... Args> class term_parser_gen : public Base {
 
  void state25() {
   switch (lookahead().ordinal()) {
-   case SYMBOL_COMMA: Base::shift_and_goto_state(285); break;
-   case SYMBOL_BIN_OP_999: Base::shift_and_goto_state(183); break;
+   case SYMBOL_COMMA: Base::shift_and_goto_state(262); break;
+   case SYMBOL_BIN_OP_999: Base::shift_and_goto_state(263); break;
   }
  }
 
  void state26() {
   switch (lookahead().ordinal()) {
-   case SYMBOL_NAME: Base::shift_and_goto_state(184); break;
-   case SYMBOL_ATOM: Base::shift_and_goto_state(185); break;
-   case SYMBOL_NUMBER: Base::shift_and_goto_state(186); break;
+   case SYMBOL_NAME: Base::shift_and_goto_state(1); break;
+   case SYMBOL_ATOM: Base::shift_and_goto_state(2); break;
+   case SYMBOL_NUMBER: Base::shift_and_goto_state(3); break;
    case SYMBOL_NAME_LPAREN: Base::shift_and_goto_state(4); break;
-   case SYMBOL_LBRACKET: Base::shift_and_goto_state(187); break;
-   case SYMBOL_SIGN: Base::shift_and_goto_state(188); break;
-   case SYMBOL_UNSIGNED_NUMBER: Base::shift_and_goto_state(189); break;
+   case SYMBOL_LBRACKET: Base::shift_and_goto_state(5); break;
+   case SYMBOL_SIGN: Base::shift_and_goto_state(6); break;
+   case SYMBOL_UNSIGNED_NUMBER: Base::shift_and_goto_state(7); break;
    case SYMBOL_MINUS: Base::shift_and_goto_state(8); break;
    case SYMBOL_PLUS: Base::shift_and_goto_state(9); break;
-   case SYMBOL_TERM_0: Base::shift_and_goto_state(190); break;
-   case SYMBOL_TERM_999: Base::shift_and_goto_state(191); break;
-   case SYMBOL_CONSTANT: Base::shift_and_goto_state(192); break;
-   case SYMBOL_FUNCTOR_LPAREN: Base::shift_and_goto_state(193); break;
-   case SYMBOL_LBRACE: Base::shift_and_goto_state(194); break;
-   case SYMBOL_LIST: Base::shift_and_goto_state(195); break;
-   case SYMBOL_LPAREN: Base::shift_and_goto_state(196); break;
-   case SYMBOL_STRING: Base::shift_and_goto_state(197); break;
-   case SYMBOL_VARIABLE: Base::shift_and_goto_state(198); break;
+   case SYMBOL_TERM_0: Base::shift_and_goto_state(265); break;
+   case SYMBOL_TERM_999: Base::shift_and_goto_state(266); break;
+   case SYMBOL_CONSTANT: Base::shift_and_goto_state(14); break;
+   case SYMBOL_FUNCTOR_LPAREN: Base::shift_and_goto_state(15); break;
+   case SYMBOL_LBRACE: Base::shift_and_goto_state(16); break;
+   case SYMBOL_LIST: Base::shift_and_goto_state(17); break;
+   case SYMBOL_LPAREN: Base::shift_and_goto_state(18); break;
+   case SYMBOL_STRING: Base::shift_and_goto_state(19); break;
+   case SYMBOL_VARIABLE: Base::shift_and_goto_state(20); break;
    case SYMBOL_UNARY_OP_999: Base::shift_and_goto_state(26); break;
-   case SYMBOL_SUBTERM_999: Base::shift_and_goto_state(324); break;
-   case SYMBOL_NATURAL_NUMBER: Base::shift_and_goto_state(200); break;
-   case SYMBOL_UNSIGNED_FLOAT: Base::shift_and_goto_state(201); break;
+   case SYMBOL_SUBTERM_999: Base::shift_and_goto_state(268); break;
+   case SYMBOL_NATURAL_NUMBER: Base::shift_and_goto_state(27); break;
+   case SYMBOL_UNSIGNED_FLOAT: Base::shift_and_goto_state(28); break;
   }
  }
 
  void state27() {
   switch (lookahead().ordinal()) {
+   case SYMBOL_BIN_OP_1000:
+   case SYMBOL_BIN_OP_1200:
    case SYMBOL_BIN_OP_999:
    case SYMBOL_COMMA:
+   case SYMBOL_FULL_STOP:
     Base::push(Base::lookahead().ordinal(), Base::reduce_unsigned_number__natural_number(Base::args(1)));
     break;
   }
@@ -822,8 +804,11 @@ template<typename Base, typename... Args> class term_parser_gen : public Base {
 
  void state28() {
   switch (lookahead().ordinal()) {
+   case SYMBOL_BIN_OP_1000:
+   case SYMBOL_BIN_OP_1200:
    case SYMBOL_BIN_OP_999:
    case SYMBOL_COMMA:
+   case SYMBOL_FULL_STOP:
     Base::push(Base::lookahead().ordinal(), Base::reduce_unsigned_number__unsigned_float(Base::args(1)));
     break;
   }
@@ -899,8 +884,11 @@ template<typename Base, typename... Args> class term_parser_gen : public Base {
 
  void state34() {
   switch (lookahead().ordinal()) {
+   case SYMBOL_BIN_OP_1000:
+   case SYMBOL_BIN_OP_1200:
    case SYMBOL_BIN_OP_999:
    case SYMBOL_COMMA:
+   case SYMBOL_FULL_STOP:
     Base::push(Base::lookahead().ordinal(), Base::reduce_list__lbracket_rbracket(Base::args(2)));
     break;
   }
@@ -990,34 +978,34 @@ template<typename Base, typename... Args> class term_parser_gen : public Base {
 
  void state41() {
   switch (lookahead().ordinal()) {
-   case SYMBOL_NAME: Base::shift_and_goto_state(1); break;
-   case SYMBOL_ATOM: Base::shift_and_goto_state(2); break;
-   case SYMBOL_NUMBER: Base::shift_and_goto_state(3); break;
+   case SYMBOL_NAME: Base::shift_and_goto_state(85); break;
+   case SYMBOL_ATOM: Base::shift_and_goto_state(86); break;
+   case SYMBOL_NUMBER: Base::shift_and_goto_state(87); break;
    case SYMBOL_NAME_LPAREN: Base::shift_and_goto_state(4); break;
-   case SYMBOL_LBRACKET: Base::shift_and_goto_state(5); break;
-   case SYMBOL_SIGN: Base::shift_and_goto_state(6); break;
-   case SYMBOL_UNSIGNED_NUMBER: Base::shift_and_goto_state(7); break;
+   case SYMBOL_LBRACKET: Base::shift_and_goto_state(88); break;
+   case SYMBOL_SIGN: Base::shift_and_goto_state(89); break;
+   case SYMBOL_UNSIGNED_NUMBER: Base::shift_and_goto_state(90); break;
    case SYMBOL_MINUS: Base::shift_and_goto_state(8); break;
    case SYMBOL_PLUS: Base::shift_and_goto_state(9); break;
-   case SYMBOL_TERM_1000: Base::shift_and_goto_state(85); break;
-   case SYMBOL_TERM_1200: Base::shift_and_goto_state(86); break;
-   case SYMBOL_TERM_0: Base::shift_and_goto_state(12); break;
-   case SYMBOL_TERM_999: Base::shift_and_goto_state(13); break;
-   case SYMBOL_CONSTANT: Base::shift_and_goto_state(14); break;
-   case SYMBOL_FUNCTOR_LPAREN: Base::shift_and_goto_state(15); break;
-   case SYMBOL_LBRACE: Base::shift_and_goto_state(16); break;
-   case SYMBOL_LIST: Base::shift_and_goto_state(17); break;
-   case SYMBOL_LPAREN: Base::shift_and_goto_state(18); break;
-   case SYMBOL_STRING: Base::shift_and_goto_state(19); break;
-   case SYMBOL_VARIABLE: Base::shift_and_goto_state(20); break;
-   case SYMBOL_SUBTERM_1000: Base::shift_and_goto_state(87); break;
-   case SYMBOL_UNARY_OP_1000: Base::shift_and_goto_state(88); break;
-   case SYMBOL_SUBTERM_1200: Base::shift_and_goto_state(226); break;
-   case SYMBOL_UNARY_OP_1200: Base::shift_and_goto_state(90); break;
-   case SYMBOL_SUBTERM_999: Base::shift_and_goto_state(91); break;
-   case SYMBOL_UNARY_OP_999: Base::shift_and_goto_state(26); break;
-   case SYMBOL_NATURAL_NUMBER: Base::shift_and_goto_state(27); break;
-   case SYMBOL_UNSIGNED_FLOAT: Base::shift_and_goto_state(28); break;
+   case SYMBOL_TERM_1000: Base::shift_and_goto_state(91); break;
+   case SYMBOL_TERM_1200: Base::shift_and_goto_state(92); break;
+   case SYMBOL_TERM_0: Base::shift_and_goto_state(93); break;
+   case SYMBOL_TERM_999: Base::shift_and_goto_state(94); break;
+   case SYMBOL_CONSTANT: Base::shift_and_goto_state(95); break;
+   case SYMBOL_FUNCTOR_LPAREN: Base::shift_and_goto_state(96); break;
+   case SYMBOL_LBRACE: Base::shift_and_goto_state(97); break;
+   case SYMBOL_LIST: Base::shift_and_goto_state(98); break;
+   case SYMBOL_LPAREN: Base::shift_and_goto_state(99); break;
+   case SYMBOL_STRING: Base::shift_and_goto_state(100); break;
+   case SYMBOL_VARIABLE: Base::shift_and_goto_state(101); break;
+   case SYMBOL_SUBTERM_1000: Base::shift_and_goto_state(102); break;
+   case SYMBOL_UNARY_OP_1000: Base::shift_and_goto_state(103); break;
+   case SYMBOL_SUBTERM_1200: Base::shift_and_goto_state(199); break;
+   case SYMBOL_UNARY_OP_1200: Base::shift_and_goto_state(105); break;
+   case SYMBOL_SUBTERM_999: Base::shift_and_goto_state(106); break;
+   case SYMBOL_UNARY_OP_999: Base::shift_and_goto_state(107); break;
+   case SYMBOL_NATURAL_NUMBER: Base::shift_and_goto_state(108); break;
+   case SYMBOL_UNSIGNED_FLOAT: Base::shift_and_goto_state(109); break;
   }
  }
 
@@ -1034,34 +1022,34 @@ template<typename Base, typename... Args> class term_parser_gen : public Base {
 
  void state43() {
   switch (lookahead().ordinal()) {
-   case SYMBOL_NAME: Base::shift_and_goto_state(1); break;
-   case SYMBOL_ATOM: Base::shift_and_goto_state(2); break;
-   case SYMBOL_NUMBER: Base::shift_and_goto_state(3); break;
+   case SYMBOL_NAME: Base::shift_and_goto_state(122); break;
+   case SYMBOL_ATOM: Base::shift_and_goto_state(123); break;
+   case SYMBOL_NUMBER: Base::shift_and_goto_state(124); break;
    case SYMBOL_NAME_LPAREN: Base::shift_and_goto_state(4); break;
-   case SYMBOL_LBRACKET: Base::shift_and_goto_state(5); break;
-   case SYMBOL_SIGN: Base::shift_and_goto_state(6); break;
-   case SYMBOL_UNSIGNED_NUMBER: Base::shift_and_goto_state(7); break;
+   case SYMBOL_LBRACKET: Base::shift_and_goto_state(125); break;
+   case SYMBOL_SIGN: Base::shift_and_goto_state(126); break;
+   case SYMBOL_UNSIGNED_NUMBER: Base::shift_and_goto_state(127); break;
    case SYMBOL_MINUS: Base::shift_and_goto_state(8); break;
    case SYMBOL_PLUS: Base::shift_and_goto_state(9); break;
-   case SYMBOL_TERM_1000: Base::shift_and_goto_state(131); break;
-   case SYMBOL_TERM_1200: Base::shift_and_goto_state(132); break;
-   case SYMBOL_TERM_0: Base::shift_and_goto_state(12); break;
-   case SYMBOL_TERM_999: Base::shift_and_goto_state(13); break;
-   case SYMBOL_CONSTANT: Base::shift_and_goto_state(14); break;
-   case SYMBOL_FUNCTOR_LPAREN: Base::shift_and_goto_state(15); break;
-   case SYMBOL_LBRACE: Base::shift_and_goto_state(16); break;
-   case SYMBOL_LIST: Base::shift_and_goto_state(17); break;
-   case SYMBOL_LPAREN: Base::shift_and_goto_state(18); break;
-   case SYMBOL_STRING: Base::shift_and_goto_state(19); break;
-   case SYMBOL_VARIABLE: Base::shift_and_goto_state(20); break;
-   case SYMBOL_SUBTERM_1000: Base::shift_and_goto_state(133); break;
-   case SYMBOL_UNARY_OP_1000: Base::shift_and_goto_state(134); break;
-   case SYMBOL_SUBTERM_1200: Base::shift_and_goto_state(228); break;
-   case SYMBOL_UNARY_OP_1200: Base::shift_and_goto_state(136); break;
-   case SYMBOL_SUBTERM_999: Base::shift_and_goto_state(137); break;
-   case SYMBOL_UNARY_OP_999: Base::shift_and_goto_state(26); break;
-   case SYMBOL_NATURAL_NUMBER: Base::shift_and_goto_state(27); break;
-   case SYMBOL_UNSIGNED_FLOAT: Base::shift_and_goto_state(28); break;
+   case SYMBOL_TERM_1000: Base::shift_and_goto_state(128); break;
+   case SYMBOL_TERM_1200: Base::shift_and_goto_state(129); break;
+   case SYMBOL_TERM_0: Base::shift_and_goto_state(130); break;
+   case SYMBOL_TERM_999: Base::shift_and_goto_state(131); break;
+   case SYMBOL_CONSTANT: Base::shift_and_goto_state(132); break;
+   case SYMBOL_FUNCTOR_LPAREN: Base::shift_and_goto_state(133); break;
+   case SYMBOL_LBRACE: Base::shift_and_goto_state(134); break;
+   case SYMBOL_LIST: Base::shift_and_goto_state(135); break;
+   case SYMBOL_LPAREN: Base::shift_and_goto_state(136); break;
+   case SYMBOL_STRING: Base::shift_and_goto_state(137); break;
+   case SYMBOL_VARIABLE: Base::shift_and_goto_state(138); break;
+   case SYMBOL_SUBTERM_1000: Base::shift_and_goto_state(139); break;
+   case SYMBOL_UNARY_OP_1000: Base::shift_and_goto_state(140); break;
+   case SYMBOL_SUBTERM_1200: Base::shift_and_goto_state(201); break;
+   case SYMBOL_UNARY_OP_1200: Base::shift_and_goto_state(142); break;
+   case SYMBOL_SUBTERM_999: Base::shift_and_goto_state(143); break;
+   case SYMBOL_UNARY_OP_999: Base::shift_and_goto_state(144); break;
+   case SYMBOL_NATURAL_NUMBER: Base::shift_and_goto_state(145); break;
+   case SYMBOL_UNSIGNED_FLOAT: Base::shift_and_goto_state(146); break;
   }
  }
 
@@ -1089,9 +1077,9 @@ template<typename Base, typename... Args> class term_parser_gen : public Base {
 
  void state46() {
   switch (lookahead().ordinal()) {
-   case SYMBOL_COMMA: Base::shift_and_goto_state(230); break;
-   case SYMBOL_VBAR: Base::shift_and_goto_state(231); break;
-   case SYMBOL_BIN_OP_999: Base::shift_and_goto_state(232); break;
+   case SYMBOL_COMMA: Base::shift_and_goto_state(203); break;
+   case SYMBOL_VBAR: Base::shift_and_goto_state(204); break;
+   case SYMBOL_BIN_OP_999: Base::shift_and_goto_state(205); break;
    case SYMBOL_RBRACKET:
     Base::push(Base::lookahead().ordinal(), Base::reduce_listexpr__subterm_999(Base::args(1)));
     break;
@@ -1119,7 +1107,7 @@ template<typename Base, typename... Args> class term_parser_gen : public Base {
    case SYMBOL_STRING: Base::shift_and_goto_state(44); break;
    case SYMBOL_VARIABLE: Base::shift_and_goto_state(45); break;
    case SYMBOL_UNARY_OP_999: Base::shift_and_goto_state(47); break;
-   case SYMBOL_SUBTERM_999: Base::shift_and_goto_state(269); break;
+   case SYMBOL_SUBTERM_999: Base::shift_and_goto_state(242); break;
    case SYMBOL_NATURAL_NUMBER: Base::shift_and_goto_state(48); break;
    case SYMBOL_UNSIGNED_FLOAT: Base::shift_and_goto_state(49); break;
   }
@@ -1177,8 +1165,11 @@ template<typename Base, typename... Args> class term_parser_gen : public Base {
 
  void state53() {
   switch (lookahead().ordinal()) {
+   case SYMBOL_BIN_OP_1000:
+   case SYMBOL_BIN_OP_1200:
    case SYMBOL_BIN_OP_999:
    case SYMBOL_COMMA:
+   case SYMBOL_FULL_STOP:
     Base::push(Base::lookahead().ordinal(), Base::reduce_list__lbracket_listexpr_rbracket(Base::args(3)));
     break;
   }
@@ -1356,34 +1347,34 @@ template<typename Base, typename... Args> class term_parser_gen : public Base {
 
  void state67() {
   switch (lookahead().ordinal()) {
-   case SYMBOL_NAME: Base::shift_and_goto_state(1); break;
-   case SYMBOL_ATOM: Base::shift_and_goto_state(2); break;
-   case SYMBOL_NUMBER: Base::shift_and_goto_state(3); break;
+   case SYMBOL_NAME: Base::shift_and_goto_state(85); break;
+   case SYMBOL_ATOM: Base::shift_and_goto_state(86); break;
+   case SYMBOL_NUMBER: Base::shift_and_goto_state(87); break;
    case SYMBOL_NAME_LPAREN: Base::shift_and_goto_state(4); break;
-   case SYMBOL_LBRACKET: Base::shift_and_goto_state(5); break;
-   case SYMBOL_SIGN: Base::shift_and_goto_state(6); break;
-   case SYMBOL_UNSIGNED_NUMBER: Base::shift_and_goto_state(7); break;
+   case SYMBOL_LBRACKET: Base::shift_and_goto_state(88); break;
+   case SYMBOL_SIGN: Base::shift_and_goto_state(89); break;
+   case SYMBOL_UNSIGNED_NUMBER: Base::shift_and_goto_state(90); break;
    case SYMBOL_MINUS: Base::shift_and_goto_state(8); break;
    case SYMBOL_PLUS: Base::shift_and_goto_state(9); break;
-   case SYMBOL_TERM_1000: Base::shift_and_goto_state(85); break;
-   case SYMBOL_TERM_1200: Base::shift_and_goto_state(86); break;
-   case SYMBOL_TERM_0: Base::shift_and_goto_state(12); break;
-   case SYMBOL_TERM_999: Base::shift_and_goto_state(13); break;
-   case SYMBOL_CONSTANT: Base::shift_and_goto_state(14); break;
-   case SYMBOL_FUNCTOR_LPAREN: Base::shift_and_goto_state(15); break;
-   case SYMBOL_LBRACE: Base::shift_and_goto_state(16); break;
-   case SYMBOL_LIST: Base::shift_and_goto_state(17); break;
-   case SYMBOL_LPAREN: Base::shift_and_goto_state(18); break;
-   case SYMBOL_STRING: Base::shift_and_goto_state(19); break;
-   case SYMBOL_VARIABLE: Base::shift_and_goto_state(20); break;
-   case SYMBOL_SUBTERM_1000: Base::shift_and_goto_state(87); break;
-   case SYMBOL_UNARY_OP_1000: Base::shift_and_goto_state(88); break;
-   case SYMBOL_SUBTERM_1200: Base::shift_and_goto_state(89); break;
-   case SYMBOL_UNARY_OP_1200: Base::shift_and_goto_state(90); break;
-   case SYMBOL_SUBTERM_999: Base::shift_and_goto_state(91); break;
-   case SYMBOL_UNARY_OP_999: Base::shift_and_goto_state(26); break;
-   case SYMBOL_NATURAL_NUMBER: Base::shift_and_goto_state(27); break;
-   case SYMBOL_UNSIGNED_FLOAT: Base::shift_and_goto_state(28); break;
+   case SYMBOL_TERM_1000: Base::shift_and_goto_state(91); break;
+   case SYMBOL_TERM_1200: Base::shift_and_goto_state(92); break;
+   case SYMBOL_TERM_0: Base::shift_and_goto_state(93); break;
+   case SYMBOL_TERM_999: Base::shift_and_goto_state(94); break;
+   case SYMBOL_CONSTANT: Base::shift_and_goto_state(95); break;
+   case SYMBOL_FUNCTOR_LPAREN: Base::shift_and_goto_state(96); break;
+   case SYMBOL_LBRACE: Base::shift_and_goto_state(97); break;
+   case SYMBOL_LIST: Base::shift_and_goto_state(98); break;
+   case SYMBOL_LPAREN: Base::shift_and_goto_state(99); break;
+   case SYMBOL_STRING: Base::shift_and_goto_state(100); break;
+   case SYMBOL_VARIABLE: Base::shift_and_goto_state(101); break;
+   case SYMBOL_SUBTERM_1000: Base::shift_and_goto_state(102); break;
+   case SYMBOL_UNARY_OP_1000: Base::shift_and_goto_state(103); break;
+   case SYMBOL_SUBTERM_1200: Base::shift_and_goto_state(104); break;
+   case SYMBOL_UNARY_OP_1200: Base::shift_and_goto_state(105); break;
+   case SYMBOL_SUBTERM_999: Base::shift_and_goto_state(106); break;
+   case SYMBOL_UNARY_OP_999: Base::shift_and_goto_state(107); break;
+   case SYMBOL_NATURAL_NUMBER: Base::shift_and_goto_state(108); break;
+   case SYMBOL_UNSIGNED_FLOAT: Base::shift_and_goto_state(109); break;
   }
  }
 
@@ -1399,34 +1390,34 @@ template<typename Base, typename... Args> class term_parser_gen : public Base {
 
  void state69() {
   switch (lookahead().ordinal()) {
-   case SYMBOL_NAME: Base::shift_and_goto_state(1); break;
-   case SYMBOL_ATOM: Base::shift_and_goto_state(2); break;
-   case SYMBOL_NUMBER: Base::shift_and_goto_state(3); break;
+   case SYMBOL_NAME: Base::shift_and_goto_state(122); break;
+   case SYMBOL_ATOM: Base::shift_and_goto_state(123); break;
+   case SYMBOL_NUMBER: Base::shift_and_goto_state(124); break;
    case SYMBOL_NAME_LPAREN: Base::shift_and_goto_state(4); break;
-   case SYMBOL_LBRACKET: Base::shift_and_goto_state(5); break;
-   case SYMBOL_SIGN: Base::shift_and_goto_state(6); break;
-   case SYMBOL_UNSIGNED_NUMBER: Base::shift_and_goto_state(7); break;
+   case SYMBOL_LBRACKET: Base::shift_and_goto_state(125); break;
+   case SYMBOL_SIGN: Base::shift_and_goto_state(126); break;
+   case SYMBOL_UNSIGNED_NUMBER: Base::shift_and_goto_state(127); break;
    case SYMBOL_MINUS: Base::shift_and_goto_state(8); break;
    case SYMBOL_PLUS: Base::shift_and_goto_state(9); break;
-   case SYMBOL_TERM_1000: Base::shift_and_goto_state(131); break;
-   case SYMBOL_TERM_1200: Base::shift_and_goto_state(132); break;
-   case SYMBOL_TERM_0: Base::shift_and_goto_state(12); break;
-   case SYMBOL_TERM_999: Base::shift_and_goto_state(13); break;
-   case SYMBOL_CONSTANT: Base::shift_and_goto_state(14); break;
-   case SYMBOL_FUNCTOR_LPAREN: Base::shift_and_goto_state(15); break;
-   case SYMBOL_LBRACE: Base::shift_and_goto_state(16); break;
-   case SYMBOL_LIST: Base::shift_and_goto_state(17); break;
-   case SYMBOL_LPAREN: Base::shift_and_goto_state(18); break;
-   case SYMBOL_STRING: Base::shift_and_goto_state(19); break;
-   case SYMBOL_VARIABLE: Base::shift_and_goto_state(20); break;
-   case SYMBOL_SUBTERM_1000: Base::shift_and_goto_state(133); break;
-   case SYMBOL_UNARY_OP_1000: Base::shift_and_goto_state(134); break;
-   case SYMBOL_SUBTERM_1200: Base::shift_and_goto_state(218); break;
-   case SYMBOL_UNARY_OP_1200: Base::shift_and_goto_state(136); break;
-   case SYMBOL_SUBTERM_999: Base::shift_and_goto_state(137); break;
-   case SYMBOL_UNARY_OP_999: Base::shift_and_goto_state(26); break;
-   case SYMBOL_NATURAL_NUMBER: Base::shift_and_goto_state(27); break;
-   case SYMBOL_UNSIGNED_FLOAT: Base::shift_and_goto_state(28); break;
+   case SYMBOL_TERM_1000: Base::shift_and_goto_state(128); break;
+   case SYMBOL_TERM_1200: Base::shift_and_goto_state(129); break;
+   case SYMBOL_TERM_0: Base::shift_and_goto_state(130); break;
+   case SYMBOL_TERM_999: Base::shift_and_goto_state(131); break;
+   case SYMBOL_CONSTANT: Base::shift_and_goto_state(132); break;
+   case SYMBOL_FUNCTOR_LPAREN: Base::shift_and_goto_state(133); break;
+   case SYMBOL_LBRACE: Base::shift_and_goto_state(134); break;
+   case SYMBOL_LIST: Base::shift_and_goto_state(135); break;
+   case SYMBOL_LPAREN: Base::shift_and_goto_state(136); break;
+   case SYMBOL_STRING: Base::shift_and_goto_state(137); break;
+   case SYMBOL_VARIABLE: Base::shift_and_goto_state(138); break;
+   case SYMBOL_SUBTERM_1000: Base::shift_and_goto_state(139); break;
+   case SYMBOL_UNARY_OP_1000: Base::shift_and_goto_state(140); break;
+   case SYMBOL_SUBTERM_1200: Base::shift_and_goto_state(191); break;
+   case SYMBOL_UNARY_OP_1200: Base::shift_and_goto_state(142); break;
+   case SYMBOL_SUBTERM_999: Base::shift_and_goto_state(143); break;
+   case SYMBOL_UNARY_OP_999: Base::shift_and_goto_state(144); break;
+   case SYMBOL_NATURAL_NUMBER: Base::shift_and_goto_state(145); break;
+   case SYMBOL_UNSIGNED_FLOAT: Base::shift_and_goto_state(146); break;
   }
  }
 
@@ -1452,14 +1443,14 @@ template<typename Base, typename... Args> class term_parser_gen : public Base {
 
  void state72() {
   switch (lookahead().ordinal()) {
-   case SYMBOL_RPAREN: Base::shift_and_goto_state(220); break;
+   case SYMBOL_RPAREN: Base::shift_and_goto_state(193); break;
   }
  }
 
  void state73() {
   switch (lookahead().ordinal()) {
-   case SYMBOL_COMMA: Base::shift_and_goto_state(221); break;
-   case SYMBOL_BIN_OP_999: Base::shift_and_goto_state(222); break;
+   case SYMBOL_COMMA: Base::shift_and_goto_state(194); break;
+   case SYMBOL_BIN_OP_999: Base::shift_and_goto_state(195); break;
    case SYMBOL_RPAREN:
     Base::push(Base::lookahead().ordinal(), Base::reduce_arguments__subterm_999(Base::args(1)));
     break;
@@ -1487,7 +1478,7 @@ template<typename Base, typename... Args> class term_parser_gen : public Base {
    case SYMBOL_STRING: Base::shift_and_goto_state(70); break;
    case SYMBOL_VARIABLE: Base::shift_and_goto_state(71); break;
    case SYMBOL_UNARY_OP_999: Base::shift_and_goto_state(74); break;
-   case SYMBOL_SUBTERM_999: Base::shift_and_goto_state(225); break;
+   case SYMBOL_SUBTERM_999: Base::shift_and_goto_state(198); break;
    case SYMBOL_NATURAL_NUMBER: Base::shift_and_goto_state(75); break;
    case SYMBOL_UNSIGNED_FLOAT: Base::shift_and_goto_state(76); break;
   }
@@ -1587,6 +1578,93 @@ template<typename Base, typename... Args> class term_parser_gen : public Base {
 
  void state85() {
   switch (lookahead().ordinal()) {
+   case SYMBOL_BIN_OP_1000:
+   case SYMBOL_BIN_OP_1200:
+   case SYMBOL_BIN_OP_999:
+   case SYMBOL_COMMA:
+   case SYMBOL_RBRACE:
+    Base::push(Base::lookahead().ordinal(), Base::reduce_atom__name(Base::args(1)));
+    break;
+  }
+ }
+
+ void state86() {
+  switch (lookahead().ordinal()) {
+   case SYMBOL_BIN_OP_1000:
+   case SYMBOL_BIN_OP_1200:
+   case SYMBOL_BIN_OP_999:
+   case SYMBOL_COMMA:
+   case SYMBOL_RBRACE:
+    Base::push(Base::lookahead().ordinal(), Base::reduce_constant__atom(Base::args(1)));
+    break;
+  }
+ }
+
+ void state87() {
+  switch (lookahead().ordinal()) {
+   case SYMBOL_BIN_OP_1000:
+   case SYMBOL_BIN_OP_1200:
+   case SYMBOL_BIN_OP_999:
+   case SYMBOL_COMMA:
+   case SYMBOL_RBRACE:
+    Base::push(Base::lookahead().ordinal(), Base::reduce_constant__number(Base::args(1)));
+    break;
+  }
+ }
+
+ void state88() {
+  switch (lookahead().ordinal()) {
+   case SYMBOL_NAME: Base::shift_and_goto_state(29); break;
+   case SYMBOL_ATOM: Base::shift_and_goto_state(30); break;
+   case SYMBOL_NUMBER: Base::shift_and_goto_state(31); break;
+   case SYMBOL_NAME_LPAREN: Base::shift_and_goto_state(4); break;
+   case SYMBOL_LBRACKET: Base::shift_and_goto_state(32); break;
+   case SYMBOL_LISTEXPR: Base::shift_and_goto_state(110); break;
+   case SYMBOL_RBRACKET: Base::shift_and_goto_state(111); break;
+   case SYMBOL_SIGN: Base::shift_and_goto_state(35); break;
+   case SYMBOL_UNSIGNED_NUMBER: Base::shift_and_goto_state(36); break;
+   case SYMBOL_MINUS: Base::shift_and_goto_state(8); break;
+   case SYMBOL_PLUS: Base::shift_and_goto_state(9); break;
+   case SYMBOL_TERM_0: Base::shift_and_goto_state(37); break;
+   case SYMBOL_TERM_999: Base::shift_and_goto_state(38); break;
+   case SYMBOL_CONSTANT: Base::shift_and_goto_state(39); break;
+   case SYMBOL_FUNCTOR_LPAREN: Base::shift_and_goto_state(40); break;
+   case SYMBOL_LBRACE: Base::shift_and_goto_state(41); break;
+   case SYMBOL_LIST: Base::shift_and_goto_state(42); break;
+   case SYMBOL_LPAREN: Base::shift_and_goto_state(43); break;
+   case SYMBOL_STRING: Base::shift_and_goto_state(44); break;
+   case SYMBOL_VARIABLE: Base::shift_and_goto_state(45); break;
+   case SYMBOL_SUBTERM_999: Base::shift_and_goto_state(46); break;
+   case SYMBOL_UNARY_OP_999: Base::shift_and_goto_state(47); break;
+   case SYMBOL_NATURAL_NUMBER: Base::shift_and_goto_state(48); break;
+   case SYMBOL_UNSIGNED_FLOAT: Base::shift_and_goto_state(49); break;
+  }
+ }
+
+ void state89() {
+  switch (lookahead().ordinal()) {
+   case SYMBOL_INF: Base::shift_and_goto_state(113); break;
+   case SYMBOL_NAN: Base::shift_and_goto_state(114); break;
+   case SYMBOL_UNSIGNED_NUMBER: Base::shift_and_goto_state(115); break;
+   case SYMBOL_NATURAL_NUMBER: Base::shift_and_goto_state(108); break;
+   case SYMBOL_UNSIGNED_FLOAT: Base::shift_and_goto_state(109); break;
+  }
+ }
+
+ void state90() {
+  switch (lookahead().ordinal()) {
+   case SYMBOL_BIN_OP_1000:
+   case SYMBOL_BIN_OP_1200:
+   case SYMBOL_BIN_OP_999:
+   case SYMBOL_COMMA:
+   case SYMBOL_RBRACE:
+    Base::push(Base::lookahead().ordinal(), Base::reduce_number__unsigned_number(Base::args(1)));
+    break;
+  }
+ }
+
+ void state91() {
+  switch (lookahead().ordinal()) {
    case SYMBOL_BIN_OP_1200:
    case SYMBOL_RBRACE:
     Base::push(Base::lookahead().ordinal(), Base::reduce_subterm_1200__term_1000(Base::args(1)));
@@ -1597,7 +1675,7 @@ template<typename Base, typename... Args> class term_parser_gen : public Base {
   }
  }
 
- void state86() {
+ void state92() {
   switch (lookahead().ordinal()) {
    case SYMBOL_BIN_OP_1200:
    case SYMBOL_RBRACE:
@@ -1606,125 +1684,18 @@ template<typename Base, typename... Args> class term_parser_gen : public Base {
   }
  }
 
- void state87() {
-  switch (lookahead().ordinal()) {
-   case SYMBOL_BIN_OP_1000: Base::shift_and_goto_state(92); break;
-  }
- }
-
- void state88() {
-  switch (lookahead().ordinal()) {
-   case SYMBOL_NAME: Base::shift_and_goto_state(1); break;
-   case SYMBOL_ATOM: Base::shift_and_goto_state(2); break;
-   case SYMBOL_NUMBER: Base::shift_and_goto_state(3); break;
-   case SYMBOL_NAME_LPAREN: Base::shift_and_goto_state(4); break;
-   case SYMBOL_LBRACKET: Base::shift_and_goto_state(5); break;
-   case SYMBOL_SIGN: Base::shift_and_goto_state(6); break;
-   case SYMBOL_UNSIGNED_NUMBER: Base::shift_and_goto_state(7); break;
-   case SYMBOL_MINUS: Base::shift_and_goto_state(8); break;
-   case SYMBOL_PLUS: Base::shift_and_goto_state(9); break;
-   case SYMBOL_TERM_1000: Base::shift_and_goto_state(93); break;
-   case SYMBOL_TERM_0: Base::shift_and_goto_state(12); break;
-   case SYMBOL_TERM_999: Base::shift_and_goto_state(94); break;
-   case SYMBOL_CONSTANT: Base::shift_and_goto_state(14); break;
-   case SYMBOL_FUNCTOR_LPAREN: Base::shift_and_goto_state(15); break;
-   case SYMBOL_LBRACE: Base::shift_and_goto_state(16); break;
-   case SYMBOL_LIST: Base::shift_and_goto_state(17); break;
-   case SYMBOL_LPAREN: Base::shift_and_goto_state(18); break;
-   case SYMBOL_STRING: Base::shift_and_goto_state(19); break;
-   case SYMBOL_VARIABLE: Base::shift_and_goto_state(20); break;
-   case SYMBOL_UNARY_OP_1000: Base::shift_and_goto_state(88); break;
-   case SYMBOL_SUBTERM_1000: Base::shift_and_goto_state(215); break;
-   case SYMBOL_SUBTERM_999: Base::shift_and_goto_state(96); break;
-   case SYMBOL_UNARY_OP_999: Base::shift_and_goto_state(97); break;
-   case SYMBOL_NATURAL_NUMBER: Base::shift_and_goto_state(27); break;
-   case SYMBOL_UNSIGNED_FLOAT: Base::shift_and_goto_state(28); break;
-  }
- }
-
- void state89() {
-  switch (lookahead().ordinal()) {
-   case SYMBOL_RBRACE: Base::shift_and_goto_state(216); break;
-   case SYMBOL_BIN_OP_1200: Base::shift_and_goto_state(129); break;
-  }
- }
-
- void state90() {
-  switch (lookahead().ordinal()) {
-   case SYMBOL_NAME: Base::shift_and_goto_state(1); break;
-   case SYMBOL_ATOM: Base::shift_and_goto_state(2); break;
-   case SYMBOL_NUMBER: Base::shift_and_goto_state(3); break;
-   case SYMBOL_NAME_LPAREN: Base::shift_and_goto_state(4); break;
-   case SYMBOL_LBRACKET: Base::shift_and_goto_state(5); break;
-   case SYMBOL_SIGN: Base::shift_and_goto_state(6); break;
-   case SYMBOL_UNSIGNED_NUMBER: Base::shift_and_goto_state(7); break;
-   case SYMBOL_MINUS: Base::shift_and_goto_state(8); break;
-   case SYMBOL_PLUS: Base::shift_and_goto_state(9); break;
-   case SYMBOL_TERM_1000: Base::shift_and_goto_state(85); break;
-   case SYMBOL_TERM_1200: Base::shift_and_goto_state(86); break;
-   case SYMBOL_TERM_0: Base::shift_and_goto_state(12); break;
-   case SYMBOL_TERM_999: Base::shift_and_goto_state(13); break;
-   case SYMBOL_CONSTANT: Base::shift_and_goto_state(14); break;
-   case SYMBOL_FUNCTOR_LPAREN: Base::shift_and_goto_state(15); break;
-   case SYMBOL_LBRACE: Base::shift_and_goto_state(16); break;
-   case SYMBOL_LIST: Base::shift_and_goto_state(17); break;
-   case SYMBOL_LPAREN: Base::shift_and_goto_state(18); break;
-   case SYMBOL_STRING: Base::shift_and_goto_state(19); break;
-   case SYMBOL_VARIABLE: Base::shift_and_goto_state(20); break;
-   case SYMBOL_SUBTERM_1000: Base::shift_and_goto_state(87); break;
-   case SYMBOL_UNARY_OP_1000: Base::shift_and_goto_state(88); break;
-   case SYMBOL_UNARY_OP_1200: Base::shift_and_goto_state(90); break;
-   case SYMBOL_SUBTERM_1200: Base::shift_and_goto_state(217); break;
-   case SYMBOL_SUBTERM_999: Base::shift_and_goto_state(91); break;
-   case SYMBOL_UNARY_OP_999: Base::shift_and_goto_state(26); break;
-   case SYMBOL_NATURAL_NUMBER: Base::shift_and_goto_state(27); break;
-   case SYMBOL_UNSIGNED_FLOAT: Base::shift_and_goto_state(28); break;
-  }
- }
-
- void state91() {
-  switch (lookahead().ordinal()) {
-   case SYMBOL_COMMA: Base::shift_and_goto_state(98); break;
-   case SYMBOL_BIN_OP_999: Base::shift_and_goto_state(183); break;
-  }
- }
-
- void state92() {
-  switch (lookahead().ordinal()) {
-   case SYMBOL_NAME: Base::shift_and_goto_state(1); break;
-   case SYMBOL_ATOM: Base::shift_and_goto_state(2); break;
-   case SYMBOL_NUMBER: Base::shift_and_goto_state(3); break;
-   case SYMBOL_NAME_LPAREN: Base::shift_and_goto_state(4); break;
-   case SYMBOL_LBRACKET: Base::shift_and_goto_state(5); break;
-   case SYMBOL_SIGN: Base::shift_and_goto_state(6); break;
-   case SYMBOL_UNSIGNED_NUMBER: Base::shift_and_goto_state(7); break;
-   case SYMBOL_MINUS: Base::shift_and_goto_state(8); break;
-   case SYMBOL_PLUS: Base::shift_and_goto_state(9); break;
-   case SYMBOL_TERM_1000: Base::shift_and_goto_state(93); break;
-   case SYMBOL_TERM_0: Base::shift_and_goto_state(12); break;
-   case SYMBOL_TERM_999: Base::shift_and_goto_state(94); break;
-   case SYMBOL_CONSTANT: Base::shift_and_goto_state(14); break;
-   case SYMBOL_FUNCTOR_LPAREN: Base::shift_and_goto_state(15); break;
-   case SYMBOL_LBRACE: Base::shift_and_goto_state(16); break;
-   case SYMBOL_LIST: Base::shift_and_goto_state(17); break;
-   case SYMBOL_LPAREN: Base::shift_and_goto_state(18); break;
-   case SYMBOL_STRING: Base::shift_and_goto_state(19); break;
-   case SYMBOL_VARIABLE: Base::shift_and_goto_state(20); break;
-   case SYMBOL_UNARY_OP_1000: Base::shift_and_goto_state(88); break;
-   case SYMBOL_SUBTERM_1000: Base::shift_and_goto_state(95); break;
-   case SYMBOL_SUBTERM_999: Base::shift_and_goto_state(96); break;
-   case SYMBOL_UNARY_OP_999: Base::shift_and_goto_state(97); break;
-   case SYMBOL_NATURAL_NUMBER: Base::shift_and_goto_state(27); break;
-   case SYMBOL_UNSIGNED_FLOAT: Base::shift_and_goto_state(28); break;
-  }
- }
-
  void state93() {
   switch (lookahead().ordinal()) {
-   case SYMBOL_BIN_OP_1000:
+   case SYMBOL_BIN_OP_999:
+   case SYMBOL_COMMA:
+    Base::push(Base::lookahead().ordinal(), Base::reduce_subterm_999__term_0(Base::args(1)));
+    break;
    case SYMBOL_BIN_OP_1200:
    case SYMBOL_RBRACE:
-    Base::push(Base::lookahead().ordinal(), Base::reduce_subterm_1000__term_1000(Base::args(1)));
+    Base::push(Base::lookahead().ordinal(), Base::reduce_subterm_1200__term_0(Base::args(1)));
+    break;
+   case SYMBOL_BIN_OP_1000:
+    Base::push(Base::lookahead().ordinal(), Base::reduce_subterm_1000__term_0(Base::args(1)));
     break;
   }
  }
@@ -1735,9 +1706,11 @@ template<typename Base, typename... Args> class term_parser_gen : public Base {
    case SYMBOL_COMMA:
     Base::push(Base::lookahead().ordinal(), Base::reduce_subterm_999__term_999(Base::args(1)));
     break;
-   case SYMBOL_BIN_OP_1000:
    case SYMBOL_BIN_OP_1200:
    case SYMBOL_RBRACE:
+    Base::push(Base::lookahead().ordinal(), Base::reduce_subterm_1200__term_999(Base::args(1)));
+    break;
+   case SYMBOL_BIN_OP_1000:
     Base::push(Base::lookahead().ordinal(), Base::reduce_subterm_1000__term_999(Base::args(1)));
     break;
   }
@@ -1747,100 +1720,117 @@ template<typename Base, typename... Args> class term_parser_gen : public Base {
   switch (lookahead().ordinal()) {
    case SYMBOL_BIN_OP_1000:
    case SYMBOL_BIN_OP_1200:
+   case SYMBOL_BIN_OP_999:
+   case SYMBOL_COMMA:
    case SYMBOL_RBRACE:
-    Base::push(Base::lookahead().ordinal(), Base::reduce_term_1000__subterm_1000_bin_op_1000_subterm_1000(Base::args(3)));
+    Base::push(Base::lookahead().ordinal(), Base::reduce_term_0__constant(Base::args(1)));
     break;
   }
  }
 
  void state96() {
   switch (lookahead().ordinal()) {
-   case SYMBOL_COMMA: Base::shift_and_goto_state(98); break;
-   case SYMBOL_BIN_OP_999: Base::shift_and_goto_state(99); break;
+   case SYMBOL_NAME: Base::shift_and_goto_state(57); break;
+   case SYMBOL_ATOM: Base::shift_and_goto_state(58); break;
+   case SYMBOL_NUMBER: Base::shift_and_goto_state(59); break;
+   case SYMBOL_NAME_LPAREN: Base::shift_and_goto_state(4); break;
+   case SYMBOL_LBRACKET: Base::shift_and_goto_state(60); break;
+   case SYMBOL_SIGN: Base::shift_and_goto_state(61); break;
+   case SYMBOL_UNSIGNED_NUMBER: Base::shift_and_goto_state(62); break;
+   case SYMBOL_MINUS: Base::shift_and_goto_state(8); break;
+   case SYMBOL_PLUS: Base::shift_and_goto_state(9); break;
+   case SYMBOL_TERM_0: Base::shift_and_goto_state(63); break;
+   case SYMBOL_TERM_999: Base::shift_and_goto_state(64); break;
+   case SYMBOL_CONSTANT: Base::shift_and_goto_state(65); break;
+   case SYMBOL_FUNCTOR_LPAREN: Base::shift_and_goto_state(66); break;
+   case SYMBOL_LBRACE: Base::shift_and_goto_state(67); break;
+   case SYMBOL_LIST: Base::shift_and_goto_state(68); break;
+   case SYMBOL_LPAREN: Base::shift_and_goto_state(69); break;
+   case SYMBOL_STRING: Base::shift_and_goto_state(70); break;
+   case SYMBOL_VARIABLE: Base::shift_and_goto_state(71); break;
+   case SYMBOL_ARGUMENTS: Base::shift_and_goto_state(116); break;
+   case SYMBOL_SUBTERM_999: Base::shift_and_goto_state(73); break;
+   case SYMBOL_UNARY_OP_999: Base::shift_and_goto_state(74); break;
+   case SYMBOL_NATURAL_NUMBER: Base::shift_and_goto_state(75); break;
+   case SYMBOL_UNSIGNED_FLOAT: Base::shift_and_goto_state(76); break;
   }
  }
 
  void state97() {
   switch (lookahead().ordinal()) {
-   case SYMBOL_NAME: Base::shift_and_goto_state(101); break;
-   case SYMBOL_ATOM: Base::shift_and_goto_state(102); break;
-   case SYMBOL_NUMBER: Base::shift_and_goto_state(103); break;
+   case SYMBOL_NAME: Base::shift_and_goto_state(85); break;
+   case SYMBOL_ATOM: Base::shift_and_goto_state(86); break;
+   case SYMBOL_NUMBER: Base::shift_and_goto_state(87); break;
    case SYMBOL_NAME_LPAREN: Base::shift_and_goto_state(4); break;
-   case SYMBOL_LBRACKET: Base::shift_and_goto_state(104); break;
-   case SYMBOL_SIGN: Base::shift_and_goto_state(105); break;
-   case SYMBOL_UNSIGNED_NUMBER: Base::shift_and_goto_state(106); break;
+   case SYMBOL_LBRACKET: Base::shift_and_goto_state(88); break;
+   case SYMBOL_SIGN: Base::shift_and_goto_state(89); break;
+   case SYMBOL_UNSIGNED_NUMBER: Base::shift_and_goto_state(90); break;
    case SYMBOL_MINUS: Base::shift_and_goto_state(8); break;
    case SYMBOL_PLUS: Base::shift_and_goto_state(9); break;
-   case SYMBOL_TERM_0: Base::shift_and_goto_state(107); break;
-   case SYMBOL_TERM_999: Base::shift_and_goto_state(108); break;
-   case SYMBOL_CONSTANT: Base::shift_and_goto_state(109); break;
-   case SYMBOL_FUNCTOR_LPAREN: Base::shift_and_goto_state(110); break;
-   case SYMBOL_LBRACE: Base::shift_and_goto_state(111); break;
-   case SYMBOL_LIST: Base::shift_and_goto_state(112); break;
-   case SYMBOL_LPAREN: Base::shift_and_goto_state(113); break;
-   case SYMBOL_STRING: Base::shift_and_goto_state(114); break;
-   case SYMBOL_VARIABLE: Base::shift_and_goto_state(115); break;
-   case SYMBOL_UNARY_OP_999: Base::shift_and_goto_state(97); break;
-   case SYMBOL_SUBTERM_999: Base::shift_and_goto_state(214); break;
-   case SYMBOL_NATURAL_NUMBER: Base::shift_and_goto_state(117); break;
-   case SYMBOL_UNSIGNED_FLOAT: Base::shift_and_goto_state(118); break;
+   case SYMBOL_TERM_1000: Base::shift_and_goto_state(91); break;
+   case SYMBOL_TERM_1200: Base::shift_and_goto_state(92); break;
+   case SYMBOL_TERM_0: Base::shift_and_goto_state(93); break;
+   case SYMBOL_TERM_999: Base::shift_and_goto_state(94); break;
+   case SYMBOL_CONSTANT: Base::shift_and_goto_state(95); break;
+   case SYMBOL_FUNCTOR_LPAREN: Base::shift_and_goto_state(96); break;
+   case SYMBOL_LBRACE: Base::shift_and_goto_state(97); break;
+   case SYMBOL_LIST: Base::shift_and_goto_state(98); break;
+   case SYMBOL_LPAREN: Base::shift_and_goto_state(99); break;
+   case SYMBOL_STRING: Base::shift_and_goto_state(100); break;
+   case SYMBOL_VARIABLE: Base::shift_and_goto_state(101); break;
+   case SYMBOL_SUBTERM_1000: Base::shift_and_goto_state(102); break;
+   case SYMBOL_UNARY_OP_1000: Base::shift_and_goto_state(103); break;
+   case SYMBOL_SUBTERM_1200: Base::shift_and_goto_state(118); break;
+   case SYMBOL_UNARY_OP_1200: Base::shift_and_goto_state(105); break;
+   case SYMBOL_SUBTERM_999: Base::shift_and_goto_state(106); break;
+   case SYMBOL_UNARY_OP_999: Base::shift_and_goto_state(107); break;
+   case SYMBOL_NATURAL_NUMBER: Base::shift_and_goto_state(108); break;
+   case SYMBOL_UNSIGNED_FLOAT: Base::shift_and_goto_state(109); break;
   }
  }
 
  void state98() {
   switch (lookahead().ordinal()) {
-   case SYMBOL_NAME: Base::shift_and_goto_state(1); break;
-   case SYMBOL_ATOM: Base::shift_and_goto_state(2); break;
-   case SYMBOL_NUMBER: Base::shift_and_goto_state(3); break;
-   case SYMBOL_NAME_LPAREN: Base::shift_and_goto_state(4); break;
-   case SYMBOL_LBRACKET: Base::shift_and_goto_state(5); break;
-   case SYMBOL_SIGN: Base::shift_and_goto_state(6); break;
-   case SYMBOL_UNSIGNED_NUMBER: Base::shift_and_goto_state(7); break;
-   case SYMBOL_MINUS: Base::shift_and_goto_state(8); break;
-   case SYMBOL_PLUS: Base::shift_and_goto_state(9); break;
-   case SYMBOL_TERM_1000: Base::shift_and_goto_state(93); break;
-   case SYMBOL_TERM_0: Base::shift_and_goto_state(12); break;
-   case SYMBOL_TERM_999: Base::shift_and_goto_state(94); break;
-   case SYMBOL_CONSTANT: Base::shift_and_goto_state(14); break;
-   case SYMBOL_FUNCTOR_LPAREN: Base::shift_and_goto_state(15); break;
-   case SYMBOL_LBRACE: Base::shift_and_goto_state(16); break;
-   case SYMBOL_LIST: Base::shift_and_goto_state(17); break;
-   case SYMBOL_LPAREN: Base::shift_and_goto_state(18); break;
-   case SYMBOL_STRING: Base::shift_and_goto_state(19); break;
-   case SYMBOL_VARIABLE: Base::shift_and_goto_state(20); break;
-   case SYMBOL_UNARY_OP_1000: Base::shift_and_goto_state(88); break;
-   case SYMBOL_SUBTERM_1000: Base::shift_and_goto_state(100); break;
-   case SYMBOL_SUBTERM_999: Base::shift_and_goto_state(96); break;
-   case SYMBOL_UNARY_OP_999: Base::shift_and_goto_state(97); break;
-   case SYMBOL_NATURAL_NUMBER: Base::shift_and_goto_state(27); break;
-   case SYMBOL_UNSIGNED_FLOAT: Base::shift_and_goto_state(28); break;
+   case SYMBOL_BIN_OP_1000:
+   case SYMBOL_BIN_OP_1200:
+   case SYMBOL_BIN_OP_999:
+   case SYMBOL_COMMA:
+   case SYMBOL_RBRACE:
+    Base::push(Base::lookahead().ordinal(), Base::reduce_term_0__list(Base::args(1)));
+    break;
   }
  }
 
  void state99() {
   switch (lookahead().ordinal()) {
-   case SYMBOL_NAME: Base::shift_and_goto_state(101); break;
-   case SYMBOL_ATOM: Base::shift_and_goto_state(102); break;
-   case SYMBOL_NUMBER: Base::shift_and_goto_state(103); break;
+   case SYMBOL_NAME: Base::shift_and_goto_state(122); break;
+   case SYMBOL_ATOM: Base::shift_and_goto_state(123); break;
+   case SYMBOL_NUMBER: Base::shift_and_goto_state(124); break;
    case SYMBOL_NAME_LPAREN: Base::shift_and_goto_state(4); break;
-   case SYMBOL_LBRACKET: Base::shift_and_goto_state(104); break;
-   case SYMBOL_SIGN: Base::shift_and_goto_state(105); break;
-   case SYMBOL_UNSIGNED_NUMBER: Base::shift_and_goto_state(106); break;
+   case SYMBOL_LBRACKET: Base::shift_and_goto_state(125); break;
+   case SYMBOL_SIGN: Base::shift_and_goto_state(126); break;
+   case SYMBOL_UNSIGNED_NUMBER: Base::shift_and_goto_state(127); break;
    case SYMBOL_MINUS: Base::shift_and_goto_state(8); break;
    case SYMBOL_PLUS: Base::shift_and_goto_state(9); break;
-   case SYMBOL_TERM_0: Base::shift_and_goto_state(107); break;
-   case SYMBOL_TERM_999: Base::shift_and_goto_state(108); break;
-   case SYMBOL_CONSTANT: Base::shift_and_goto_state(109); break;
-   case SYMBOL_FUNCTOR_LPAREN: Base::shift_and_goto_state(110); break;
-   case SYMBOL_LBRACE: Base::shift_and_goto_state(111); break;
-   case SYMBOL_LIST: Base::shift_and_goto_state(112); break;
-   case SYMBOL_LPAREN: Base::shift_and_goto_state(113); break;
-   case SYMBOL_STRING: Base::shift_and_goto_state(114); break;
-   case SYMBOL_VARIABLE: Base::shift_and_goto_state(115); break;
-   case SYMBOL_UNARY_OP_999: Base::shift_and_goto_state(97); break;
-   case SYMBOL_SUBTERM_999: Base::shift_and_goto_state(116); break;
-   case SYMBOL_NATURAL_NUMBER: Base::shift_and_goto_state(117); break;
-   case SYMBOL_UNSIGNED_FLOAT: Base::shift_and_goto_state(118); break;
+   case SYMBOL_TERM_1000: Base::shift_and_goto_state(128); break;
+   case SYMBOL_TERM_1200: Base::shift_and_goto_state(129); break;
+   case SYMBOL_TERM_0: Base::shift_and_goto_state(130); break;
+   case SYMBOL_TERM_999: Base::shift_and_goto_state(131); break;
+   case SYMBOL_CONSTANT: Base::shift_and_goto_state(132); break;
+   case SYMBOL_FUNCTOR_LPAREN: Base::shift_and_goto_state(133); break;
+   case SYMBOL_LBRACE: Base::shift_and_goto_state(134); break;
+   case SYMBOL_LIST: Base::shift_and_goto_state(135); break;
+   case SYMBOL_LPAREN: Base::shift_and_goto_state(136); break;
+   case SYMBOL_STRING: Base::shift_and_goto_state(137); break;
+   case SYMBOL_VARIABLE: Base::shift_and_goto_state(138); break;
+   case SYMBOL_SUBTERM_1000: Base::shift_and_goto_state(139); break;
+   case SYMBOL_UNARY_OP_1000: Base::shift_and_goto_state(140); break;
+   case SYMBOL_SUBTERM_1200: Base::shift_and_goto_state(141); break;
+   case SYMBOL_UNARY_OP_1200: Base::shift_and_goto_state(142); break;
+   case SYMBOL_SUBTERM_999: Base::shift_and_goto_state(143); break;
+   case SYMBOL_UNARY_OP_999: Base::shift_and_goto_state(144); break;
+   case SYMBOL_NATURAL_NUMBER: Base::shift_and_goto_state(145); break;
+   case SYMBOL_UNSIGNED_FLOAT: Base::shift_and_goto_state(146); break;
   }
  }
 
@@ -1848,8 +1838,10 @@ template<typename Base, typename... Args> class term_parser_gen : public Base {
   switch (lookahead().ordinal()) {
    case SYMBOL_BIN_OP_1000:
    case SYMBOL_BIN_OP_1200:
+   case SYMBOL_BIN_OP_999:
+   case SYMBOL_COMMA:
    case SYMBOL_RBRACE:
-    Base::push(Base::lookahead().ordinal(), Base::reduce_term_1000__subterm_999_comma_subterm_1000(Base::args(3)));
+    Base::push(Base::lookahead().ordinal(), Base::reduce_term_0__string(Base::args(1)));
     break;
   }
  }
@@ -1861,95 +1853,118 @@ template<typename Base, typename... Args> class term_parser_gen : public Base {
    case SYMBOL_BIN_OP_999:
    case SYMBOL_COMMA:
    case SYMBOL_RBRACE:
-    Base::push(Base::lookahead().ordinal(), Base::reduce_atom__name(Base::args(1)));
+    Base::push(Base::lookahead().ordinal(), Base::reduce_term_0__variable(Base::args(1)));
     break;
   }
  }
 
  void state102() {
   switch (lookahead().ordinal()) {
-   case SYMBOL_BIN_OP_1000:
-   case SYMBOL_BIN_OP_1200:
-   case SYMBOL_BIN_OP_999:
-   case SYMBOL_COMMA:
-   case SYMBOL_RBRACE:
-    Base::push(Base::lookahead().ordinal(), Base::reduce_constant__atom(Base::args(1)));
-    break;
+   case SYMBOL_BIN_OP_1000: Base::shift_and_goto_state(176); break;
   }
  }
 
  void state103() {
   switch (lookahead().ordinal()) {
-   case SYMBOL_BIN_OP_1000:
-   case SYMBOL_BIN_OP_1200:
-   case SYMBOL_BIN_OP_999:
-   case SYMBOL_COMMA:
-   case SYMBOL_RBRACE:
-    Base::push(Base::lookahead().ordinal(), Base::reduce_constant__number(Base::args(1)));
-    break;
+   case SYMBOL_NAME: Base::shift_and_goto_state(85); break;
+   case SYMBOL_ATOM: Base::shift_and_goto_state(86); break;
+   case SYMBOL_NUMBER: Base::shift_and_goto_state(87); break;
+   case SYMBOL_NAME_LPAREN: Base::shift_and_goto_state(4); break;
+   case SYMBOL_LBRACKET: Base::shift_and_goto_state(88); break;
+   case SYMBOL_SIGN: Base::shift_and_goto_state(89); break;
+   case SYMBOL_UNSIGNED_NUMBER: Base::shift_and_goto_state(90); break;
+   case SYMBOL_MINUS: Base::shift_and_goto_state(8); break;
+   case SYMBOL_PLUS: Base::shift_and_goto_state(9); break;
+   case SYMBOL_TERM_1000: Base::shift_and_goto_state(177); break;
+   case SYMBOL_TERM_0: Base::shift_and_goto_state(178); break;
+   case SYMBOL_TERM_999: Base::shift_and_goto_state(179); break;
+   case SYMBOL_CONSTANT: Base::shift_and_goto_state(95); break;
+   case SYMBOL_FUNCTOR_LPAREN: Base::shift_and_goto_state(96); break;
+   case SYMBOL_LBRACE: Base::shift_and_goto_state(97); break;
+   case SYMBOL_LIST: Base::shift_and_goto_state(98); break;
+   case SYMBOL_LPAREN: Base::shift_and_goto_state(99); break;
+   case SYMBOL_STRING: Base::shift_and_goto_state(100); break;
+   case SYMBOL_VARIABLE: Base::shift_and_goto_state(101); break;
+   case SYMBOL_UNARY_OP_1000: Base::shift_and_goto_state(103); break;
+   case SYMBOL_SUBTERM_1000: Base::shift_and_goto_state(181); break;
+   case SYMBOL_SUBTERM_999: Base::shift_and_goto_state(106); break;
+   case SYMBOL_UNARY_OP_999: Base::shift_and_goto_state(107); break;
+   case SYMBOL_NATURAL_NUMBER: Base::shift_and_goto_state(108); break;
+   case SYMBOL_UNSIGNED_FLOAT: Base::shift_and_goto_state(109); break;
   }
  }
 
  void state104() {
   switch (lookahead().ordinal()) {
-   case SYMBOL_NAME: Base::shift_and_goto_state(29); break;
-   case SYMBOL_ATOM: Base::shift_and_goto_state(30); break;
-   case SYMBOL_NUMBER: Base::shift_and_goto_state(31); break;
-   case SYMBOL_NAME_LPAREN: Base::shift_and_goto_state(4); break;
-   case SYMBOL_LBRACKET: Base::shift_and_goto_state(32); break;
-   case SYMBOL_LISTEXPR: Base::shift_and_goto_state(119); break;
-   case SYMBOL_RBRACKET: Base::shift_and_goto_state(120); break;
-   case SYMBOL_SIGN: Base::shift_and_goto_state(35); break;
-   case SYMBOL_UNSIGNED_NUMBER: Base::shift_and_goto_state(36); break;
-   case SYMBOL_MINUS: Base::shift_and_goto_state(8); break;
-   case SYMBOL_PLUS: Base::shift_and_goto_state(9); break;
-   case SYMBOL_TERM_0: Base::shift_and_goto_state(37); break;
-   case SYMBOL_TERM_999: Base::shift_and_goto_state(38); break;
-   case SYMBOL_CONSTANT: Base::shift_and_goto_state(39); break;
-   case SYMBOL_FUNCTOR_LPAREN: Base::shift_and_goto_state(40); break;
-   case SYMBOL_LBRACE: Base::shift_and_goto_state(41); break;
-   case SYMBOL_LIST: Base::shift_and_goto_state(42); break;
-   case SYMBOL_LPAREN: Base::shift_and_goto_state(43); break;
-   case SYMBOL_STRING: Base::shift_and_goto_state(44); break;
-   case SYMBOL_VARIABLE: Base::shift_and_goto_state(45); break;
-   case SYMBOL_SUBTERM_999: Base::shift_and_goto_state(46); break;
-   case SYMBOL_UNARY_OP_999: Base::shift_and_goto_state(47); break;
-   case SYMBOL_NATURAL_NUMBER: Base::shift_and_goto_state(48); break;
-   case SYMBOL_UNSIGNED_FLOAT: Base::shift_and_goto_state(49); break;
+   case SYMBOL_RBRACE: Base::shift_and_goto_state(182); break;
+   case SYMBOL_BIN_OP_1200: Base::shift_and_goto_state(120); break;
   }
  }
 
  void state105() {
   switch (lookahead().ordinal()) {
-   case SYMBOL_INF: Base::shift_and_goto_state(122); break;
-   case SYMBOL_NAN: Base::shift_and_goto_state(123); break;
-   case SYMBOL_UNSIGNED_NUMBER: Base::shift_and_goto_state(124); break;
-   case SYMBOL_NATURAL_NUMBER: Base::shift_and_goto_state(117); break;
-   case SYMBOL_UNSIGNED_FLOAT: Base::shift_and_goto_state(118); break;
+   case SYMBOL_NAME: Base::shift_and_goto_state(85); break;
+   case SYMBOL_ATOM: Base::shift_and_goto_state(86); break;
+   case SYMBOL_NUMBER: Base::shift_and_goto_state(87); break;
+   case SYMBOL_NAME_LPAREN: Base::shift_and_goto_state(4); break;
+   case SYMBOL_LBRACKET: Base::shift_and_goto_state(88); break;
+   case SYMBOL_SIGN: Base::shift_and_goto_state(89); break;
+   case SYMBOL_UNSIGNED_NUMBER: Base::shift_and_goto_state(90); break;
+   case SYMBOL_MINUS: Base::shift_and_goto_state(8); break;
+   case SYMBOL_PLUS: Base::shift_and_goto_state(9); break;
+   case SYMBOL_TERM_1000: Base::shift_and_goto_state(91); break;
+   case SYMBOL_TERM_1200: Base::shift_and_goto_state(92); break;
+   case SYMBOL_TERM_0: Base::shift_and_goto_state(93); break;
+   case SYMBOL_TERM_999: Base::shift_and_goto_state(94); break;
+   case SYMBOL_CONSTANT: Base::shift_and_goto_state(95); break;
+   case SYMBOL_FUNCTOR_LPAREN: Base::shift_and_goto_state(96); break;
+   case SYMBOL_LBRACE: Base::shift_and_goto_state(97); break;
+   case SYMBOL_LIST: Base::shift_and_goto_state(98); break;
+   case SYMBOL_LPAREN: Base::shift_and_goto_state(99); break;
+   case SYMBOL_STRING: Base::shift_and_goto_state(100); break;
+   case SYMBOL_VARIABLE: Base::shift_and_goto_state(101); break;
+   case SYMBOL_SUBTERM_1000: Base::shift_and_goto_state(102); break;
+   case SYMBOL_UNARY_OP_1000: Base::shift_and_goto_state(103); break;
+   case SYMBOL_UNARY_OP_1200: Base::shift_and_goto_state(105); break;
+   case SYMBOL_SUBTERM_1200: Base::shift_and_goto_state(183); break;
+   case SYMBOL_SUBTERM_999: Base::shift_and_goto_state(106); break;
+   case SYMBOL_UNARY_OP_999: Base::shift_and_goto_state(107); break;
+   case SYMBOL_NATURAL_NUMBER: Base::shift_and_goto_state(108); break;
+   case SYMBOL_UNSIGNED_FLOAT: Base::shift_and_goto_state(109); break;
   }
  }
 
  void state106() {
   switch (lookahead().ordinal()) {
-   case SYMBOL_BIN_OP_1000:
-   case SYMBOL_BIN_OP_1200:
-   case SYMBOL_BIN_OP_999:
-   case SYMBOL_COMMA:
-   case SYMBOL_RBRACE:
-    Base::push(Base::lookahead().ordinal(), Base::reduce_number__unsigned_number(Base::args(1)));
-    break;
+   case SYMBOL_COMMA: Base::shift_and_goto_state(184); break;
+   case SYMBOL_BIN_OP_999: Base::shift_and_goto_state(185); break;
   }
  }
 
  void state107() {
   switch (lookahead().ordinal()) {
-   case SYMBOL_BIN_OP_1000:
-   case SYMBOL_BIN_OP_1200:
-   case SYMBOL_BIN_OP_999:
-   case SYMBOL_COMMA:
-   case SYMBOL_RBRACE:
-    Base::push(Base::lookahead().ordinal(), Base::reduce_subterm_999__term_0(Base::args(1)));
-    break;
+   case SYMBOL_NAME: Base::shift_and_goto_state(85); break;
+   case SYMBOL_ATOM: Base::shift_and_goto_state(86); break;
+   case SYMBOL_NUMBER: Base::shift_and_goto_state(87); break;
+   case SYMBOL_NAME_LPAREN: Base::shift_and_goto_state(4); break;
+   case SYMBOL_LBRACKET: Base::shift_and_goto_state(88); break;
+   case SYMBOL_SIGN: Base::shift_and_goto_state(89); break;
+   case SYMBOL_UNSIGNED_NUMBER: Base::shift_and_goto_state(90); break;
+   case SYMBOL_MINUS: Base::shift_and_goto_state(8); break;
+   case SYMBOL_PLUS: Base::shift_and_goto_state(9); break;
+   case SYMBOL_TERM_0: Base::shift_and_goto_state(187); break;
+   case SYMBOL_TERM_999: Base::shift_and_goto_state(188); break;
+   case SYMBOL_CONSTANT: Base::shift_and_goto_state(95); break;
+   case SYMBOL_FUNCTOR_LPAREN: Base::shift_and_goto_state(96); break;
+   case SYMBOL_LBRACE: Base::shift_and_goto_state(97); break;
+   case SYMBOL_LIST: Base::shift_and_goto_state(98); break;
+   case SYMBOL_LPAREN: Base::shift_and_goto_state(99); break;
+   case SYMBOL_STRING: Base::shift_and_goto_state(100); break;
+   case SYMBOL_VARIABLE: Base::shift_and_goto_state(101); break;
+   case SYMBOL_UNARY_OP_999: Base::shift_and_goto_state(107); break;
+   case SYMBOL_SUBTERM_999: Base::shift_and_goto_state(190); break;
+   case SYMBOL_NATURAL_NUMBER: Base::shift_and_goto_state(108); break;
+   case SYMBOL_UNSIGNED_FLOAT: Base::shift_and_goto_state(109); break;
   }
  }
 
@@ -1960,7 +1975,7 @@ template<typename Base, typename... Args> class term_parser_gen : public Base {
    case SYMBOL_BIN_OP_999:
    case SYMBOL_COMMA:
    case SYMBOL_RBRACE:
-    Base::push(Base::lookahead().ordinal(), Base::reduce_subterm_999__term_999(Base::args(1)));
+    Base::push(Base::lookahead().ordinal(), Base::reduce_unsigned_number__natural_number(Base::args(1)));
     break;
   }
  }
@@ -1972,69 +1987,26 @@ template<typename Base, typename... Args> class term_parser_gen : public Base {
    case SYMBOL_BIN_OP_999:
    case SYMBOL_COMMA:
    case SYMBOL_RBRACE:
-    Base::push(Base::lookahead().ordinal(), Base::reduce_term_0__constant(Base::args(1)));
+    Base::push(Base::lookahead().ordinal(), Base::reduce_unsigned_number__unsigned_float(Base::args(1)));
     break;
   }
  }
 
  void state110() {
   switch (lookahead().ordinal()) {
-   case SYMBOL_NAME: Base::shift_and_goto_state(57); break;
-   case SYMBOL_ATOM: Base::shift_and_goto_state(58); break;
-   case SYMBOL_NUMBER: Base::shift_and_goto_state(59); break;
-   case SYMBOL_NAME_LPAREN: Base::shift_and_goto_state(4); break;
-   case SYMBOL_LBRACKET: Base::shift_and_goto_state(60); break;
-   case SYMBOL_SIGN: Base::shift_and_goto_state(61); break;
-   case SYMBOL_UNSIGNED_NUMBER: Base::shift_and_goto_state(62); break;
-   case SYMBOL_MINUS: Base::shift_and_goto_state(8); break;
-   case SYMBOL_PLUS: Base::shift_and_goto_state(9); break;
-   case SYMBOL_TERM_0: Base::shift_and_goto_state(63); break;
-   case SYMBOL_TERM_999: Base::shift_and_goto_state(64); break;
-   case SYMBOL_CONSTANT: Base::shift_and_goto_state(65); break;
-   case SYMBOL_FUNCTOR_LPAREN: Base::shift_and_goto_state(66); break;
-   case SYMBOL_LBRACE: Base::shift_and_goto_state(67); break;
-   case SYMBOL_LIST: Base::shift_and_goto_state(68); break;
-   case SYMBOL_LPAREN: Base::shift_and_goto_state(69); break;
-   case SYMBOL_STRING: Base::shift_and_goto_state(70); break;
-   case SYMBOL_VARIABLE: Base::shift_and_goto_state(71); break;
-   case SYMBOL_ARGUMENTS: Base::shift_and_goto_state(125); break;
-   case SYMBOL_SUBTERM_999: Base::shift_and_goto_state(73); break;
-   case SYMBOL_UNARY_OP_999: Base::shift_and_goto_state(74); break;
-   case SYMBOL_NATURAL_NUMBER: Base::shift_and_goto_state(75); break;
-   case SYMBOL_UNSIGNED_FLOAT: Base::shift_and_goto_state(76); break;
+   case SYMBOL_RBRACKET: Base::shift_and_goto_state(112); break;
   }
  }
 
  void state111() {
   switch (lookahead().ordinal()) {
-   case SYMBOL_NAME: Base::shift_and_goto_state(1); break;
-   case SYMBOL_ATOM: Base::shift_and_goto_state(2); break;
-   case SYMBOL_NUMBER: Base::shift_and_goto_state(3); break;
-   case SYMBOL_NAME_LPAREN: Base::shift_and_goto_state(4); break;
-   case SYMBOL_LBRACKET: Base::shift_and_goto_state(5); break;
-   case SYMBOL_SIGN: Base::shift_and_goto_state(6); break;
-   case SYMBOL_UNSIGNED_NUMBER: Base::shift_and_goto_state(7); break;
-   case SYMBOL_MINUS: Base::shift_and_goto_state(8); break;
-   case SYMBOL_PLUS: Base::shift_and_goto_state(9); break;
-   case SYMBOL_TERM_1000: Base::shift_and_goto_state(85); break;
-   case SYMBOL_TERM_1200: Base::shift_and_goto_state(86); break;
-   case SYMBOL_TERM_0: Base::shift_and_goto_state(12); break;
-   case SYMBOL_TERM_999: Base::shift_and_goto_state(13); break;
-   case SYMBOL_CONSTANT: Base::shift_and_goto_state(14); break;
-   case SYMBOL_FUNCTOR_LPAREN: Base::shift_and_goto_state(15); break;
-   case SYMBOL_LBRACE: Base::shift_and_goto_state(16); break;
-   case SYMBOL_LIST: Base::shift_and_goto_state(17); break;
-   case SYMBOL_LPAREN: Base::shift_and_goto_state(18); break;
-   case SYMBOL_STRING: Base::shift_and_goto_state(19); break;
-   case SYMBOL_VARIABLE: Base::shift_and_goto_state(20); break;
-   case SYMBOL_SUBTERM_1000: Base::shift_and_goto_state(87); break;
-   case SYMBOL_UNARY_OP_1000: Base::shift_and_goto_state(88); break;
-   case SYMBOL_SUBTERM_1200: Base::shift_and_goto_state(127); break;
-   case SYMBOL_UNARY_OP_1200: Base::shift_and_goto_state(90); break;
-   case SYMBOL_SUBTERM_999: Base::shift_and_goto_state(91); break;
-   case SYMBOL_UNARY_OP_999: Base::shift_and_goto_state(26); break;
-   case SYMBOL_NATURAL_NUMBER: Base::shift_and_goto_state(27); break;
-   case SYMBOL_UNSIGNED_FLOAT: Base::shift_and_goto_state(28); break;
+   case SYMBOL_BIN_OP_1000:
+   case SYMBOL_BIN_OP_1200:
+   case SYMBOL_BIN_OP_999:
+   case SYMBOL_COMMA:
+   case SYMBOL_RBRACE:
+    Base::push(Base::lookahead().ordinal(), Base::reduce_list__lbracket_rbracket(Base::args(2)));
+    break;
   }
  }
 
@@ -2045,41 +2017,20 @@ template<typename Base, typename... Args> class term_parser_gen : public Base {
    case SYMBOL_BIN_OP_999:
    case SYMBOL_COMMA:
    case SYMBOL_RBRACE:
-    Base::push(Base::lookahead().ordinal(), Base::reduce_term_0__list(Base::args(1)));
+    Base::push(Base::lookahead().ordinal(), Base::reduce_list__lbracket_listexpr_rbracket(Base::args(3)));
     break;
   }
  }
 
  void state113() {
   switch (lookahead().ordinal()) {
-   case SYMBOL_NAME: Base::shift_and_goto_state(1); break;
-   case SYMBOL_ATOM: Base::shift_and_goto_state(2); break;
-   case SYMBOL_NUMBER: Base::shift_and_goto_state(3); break;
-   case SYMBOL_NAME_LPAREN: Base::shift_and_goto_state(4); break;
-   case SYMBOL_LBRACKET: Base::shift_and_goto_state(5); break;
-   case SYMBOL_SIGN: Base::shift_and_goto_state(6); break;
-   case SYMBOL_UNSIGNED_NUMBER: Base::shift_and_goto_state(7); break;
-   case SYMBOL_MINUS: Base::shift_and_goto_state(8); break;
-   case SYMBOL_PLUS: Base::shift_and_goto_state(9); break;
-   case SYMBOL_TERM_1000: Base::shift_and_goto_state(131); break;
-   case SYMBOL_TERM_1200: Base::shift_and_goto_state(132); break;
-   case SYMBOL_TERM_0: Base::shift_and_goto_state(12); break;
-   case SYMBOL_TERM_999: Base::shift_and_goto_state(13); break;
-   case SYMBOL_CONSTANT: Base::shift_and_goto_state(14); break;
-   case SYMBOL_FUNCTOR_LPAREN: Base::shift_and_goto_state(15); break;
-   case SYMBOL_LBRACE: Base::shift_and_goto_state(16); break;
-   case SYMBOL_LIST: Base::shift_and_goto_state(17); break;
-   case SYMBOL_LPAREN: Base::shift_and_goto_state(18); break;
-   case SYMBOL_STRING: Base::shift_and_goto_state(19); break;
-   case SYMBOL_VARIABLE: Base::shift_and_goto_state(20); break;
-   case SYMBOL_SUBTERM_1000: Base::shift_and_goto_state(133); break;
-   case SYMBOL_UNARY_OP_1000: Base::shift_and_goto_state(134); break;
-   case SYMBOL_SUBTERM_1200: Base::shift_and_goto_state(135); break;
-   case SYMBOL_UNARY_OP_1200: Base::shift_and_goto_state(136); break;
-   case SYMBOL_SUBTERM_999: Base::shift_and_goto_state(137); break;
-   case SYMBOL_UNARY_OP_999: Base::shift_and_goto_state(26); break;
-   case SYMBOL_NATURAL_NUMBER: Base::shift_and_goto_state(27); break;
-   case SYMBOL_UNSIGNED_FLOAT: Base::shift_and_goto_state(28); break;
+   case SYMBOL_BIN_OP_1000:
+   case SYMBOL_BIN_OP_1200:
+   case SYMBOL_BIN_OP_999:
+   case SYMBOL_COMMA:
+   case SYMBOL_RBRACE:
+    Base::push(Base::lookahead().ordinal(), Base::reduce_number__sign_inf(Base::args(2)));
+    break;
   }
  }
 
@@ -2090,7 +2041,7 @@ template<typename Base, typename... Args> class term_parser_gen : public Base {
    case SYMBOL_BIN_OP_999:
    case SYMBOL_COMMA:
    case SYMBOL_RBRACE:
-    Base::push(Base::lookahead().ordinal(), Base::reduce_term_0__string(Base::args(1)));
+    Base::push(Base::lookahead().ordinal(), Base::reduce_number__sign_nan(Base::args(2)));
     break;
   }
  }
@@ -2102,120 +2053,18 @@ template<typename Base, typename... Args> class term_parser_gen : public Base {
    case SYMBOL_BIN_OP_999:
    case SYMBOL_COMMA:
    case SYMBOL_RBRACE:
-    Base::push(Base::lookahead().ordinal(), Base::reduce_term_0__variable(Base::args(1)));
+    Base::push(Base::lookahead().ordinal(), Base::reduce_number__sign_unsigned_number(Base::args(2)));
     break;
   }
  }
 
  void state116() {
   switch (lookahead().ordinal()) {
-   case SYMBOL_BIN_OP_1000:
-   case SYMBOL_BIN_OP_1200:
-   case SYMBOL_BIN_OP_999:
-   case SYMBOL_COMMA:
-   case SYMBOL_RBRACE:
-    Base::push(Base::lookahead().ordinal(), Base::reduce_term_999__subterm_999_bin_op_999_subterm_999(Base::args(3)));
-    break;
+   case SYMBOL_RPAREN: Base::shift_and_goto_state(117); break;
   }
  }
 
  void state117() {
-  switch (lookahead().ordinal()) {
-   case SYMBOL_BIN_OP_1000:
-   case SYMBOL_BIN_OP_1200:
-   case SYMBOL_BIN_OP_999:
-   case SYMBOL_COMMA:
-   case SYMBOL_RBRACE:
-    Base::push(Base::lookahead().ordinal(), Base::reduce_unsigned_number__natural_number(Base::args(1)));
-    break;
-  }
- }
-
- void state118() {
-  switch (lookahead().ordinal()) {
-   case SYMBOL_BIN_OP_1000:
-   case SYMBOL_BIN_OP_1200:
-   case SYMBOL_BIN_OP_999:
-   case SYMBOL_COMMA:
-   case SYMBOL_RBRACE:
-    Base::push(Base::lookahead().ordinal(), Base::reduce_unsigned_number__unsigned_float(Base::args(1)));
-    break;
-  }
- }
-
- void state119() {
-  switch (lookahead().ordinal()) {
-   case SYMBOL_RBRACKET: Base::shift_and_goto_state(121); break;
-  }
- }
-
- void state120() {
-  switch (lookahead().ordinal()) {
-   case SYMBOL_BIN_OP_1000:
-   case SYMBOL_BIN_OP_1200:
-   case SYMBOL_BIN_OP_999:
-   case SYMBOL_COMMA:
-   case SYMBOL_RBRACE:
-    Base::push(Base::lookahead().ordinal(), Base::reduce_list__lbracket_rbracket(Base::args(2)));
-    break;
-  }
- }
-
- void state121() {
-  switch (lookahead().ordinal()) {
-   case SYMBOL_BIN_OP_1000:
-   case SYMBOL_BIN_OP_1200:
-   case SYMBOL_BIN_OP_999:
-   case SYMBOL_COMMA:
-   case SYMBOL_RBRACE:
-    Base::push(Base::lookahead().ordinal(), Base::reduce_list__lbracket_listexpr_rbracket(Base::args(3)));
-    break;
-  }
- }
-
- void state122() {
-  switch (lookahead().ordinal()) {
-   case SYMBOL_BIN_OP_1000:
-   case SYMBOL_BIN_OP_1200:
-   case SYMBOL_BIN_OP_999:
-   case SYMBOL_COMMA:
-   case SYMBOL_RBRACE:
-    Base::push(Base::lookahead().ordinal(), Base::reduce_number__sign_inf(Base::args(2)));
-    break;
-  }
- }
-
- void state123() {
-  switch (lookahead().ordinal()) {
-   case SYMBOL_BIN_OP_1000:
-   case SYMBOL_BIN_OP_1200:
-   case SYMBOL_BIN_OP_999:
-   case SYMBOL_COMMA:
-   case SYMBOL_RBRACE:
-    Base::push(Base::lookahead().ordinal(), Base::reduce_number__sign_nan(Base::args(2)));
-    break;
-  }
- }
-
- void state124() {
-  switch (lookahead().ordinal()) {
-   case SYMBOL_BIN_OP_1000:
-   case SYMBOL_BIN_OP_1200:
-   case SYMBOL_BIN_OP_999:
-   case SYMBOL_COMMA:
-   case SYMBOL_RBRACE:
-    Base::push(Base::lookahead().ordinal(), Base::reduce_number__sign_unsigned_number(Base::args(2)));
-    break;
-  }
- }
-
- void state125() {
-  switch (lookahead().ordinal()) {
-   case SYMBOL_RPAREN: Base::shift_and_goto_state(126); break;
-  }
- }
-
- void state126() {
   switch (lookahead().ordinal()) {
    case SYMBOL_BIN_OP_1000:
    case SYMBOL_BIN_OP_1200:
@@ -2227,14 +2076,14 @@ template<typename Base, typename... Args> class term_parser_gen : public Base {
   }
  }
 
- void state127() {
+ void state118() {
   switch (lookahead().ordinal()) {
-   case SYMBOL_RBRACE: Base::shift_and_goto_state(128); break;
-   case SYMBOL_BIN_OP_1200: Base::shift_and_goto_state(129); break;
+   case SYMBOL_RBRACE: Base::shift_and_goto_state(119); break;
+   case SYMBOL_BIN_OP_1200: Base::shift_and_goto_state(120); break;
   }
  }
 
- void state128() {
+ void state119() {
   switch (lookahead().ordinal()) {
    case SYMBOL_BIN_OP_1000:
    case SYMBOL_BIN_OP_1200:
@@ -2246,40 +2095,40 @@ template<typename Base, typename... Args> class term_parser_gen : public Base {
   }
  }
 
- void state129() {
+ void state120() {
   switch (lookahead().ordinal()) {
-   case SYMBOL_NAME: Base::shift_and_goto_state(1); break;
-   case SYMBOL_ATOM: Base::shift_and_goto_state(2); break;
-   case SYMBOL_NUMBER: Base::shift_and_goto_state(3); break;
+   case SYMBOL_NAME: Base::shift_and_goto_state(85); break;
+   case SYMBOL_ATOM: Base::shift_and_goto_state(86); break;
+   case SYMBOL_NUMBER: Base::shift_and_goto_state(87); break;
    case SYMBOL_NAME_LPAREN: Base::shift_and_goto_state(4); break;
-   case SYMBOL_LBRACKET: Base::shift_and_goto_state(5); break;
-   case SYMBOL_SIGN: Base::shift_and_goto_state(6); break;
-   case SYMBOL_UNSIGNED_NUMBER: Base::shift_and_goto_state(7); break;
+   case SYMBOL_LBRACKET: Base::shift_and_goto_state(88); break;
+   case SYMBOL_SIGN: Base::shift_and_goto_state(89); break;
+   case SYMBOL_UNSIGNED_NUMBER: Base::shift_and_goto_state(90); break;
    case SYMBOL_MINUS: Base::shift_and_goto_state(8); break;
    case SYMBOL_PLUS: Base::shift_and_goto_state(9); break;
-   case SYMBOL_TERM_1000: Base::shift_and_goto_state(85); break;
-   case SYMBOL_TERM_1200: Base::shift_and_goto_state(86); break;
-   case SYMBOL_TERM_0: Base::shift_and_goto_state(12); break;
-   case SYMBOL_TERM_999: Base::shift_and_goto_state(13); break;
-   case SYMBOL_CONSTANT: Base::shift_and_goto_state(14); break;
-   case SYMBOL_FUNCTOR_LPAREN: Base::shift_and_goto_state(15); break;
-   case SYMBOL_LBRACE: Base::shift_and_goto_state(16); break;
-   case SYMBOL_LIST: Base::shift_and_goto_state(17); break;
-   case SYMBOL_LPAREN: Base::shift_and_goto_state(18); break;
-   case SYMBOL_STRING: Base::shift_and_goto_state(19); break;
-   case SYMBOL_VARIABLE: Base::shift_and_goto_state(20); break;
-   case SYMBOL_SUBTERM_1000: Base::shift_and_goto_state(87); break;
-   case SYMBOL_UNARY_OP_1000: Base::shift_and_goto_state(88); break;
-   case SYMBOL_UNARY_OP_1200: Base::shift_and_goto_state(90); break;
-   case SYMBOL_SUBTERM_1200: Base::shift_and_goto_state(130); break;
-   case SYMBOL_SUBTERM_999: Base::shift_and_goto_state(91); break;
-   case SYMBOL_UNARY_OP_999: Base::shift_and_goto_state(26); break;
-   case SYMBOL_NATURAL_NUMBER: Base::shift_and_goto_state(27); break;
-   case SYMBOL_UNSIGNED_FLOAT: Base::shift_and_goto_state(28); break;
+   case SYMBOL_TERM_1000: Base::shift_and_goto_state(91); break;
+   case SYMBOL_TERM_1200: Base::shift_and_goto_state(92); break;
+   case SYMBOL_TERM_0: Base::shift_and_goto_state(93); break;
+   case SYMBOL_TERM_999: Base::shift_and_goto_state(94); break;
+   case SYMBOL_CONSTANT: Base::shift_and_goto_state(95); break;
+   case SYMBOL_FUNCTOR_LPAREN: Base::shift_and_goto_state(96); break;
+   case SYMBOL_LBRACE: Base::shift_and_goto_state(97); break;
+   case SYMBOL_LIST: Base::shift_and_goto_state(98); break;
+   case SYMBOL_LPAREN: Base::shift_and_goto_state(99); break;
+   case SYMBOL_STRING: Base::shift_and_goto_state(100); break;
+   case SYMBOL_VARIABLE: Base::shift_and_goto_state(101); break;
+   case SYMBOL_SUBTERM_1000: Base::shift_and_goto_state(102); break;
+   case SYMBOL_UNARY_OP_1000: Base::shift_and_goto_state(103); break;
+   case SYMBOL_UNARY_OP_1200: Base::shift_and_goto_state(105); break;
+   case SYMBOL_SUBTERM_1200: Base::shift_and_goto_state(121); break;
+   case SYMBOL_SUBTERM_999: Base::shift_and_goto_state(106); break;
+   case SYMBOL_UNARY_OP_999: Base::shift_and_goto_state(107); break;
+   case SYMBOL_NATURAL_NUMBER: Base::shift_and_goto_state(108); break;
+   case SYMBOL_UNSIGNED_FLOAT: Base::shift_and_goto_state(109); break;
   }
  }
 
- void state130() {
+ void state121() {
   switch (lookahead().ordinal()) {
    case SYMBOL_BIN_OP_1200:
    case SYMBOL_RBRACE:
@@ -2288,7 +2137,94 @@ template<typename Base, typename... Args> class term_parser_gen : public Base {
   }
  }
 
- void state131() {
+ void state122() {
+  switch (lookahead().ordinal()) {
+   case SYMBOL_BIN_OP_1000:
+   case SYMBOL_BIN_OP_1200:
+   case SYMBOL_BIN_OP_999:
+   case SYMBOL_COMMA:
+   case SYMBOL_RPAREN:
+    Base::push(Base::lookahead().ordinal(), Base::reduce_atom__name(Base::args(1)));
+    break;
+  }
+ }
+
+ void state123() {
+  switch (lookahead().ordinal()) {
+   case SYMBOL_BIN_OP_1000:
+   case SYMBOL_BIN_OP_1200:
+   case SYMBOL_BIN_OP_999:
+   case SYMBOL_COMMA:
+   case SYMBOL_RPAREN:
+    Base::push(Base::lookahead().ordinal(), Base::reduce_constant__atom(Base::args(1)));
+    break;
+  }
+ }
+
+ void state124() {
+  switch (lookahead().ordinal()) {
+   case SYMBOL_BIN_OP_1000:
+   case SYMBOL_BIN_OP_1200:
+   case SYMBOL_BIN_OP_999:
+   case SYMBOL_COMMA:
+   case SYMBOL_RPAREN:
+    Base::push(Base::lookahead().ordinal(), Base::reduce_constant__number(Base::args(1)));
+    break;
+  }
+ }
+
+ void state125() {
+  switch (lookahead().ordinal()) {
+   case SYMBOL_NAME: Base::shift_and_goto_state(29); break;
+   case SYMBOL_ATOM: Base::shift_and_goto_state(30); break;
+   case SYMBOL_NUMBER: Base::shift_and_goto_state(31); break;
+   case SYMBOL_NAME_LPAREN: Base::shift_and_goto_state(4); break;
+   case SYMBOL_LBRACKET: Base::shift_and_goto_state(32); break;
+   case SYMBOL_LISTEXPR: Base::shift_and_goto_state(147); break;
+   case SYMBOL_RBRACKET: Base::shift_and_goto_state(148); break;
+   case SYMBOL_SIGN: Base::shift_and_goto_state(35); break;
+   case SYMBOL_UNSIGNED_NUMBER: Base::shift_and_goto_state(36); break;
+   case SYMBOL_MINUS: Base::shift_and_goto_state(8); break;
+   case SYMBOL_PLUS: Base::shift_and_goto_state(9); break;
+   case SYMBOL_TERM_0: Base::shift_and_goto_state(37); break;
+   case SYMBOL_TERM_999: Base::shift_and_goto_state(38); break;
+   case SYMBOL_CONSTANT: Base::shift_and_goto_state(39); break;
+   case SYMBOL_FUNCTOR_LPAREN: Base::shift_and_goto_state(40); break;
+   case SYMBOL_LBRACE: Base::shift_and_goto_state(41); break;
+   case SYMBOL_LIST: Base::shift_and_goto_state(42); break;
+   case SYMBOL_LPAREN: Base::shift_and_goto_state(43); break;
+   case SYMBOL_STRING: Base::shift_and_goto_state(44); break;
+   case SYMBOL_VARIABLE: Base::shift_and_goto_state(45); break;
+   case SYMBOL_SUBTERM_999: Base::shift_and_goto_state(46); break;
+   case SYMBOL_UNARY_OP_999: Base::shift_and_goto_state(47); break;
+   case SYMBOL_NATURAL_NUMBER: Base::shift_and_goto_state(48); break;
+   case SYMBOL_UNSIGNED_FLOAT: Base::shift_and_goto_state(49); break;
+  }
+ }
+
+ void state126() {
+  switch (lookahead().ordinal()) {
+   case SYMBOL_INF: Base::shift_and_goto_state(150); break;
+   case SYMBOL_NAN: Base::shift_and_goto_state(151); break;
+   case SYMBOL_UNSIGNED_NUMBER: Base::shift_and_goto_state(152); break;
+   case SYMBOL_NATURAL_NUMBER: Base::shift_and_goto_state(145); break;
+   case SYMBOL_UNSIGNED_FLOAT: Base::shift_and_goto_state(146); break;
+  }
+ }
+
+ void state127() {
+  switch (lookahead().ordinal()) {
+   case SYMBOL_BIN_OP_1000:
+   case SYMBOL_BIN_OP_1200:
+   case SYMBOL_BIN_OP_999:
+   case SYMBOL_COMMA:
+   case SYMBOL_RPAREN:
+    Base::push(Base::lookahead().ordinal(), Base::reduce_number__unsigned_number(Base::args(1)));
+    break;
+  }
+ }
+
+ void state128() {
   switch (lookahead().ordinal()) {
    case SYMBOL_BIN_OP_1200:
    case SYMBOL_RPAREN:
@@ -2300,7 +2236,7 @@ template<typename Base, typename... Args> class term_parser_gen : public Base {
   }
  }
 
- void state132() {
+ void state129() {
   switch (lookahead().ordinal()) {
    case SYMBOL_BIN_OP_1200:
    case SYMBOL_RPAREN:
@@ -2309,241 +2245,299 @@ template<typename Base, typename... Args> class term_parser_gen : public Base {
   }
  }
 
- void state133() {
+ void state130() {
   switch (lookahead().ordinal()) {
-   case SYMBOL_BIN_OP_1000: Base::shift_and_goto_state(138); break;
-  }
- }
-
- void state134() {
-  switch (lookahead().ordinal()) {
-   case SYMBOL_NAME: Base::shift_and_goto_state(1); break;
-   case SYMBOL_ATOM: Base::shift_and_goto_state(2); break;
-   case SYMBOL_NUMBER: Base::shift_and_goto_state(3); break;
-   case SYMBOL_NAME_LPAREN: Base::shift_and_goto_state(4); break;
-   case SYMBOL_LBRACKET: Base::shift_and_goto_state(5); break;
-   case SYMBOL_SIGN: Base::shift_and_goto_state(6); break;
-   case SYMBOL_UNSIGNED_NUMBER: Base::shift_and_goto_state(7); break;
-   case SYMBOL_MINUS: Base::shift_and_goto_state(8); break;
-   case SYMBOL_PLUS: Base::shift_and_goto_state(9); break;
-   case SYMBOL_TERM_1000: Base::shift_and_goto_state(139); break;
-   case SYMBOL_TERM_0: Base::shift_and_goto_state(12); break;
-   case SYMBOL_TERM_999: Base::shift_and_goto_state(140); break;
-   case SYMBOL_CONSTANT: Base::shift_and_goto_state(14); break;
-   case SYMBOL_FUNCTOR_LPAREN: Base::shift_and_goto_state(15); break;
-   case SYMBOL_LBRACE: Base::shift_and_goto_state(16); break;
-   case SYMBOL_LIST: Base::shift_and_goto_state(17); break;
-   case SYMBOL_LPAREN: Base::shift_and_goto_state(18); break;
-   case SYMBOL_STRING: Base::shift_and_goto_state(19); break;
-   case SYMBOL_VARIABLE: Base::shift_and_goto_state(20); break;
-   case SYMBOL_UNARY_OP_1000: Base::shift_and_goto_state(134); break;
-   case SYMBOL_SUBTERM_1000: Base::shift_and_goto_state(180); break;
-   case SYMBOL_SUBTERM_999: Base::shift_and_goto_state(142); break;
-   case SYMBOL_UNARY_OP_999: Base::shift_and_goto_state(143); break;
-   case SYMBOL_NATURAL_NUMBER: Base::shift_and_goto_state(27); break;
-   case SYMBOL_UNSIGNED_FLOAT: Base::shift_and_goto_state(28); break;
-  }
- }
-
- void state135() {
-  switch (lookahead().ordinal()) {
-   case SYMBOL_RPAREN: Base::shift_and_goto_state(181); break;
-   case SYMBOL_BIN_OP_1200: Base::shift_and_goto_state(177); break;
-  }
- }
-
- void state136() {
-  switch (lookahead().ordinal()) {
-   case SYMBOL_NAME: Base::shift_and_goto_state(1); break;
-   case SYMBOL_ATOM: Base::shift_and_goto_state(2); break;
-   case SYMBOL_NUMBER: Base::shift_and_goto_state(3); break;
-   case SYMBOL_NAME_LPAREN: Base::shift_and_goto_state(4); break;
-   case SYMBOL_LBRACKET: Base::shift_and_goto_state(5); break;
-   case SYMBOL_SIGN: Base::shift_and_goto_state(6); break;
-   case SYMBOL_UNSIGNED_NUMBER: Base::shift_and_goto_state(7); break;
-   case SYMBOL_MINUS: Base::shift_and_goto_state(8); break;
-   case SYMBOL_PLUS: Base::shift_and_goto_state(9); break;
-   case SYMBOL_TERM_1000: Base::shift_and_goto_state(131); break;
-   case SYMBOL_TERM_1200: Base::shift_and_goto_state(132); break;
-   case SYMBOL_TERM_0: Base::shift_and_goto_state(12); break;
-   case SYMBOL_TERM_999: Base::shift_and_goto_state(13); break;
-   case SYMBOL_CONSTANT: Base::shift_and_goto_state(14); break;
-   case SYMBOL_FUNCTOR_LPAREN: Base::shift_and_goto_state(15); break;
-   case SYMBOL_LBRACE: Base::shift_and_goto_state(16); break;
-   case SYMBOL_LIST: Base::shift_and_goto_state(17); break;
-   case SYMBOL_LPAREN: Base::shift_and_goto_state(18); break;
-   case SYMBOL_STRING: Base::shift_and_goto_state(19); break;
-   case SYMBOL_VARIABLE: Base::shift_and_goto_state(20); break;
-   case SYMBOL_SUBTERM_1000: Base::shift_and_goto_state(133); break;
-   case SYMBOL_UNARY_OP_1000: Base::shift_and_goto_state(134); break;
-   case SYMBOL_UNARY_OP_1200: Base::shift_and_goto_state(136); break;
-   case SYMBOL_SUBTERM_1200: Base::shift_and_goto_state(182); break;
-   case SYMBOL_SUBTERM_999: Base::shift_and_goto_state(137); break;
-   case SYMBOL_UNARY_OP_999: Base::shift_and_goto_state(26); break;
-   case SYMBOL_NATURAL_NUMBER: Base::shift_and_goto_state(27); break;
-   case SYMBOL_UNSIGNED_FLOAT: Base::shift_and_goto_state(28); break;
-  }
- }
-
- void state137() {
-  switch (lookahead().ordinal()) {
-   case SYMBOL_COMMA: Base::shift_and_goto_state(144); break;
-   case SYMBOL_BIN_OP_999: Base::shift_and_goto_state(183); break;
-  }
- }
-
- void state138() {
-  switch (lookahead().ordinal()) {
-   case SYMBOL_NAME: Base::shift_and_goto_state(1); break;
-   case SYMBOL_ATOM: Base::shift_and_goto_state(2); break;
-   case SYMBOL_NUMBER: Base::shift_and_goto_state(3); break;
-   case SYMBOL_NAME_LPAREN: Base::shift_and_goto_state(4); break;
-   case SYMBOL_LBRACKET: Base::shift_and_goto_state(5); break;
-   case SYMBOL_SIGN: Base::shift_and_goto_state(6); break;
-   case SYMBOL_UNSIGNED_NUMBER: Base::shift_and_goto_state(7); break;
-   case SYMBOL_MINUS: Base::shift_and_goto_state(8); break;
-   case SYMBOL_PLUS: Base::shift_and_goto_state(9); break;
-   case SYMBOL_TERM_1000: Base::shift_and_goto_state(139); break;
-   case SYMBOL_TERM_0: Base::shift_and_goto_state(12); break;
-   case SYMBOL_TERM_999: Base::shift_and_goto_state(140); break;
-   case SYMBOL_CONSTANT: Base::shift_and_goto_state(14); break;
-   case SYMBOL_FUNCTOR_LPAREN: Base::shift_and_goto_state(15); break;
-   case SYMBOL_LBRACE: Base::shift_and_goto_state(16); break;
-   case SYMBOL_LIST: Base::shift_and_goto_state(17); break;
-   case SYMBOL_LPAREN: Base::shift_and_goto_state(18); break;
-   case SYMBOL_STRING: Base::shift_and_goto_state(19); break;
-   case SYMBOL_VARIABLE: Base::shift_and_goto_state(20); break;
-   case SYMBOL_UNARY_OP_1000: Base::shift_and_goto_state(134); break;
-   case SYMBOL_SUBTERM_1000: Base::shift_and_goto_state(141); break;
-   case SYMBOL_SUBTERM_999: Base::shift_and_goto_state(142); break;
-   case SYMBOL_UNARY_OP_999: Base::shift_and_goto_state(143); break;
-   case SYMBOL_NATURAL_NUMBER: Base::shift_and_goto_state(27); break;
-   case SYMBOL_UNSIGNED_FLOAT: Base::shift_and_goto_state(28); break;
-  }
- }
-
- void state139() {
-  switch (lookahead().ordinal()) {
-   case SYMBOL_BIN_OP_1000:
+   case SYMBOL_BIN_OP_999:
+   case SYMBOL_COMMA:
+    Base::push(Base::lookahead().ordinal(), Base::reduce_subterm_999__term_0(Base::args(1)));
+    break;
    case SYMBOL_BIN_OP_1200:
    case SYMBOL_RPAREN:
-    Base::push(Base::lookahead().ordinal(), Base::reduce_subterm_1000__term_1000(Base::args(1)));
+    Base::push(Base::lookahead().ordinal(), Base::reduce_subterm_1200__term_0(Base::args(1)));
+    break;
+   case SYMBOL_BIN_OP_1000:
+    Base::push(Base::lookahead().ordinal(), Base::reduce_subterm_1000__term_0(Base::args(1)));
     break;
   }
  }
 
- void state140() {
+ void state131() {
   switch (lookahead().ordinal()) {
    case SYMBOL_BIN_OP_999:
    case SYMBOL_COMMA:
     Base::push(Base::lookahead().ordinal(), Base::reduce_subterm_999__term_999(Base::args(1)));
     break;
-   case SYMBOL_BIN_OP_1000:
    case SYMBOL_BIN_OP_1200:
    case SYMBOL_RPAREN:
+    Base::push(Base::lookahead().ordinal(), Base::reduce_subterm_1200__term_999(Base::args(1)));
+    break;
+   case SYMBOL_BIN_OP_1000:
     Base::push(Base::lookahead().ordinal(), Base::reduce_subterm_1000__term_999(Base::args(1)));
     break;
   }
  }
 
- void state141() {
+ void state132() {
   switch (lookahead().ordinal()) {
    case SYMBOL_BIN_OP_1000:
    case SYMBOL_BIN_OP_1200:
+   case SYMBOL_BIN_OP_999:
+   case SYMBOL_COMMA:
    case SYMBOL_RPAREN:
-    Base::push(Base::lookahead().ordinal(), Base::reduce_term_1000__subterm_1000_bin_op_1000_subterm_1000(Base::args(3)));
+    Base::push(Base::lookahead().ordinal(), Base::reduce_term_0__constant(Base::args(1)));
     break;
+  }
+ }
+
+ void state133() {
+  switch (lookahead().ordinal()) {
+   case SYMBOL_NAME: Base::shift_and_goto_state(57); break;
+   case SYMBOL_ATOM: Base::shift_and_goto_state(58); break;
+   case SYMBOL_NUMBER: Base::shift_and_goto_state(59); break;
+   case SYMBOL_NAME_LPAREN: Base::shift_and_goto_state(4); break;
+   case SYMBOL_LBRACKET: Base::shift_and_goto_state(60); break;
+   case SYMBOL_SIGN: Base::shift_and_goto_state(61); break;
+   case SYMBOL_UNSIGNED_NUMBER: Base::shift_and_goto_state(62); break;
+   case SYMBOL_MINUS: Base::shift_and_goto_state(8); break;
+   case SYMBOL_PLUS: Base::shift_and_goto_state(9); break;
+   case SYMBOL_TERM_0: Base::shift_and_goto_state(63); break;
+   case SYMBOL_TERM_999: Base::shift_and_goto_state(64); break;
+   case SYMBOL_CONSTANT: Base::shift_and_goto_state(65); break;
+   case SYMBOL_FUNCTOR_LPAREN: Base::shift_and_goto_state(66); break;
+   case SYMBOL_LBRACE: Base::shift_and_goto_state(67); break;
+   case SYMBOL_LIST: Base::shift_and_goto_state(68); break;
+   case SYMBOL_LPAREN: Base::shift_and_goto_state(69); break;
+   case SYMBOL_STRING: Base::shift_and_goto_state(70); break;
+   case SYMBOL_VARIABLE: Base::shift_and_goto_state(71); break;
+   case SYMBOL_ARGUMENTS: Base::shift_and_goto_state(153); break;
+   case SYMBOL_SUBTERM_999: Base::shift_and_goto_state(73); break;
+   case SYMBOL_UNARY_OP_999: Base::shift_and_goto_state(74); break;
+   case SYMBOL_NATURAL_NUMBER: Base::shift_and_goto_state(75); break;
+   case SYMBOL_UNSIGNED_FLOAT: Base::shift_and_goto_state(76); break;
+  }
+ }
+
+ void state134() {
+  switch (lookahead().ordinal()) {
+   case SYMBOL_NAME: Base::shift_and_goto_state(85); break;
+   case SYMBOL_ATOM: Base::shift_and_goto_state(86); break;
+   case SYMBOL_NUMBER: Base::shift_and_goto_state(87); break;
+   case SYMBOL_NAME_LPAREN: Base::shift_and_goto_state(4); break;
+   case SYMBOL_LBRACKET: Base::shift_and_goto_state(88); break;
+   case SYMBOL_SIGN: Base::shift_and_goto_state(89); break;
+   case SYMBOL_UNSIGNED_NUMBER: Base::shift_and_goto_state(90); break;
+   case SYMBOL_MINUS: Base::shift_and_goto_state(8); break;
+   case SYMBOL_PLUS: Base::shift_and_goto_state(9); break;
+   case SYMBOL_TERM_1000: Base::shift_and_goto_state(91); break;
+   case SYMBOL_TERM_1200: Base::shift_and_goto_state(92); break;
+   case SYMBOL_TERM_0: Base::shift_and_goto_state(93); break;
+   case SYMBOL_TERM_999: Base::shift_and_goto_state(94); break;
+   case SYMBOL_CONSTANT: Base::shift_and_goto_state(95); break;
+   case SYMBOL_FUNCTOR_LPAREN: Base::shift_and_goto_state(96); break;
+   case SYMBOL_LBRACE: Base::shift_and_goto_state(97); break;
+   case SYMBOL_LIST: Base::shift_and_goto_state(98); break;
+   case SYMBOL_LPAREN: Base::shift_and_goto_state(99); break;
+   case SYMBOL_STRING: Base::shift_and_goto_state(100); break;
+   case SYMBOL_VARIABLE: Base::shift_and_goto_state(101); break;
+   case SYMBOL_SUBTERM_1000: Base::shift_and_goto_state(102); break;
+   case SYMBOL_UNARY_OP_1000: Base::shift_and_goto_state(103); break;
+   case SYMBOL_SUBTERM_1200: Base::shift_and_goto_state(155); break;
+   case SYMBOL_UNARY_OP_1200: Base::shift_and_goto_state(105); break;
+   case SYMBOL_SUBTERM_999: Base::shift_and_goto_state(106); break;
+   case SYMBOL_UNARY_OP_999: Base::shift_and_goto_state(107); break;
+   case SYMBOL_NATURAL_NUMBER: Base::shift_and_goto_state(108); break;
+   case SYMBOL_UNSIGNED_FLOAT: Base::shift_and_goto_state(109); break;
+  }
+ }
+
+ void state135() {
+  switch (lookahead().ordinal()) {
+   case SYMBOL_BIN_OP_1000:
+   case SYMBOL_BIN_OP_1200:
+   case SYMBOL_BIN_OP_999:
+   case SYMBOL_COMMA:
+   case SYMBOL_RPAREN:
+    Base::push(Base::lookahead().ordinal(), Base::reduce_term_0__list(Base::args(1)));
+    break;
+  }
+ }
+
+ void state136() {
+  switch (lookahead().ordinal()) {
+   case SYMBOL_NAME: Base::shift_and_goto_state(122); break;
+   case SYMBOL_ATOM: Base::shift_and_goto_state(123); break;
+   case SYMBOL_NUMBER: Base::shift_and_goto_state(124); break;
+   case SYMBOL_NAME_LPAREN: Base::shift_and_goto_state(4); break;
+   case SYMBOL_LBRACKET: Base::shift_and_goto_state(125); break;
+   case SYMBOL_SIGN: Base::shift_and_goto_state(126); break;
+   case SYMBOL_UNSIGNED_NUMBER: Base::shift_and_goto_state(127); break;
+   case SYMBOL_MINUS: Base::shift_and_goto_state(8); break;
+   case SYMBOL_PLUS: Base::shift_and_goto_state(9); break;
+   case SYMBOL_TERM_1000: Base::shift_and_goto_state(128); break;
+   case SYMBOL_TERM_1200: Base::shift_and_goto_state(129); break;
+   case SYMBOL_TERM_0: Base::shift_and_goto_state(130); break;
+   case SYMBOL_TERM_999: Base::shift_and_goto_state(131); break;
+   case SYMBOL_CONSTANT: Base::shift_and_goto_state(132); break;
+   case SYMBOL_FUNCTOR_LPAREN: Base::shift_and_goto_state(133); break;
+   case SYMBOL_LBRACE: Base::shift_and_goto_state(134); break;
+   case SYMBOL_LIST: Base::shift_and_goto_state(135); break;
+   case SYMBOL_LPAREN: Base::shift_and_goto_state(136); break;
+   case SYMBOL_STRING: Base::shift_and_goto_state(137); break;
+   case SYMBOL_VARIABLE: Base::shift_and_goto_state(138); break;
+   case SYMBOL_SUBTERM_1000: Base::shift_and_goto_state(139); break;
+   case SYMBOL_UNARY_OP_1000: Base::shift_and_goto_state(140); break;
+   case SYMBOL_SUBTERM_1200: Base::shift_and_goto_state(157); break;
+   case SYMBOL_UNARY_OP_1200: Base::shift_and_goto_state(142); break;
+   case SYMBOL_SUBTERM_999: Base::shift_and_goto_state(143); break;
+   case SYMBOL_UNARY_OP_999: Base::shift_and_goto_state(144); break;
+   case SYMBOL_NATURAL_NUMBER: Base::shift_and_goto_state(145); break;
+   case SYMBOL_UNSIGNED_FLOAT: Base::shift_and_goto_state(146); break;
+  }
+ }
+
+ void state137() {
+  switch (lookahead().ordinal()) {
+   case SYMBOL_BIN_OP_1000:
+   case SYMBOL_BIN_OP_1200:
+   case SYMBOL_BIN_OP_999:
+   case SYMBOL_COMMA:
+   case SYMBOL_RPAREN:
+    Base::push(Base::lookahead().ordinal(), Base::reduce_term_0__string(Base::args(1)));
+    break;
+  }
+ }
+
+ void state138() {
+  switch (lookahead().ordinal()) {
+   case SYMBOL_BIN_OP_1000:
+   case SYMBOL_BIN_OP_1200:
+   case SYMBOL_BIN_OP_999:
+   case SYMBOL_COMMA:
+   case SYMBOL_RPAREN:
+    Base::push(Base::lookahead().ordinal(), Base::reduce_term_0__variable(Base::args(1)));
+    break;
+  }
+ }
+
+ void state139() {
+  switch (lookahead().ordinal()) {
+   case SYMBOL_BIN_OP_1000: Base::shift_and_goto_state(161); break;
+  }
+ }
+
+ void state140() {
+  switch (lookahead().ordinal()) {
+   case SYMBOL_NAME: Base::shift_and_goto_state(122); break;
+   case SYMBOL_ATOM: Base::shift_and_goto_state(123); break;
+   case SYMBOL_NUMBER: Base::shift_and_goto_state(124); break;
+   case SYMBOL_NAME_LPAREN: Base::shift_and_goto_state(4); break;
+   case SYMBOL_LBRACKET: Base::shift_and_goto_state(125); break;
+   case SYMBOL_SIGN: Base::shift_and_goto_state(126); break;
+   case SYMBOL_UNSIGNED_NUMBER: Base::shift_and_goto_state(127); break;
+   case SYMBOL_MINUS: Base::shift_and_goto_state(8); break;
+   case SYMBOL_PLUS: Base::shift_and_goto_state(9); break;
+   case SYMBOL_TERM_1000: Base::shift_and_goto_state(162); break;
+   case SYMBOL_TERM_0: Base::shift_and_goto_state(163); break;
+   case SYMBOL_TERM_999: Base::shift_and_goto_state(164); break;
+   case SYMBOL_CONSTANT: Base::shift_and_goto_state(132); break;
+   case SYMBOL_FUNCTOR_LPAREN: Base::shift_and_goto_state(133); break;
+   case SYMBOL_LBRACE: Base::shift_and_goto_state(134); break;
+   case SYMBOL_LIST: Base::shift_and_goto_state(135); break;
+   case SYMBOL_LPAREN: Base::shift_and_goto_state(136); break;
+   case SYMBOL_STRING: Base::shift_and_goto_state(137); break;
+   case SYMBOL_VARIABLE: Base::shift_and_goto_state(138); break;
+   case SYMBOL_UNARY_OP_1000: Base::shift_and_goto_state(140); break;
+   case SYMBOL_SUBTERM_1000: Base::shift_and_goto_state(166); break;
+   case SYMBOL_SUBTERM_999: Base::shift_and_goto_state(143); break;
+   case SYMBOL_UNARY_OP_999: Base::shift_and_goto_state(144); break;
+   case SYMBOL_NATURAL_NUMBER: Base::shift_and_goto_state(145); break;
+   case SYMBOL_UNSIGNED_FLOAT: Base::shift_and_goto_state(146); break;
+  }
+ }
+
+ void state141() {
+  switch (lookahead().ordinal()) {
+   case SYMBOL_RPAREN: Base::shift_and_goto_state(167); break;
+   case SYMBOL_BIN_OP_1200: Base::shift_and_goto_state(159); break;
   }
  }
 
  void state142() {
   switch (lookahead().ordinal()) {
-   case SYMBOL_COMMA: Base::shift_and_goto_state(144); break;
-   case SYMBOL_BIN_OP_999: Base::shift_and_goto_state(145); break;
+   case SYMBOL_NAME: Base::shift_and_goto_state(122); break;
+   case SYMBOL_ATOM: Base::shift_and_goto_state(123); break;
+   case SYMBOL_NUMBER: Base::shift_and_goto_state(124); break;
+   case SYMBOL_NAME_LPAREN: Base::shift_and_goto_state(4); break;
+   case SYMBOL_LBRACKET: Base::shift_and_goto_state(125); break;
+   case SYMBOL_SIGN: Base::shift_and_goto_state(126); break;
+   case SYMBOL_UNSIGNED_NUMBER: Base::shift_and_goto_state(127); break;
+   case SYMBOL_MINUS: Base::shift_and_goto_state(8); break;
+   case SYMBOL_PLUS: Base::shift_and_goto_state(9); break;
+   case SYMBOL_TERM_1000: Base::shift_and_goto_state(128); break;
+   case SYMBOL_TERM_1200: Base::shift_and_goto_state(129); break;
+   case SYMBOL_TERM_0: Base::shift_and_goto_state(130); break;
+   case SYMBOL_TERM_999: Base::shift_and_goto_state(131); break;
+   case SYMBOL_CONSTANT: Base::shift_and_goto_state(132); break;
+   case SYMBOL_FUNCTOR_LPAREN: Base::shift_and_goto_state(133); break;
+   case SYMBOL_LBRACE: Base::shift_and_goto_state(134); break;
+   case SYMBOL_LIST: Base::shift_and_goto_state(135); break;
+   case SYMBOL_LPAREN: Base::shift_and_goto_state(136); break;
+   case SYMBOL_STRING: Base::shift_and_goto_state(137); break;
+   case SYMBOL_VARIABLE: Base::shift_and_goto_state(138); break;
+   case SYMBOL_SUBTERM_1000: Base::shift_and_goto_state(139); break;
+   case SYMBOL_UNARY_OP_1000: Base::shift_and_goto_state(140); break;
+   case SYMBOL_UNARY_OP_1200: Base::shift_and_goto_state(142); break;
+   case SYMBOL_SUBTERM_1200: Base::shift_and_goto_state(168); break;
+   case SYMBOL_SUBTERM_999: Base::shift_and_goto_state(143); break;
+   case SYMBOL_UNARY_OP_999: Base::shift_and_goto_state(144); break;
+   case SYMBOL_NATURAL_NUMBER: Base::shift_and_goto_state(145); break;
+   case SYMBOL_UNSIGNED_FLOAT: Base::shift_and_goto_state(146); break;
   }
  }
 
  void state143() {
   switch (lookahead().ordinal()) {
-   case SYMBOL_NAME: Base::shift_and_goto_state(147); break;
-   case SYMBOL_ATOM: Base::shift_and_goto_state(148); break;
-   case SYMBOL_NUMBER: Base::shift_and_goto_state(149); break;
-   case SYMBOL_NAME_LPAREN: Base::shift_and_goto_state(4); break;
-   case SYMBOL_LBRACKET: Base::shift_and_goto_state(150); break;
-   case SYMBOL_SIGN: Base::shift_and_goto_state(151); break;
-   case SYMBOL_UNSIGNED_NUMBER: Base::shift_and_goto_state(152); break;
-   case SYMBOL_MINUS: Base::shift_and_goto_state(8); break;
-   case SYMBOL_PLUS: Base::shift_and_goto_state(9); break;
-   case SYMBOL_TERM_0: Base::shift_and_goto_state(153); break;
-   case SYMBOL_TERM_999: Base::shift_and_goto_state(154); break;
-   case SYMBOL_CONSTANT: Base::shift_and_goto_state(155); break;
-   case SYMBOL_FUNCTOR_LPAREN: Base::shift_and_goto_state(156); break;
-   case SYMBOL_LBRACE: Base::shift_and_goto_state(157); break;
-   case SYMBOL_LIST: Base::shift_and_goto_state(158); break;
-   case SYMBOL_LPAREN: Base::shift_and_goto_state(159); break;
-   case SYMBOL_STRING: Base::shift_and_goto_state(160); break;
-   case SYMBOL_VARIABLE: Base::shift_and_goto_state(161); break;
-   case SYMBOL_UNARY_OP_999: Base::shift_and_goto_state(143); break;
-   case SYMBOL_SUBTERM_999: Base::shift_and_goto_state(179); break;
-   case SYMBOL_NATURAL_NUMBER: Base::shift_and_goto_state(163); break;
-   case SYMBOL_UNSIGNED_FLOAT: Base::shift_and_goto_state(164); break;
+   case SYMBOL_COMMA: Base::shift_and_goto_state(169); break;
+   case SYMBOL_BIN_OP_999: Base::shift_and_goto_state(170); break;
   }
  }
 
  void state144() {
   switch (lookahead().ordinal()) {
-   case SYMBOL_NAME: Base::shift_and_goto_state(1); break;
-   case SYMBOL_ATOM: Base::shift_and_goto_state(2); break;
-   case SYMBOL_NUMBER: Base::shift_and_goto_state(3); break;
+   case SYMBOL_NAME: Base::shift_and_goto_state(122); break;
+   case SYMBOL_ATOM: Base::shift_and_goto_state(123); break;
+   case SYMBOL_NUMBER: Base::shift_and_goto_state(124); break;
    case SYMBOL_NAME_LPAREN: Base::shift_and_goto_state(4); break;
-   case SYMBOL_LBRACKET: Base::shift_and_goto_state(5); break;
-   case SYMBOL_SIGN: Base::shift_and_goto_state(6); break;
-   case SYMBOL_UNSIGNED_NUMBER: Base::shift_and_goto_state(7); break;
+   case SYMBOL_LBRACKET: Base::shift_and_goto_state(125); break;
+   case SYMBOL_SIGN: Base::shift_and_goto_state(126); break;
+   case SYMBOL_UNSIGNED_NUMBER: Base::shift_and_goto_state(127); break;
    case SYMBOL_MINUS: Base::shift_and_goto_state(8); break;
    case SYMBOL_PLUS: Base::shift_and_goto_state(9); break;
-   case SYMBOL_TERM_1000: Base::shift_and_goto_state(139); break;
-   case SYMBOL_TERM_0: Base::shift_and_goto_state(12); break;
-   case SYMBOL_TERM_999: Base::shift_and_goto_state(140); break;
-   case SYMBOL_CONSTANT: Base::shift_and_goto_state(14); break;
-   case SYMBOL_FUNCTOR_LPAREN: Base::shift_and_goto_state(15); break;
-   case SYMBOL_LBRACE: Base::shift_and_goto_state(16); break;
-   case SYMBOL_LIST: Base::shift_and_goto_state(17); break;
-   case SYMBOL_LPAREN: Base::shift_and_goto_state(18); break;
-   case SYMBOL_STRING: Base::shift_and_goto_state(19); break;
-   case SYMBOL_VARIABLE: Base::shift_and_goto_state(20); break;
-   case SYMBOL_UNARY_OP_1000: Base::shift_and_goto_state(134); break;
-   case SYMBOL_SUBTERM_1000: Base::shift_and_goto_state(146); break;
-   case SYMBOL_SUBTERM_999: Base::shift_and_goto_state(142); break;
-   case SYMBOL_UNARY_OP_999: Base::shift_and_goto_state(143); break;
-   case SYMBOL_NATURAL_NUMBER: Base::shift_and_goto_state(27); break;
-   case SYMBOL_UNSIGNED_FLOAT: Base::shift_and_goto_state(28); break;
+   case SYMBOL_TERM_0: Base::shift_and_goto_state(172); break;
+   case SYMBOL_TERM_999: Base::shift_and_goto_state(173); break;
+   case SYMBOL_CONSTANT: Base::shift_and_goto_state(132); break;
+   case SYMBOL_FUNCTOR_LPAREN: Base::shift_and_goto_state(133); break;
+   case SYMBOL_LBRACE: Base::shift_and_goto_state(134); break;
+   case SYMBOL_LIST: Base::shift_and_goto_state(135); break;
+   case SYMBOL_LPAREN: Base::shift_and_goto_state(136); break;
+   case SYMBOL_STRING: Base::shift_and_goto_state(137); break;
+   case SYMBOL_VARIABLE: Base::shift_and_goto_state(138); break;
+   case SYMBOL_UNARY_OP_999: Base::shift_and_goto_state(144); break;
+   case SYMBOL_SUBTERM_999: Base::shift_and_goto_state(175); break;
+   case SYMBOL_NATURAL_NUMBER: Base::shift_and_goto_state(145); break;
+   case SYMBOL_UNSIGNED_FLOAT: Base::shift_and_goto_state(146); break;
   }
  }
 
  void state145() {
   switch (lookahead().ordinal()) {
-   case SYMBOL_NAME: Base::shift_and_goto_state(147); break;
-   case SYMBOL_ATOM: Base::shift_and_goto_state(148); break;
-   case SYMBOL_NUMBER: Base::shift_and_goto_state(149); break;
-   case SYMBOL_NAME_LPAREN: Base::shift_and_goto_state(4); break;
-   case SYMBOL_LBRACKET: Base::shift_and_goto_state(150); break;
-   case SYMBOL_SIGN: Base::shift_and_goto_state(151); break;
-   case SYMBOL_UNSIGNED_NUMBER: Base::shift_and_goto_state(152); break;
-   case SYMBOL_MINUS: Base::shift_and_goto_state(8); break;
-   case SYMBOL_PLUS: Base::shift_and_goto_state(9); break;
-   case SYMBOL_TERM_0: Base::shift_and_goto_state(153); break;
-   case SYMBOL_TERM_999: Base::shift_and_goto_state(154); break;
-   case SYMBOL_CONSTANT: Base::shift_and_goto_state(155); break;
-   case SYMBOL_FUNCTOR_LPAREN: Base::shift_and_goto_state(156); break;
-   case SYMBOL_LBRACE: Base::shift_and_goto_state(157); break;
-   case SYMBOL_LIST: Base::shift_and_goto_state(158); break;
-   case SYMBOL_LPAREN: Base::shift_and_goto_state(159); break;
-   case SYMBOL_STRING: Base::shift_and_goto_state(160); break;
-   case SYMBOL_VARIABLE: Base::shift_and_goto_state(161); break;
-   case SYMBOL_UNARY_OP_999: Base::shift_and_goto_state(143); break;
-   case SYMBOL_SUBTERM_999: Base::shift_and_goto_state(162); break;
-   case SYMBOL_NATURAL_NUMBER: Base::shift_and_goto_state(163); break;
-   case SYMBOL_UNSIGNED_FLOAT: Base::shift_and_goto_state(164); break;
+   case SYMBOL_BIN_OP_1000:
+   case SYMBOL_BIN_OP_1200:
+   case SYMBOL_BIN_OP_999:
+   case SYMBOL_COMMA:
+   case SYMBOL_RPAREN:
+    Base::push(Base::lookahead().ordinal(), Base::reduce_unsigned_number__natural_number(Base::args(1)));
+    break;
   }
  }
 
@@ -2551,21 +2545,17 @@ template<typename Base, typename... Args> class term_parser_gen : public Base {
   switch (lookahead().ordinal()) {
    case SYMBOL_BIN_OP_1000:
    case SYMBOL_BIN_OP_1200:
+   case SYMBOL_BIN_OP_999:
+   case SYMBOL_COMMA:
    case SYMBOL_RPAREN:
-    Base::push(Base::lookahead().ordinal(), Base::reduce_term_1000__subterm_999_comma_subterm_1000(Base::args(3)));
+    Base::push(Base::lookahead().ordinal(), Base::reduce_unsigned_number__unsigned_float(Base::args(1)));
     break;
   }
  }
 
  void state147() {
   switch (lookahead().ordinal()) {
-   case SYMBOL_BIN_OP_1000:
-   case SYMBOL_BIN_OP_1200:
-   case SYMBOL_BIN_OP_999:
-   case SYMBOL_COMMA:
-   case SYMBOL_RPAREN:
-    Base::push(Base::lookahead().ordinal(), Base::reduce_atom__name(Base::args(1)));
-    break;
+   case SYMBOL_RBRACKET: Base::shift_and_goto_state(149); break;
   }
  }
 
@@ -2576,7 +2566,7 @@ template<typename Base, typename... Args> class term_parser_gen : public Base {
    case SYMBOL_BIN_OP_999:
    case SYMBOL_COMMA:
    case SYMBOL_RPAREN:
-    Base::push(Base::lookahead().ordinal(), Base::reduce_constant__atom(Base::args(1)));
+    Base::push(Base::lookahead().ordinal(), Base::reduce_list__lbracket_rbracket(Base::args(2)));
     break;
   }
  }
@@ -2588,47 +2578,32 @@ template<typename Base, typename... Args> class term_parser_gen : public Base {
    case SYMBOL_BIN_OP_999:
    case SYMBOL_COMMA:
    case SYMBOL_RPAREN:
-    Base::push(Base::lookahead().ordinal(), Base::reduce_constant__number(Base::args(1)));
+    Base::push(Base::lookahead().ordinal(), Base::reduce_list__lbracket_listexpr_rbracket(Base::args(3)));
     break;
   }
  }
 
  void state150() {
   switch (lookahead().ordinal()) {
-   case SYMBOL_NAME: Base::shift_and_goto_state(29); break;
-   case SYMBOL_ATOM: Base::shift_and_goto_state(30); break;
-   case SYMBOL_NUMBER: Base::shift_and_goto_state(31); break;
-   case SYMBOL_NAME_LPAREN: Base::shift_and_goto_state(4); break;
-   case SYMBOL_LBRACKET: Base::shift_and_goto_state(32); break;
-   case SYMBOL_LISTEXPR: Base::shift_and_goto_state(165); break;
-   case SYMBOL_RBRACKET: Base::shift_and_goto_state(166); break;
-   case SYMBOL_SIGN: Base::shift_and_goto_state(35); break;
-   case SYMBOL_UNSIGNED_NUMBER: Base::shift_and_goto_state(36); break;
-   case SYMBOL_MINUS: Base::shift_and_goto_state(8); break;
-   case SYMBOL_PLUS: Base::shift_and_goto_state(9); break;
-   case SYMBOL_TERM_0: Base::shift_and_goto_state(37); break;
-   case SYMBOL_TERM_999: Base::shift_and_goto_state(38); break;
-   case SYMBOL_CONSTANT: Base::shift_and_goto_state(39); break;
-   case SYMBOL_FUNCTOR_LPAREN: Base::shift_and_goto_state(40); break;
-   case SYMBOL_LBRACE: Base::shift_and_goto_state(41); break;
-   case SYMBOL_LIST: Base::shift_and_goto_state(42); break;
-   case SYMBOL_LPAREN: Base::shift_and_goto_state(43); break;
-   case SYMBOL_STRING: Base::shift_and_goto_state(44); break;
-   case SYMBOL_VARIABLE: Base::shift_and_goto_state(45); break;
-   case SYMBOL_SUBTERM_999: Base::shift_and_goto_state(46); break;
-   case SYMBOL_UNARY_OP_999: Base::shift_and_goto_state(47); break;
-   case SYMBOL_NATURAL_NUMBER: Base::shift_and_goto_state(48); break;
-   case SYMBOL_UNSIGNED_FLOAT: Base::shift_and_goto_state(49); break;
+   case SYMBOL_BIN_OP_1000:
+   case SYMBOL_BIN_OP_1200:
+   case SYMBOL_BIN_OP_999:
+   case SYMBOL_COMMA:
+   case SYMBOL_RPAREN:
+    Base::push(Base::lookahead().ordinal(), Base::reduce_number__sign_inf(Base::args(2)));
+    break;
   }
  }
 
  void state151() {
   switch (lookahead().ordinal()) {
-   case SYMBOL_INF: Base::shift_and_goto_state(168); break;
-   case SYMBOL_NAN: Base::shift_and_goto_state(169); break;
-   case SYMBOL_UNSIGNED_NUMBER: Base::shift_and_goto_state(170); break;
-   case SYMBOL_NATURAL_NUMBER: Base::shift_and_goto_state(163); break;
-   case SYMBOL_UNSIGNED_FLOAT: Base::shift_and_goto_state(164); break;
+   case SYMBOL_BIN_OP_1000:
+   case SYMBOL_BIN_OP_1200:
+   case SYMBOL_BIN_OP_999:
+   case SYMBOL_COMMA:
+   case SYMBOL_RPAREN:
+    Base::push(Base::lookahead().ordinal(), Base::reduce_number__sign_nan(Base::args(2)));
+    break;
   }
  }
 
@@ -2639,20 +2614,14 @@ template<typename Base, typename... Args> class term_parser_gen : public Base {
    case SYMBOL_BIN_OP_999:
    case SYMBOL_COMMA:
    case SYMBOL_RPAREN:
-    Base::push(Base::lookahead().ordinal(), Base::reduce_number__unsigned_number(Base::args(1)));
+    Base::push(Base::lookahead().ordinal(), Base::reduce_number__sign_unsigned_number(Base::args(2)));
     break;
   }
  }
 
  void state153() {
   switch (lookahead().ordinal()) {
-   case SYMBOL_BIN_OP_1000:
-   case SYMBOL_BIN_OP_1200:
-   case SYMBOL_BIN_OP_999:
-   case SYMBOL_COMMA:
-   case SYMBOL_RPAREN:
-    Base::push(Base::lookahead().ordinal(), Base::reduce_subterm_999__term_0(Base::args(1)));
-    break;
+   case SYMBOL_RPAREN: Base::shift_and_goto_state(154); break;
   }
  }
 
@@ -2663,81 +2632,34 @@ template<typename Base, typename... Args> class term_parser_gen : public Base {
    case SYMBOL_BIN_OP_999:
    case SYMBOL_COMMA:
    case SYMBOL_RPAREN:
-    Base::push(Base::lookahead().ordinal(), Base::reduce_subterm_999__term_999(Base::args(1)));
+    Base::push(Base::lookahead().ordinal(), Base::reduce_term_0__functor_lparen_arguments_rparen(Base::args(3)));
     break;
   }
  }
 
  void state155() {
   switch (lookahead().ordinal()) {
-   case SYMBOL_BIN_OP_1000:
-   case SYMBOL_BIN_OP_1200:
-   case SYMBOL_BIN_OP_999:
-   case SYMBOL_COMMA:
-   case SYMBOL_RPAREN:
-    Base::push(Base::lookahead().ordinal(), Base::reduce_term_0__constant(Base::args(1)));
-    break;
+   case SYMBOL_RBRACE: Base::shift_and_goto_state(156); break;
+   case SYMBOL_BIN_OP_1200: Base::shift_and_goto_state(120); break;
   }
  }
 
  void state156() {
   switch (lookahead().ordinal()) {
-   case SYMBOL_NAME: Base::shift_and_goto_state(57); break;
-   case SYMBOL_ATOM: Base::shift_and_goto_state(58); break;
-   case SYMBOL_NUMBER: Base::shift_and_goto_state(59); break;
-   case SYMBOL_NAME_LPAREN: Base::shift_and_goto_state(4); break;
-   case SYMBOL_LBRACKET: Base::shift_and_goto_state(60); break;
-   case SYMBOL_SIGN: Base::shift_and_goto_state(61); break;
-   case SYMBOL_UNSIGNED_NUMBER: Base::shift_and_goto_state(62); break;
-   case SYMBOL_MINUS: Base::shift_and_goto_state(8); break;
-   case SYMBOL_PLUS: Base::shift_and_goto_state(9); break;
-   case SYMBOL_TERM_0: Base::shift_and_goto_state(63); break;
-   case SYMBOL_TERM_999: Base::shift_and_goto_state(64); break;
-   case SYMBOL_CONSTANT: Base::shift_and_goto_state(65); break;
-   case SYMBOL_FUNCTOR_LPAREN: Base::shift_and_goto_state(66); break;
-   case SYMBOL_LBRACE: Base::shift_and_goto_state(67); break;
-   case SYMBOL_LIST: Base::shift_and_goto_state(68); break;
-   case SYMBOL_LPAREN: Base::shift_and_goto_state(69); break;
-   case SYMBOL_STRING: Base::shift_and_goto_state(70); break;
-   case SYMBOL_VARIABLE: Base::shift_and_goto_state(71); break;
-   case SYMBOL_ARGUMENTS: Base::shift_and_goto_state(171); break;
-   case SYMBOL_SUBTERM_999: Base::shift_and_goto_state(73); break;
-   case SYMBOL_UNARY_OP_999: Base::shift_and_goto_state(74); break;
-   case SYMBOL_NATURAL_NUMBER: Base::shift_and_goto_state(75); break;
-   case SYMBOL_UNSIGNED_FLOAT: Base::shift_and_goto_state(76); break;
+   case SYMBOL_BIN_OP_1000:
+   case SYMBOL_BIN_OP_1200:
+   case SYMBOL_BIN_OP_999:
+   case SYMBOL_COMMA:
+   case SYMBOL_RPAREN:
+    Base::push(Base::lookahead().ordinal(), Base::reduce_term_0__lbrace_subterm_1200_rbrace(Base::args(3)));
+    break;
   }
  }
 
  void state157() {
   switch (lookahead().ordinal()) {
-   case SYMBOL_NAME: Base::shift_and_goto_state(1); break;
-   case SYMBOL_ATOM: Base::shift_and_goto_state(2); break;
-   case SYMBOL_NUMBER: Base::shift_and_goto_state(3); break;
-   case SYMBOL_NAME_LPAREN: Base::shift_and_goto_state(4); break;
-   case SYMBOL_LBRACKET: Base::shift_and_goto_state(5); break;
-   case SYMBOL_SIGN: Base::shift_and_goto_state(6); break;
-   case SYMBOL_UNSIGNED_NUMBER: Base::shift_and_goto_state(7); break;
-   case SYMBOL_MINUS: Base::shift_and_goto_state(8); break;
-   case SYMBOL_PLUS: Base::shift_and_goto_state(9); break;
-   case SYMBOL_TERM_1000: Base::shift_and_goto_state(85); break;
-   case SYMBOL_TERM_1200: Base::shift_and_goto_state(86); break;
-   case SYMBOL_TERM_0: Base::shift_and_goto_state(12); break;
-   case SYMBOL_TERM_999: Base::shift_and_goto_state(13); break;
-   case SYMBOL_CONSTANT: Base::shift_and_goto_state(14); break;
-   case SYMBOL_FUNCTOR_LPAREN: Base::shift_and_goto_state(15); break;
-   case SYMBOL_LBRACE: Base::shift_and_goto_state(16); break;
-   case SYMBOL_LIST: Base::shift_and_goto_state(17); break;
-   case SYMBOL_LPAREN: Base::shift_and_goto_state(18); break;
-   case SYMBOL_STRING: Base::shift_and_goto_state(19); break;
-   case SYMBOL_VARIABLE: Base::shift_and_goto_state(20); break;
-   case SYMBOL_SUBTERM_1000: Base::shift_and_goto_state(87); break;
-   case SYMBOL_UNARY_OP_1000: Base::shift_and_goto_state(88); break;
-   case SYMBOL_SUBTERM_1200: Base::shift_and_goto_state(173); break;
-   case SYMBOL_UNARY_OP_1200: Base::shift_and_goto_state(90); break;
-   case SYMBOL_SUBTERM_999: Base::shift_and_goto_state(91); break;
-   case SYMBOL_UNARY_OP_999: Base::shift_and_goto_state(26); break;
-   case SYMBOL_NATURAL_NUMBER: Base::shift_and_goto_state(27); break;
-   case SYMBOL_UNSIGNED_FLOAT: Base::shift_and_goto_state(28); break;
+   case SYMBOL_RPAREN: Base::shift_and_goto_state(158); break;
+   case SYMBOL_BIN_OP_1200: Base::shift_and_goto_state(159); break;
   }
  }
 
@@ -2748,65 +2670,80 @@ template<typename Base, typename... Args> class term_parser_gen : public Base {
    case SYMBOL_BIN_OP_999:
    case SYMBOL_COMMA:
    case SYMBOL_RPAREN:
-    Base::push(Base::lookahead().ordinal(), Base::reduce_term_0__list(Base::args(1)));
+    Base::push(Base::lookahead().ordinal(), Base::reduce_term_0__lparen_subterm_1200_rparen(Base::args(3)));
     break;
   }
  }
 
  void state159() {
   switch (lookahead().ordinal()) {
-   case SYMBOL_NAME: Base::shift_and_goto_state(1); break;
-   case SYMBOL_ATOM: Base::shift_and_goto_state(2); break;
-   case SYMBOL_NUMBER: Base::shift_and_goto_state(3); break;
+   case SYMBOL_NAME: Base::shift_and_goto_state(122); break;
+   case SYMBOL_ATOM: Base::shift_and_goto_state(123); break;
+   case SYMBOL_NUMBER: Base::shift_and_goto_state(124); break;
    case SYMBOL_NAME_LPAREN: Base::shift_and_goto_state(4); break;
-   case SYMBOL_LBRACKET: Base::shift_and_goto_state(5); break;
-   case SYMBOL_SIGN: Base::shift_and_goto_state(6); break;
-   case SYMBOL_UNSIGNED_NUMBER: Base::shift_and_goto_state(7); break;
+   case SYMBOL_LBRACKET: Base::shift_and_goto_state(125); break;
+   case SYMBOL_SIGN: Base::shift_and_goto_state(126); break;
+   case SYMBOL_UNSIGNED_NUMBER: Base::shift_and_goto_state(127); break;
    case SYMBOL_MINUS: Base::shift_and_goto_state(8); break;
    case SYMBOL_PLUS: Base::shift_and_goto_state(9); break;
-   case SYMBOL_TERM_1000: Base::shift_and_goto_state(131); break;
-   case SYMBOL_TERM_1200: Base::shift_and_goto_state(132); break;
-   case SYMBOL_TERM_0: Base::shift_and_goto_state(12); break;
-   case SYMBOL_TERM_999: Base::shift_and_goto_state(13); break;
-   case SYMBOL_CONSTANT: Base::shift_and_goto_state(14); break;
-   case SYMBOL_FUNCTOR_LPAREN: Base::shift_and_goto_state(15); break;
-   case SYMBOL_LBRACE: Base::shift_and_goto_state(16); break;
-   case SYMBOL_LIST: Base::shift_and_goto_state(17); break;
-   case SYMBOL_LPAREN: Base::shift_and_goto_state(18); break;
-   case SYMBOL_STRING: Base::shift_and_goto_state(19); break;
-   case SYMBOL_VARIABLE: Base::shift_and_goto_state(20); break;
-   case SYMBOL_SUBTERM_1000: Base::shift_and_goto_state(133); break;
-   case SYMBOL_UNARY_OP_1000: Base::shift_and_goto_state(134); break;
-   case SYMBOL_SUBTERM_1200: Base::shift_and_goto_state(175); break;
-   case SYMBOL_UNARY_OP_1200: Base::shift_and_goto_state(136); break;
-   case SYMBOL_SUBTERM_999: Base::shift_and_goto_state(137); break;
-   case SYMBOL_UNARY_OP_999: Base::shift_and_goto_state(26); break;
-   case SYMBOL_NATURAL_NUMBER: Base::shift_and_goto_state(27); break;
-   case SYMBOL_UNSIGNED_FLOAT: Base::shift_and_goto_state(28); break;
+   case SYMBOL_TERM_1000: Base::shift_and_goto_state(128); break;
+   case SYMBOL_TERM_1200: Base::shift_and_goto_state(129); break;
+   case SYMBOL_TERM_0: Base::shift_and_goto_state(130); break;
+   case SYMBOL_TERM_999: Base::shift_and_goto_state(131); break;
+   case SYMBOL_CONSTANT: Base::shift_and_goto_state(132); break;
+   case SYMBOL_FUNCTOR_LPAREN: Base::shift_and_goto_state(133); break;
+   case SYMBOL_LBRACE: Base::shift_and_goto_state(134); break;
+   case SYMBOL_LIST: Base::shift_and_goto_state(135); break;
+   case SYMBOL_LPAREN: Base::shift_and_goto_state(136); break;
+   case SYMBOL_STRING: Base::shift_and_goto_state(137); break;
+   case SYMBOL_VARIABLE: Base::shift_and_goto_state(138); break;
+   case SYMBOL_SUBTERM_1000: Base::shift_and_goto_state(139); break;
+   case SYMBOL_UNARY_OP_1000: Base::shift_and_goto_state(140); break;
+   case SYMBOL_UNARY_OP_1200: Base::shift_and_goto_state(142); break;
+   case SYMBOL_SUBTERM_1200: Base::shift_and_goto_state(160); break;
+   case SYMBOL_SUBTERM_999: Base::shift_and_goto_state(143); break;
+   case SYMBOL_UNARY_OP_999: Base::shift_and_goto_state(144); break;
+   case SYMBOL_NATURAL_NUMBER: Base::shift_and_goto_state(145); break;
+   case SYMBOL_UNSIGNED_FLOAT: Base::shift_and_goto_state(146); break;
   }
  }
 
  void state160() {
   switch (lookahead().ordinal()) {
-   case SYMBOL_BIN_OP_1000:
    case SYMBOL_BIN_OP_1200:
-   case SYMBOL_BIN_OP_999:
-   case SYMBOL_COMMA:
    case SYMBOL_RPAREN:
-    Base::push(Base::lookahead().ordinal(), Base::reduce_term_0__string(Base::args(1)));
+    Base::push(Base::lookahead().ordinal(), Base::reduce_term_1200__subterm_1200_bin_op_1200_subterm_1200(Base::args(3)));
     break;
   }
  }
 
  void state161() {
   switch (lookahead().ordinal()) {
-   case SYMBOL_BIN_OP_1000:
-   case SYMBOL_BIN_OP_1200:
-   case SYMBOL_BIN_OP_999:
-   case SYMBOL_COMMA:
-   case SYMBOL_RPAREN:
-    Base::push(Base::lookahead().ordinal(), Base::reduce_term_0__variable(Base::args(1)));
-    break;
+   case SYMBOL_NAME: Base::shift_and_goto_state(122); break;
+   case SYMBOL_ATOM: Base::shift_and_goto_state(123); break;
+   case SYMBOL_NUMBER: Base::shift_and_goto_state(124); break;
+   case SYMBOL_NAME_LPAREN: Base::shift_and_goto_state(4); break;
+   case SYMBOL_LBRACKET: Base::shift_and_goto_state(125); break;
+   case SYMBOL_SIGN: Base::shift_and_goto_state(126); break;
+   case SYMBOL_UNSIGNED_NUMBER: Base::shift_and_goto_state(127); break;
+   case SYMBOL_MINUS: Base::shift_and_goto_state(8); break;
+   case SYMBOL_PLUS: Base::shift_and_goto_state(9); break;
+   case SYMBOL_TERM_1000: Base::shift_and_goto_state(162); break;
+   case SYMBOL_TERM_0: Base::shift_and_goto_state(163); break;
+   case SYMBOL_TERM_999: Base::shift_and_goto_state(164); break;
+   case SYMBOL_CONSTANT: Base::shift_and_goto_state(132); break;
+   case SYMBOL_FUNCTOR_LPAREN: Base::shift_and_goto_state(133); break;
+   case SYMBOL_LBRACE: Base::shift_and_goto_state(134); break;
+   case SYMBOL_LIST: Base::shift_and_goto_state(135); break;
+   case SYMBOL_LPAREN: Base::shift_and_goto_state(136); break;
+   case SYMBOL_STRING: Base::shift_and_goto_state(137); break;
+   case SYMBOL_VARIABLE: Base::shift_and_goto_state(138); break;
+   case SYMBOL_UNARY_OP_1000: Base::shift_and_goto_state(140); break;
+   case SYMBOL_SUBTERM_1000: Base::shift_and_goto_state(165); break;
+   case SYMBOL_SUBTERM_999: Base::shift_and_goto_state(143); break;
+   case SYMBOL_UNARY_OP_999: Base::shift_and_goto_state(144); break;
+   case SYMBOL_NATURAL_NUMBER: Base::shift_and_goto_state(145); break;
+   case SYMBOL_UNSIGNED_FLOAT: Base::shift_and_goto_state(146); break;
   }
  }
 
@@ -2814,41 +2751,47 @@ template<typename Base, typename... Args> class term_parser_gen : public Base {
   switch (lookahead().ordinal()) {
    case SYMBOL_BIN_OP_1000:
    case SYMBOL_BIN_OP_1200:
-   case SYMBOL_BIN_OP_999:
-   case SYMBOL_COMMA:
    case SYMBOL_RPAREN:
-    Base::push(Base::lookahead().ordinal(), Base::reduce_term_999__subterm_999_bin_op_999_subterm_999(Base::args(3)));
+    Base::push(Base::lookahead().ordinal(), Base::reduce_subterm_1000__term_1000(Base::args(1)));
     break;
   }
  }
 
  void state163() {
   switch (lookahead().ordinal()) {
-   case SYMBOL_BIN_OP_1000:
-   case SYMBOL_BIN_OP_1200:
    case SYMBOL_BIN_OP_999:
    case SYMBOL_COMMA:
+    Base::push(Base::lookahead().ordinal(), Base::reduce_subterm_999__term_0(Base::args(1)));
+    break;
+   case SYMBOL_BIN_OP_1000:
+   case SYMBOL_BIN_OP_1200:
    case SYMBOL_RPAREN:
-    Base::push(Base::lookahead().ordinal(), Base::reduce_unsigned_number__natural_number(Base::args(1)));
+    Base::push(Base::lookahead().ordinal(), Base::reduce_subterm_1000__term_0(Base::args(1)));
     break;
   }
  }
 
  void state164() {
   switch (lookahead().ordinal()) {
-   case SYMBOL_BIN_OP_1000:
-   case SYMBOL_BIN_OP_1200:
    case SYMBOL_BIN_OP_999:
    case SYMBOL_COMMA:
+    Base::push(Base::lookahead().ordinal(), Base::reduce_subterm_999__term_999(Base::args(1)));
+    break;
+   case SYMBOL_BIN_OP_1000:
+   case SYMBOL_BIN_OP_1200:
    case SYMBOL_RPAREN:
-    Base::push(Base::lookahead().ordinal(), Base::reduce_unsigned_number__unsigned_float(Base::args(1)));
+    Base::push(Base::lookahead().ordinal(), Base::reduce_subterm_1000__term_999(Base::args(1)));
     break;
   }
  }
 
  void state165() {
   switch (lookahead().ordinal()) {
-   case SYMBOL_RBRACKET: Base::shift_and_goto_state(167); break;
+   case SYMBOL_BIN_OP_1000:
+   case SYMBOL_BIN_OP_1200:
+   case SYMBOL_RPAREN:
+    Base::push(Base::lookahead().ordinal(), Base::reduce_term_1000__subterm_1000_bin_op_1000_subterm_1000(Base::args(3)));
+    break;
   }
  }
 
@@ -2856,10 +2799,8 @@ template<typename Base, typename... Args> class term_parser_gen : public Base {
   switch (lookahead().ordinal()) {
    case SYMBOL_BIN_OP_1000:
    case SYMBOL_BIN_OP_1200:
-   case SYMBOL_BIN_OP_999:
-   case SYMBOL_COMMA:
    case SYMBOL_RPAREN:
-    Base::push(Base::lookahead().ordinal(), Base::reduce_list__lbracket_rbracket(Base::args(2)));
+    Base::push(Base::lookahead().ordinal(), Base::reduce_term_1000__unary_op_1000_subterm_1000(Base::args(2)));
     break;
   }
  }
@@ -2870,51 +2811,85 @@ template<typename Base, typename... Args> class term_parser_gen : public Base {
    case SYMBOL_BIN_OP_1200:
    case SYMBOL_BIN_OP_999:
    case SYMBOL_COMMA:
-   case SYMBOL_RPAREN:
-    Base::push(Base::lookahead().ordinal(), Base::reduce_list__lbracket_listexpr_rbracket(Base::args(3)));
+   case SYMBOL_RBRACE:
+    Base::push(Base::lookahead().ordinal(), Base::reduce_term_0__lparen_subterm_1200_rparen(Base::args(3)));
     break;
   }
  }
 
  void state168() {
   switch (lookahead().ordinal()) {
-   case SYMBOL_BIN_OP_1000:
    case SYMBOL_BIN_OP_1200:
-   case SYMBOL_BIN_OP_999:
-   case SYMBOL_COMMA:
    case SYMBOL_RPAREN:
-    Base::push(Base::lookahead().ordinal(), Base::reduce_number__sign_inf(Base::args(2)));
+    Base::push(Base::lookahead().ordinal(), Base::reduce_term_1200__unary_op_1200_subterm_1200(Base::args(2)));
     break;
   }
  }
 
  void state169() {
   switch (lookahead().ordinal()) {
-   case SYMBOL_BIN_OP_1000:
-   case SYMBOL_BIN_OP_1200:
-   case SYMBOL_BIN_OP_999:
-   case SYMBOL_COMMA:
-   case SYMBOL_RPAREN:
-    Base::push(Base::lookahead().ordinal(), Base::reduce_number__sign_nan(Base::args(2)));
-    break;
+   case SYMBOL_NAME: Base::shift_and_goto_state(122); break;
+   case SYMBOL_ATOM: Base::shift_and_goto_state(123); break;
+   case SYMBOL_NUMBER: Base::shift_and_goto_state(124); break;
+   case SYMBOL_NAME_LPAREN: Base::shift_and_goto_state(4); break;
+   case SYMBOL_LBRACKET: Base::shift_and_goto_state(125); break;
+   case SYMBOL_SIGN: Base::shift_and_goto_state(126); break;
+   case SYMBOL_UNSIGNED_NUMBER: Base::shift_and_goto_state(127); break;
+   case SYMBOL_MINUS: Base::shift_and_goto_state(8); break;
+   case SYMBOL_PLUS: Base::shift_and_goto_state(9); break;
+   case SYMBOL_TERM_1000: Base::shift_and_goto_state(162); break;
+   case SYMBOL_TERM_0: Base::shift_and_goto_state(163); break;
+   case SYMBOL_TERM_999: Base::shift_and_goto_state(164); break;
+   case SYMBOL_CONSTANT: Base::shift_and_goto_state(132); break;
+   case SYMBOL_FUNCTOR_LPAREN: Base::shift_and_goto_state(133); break;
+   case SYMBOL_LBRACE: Base::shift_and_goto_state(134); break;
+   case SYMBOL_LIST: Base::shift_and_goto_state(135); break;
+   case SYMBOL_LPAREN: Base::shift_and_goto_state(136); break;
+   case SYMBOL_STRING: Base::shift_and_goto_state(137); break;
+   case SYMBOL_VARIABLE: Base::shift_and_goto_state(138); break;
+   case SYMBOL_UNARY_OP_1000: Base::shift_and_goto_state(140); break;
+   case SYMBOL_SUBTERM_1000: Base::shift_and_goto_state(171); break;
+   case SYMBOL_SUBTERM_999: Base::shift_and_goto_state(143); break;
+   case SYMBOL_UNARY_OP_999: Base::shift_and_goto_state(144); break;
+   case SYMBOL_NATURAL_NUMBER: Base::shift_and_goto_state(145); break;
+   case SYMBOL_UNSIGNED_FLOAT: Base::shift_and_goto_state(146); break;
   }
  }
 
  void state170() {
   switch (lookahead().ordinal()) {
-   case SYMBOL_BIN_OP_1000:
-   case SYMBOL_BIN_OP_1200:
-   case SYMBOL_BIN_OP_999:
-   case SYMBOL_COMMA:
-   case SYMBOL_RPAREN:
-    Base::push(Base::lookahead().ordinal(), Base::reduce_number__sign_unsigned_number(Base::args(2)));
-    break;
+   case SYMBOL_NAME: Base::shift_and_goto_state(122); break;
+   case SYMBOL_ATOM: Base::shift_and_goto_state(123); break;
+   case SYMBOL_NUMBER: Base::shift_and_goto_state(124); break;
+   case SYMBOL_NAME_LPAREN: Base::shift_and_goto_state(4); break;
+   case SYMBOL_LBRACKET: Base::shift_and_goto_state(125); break;
+   case SYMBOL_SIGN: Base::shift_and_goto_state(126); break;
+   case SYMBOL_UNSIGNED_NUMBER: Base::shift_and_goto_state(127); break;
+   case SYMBOL_MINUS: Base::shift_and_goto_state(8); break;
+   case SYMBOL_PLUS: Base::shift_and_goto_state(9); break;
+   case SYMBOL_TERM_0: Base::shift_and_goto_state(172); break;
+   case SYMBOL_TERM_999: Base::shift_and_goto_state(173); break;
+   case SYMBOL_CONSTANT: Base::shift_and_goto_state(132); break;
+   case SYMBOL_FUNCTOR_LPAREN: Base::shift_and_goto_state(133); break;
+   case SYMBOL_LBRACE: Base::shift_and_goto_state(134); break;
+   case SYMBOL_LIST: Base::shift_and_goto_state(135); break;
+   case SYMBOL_LPAREN: Base::shift_and_goto_state(136); break;
+   case SYMBOL_STRING: Base::shift_and_goto_state(137); break;
+   case SYMBOL_VARIABLE: Base::shift_and_goto_state(138); break;
+   case SYMBOL_UNARY_OP_999: Base::shift_and_goto_state(144); break;
+   case SYMBOL_SUBTERM_999: Base::shift_and_goto_state(174); break;
+   case SYMBOL_NATURAL_NUMBER: Base::shift_and_goto_state(145); break;
+   case SYMBOL_UNSIGNED_FLOAT: Base::shift_and_goto_state(146); break;
   }
  }
 
  void state171() {
   switch (lookahead().ordinal()) {
-   case SYMBOL_RPAREN: Base::shift_and_goto_state(172); break;
+   case SYMBOL_BIN_OP_1000:
+   case SYMBOL_BIN_OP_1200:
+   case SYMBOL_RPAREN:
+    Base::push(Base::lookahead().ordinal(), Base::reduce_term_1000__subterm_999_comma_subterm_1000(Base::args(3)));
+    break;
   }
  }
 
@@ -2925,15 +2900,20 @@ template<typename Base, typename... Args> class term_parser_gen : public Base {
    case SYMBOL_BIN_OP_999:
    case SYMBOL_COMMA:
    case SYMBOL_RPAREN:
-    Base::push(Base::lookahead().ordinal(), Base::reduce_term_0__functor_lparen_arguments_rparen(Base::args(3)));
+    Base::push(Base::lookahead().ordinal(), Base::reduce_subterm_999__term_0(Base::args(1)));
     break;
   }
  }
 
  void state173() {
   switch (lookahead().ordinal()) {
-   case SYMBOL_RBRACE: Base::shift_and_goto_state(174); break;
-   case SYMBOL_BIN_OP_1200: Base::shift_and_goto_state(129); break;
+   case SYMBOL_BIN_OP_1000:
+   case SYMBOL_BIN_OP_1200:
+   case SYMBOL_BIN_OP_999:
+   case SYMBOL_COMMA:
+   case SYMBOL_RPAREN:
+    Base::push(Base::lookahead().ordinal(), Base::reduce_subterm_999__term_999(Base::args(1)));
+    break;
   }
  }
 
@@ -2944,73 +2924,12 @@ template<typename Base, typename... Args> class term_parser_gen : public Base {
    case SYMBOL_BIN_OP_999:
    case SYMBOL_COMMA:
    case SYMBOL_RPAREN:
-    Base::push(Base::lookahead().ordinal(), Base::reduce_term_0__lbrace_subterm_1200_rbrace(Base::args(3)));
+    Base::push(Base::lookahead().ordinal(), Base::reduce_term_999__subterm_999_bin_op_999_subterm_999(Base::args(3)));
     break;
   }
  }
 
  void state175() {
-  switch (lookahead().ordinal()) {
-   case SYMBOL_RPAREN: Base::shift_and_goto_state(176); break;
-   case SYMBOL_BIN_OP_1200: Base::shift_and_goto_state(177); break;
-  }
- }
-
- void state176() {
-  switch (lookahead().ordinal()) {
-   case SYMBOL_BIN_OP_1000:
-   case SYMBOL_BIN_OP_1200:
-   case SYMBOL_BIN_OP_999:
-   case SYMBOL_COMMA:
-   case SYMBOL_RPAREN:
-    Base::push(Base::lookahead().ordinal(), Base::reduce_term_0__lparen_subterm_1200_rparen(Base::args(3)));
-    break;
-  }
- }
-
- void state177() {
-  switch (lookahead().ordinal()) {
-   case SYMBOL_NAME: Base::shift_and_goto_state(1); break;
-   case SYMBOL_ATOM: Base::shift_and_goto_state(2); break;
-   case SYMBOL_NUMBER: Base::shift_and_goto_state(3); break;
-   case SYMBOL_NAME_LPAREN: Base::shift_and_goto_state(4); break;
-   case SYMBOL_LBRACKET: Base::shift_and_goto_state(5); break;
-   case SYMBOL_SIGN: Base::shift_and_goto_state(6); break;
-   case SYMBOL_UNSIGNED_NUMBER: Base::shift_and_goto_state(7); break;
-   case SYMBOL_MINUS: Base::shift_and_goto_state(8); break;
-   case SYMBOL_PLUS: Base::shift_and_goto_state(9); break;
-   case SYMBOL_TERM_1000: Base::shift_and_goto_state(131); break;
-   case SYMBOL_TERM_1200: Base::shift_and_goto_state(132); break;
-   case SYMBOL_TERM_0: Base::shift_and_goto_state(12); break;
-   case SYMBOL_TERM_999: Base::shift_and_goto_state(13); break;
-   case SYMBOL_CONSTANT: Base::shift_and_goto_state(14); break;
-   case SYMBOL_FUNCTOR_LPAREN: Base::shift_and_goto_state(15); break;
-   case SYMBOL_LBRACE: Base::shift_and_goto_state(16); break;
-   case SYMBOL_LIST: Base::shift_and_goto_state(17); break;
-   case SYMBOL_LPAREN: Base::shift_and_goto_state(18); break;
-   case SYMBOL_STRING: Base::shift_and_goto_state(19); break;
-   case SYMBOL_VARIABLE: Base::shift_and_goto_state(20); break;
-   case SYMBOL_SUBTERM_1000: Base::shift_and_goto_state(133); break;
-   case SYMBOL_UNARY_OP_1000: Base::shift_and_goto_state(134); break;
-   case SYMBOL_UNARY_OP_1200: Base::shift_and_goto_state(136); break;
-   case SYMBOL_SUBTERM_1200: Base::shift_and_goto_state(178); break;
-   case SYMBOL_SUBTERM_999: Base::shift_and_goto_state(137); break;
-   case SYMBOL_UNARY_OP_999: Base::shift_and_goto_state(26); break;
-   case SYMBOL_NATURAL_NUMBER: Base::shift_and_goto_state(27); break;
-   case SYMBOL_UNSIGNED_FLOAT: Base::shift_and_goto_state(28); break;
-  }
- }
-
- void state178() {
-  switch (lookahead().ordinal()) {
-   case SYMBOL_BIN_OP_1200:
-   case SYMBOL_RPAREN:
-    Base::push(Base::lookahead().ordinal(), Base::reduce_term_1200__subterm_1200_bin_op_1200_subterm_1200(Base::args(3)));
-    break;
-  }
- }
-
- void state179() {
   switch (lookahead().ordinal()) {
    case SYMBOL_BIN_OP_1000:
    case SYMBOL_BIN_OP_1200:
@@ -3018,6 +2937,74 @@ template<typename Base, typename... Args> class term_parser_gen : public Base {
    case SYMBOL_COMMA:
    case SYMBOL_RPAREN:
     Base::push(Base::lookahead().ordinal(), Base::reduce_term_999__unary_op_999_subterm_999(Base::args(2)));
+    break;
+  }
+ }
+
+ void state176() {
+  switch (lookahead().ordinal()) {
+   case SYMBOL_NAME: Base::shift_and_goto_state(85); break;
+   case SYMBOL_ATOM: Base::shift_and_goto_state(86); break;
+   case SYMBOL_NUMBER: Base::shift_and_goto_state(87); break;
+   case SYMBOL_NAME_LPAREN: Base::shift_and_goto_state(4); break;
+   case SYMBOL_LBRACKET: Base::shift_and_goto_state(88); break;
+   case SYMBOL_SIGN: Base::shift_and_goto_state(89); break;
+   case SYMBOL_UNSIGNED_NUMBER: Base::shift_and_goto_state(90); break;
+   case SYMBOL_MINUS: Base::shift_and_goto_state(8); break;
+   case SYMBOL_PLUS: Base::shift_and_goto_state(9); break;
+   case SYMBOL_TERM_1000: Base::shift_and_goto_state(177); break;
+   case SYMBOL_TERM_0: Base::shift_and_goto_state(178); break;
+   case SYMBOL_TERM_999: Base::shift_and_goto_state(179); break;
+   case SYMBOL_CONSTANT: Base::shift_and_goto_state(95); break;
+   case SYMBOL_FUNCTOR_LPAREN: Base::shift_and_goto_state(96); break;
+   case SYMBOL_LBRACE: Base::shift_and_goto_state(97); break;
+   case SYMBOL_LIST: Base::shift_and_goto_state(98); break;
+   case SYMBOL_LPAREN: Base::shift_and_goto_state(99); break;
+   case SYMBOL_STRING: Base::shift_and_goto_state(100); break;
+   case SYMBOL_VARIABLE: Base::shift_and_goto_state(101); break;
+   case SYMBOL_UNARY_OP_1000: Base::shift_and_goto_state(103); break;
+   case SYMBOL_SUBTERM_1000: Base::shift_and_goto_state(180); break;
+   case SYMBOL_SUBTERM_999: Base::shift_and_goto_state(106); break;
+   case SYMBOL_UNARY_OP_999: Base::shift_and_goto_state(107); break;
+   case SYMBOL_NATURAL_NUMBER: Base::shift_and_goto_state(108); break;
+   case SYMBOL_UNSIGNED_FLOAT: Base::shift_and_goto_state(109); break;
+  }
+ }
+
+ void state177() {
+  switch (lookahead().ordinal()) {
+   case SYMBOL_BIN_OP_1000:
+   case SYMBOL_BIN_OP_1200:
+   case SYMBOL_RBRACE:
+    Base::push(Base::lookahead().ordinal(), Base::reduce_subterm_1000__term_1000(Base::args(1)));
+    break;
+  }
+ }
+
+ void state178() {
+  switch (lookahead().ordinal()) {
+   case SYMBOL_BIN_OP_999:
+   case SYMBOL_COMMA:
+    Base::push(Base::lookahead().ordinal(), Base::reduce_subterm_999__term_0(Base::args(1)));
+    break;
+   case SYMBOL_BIN_OP_1000:
+   case SYMBOL_BIN_OP_1200:
+   case SYMBOL_RBRACE:
+    Base::push(Base::lookahead().ordinal(), Base::reduce_subterm_1000__term_0(Base::args(1)));
+    break;
+  }
+ }
+
+ void state179() {
+  switch (lookahead().ordinal()) {
+   case SYMBOL_BIN_OP_999:
+   case SYMBOL_COMMA:
+    Base::push(Base::lookahead().ordinal(), Base::reduce_subterm_999__term_999(Base::args(1)));
+    break;
+   case SYMBOL_BIN_OP_1000:
+   case SYMBOL_BIN_OP_1200:
+   case SYMBOL_RBRACE:
+    Base::push(Base::lookahead().ordinal(), Base::reduce_subterm_1000__term_999(Base::args(1)));
     break;
   }
  }
@@ -3026,8 +3013,8 @@ template<typename Base, typename... Args> class term_parser_gen : public Base {
   switch (lookahead().ordinal()) {
    case SYMBOL_BIN_OP_1000:
    case SYMBOL_BIN_OP_1200:
-   case SYMBOL_RPAREN:
-    Base::push(Base::lookahead().ordinal(), Base::reduce_term_1000__unary_op_1000_subterm_1000(Base::args(2)));
+   case SYMBOL_RBRACE:
+    Base::push(Base::lookahead().ordinal(), Base::reduce_term_1000__subterm_1000_bin_op_1000_subterm_1000(Base::args(3)));
     break;
   }
  }
@@ -3036,125 +3023,130 @@ template<typename Base, typename... Args> class term_parser_gen : public Base {
   switch (lookahead().ordinal()) {
    case SYMBOL_BIN_OP_1000:
    case SYMBOL_BIN_OP_1200:
-   case SYMBOL_BIN_OP_999:
-   case SYMBOL_COMMA:
    case SYMBOL_RBRACE:
-    Base::push(Base::lookahead().ordinal(), Base::reduce_term_0__lparen_subterm_1200_rparen(Base::args(3)));
+    Base::push(Base::lookahead().ordinal(), Base::reduce_term_1000__unary_op_1000_subterm_1000(Base::args(2)));
     break;
   }
  }
 
  void state182() {
   switch (lookahead().ordinal()) {
-   case SYMBOL_BIN_OP_1200:
+   case SYMBOL_BIN_OP_999:
+   case SYMBOL_COMMA:
    case SYMBOL_RPAREN:
-    Base::push(Base::lookahead().ordinal(), Base::reduce_term_1200__unary_op_1200_subterm_1200(Base::args(2)));
+    Base::push(Base::lookahead().ordinal(), Base::reduce_term_0__lbrace_subterm_1200_rbrace(Base::args(3)));
     break;
   }
  }
 
  void state183() {
   switch (lookahead().ordinal()) {
-   case SYMBOL_NAME: Base::shift_and_goto_state(184); break;
-   case SYMBOL_ATOM: Base::shift_and_goto_state(185); break;
-   case SYMBOL_NUMBER: Base::shift_and_goto_state(186); break;
-   case SYMBOL_NAME_LPAREN: Base::shift_and_goto_state(4); break;
-   case SYMBOL_LBRACKET: Base::shift_and_goto_state(187); break;
-   case SYMBOL_SIGN: Base::shift_and_goto_state(188); break;
-   case SYMBOL_UNSIGNED_NUMBER: Base::shift_and_goto_state(189); break;
-   case SYMBOL_MINUS: Base::shift_and_goto_state(8); break;
-   case SYMBOL_PLUS: Base::shift_and_goto_state(9); break;
-   case SYMBOL_TERM_0: Base::shift_and_goto_state(190); break;
-   case SYMBOL_TERM_999: Base::shift_and_goto_state(191); break;
-   case SYMBOL_CONSTANT: Base::shift_and_goto_state(192); break;
-   case SYMBOL_FUNCTOR_LPAREN: Base::shift_and_goto_state(193); break;
-   case SYMBOL_LBRACE: Base::shift_and_goto_state(194); break;
-   case SYMBOL_LIST: Base::shift_and_goto_state(195); break;
-   case SYMBOL_LPAREN: Base::shift_and_goto_state(196); break;
-   case SYMBOL_STRING: Base::shift_and_goto_state(197); break;
-   case SYMBOL_VARIABLE: Base::shift_and_goto_state(198); break;
-   case SYMBOL_UNARY_OP_999: Base::shift_and_goto_state(26); break;
-   case SYMBOL_SUBTERM_999: Base::shift_and_goto_state(199); break;
-   case SYMBOL_NATURAL_NUMBER: Base::shift_and_goto_state(200); break;
-   case SYMBOL_UNSIGNED_FLOAT: Base::shift_and_goto_state(201); break;
+   case SYMBOL_BIN_OP_1200:
+   case SYMBOL_RBRACE:
+    Base::push(Base::lookahead().ordinal(), Base::reduce_term_1200__unary_op_1200_subterm_1200(Base::args(2)));
+    break;
   }
  }
 
  void state184() {
   switch (lookahead().ordinal()) {
-   case SYMBOL_BIN_OP_1000:
-   case SYMBOL_BIN_OP_999:
-   case SYMBOL_COMMA:
-    Base::push(Base::lookahead().ordinal(), Base::reduce_atom__name(Base::args(1)));
-    break;
+   case SYMBOL_NAME: Base::shift_and_goto_state(85); break;
+   case SYMBOL_ATOM: Base::shift_and_goto_state(86); break;
+   case SYMBOL_NUMBER: Base::shift_and_goto_state(87); break;
+   case SYMBOL_NAME_LPAREN: Base::shift_and_goto_state(4); break;
+   case SYMBOL_LBRACKET: Base::shift_and_goto_state(88); break;
+   case SYMBOL_SIGN: Base::shift_and_goto_state(89); break;
+   case SYMBOL_UNSIGNED_NUMBER: Base::shift_and_goto_state(90); break;
+   case SYMBOL_MINUS: Base::shift_and_goto_state(8); break;
+   case SYMBOL_PLUS: Base::shift_and_goto_state(9); break;
+   case SYMBOL_TERM_1000: Base::shift_and_goto_state(177); break;
+   case SYMBOL_TERM_0: Base::shift_and_goto_state(178); break;
+   case SYMBOL_TERM_999: Base::shift_and_goto_state(179); break;
+   case SYMBOL_CONSTANT: Base::shift_and_goto_state(95); break;
+   case SYMBOL_FUNCTOR_LPAREN: Base::shift_and_goto_state(96); break;
+   case SYMBOL_LBRACE: Base::shift_and_goto_state(97); break;
+   case SYMBOL_LIST: Base::shift_and_goto_state(98); break;
+   case SYMBOL_LPAREN: Base::shift_and_goto_state(99); break;
+   case SYMBOL_STRING: Base::shift_and_goto_state(100); break;
+   case SYMBOL_VARIABLE: Base::shift_and_goto_state(101); break;
+   case SYMBOL_UNARY_OP_1000: Base::shift_and_goto_state(103); break;
+   case SYMBOL_SUBTERM_1000: Base::shift_and_goto_state(186); break;
+   case SYMBOL_SUBTERM_999: Base::shift_and_goto_state(106); break;
+   case SYMBOL_UNARY_OP_999: Base::shift_and_goto_state(107); break;
+   case SYMBOL_NATURAL_NUMBER: Base::shift_and_goto_state(108); break;
+   case SYMBOL_UNSIGNED_FLOAT: Base::shift_and_goto_state(109); break;
   }
  }
 
  void state185() {
   switch (lookahead().ordinal()) {
-   case SYMBOL_BIN_OP_1000:
-   case SYMBOL_BIN_OP_999:
-   case SYMBOL_COMMA:
-    Base::push(Base::lookahead().ordinal(), Base::reduce_constant__atom(Base::args(1)));
-    break;
+   case SYMBOL_NAME: Base::shift_and_goto_state(85); break;
+   case SYMBOL_ATOM: Base::shift_and_goto_state(86); break;
+   case SYMBOL_NUMBER: Base::shift_and_goto_state(87); break;
+   case SYMBOL_NAME_LPAREN: Base::shift_and_goto_state(4); break;
+   case SYMBOL_LBRACKET: Base::shift_and_goto_state(88); break;
+   case SYMBOL_SIGN: Base::shift_and_goto_state(89); break;
+   case SYMBOL_UNSIGNED_NUMBER: Base::shift_and_goto_state(90); break;
+   case SYMBOL_MINUS: Base::shift_and_goto_state(8); break;
+   case SYMBOL_PLUS: Base::shift_and_goto_state(9); break;
+   case SYMBOL_TERM_0: Base::shift_and_goto_state(187); break;
+   case SYMBOL_TERM_999: Base::shift_and_goto_state(188); break;
+   case SYMBOL_CONSTANT: Base::shift_and_goto_state(95); break;
+   case SYMBOL_FUNCTOR_LPAREN: Base::shift_and_goto_state(96); break;
+   case SYMBOL_LBRACE: Base::shift_and_goto_state(97); break;
+   case SYMBOL_LIST: Base::shift_and_goto_state(98); break;
+   case SYMBOL_LPAREN: Base::shift_and_goto_state(99); break;
+   case SYMBOL_STRING: Base::shift_and_goto_state(100); break;
+   case SYMBOL_VARIABLE: Base::shift_and_goto_state(101); break;
+   case SYMBOL_UNARY_OP_999: Base::shift_and_goto_state(107); break;
+   case SYMBOL_SUBTERM_999: Base::shift_and_goto_state(189); break;
+   case SYMBOL_NATURAL_NUMBER: Base::shift_and_goto_state(108); break;
+   case SYMBOL_UNSIGNED_FLOAT: Base::shift_and_goto_state(109); break;
   }
  }
 
  void state186() {
   switch (lookahead().ordinal()) {
    case SYMBOL_BIN_OP_1000:
-   case SYMBOL_BIN_OP_999:
-   case SYMBOL_COMMA:
-    Base::push(Base::lookahead().ordinal(), Base::reduce_constant__number(Base::args(1)));
+   case SYMBOL_BIN_OP_1200:
+   case SYMBOL_RBRACE:
+    Base::push(Base::lookahead().ordinal(), Base::reduce_term_1000__subterm_999_comma_subterm_1000(Base::args(3)));
     break;
   }
  }
 
  void state187() {
   switch (lookahead().ordinal()) {
-   case SYMBOL_NAME: Base::shift_and_goto_state(29); break;
-   case SYMBOL_ATOM: Base::shift_and_goto_state(30); break;
-   case SYMBOL_NUMBER: Base::shift_and_goto_state(31); break;
-   case SYMBOL_NAME_LPAREN: Base::shift_and_goto_state(4); break;
-   case SYMBOL_LBRACKET: Base::shift_and_goto_state(32); break;
-   case SYMBOL_LISTEXPR: Base::shift_and_goto_state(202); break;
-   case SYMBOL_RBRACKET: Base::shift_and_goto_state(203); break;
-   case SYMBOL_SIGN: Base::shift_and_goto_state(35); break;
-   case SYMBOL_UNSIGNED_NUMBER: Base::shift_and_goto_state(36); break;
-   case SYMBOL_MINUS: Base::shift_and_goto_state(8); break;
-   case SYMBOL_PLUS: Base::shift_and_goto_state(9); break;
-   case SYMBOL_TERM_0: Base::shift_and_goto_state(37); break;
-   case SYMBOL_TERM_999: Base::shift_and_goto_state(38); break;
-   case SYMBOL_CONSTANT: Base::shift_and_goto_state(39); break;
-   case SYMBOL_FUNCTOR_LPAREN: Base::shift_and_goto_state(40); break;
-   case SYMBOL_LBRACE: Base::shift_and_goto_state(41); break;
-   case SYMBOL_LIST: Base::shift_and_goto_state(42); break;
-   case SYMBOL_LPAREN: Base::shift_and_goto_state(43); break;
-   case SYMBOL_STRING: Base::shift_and_goto_state(44); break;
-   case SYMBOL_VARIABLE: Base::shift_and_goto_state(45); break;
-   case SYMBOL_SUBTERM_999: Base::shift_and_goto_state(46); break;
-   case SYMBOL_UNARY_OP_999: Base::shift_and_goto_state(47); break;
-   case SYMBOL_NATURAL_NUMBER: Base::shift_and_goto_state(48); break;
-   case SYMBOL_UNSIGNED_FLOAT: Base::shift_and_goto_state(49); break;
+   case SYMBOL_BIN_OP_1000:
+   case SYMBOL_BIN_OP_1200:
+   case SYMBOL_BIN_OP_999:
+   case SYMBOL_COMMA:
+   case SYMBOL_RBRACE:
+    Base::push(Base::lookahead().ordinal(), Base::reduce_subterm_999__term_0(Base::args(1)));
+    break;
   }
  }
 
  void state188() {
   switch (lookahead().ordinal()) {
-   case SYMBOL_INF: Base::shift_and_goto_state(205); break;
-   case SYMBOL_NAN: Base::shift_and_goto_state(206); break;
-   case SYMBOL_UNSIGNED_NUMBER: Base::shift_and_goto_state(207); break;
-   case SYMBOL_NATURAL_NUMBER: Base::shift_and_goto_state(200); break;
-   case SYMBOL_UNSIGNED_FLOAT: Base::shift_and_goto_state(201); break;
+   case SYMBOL_BIN_OP_1000:
+   case SYMBOL_BIN_OP_1200:
+   case SYMBOL_BIN_OP_999:
+   case SYMBOL_COMMA:
+   case SYMBOL_RBRACE:
+    Base::push(Base::lookahead().ordinal(), Base::reduce_subterm_999__term_999(Base::args(1)));
+    break;
   }
  }
 
  void state189() {
   switch (lookahead().ordinal()) {
    case SYMBOL_BIN_OP_1000:
+   case SYMBOL_BIN_OP_1200:
    case SYMBOL_BIN_OP_999:
    case SYMBOL_COMMA:
-    Base::push(Base::lookahead().ordinal(), Base::reduce_number__unsigned_number(Base::args(1)));
+   case SYMBOL_RBRACE:
+    Base::push(Base::lookahead().ordinal(), Base::reduce_term_999__subterm_999_bin_op_999_subterm_999(Base::args(3)));
     break;
   }
  }
@@ -3162,296 +3154,6 @@ template<typename Base, typename... Args> class term_parser_gen : public Base {
  void state190() {
   switch (lookahead().ordinal()) {
    case SYMBOL_BIN_OP_1000:
-   case SYMBOL_BIN_OP_999:
-   case SYMBOL_COMMA:
-    Base::push(Base::lookahead().ordinal(), Base::reduce_subterm_999__term_0(Base::args(1)));
-    break;
-  }
- }
-
- void state191() {
-  switch (lookahead().ordinal()) {
-   case SYMBOL_BIN_OP_1000:
-   case SYMBOL_BIN_OP_999:
-   case SYMBOL_COMMA:
-    Base::push(Base::lookahead().ordinal(), Base::reduce_subterm_999__term_999(Base::args(1)));
-    break;
-  }
- }
-
- void state192() {
-  switch (lookahead().ordinal()) {
-   case SYMBOL_BIN_OP_1000:
-   case SYMBOL_BIN_OP_999:
-   case SYMBOL_COMMA:
-    Base::push(Base::lookahead().ordinal(), Base::reduce_term_0__constant(Base::args(1)));
-    break;
-  }
- }
-
- void state193() {
-  switch (lookahead().ordinal()) {
-   case SYMBOL_NAME: Base::shift_and_goto_state(57); break;
-   case SYMBOL_ATOM: Base::shift_and_goto_state(58); break;
-   case SYMBOL_NUMBER: Base::shift_and_goto_state(59); break;
-   case SYMBOL_NAME_LPAREN: Base::shift_and_goto_state(4); break;
-   case SYMBOL_LBRACKET: Base::shift_and_goto_state(60); break;
-   case SYMBOL_SIGN: Base::shift_and_goto_state(61); break;
-   case SYMBOL_UNSIGNED_NUMBER: Base::shift_and_goto_state(62); break;
-   case SYMBOL_MINUS: Base::shift_and_goto_state(8); break;
-   case SYMBOL_PLUS: Base::shift_and_goto_state(9); break;
-   case SYMBOL_TERM_0: Base::shift_and_goto_state(63); break;
-   case SYMBOL_TERM_999: Base::shift_and_goto_state(64); break;
-   case SYMBOL_CONSTANT: Base::shift_and_goto_state(65); break;
-   case SYMBOL_FUNCTOR_LPAREN: Base::shift_and_goto_state(66); break;
-   case SYMBOL_LBRACE: Base::shift_and_goto_state(67); break;
-   case SYMBOL_LIST: Base::shift_and_goto_state(68); break;
-   case SYMBOL_LPAREN: Base::shift_and_goto_state(69); break;
-   case SYMBOL_STRING: Base::shift_and_goto_state(70); break;
-   case SYMBOL_VARIABLE: Base::shift_and_goto_state(71); break;
-   case SYMBOL_ARGUMENTS: Base::shift_and_goto_state(208); break;
-   case SYMBOL_SUBTERM_999: Base::shift_and_goto_state(73); break;
-   case SYMBOL_UNARY_OP_999: Base::shift_and_goto_state(74); break;
-   case SYMBOL_NATURAL_NUMBER: Base::shift_and_goto_state(75); break;
-   case SYMBOL_UNSIGNED_FLOAT: Base::shift_and_goto_state(76); break;
-  }
- }
-
- void state194() {
-  switch (lookahead().ordinal()) {
-   case SYMBOL_NAME: Base::shift_and_goto_state(1); break;
-   case SYMBOL_ATOM: Base::shift_and_goto_state(2); break;
-   case SYMBOL_NUMBER: Base::shift_and_goto_state(3); break;
-   case SYMBOL_NAME_LPAREN: Base::shift_and_goto_state(4); break;
-   case SYMBOL_LBRACKET: Base::shift_and_goto_state(5); break;
-   case SYMBOL_SIGN: Base::shift_and_goto_state(6); break;
-   case SYMBOL_UNSIGNED_NUMBER: Base::shift_and_goto_state(7); break;
-   case SYMBOL_MINUS: Base::shift_and_goto_state(8); break;
-   case SYMBOL_PLUS: Base::shift_and_goto_state(9); break;
-   case SYMBOL_TERM_1000: Base::shift_and_goto_state(85); break;
-   case SYMBOL_TERM_1200: Base::shift_and_goto_state(86); break;
-   case SYMBOL_TERM_0: Base::shift_and_goto_state(12); break;
-   case SYMBOL_TERM_999: Base::shift_and_goto_state(13); break;
-   case SYMBOL_CONSTANT: Base::shift_and_goto_state(14); break;
-   case SYMBOL_FUNCTOR_LPAREN: Base::shift_and_goto_state(15); break;
-   case SYMBOL_LBRACE: Base::shift_and_goto_state(16); break;
-   case SYMBOL_LIST: Base::shift_and_goto_state(17); break;
-   case SYMBOL_LPAREN: Base::shift_and_goto_state(18); break;
-   case SYMBOL_STRING: Base::shift_and_goto_state(19); break;
-   case SYMBOL_VARIABLE: Base::shift_and_goto_state(20); break;
-   case SYMBOL_SUBTERM_1000: Base::shift_and_goto_state(87); break;
-   case SYMBOL_UNARY_OP_1000: Base::shift_and_goto_state(88); break;
-   case SYMBOL_SUBTERM_1200: Base::shift_and_goto_state(210); break;
-   case SYMBOL_UNARY_OP_1200: Base::shift_and_goto_state(90); break;
-   case SYMBOL_SUBTERM_999: Base::shift_and_goto_state(91); break;
-   case SYMBOL_UNARY_OP_999: Base::shift_and_goto_state(26); break;
-   case SYMBOL_NATURAL_NUMBER: Base::shift_and_goto_state(27); break;
-   case SYMBOL_UNSIGNED_FLOAT: Base::shift_and_goto_state(28); break;
-  }
- }
-
- void state195() {
-  switch (lookahead().ordinal()) {
-   case SYMBOL_BIN_OP_1000:
-   case SYMBOL_BIN_OP_999:
-   case SYMBOL_COMMA:
-    Base::push(Base::lookahead().ordinal(), Base::reduce_term_0__list(Base::args(1)));
-    break;
-  }
- }
-
- void state196() {
-  switch (lookahead().ordinal()) {
-   case SYMBOL_NAME: Base::shift_and_goto_state(1); break;
-   case SYMBOL_ATOM: Base::shift_and_goto_state(2); break;
-   case SYMBOL_NUMBER: Base::shift_and_goto_state(3); break;
-   case SYMBOL_NAME_LPAREN: Base::shift_and_goto_state(4); break;
-   case SYMBOL_LBRACKET: Base::shift_and_goto_state(5); break;
-   case SYMBOL_SIGN: Base::shift_and_goto_state(6); break;
-   case SYMBOL_UNSIGNED_NUMBER: Base::shift_and_goto_state(7); break;
-   case SYMBOL_MINUS: Base::shift_and_goto_state(8); break;
-   case SYMBOL_PLUS: Base::shift_and_goto_state(9); break;
-   case SYMBOL_TERM_1000: Base::shift_and_goto_state(131); break;
-   case SYMBOL_TERM_1200: Base::shift_and_goto_state(132); break;
-   case SYMBOL_TERM_0: Base::shift_and_goto_state(12); break;
-   case SYMBOL_TERM_999: Base::shift_and_goto_state(13); break;
-   case SYMBOL_CONSTANT: Base::shift_and_goto_state(14); break;
-   case SYMBOL_FUNCTOR_LPAREN: Base::shift_and_goto_state(15); break;
-   case SYMBOL_LBRACE: Base::shift_and_goto_state(16); break;
-   case SYMBOL_LIST: Base::shift_and_goto_state(17); break;
-   case SYMBOL_LPAREN: Base::shift_and_goto_state(18); break;
-   case SYMBOL_STRING: Base::shift_and_goto_state(19); break;
-   case SYMBOL_VARIABLE: Base::shift_and_goto_state(20); break;
-   case SYMBOL_SUBTERM_1000: Base::shift_and_goto_state(133); break;
-   case SYMBOL_UNARY_OP_1000: Base::shift_and_goto_state(134); break;
-   case SYMBOL_SUBTERM_1200: Base::shift_and_goto_state(212); break;
-   case SYMBOL_UNARY_OP_1200: Base::shift_and_goto_state(136); break;
-   case SYMBOL_SUBTERM_999: Base::shift_and_goto_state(137); break;
-   case SYMBOL_UNARY_OP_999: Base::shift_and_goto_state(26); break;
-   case SYMBOL_NATURAL_NUMBER: Base::shift_and_goto_state(27); break;
-   case SYMBOL_UNSIGNED_FLOAT: Base::shift_and_goto_state(28); break;
-  }
- }
-
- void state197() {
-  switch (lookahead().ordinal()) {
-   case SYMBOL_BIN_OP_1000:
-   case SYMBOL_BIN_OP_999:
-   case SYMBOL_COMMA:
-    Base::push(Base::lookahead().ordinal(), Base::reduce_term_0__string(Base::args(1)));
-    break;
-  }
- }
-
- void state198() {
-  switch (lookahead().ordinal()) {
-   case SYMBOL_BIN_OP_1000:
-   case SYMBOL_BIN_OP_999:
-   case SYMBOL_COMMA:
-    Base::push(Base::lookahead().ordinal(), Base::reduce_term_0__variable(Base::args(1)));
-    break;
-  }
- }
-
- void state199() {
-  switch (lookahead().ordinal()) {
-   case SYMBOL_BIN_OP_1000:
-   case SYMBOL_BIN_OP_999:
-   case SYMBOL_COMMA:
-    Base::push(Base::lookahead().ordinal(), Base::reduce_term_999__subterm_999_bin_op_999_subterm_999(Base::args(3)));
-    break;
-  }
- }
-
- void state200() {
-  switch (lookahead().ordinal()) {
-   case SYMBOL_BIN_OP_1000:
-   case SYMBOL_BIN_OP_999:
-   case SYMBOL_COMMA:
-    Base::push(Base::lookahead().ordinal(), Base::reduce_unsigned_number__natural_number(Base::args(1)));
-    break;
-  }
- }
-
- void state201() {
-  switch (lookahead().ordinal()) {
-   case SYMBOL_BIN_OP_1000:
-   case SYMBOL_BIN_OP_999:
-   case SYMBOL_COMMA:
-    Base::push(Base::lookahead().ordinal(), Base::reduce_unsigned_number__unsigned_float(Base::args(1)));
-    break;
-  }
- }
-
- void state202() {
-  switch (lookahead().ordinal()) {
-   case SYMBOL_RBRACKET: Base::shift_and_goto_state(204); break;
-  }
- }
-
- void state203() {
-  switch (lookahead().ordinal()) {
-   case SYMBOL_BIN_OP_1000:
-   case SYMBOL_BIN_OP_999:
-   case SYMBOL_COMMA:
-    Base::push(Base::lookahead().ordinal(), Base::reduce_list__lbracket_rbracket(Base::args(2)));
-    break;
-  }
- }
-
- void state204() {
-  switch (lookahead().ordinal()) {
-   case SYMBOL_BIN_OP_1000:
-   case SYMBOL_BIN_OP_999:
-   case SYMBOL_COMMA:
-    Base::push(Base::lookahead().ordinal(), Base::reduce_list__lbracket_listexpr_rbracket(Base::args(3)));
-    break;
-  }
- }
-
- void state205() {
-  switch (lookahead().ordinal()) {
-   case SYMBOL_BIN_OP_1000:
-   case SYMBOL_BIN_OP_999:
-   case SYMBOL_COMMA:
-    Base::push(Base::lookahead().ordinal(), Base::reduce_number__sign_inf(Base::args(2)));
-    break;
-  }
- }
-
- void state206() {
-  switch (lookahead().ordinal()) {
-   case SYMBOL_BIN_OP_1000:
-   case SYMBOL_BIN_OP_999:
-   case SYMBOL_COMMA:
-    Base::push(Base::lookahead().ordinal(), Base::reduce_number__sign_nan(Base::args(2)));
-    break;
-  }
- }
-
- void state207() {
-  switch (lookahead().ordinal()) {
-   case SYMBOL_BIN_OP_1000:
-   case SYMBOL_BIN_OP_999:
-   case SYMBOL_COMMA:
-    Base::push(Base::lookahead().ordinal(), Base::reduce_number__sign_unsigned_number(Base::args(2)));
-    break;
-  }
- }
-
- void state208() {
-  switch (lookahead().ordinal()) {
-   case SYMBOL_RPAREN: Base::shift_and_goto_state(209); break;
-  }
- }
-
- void state209() {
-  switch (lookahead().ordinal()) {
-   case SYMBOL_BIN_OP_1000:
-   case SYMBOL_BIN_OP_999:
-   case SYMBOL_COMMA:
-    Base::push(Base::lookahead().ordinal(), Base::reduce_term_0__functor_lparen_arguments_rparen(Base::args(3)));
-    break;
-  }
- }
-
- void state210() {
-  switch (lookahead().ordinal()) {
-   case SYMBOL_RBRACE: Base::shift_and_goto_state(211); break;
-   case SYMBOL_BIN_OP_1200: Base::shift_and_goto_state(129); break;
-  }
- }
-
- void state211() {
-  switch (lookahead().ordinal()) {
-   case SYMBOL_BIN_OP_1000:
-   case SYMBOL_BIN_OP_999:
-   case SYMBOL_COMMA:
-    Base::push(Base::lookahead().ordinal(), Base::reduce_term_0__lbrace_subterm_1200_rbrace(Base::args(3)));
-    break;
-  }
- }
-
- void state212() {
-  switch (lookahead().ordinal()) {
-   case SYMBOL_RPAREN: Base::shift_and_goto_state(213); break;
-   case SYMBOL_BIN_OP_1200: Base::shift_and_goto_state(177); break;
-  }
- }
-
- void state213() {
-  switch (lookahead().ordinal()) {
-   case SYMBOL_BIN_OP_1000:
-   case SYMBOL_BIN_OP_999:
-   case SYMBOL_COMMA:
-    Base::push(Base::lookahead().ordinal(), Base::reduce_term_0__lparen_subterm_1200_rparen(Base::args(3)));
-    break;
-  }
- }
-
- void state214() {
-  switch (lookahead().ordinal()) {
-   case SYMBOL_BIN_OP_1000:
    case SYMBOL_BIN_OP_1200:
    case SYMBOL_BIN_OP_999:
    case SYMBOL_COMMA:
@@ -3461,43 +3163,14 @@ template<typename Base, typename... Args> class term_parser_gen : public Base {
   }
  }
 
- void state215() {
+ void state191() {
   switch (lookahead().ordinal()) {
-   case SYMBOL_BIN_OP_1000:
-   case SYMBOL_BIN_OP_1200:
-   case SYMBOL_RBRACE:
-    Base::push(Base::lookahead().ordinal(), Base::reduce_term_1000__unary_op_1000_subterm_1000(Base::args(2)));
-    break;
+   case SYMBOL_RPAREN: Base::shift_and_goto_state(192); break;
+   case SYMBOL_BIN_OP_1200: Base::shift_and_goto_state(159); break;
   }
  }
 
- void state216() {
-  switch (lookahead().ordinal()) {
-   case SYMBOL_BIN_OP_999:
-   case SYMBOL_COMMA:
-   case SYMBOL_RPAREN:
-    Base::push(Base::lookahead().ordinal(), Base::reduce_term_0__lbrace_subterm_1200_rbrace(Base::args(3)));
-    break;
-  }
- }
-
- void state217() {
-  switch (lookahead().ordinal()) {
-   case SYMBOL_BIN_OP_1200:
-   case SYMBOL_RBRACE:
-    Base::push(Base::lookahead().ordinal(), Base::reduce_term_1200__unary_op_1200_subterm_1200(Base::args(2)));
-    break;
-  }
- }
-
- void state218() {
-  switch (lookahead().ordinal()) {
-   case SYMBOL_RPAREN: Base::shift_and_goto_state(219); break;
-   case SYMBOL_BIN_OP_1200: Base::shift_and_goto_state(177); break;
-  }
- }
-
- void state219() {
+ void state192() {
   switch (lookahead().ordinal()) {
    case SYMBOL_BIN_OP_999:
    case SYMBOL_COMMA:
@@ -3507,7 +3180,7 @@ template<typename Base, typename... Args> class term_parser_gen : public Base {
   }
  }
 
- void state220() {
+ void state193() {
   switch (lookahead().ordinal()) {
    case SYMBOL_BIN_OP_999:
    case SYMBOL_COMMA:
@@ -3518,9 +3191,9 @@ template<typename Base, typename... Args> class term_parser_gen : public Base {
   }
  }
 
- void state221() {
+ void state194() {
   switch (lookahead().ordinal()) {
-   case SYMBOL_ARGUMENTS: Base::shift_and_goto_state(223); break;
+   case SYMBOL_ARGUMENTS: Base::shift_and_goto_state(196); break;
    case SYMBOL_NAME: Base::shift_and_goto_state(57); break;
    case SYMBOL_ATOM: Base::shift_and_goto_state(58); break;
    case SYMBOL_NUMBER: Base::shift_and_goto_state(59); break;
@@ -3546,7 +3219,7 @@ template<typename Base, typename... Args> class term_parser_gen : public Base {
   }
  }
 
- void state222() {
+ void state195() {
   switch (lookahead().ordinal()) {
    case SYMBOL_NAME: Base::shift_and_goto_state(57); break;
    case SYMBOL_ATOM: Base::shift_and_goto_state(58); break;
@@ -3567,13 +3240,13 @@ template<typename Base, typename... Args> class term_parser_gen : public Base {
    case SYMBOL_STRING: Base::shift_and_goto_state(70); break;
    case SYMBOL_VARIABLE: Base::shift_and_goto_state(71); break;
    case SYMBOL_UNARY_OP_999: Base::shift_and_goto_state(74); break;
-   case SYMBOL_SUBTERM_999: Base::shift_and_goto_state(224); break;
+   case SYMBOL_SUBTERM_999: Base::shift_and_goto_state(197); break;
    case SYMBOL_NATURAL_NUMBER: Base::shift_and_goto_state(75); break;
    case SYMBOL_UNSIGNED_FLOAT: Base::shift_and_goto_state(76); break;
   }
  }
 
- void state223() {
+ void state196() {
   switch (lookahead().ordinal()) {
    case SYMBOL_RPAREN:
     Base::push(Base::lookahead().ordinal(), Base::reduce_arguments__subterm_999_comma_arguments(Base::args(3)));
@@ -3581,7 +3254,7 @@ template<typename Base, typename... Args> class term_parser_gen : public Base {
   }
  }
 
- void state224() {
+ void state197() {
   switch (lookahead().ordinal()) {
    case SYMBOL_BIN_OP_999:
    case SYMBOL_COMMA:
@@ -3591,7 +3264,7 @@ template<typename Base, typename... Args> class term_parser_gen : public Base {
   }
  }
 
- void state225() {
+ void state198() {
   switch (lookahead().ordinal()) {
    case SYMBOL_BIN_OP_999:
    case SYMBOL_COMMA:
@@ -3601,14 +3274,14 @@ template<typename Base, typename... Args> class term_parser_gen : public Base {
   }
  }
 
- void state226() {
+ void state199() {
   switch (lookahead().ordinal()) {
-   case SYMBOL_RBRACE: Base::shift_and_goto_state(227); break;
-   case SYMBOL_BIN_OP_1200: Base::shift_and_goto_state(129); break;
+   case SYMBOL_RBRACE: Base::shift_and_goto_state(200); break;
+   case SYMBOL_BIN_OP_1200: Base::shift_and_goto_state(120); break;
   }
  }
 
- void state227() {
+ void state200() {
   switch (lookahead().ordinal()) {
    case SYMBOL_BIN_OP_999:
    case SYMBOL_COMMA:
@@ -3619,14 +3292,14 @@ template<typename Base, typename... Args> class term_parser_gen : public Base {
   }
  }
 
- void state228() {
+ void state201() {
   switch (lookahead().ordinal()) {
-   case SYMBOL_RPAREN: Base::shift_and_goto_state(229); break;
-   case SYMBOL_BIN_OP_1200: Base::shift_and_goto_state(177); break;
+   case SYMBOL_RPAREN: Base::shift_and_goto_state(202); break;
+   case SYMBOL_BIN_OP_1200: Base::shift_and_goto_state(159); break;
   }
  }
 
- void state229() {
+ void state202() {
   switch (lookahead().ordinal()) {
    case SYMBOL_BIN_OP_999:
    case SYMBOL_COMMA:
@@ -3637,14 +3310,14 @@ template<typename Base, typename... Args> class term_parser_gen : public Base {
   }
  }
 
- void state230() {
+ void state203() {
   switch (lookahead().ordinal()) {
    case SYMBOL_NAME: Base::shift_and_goto_state(29); break;
    case SYMBOL_ATOM: Base::shift_and_goto_state(30); break;
    case SYMBOL_NUMBER: Base::shift_and_goto_state(31); break;
    case SYMBOL_NAME_LPAREN: Base::shift_and_goto_state(4); break;
    case SYMBOL_LBRACKET: Base::shift_and_goto_state(32); break;
-   case SYMBOL_LISTEXPR: Base::shift_and_goto_state(233); break;
+   case SYMBOL_LISTEXPR: Base::shift_and_goto_state(206); break;
    case SYMBOL_SIGN: Base::shift_and_goto_state(35); break;
    case SYMBOL_UNSIGNED_NUMBER: Base::shift_and_goto_state(36); break;
    case SYMBOL_MINUS: Base::shift_and_goto_state(8); break;
@@ -3665,34 +3338,34 @@ template<typename Base, typename... Args> class term_parser_gen : public Base {
   }
  }
 
- void state231() {
+ void state204() {
   switch (lookahead().ordinal()) {
-   case SYMBOL_NAME: Base::shift_and_goto_state(234); break;
-   case SYMBOL_ATOM: Base::shift_and_goto_state(235); break;
-   case SYMBOL_NUMBER: Base::shift_and_goto_state(236); break;
+   case SYMBOL_NAME: Base::shift_and_goto_state(207); break;
+   case SYMBOL_ATOM: Base::shift_and_goto_state(208); break;
+   case SYMBOL_NUMBER: Base::shift_and_goto_state(209); break;
    case SYMBOL_NAME_LPAREN: Base::shift_and_goto_state(4); break;
-   case SYMBOL_LBRACKET: Base::shift_and_goto_state(237); break;
-   case SYMBOL_SIGN: Base::shift_and_goto_state(238); break;
-   case SYMBOL_UNSIGNED_NUMBER: Base::shift_and_goto_state(239); break;
+   case SYMBOL_LBRACKET: Base::shift_and_goto_state(210); break;
+   case SYMBOL_SIGN: Base::shift_and_goto_state(211); break;
+   case SYMBOL_UNSIGNED_NUMBER: Base::shift_and_goto_state(212); break;
    case SYMBOL_MINUS: Base::shift_and_goto_state(8); break;
    case SYMBOL_PLUS: Base::shift_and_goto_state(9); break;
-   case SYMBOL_TERM_0: Base::shift_and_goto_state(240); break;
-   case SYMBOL_TERM_999: Base::shift_and_goto_state(241); break;
-   case SYMBOL_CONSTANT: Base::shift_and_goto_state(242); break;
-   case SYMBOL_FUNCTOR_LPAREN: Base::shift_and_goto_state(243); break;
-   case SYMBOL_LBRACE: Base::shift_and_goto_state(244); break;
-   case SYMBOL_LIST: Base::shift_and_goto_state(245); break;
-   case SYMBOL_LPAREN: Base::shift_and_goto_state(246); break;
-   case SYMBOL_STRING: Base::shift_and_goto_state(247); break;
-   case SYMBOL_VARIABLE: Base::shift_and_goto_state(248); break;
-   case SYMBOL_SUBTERM_999: Base::shift_and_goto_state(249); break;
-   case SYMBOL_UNARY_OP_999: Base::shift_and_goto_state(250); break;
-   case SYMBOL_NATURAL_NUMBER: Base::shift_and_goto_state(251); break;
-   case SYMBOL_UNSIGNED_FLOAT: Base::shift_and_goto_state(252); break;
+   case SYMBOL_TERM_0: Base::shift_and_goto_state(213); break;
+   case SYMBOL_TERM_999: Base::shift_and_goto_state(214); break;
+   case SYMBOL_CONSTANT: Base::shift_and_goto_state(215); break;
+   case SYMBOL_FUNCTOR_LPAREN: Base::shift_and_goto_state(216); break;
+   case SYMBOL_LBRACE: Base::shift_and_goto_state(217); break;
+   case SYMBOL_LIST: Base::shift_and_goto_state(218); break;
+   case SYMBOL_LPAREN: Base::shift_and_goto_state(219); break;
+   case SYMBOL_STRING: Base::shift_and_goto_state(220); break;
+   case SYMBOL_VARIABLE: Base::shift_and_goto_state(221); break;
+   case SYMBOL_SUBTERM_999: Base::shift_and_goto_state(222); break;
+   case SYMBOL_UNARY_OP_999: Base::shift_and_goto_state(223); break;
+   case SYMBOL_NATURAL_NUMBER: Base::shift_and_goto_state(224); break;
+   case SYMBOL_UNSIGNED_FLOAT: Base::shift_and_goto_state(225); break;
   }
  }
 
- void state232() {
+ void state205() {
   switch (lookahead().ordinal()) {
    case SYMBOL_NAME: Base::shift_and_goto_state(29); break;
    case SYMBOL_ATOM: Base::shift_and_goto_state(30); break;
@@ -3713,13 +3386,13 @@ template<typename Base, typename... Args> class term_parser_gen : public Base {
    case SYMBOL_STRING: Base::shift_and_goto_state(44); break;
    case SYMBOL_VARIABLE: Base::shift_and_goto_state(45); break;
    case SYMBOL_UNARY_OP_999: Base::shift_and_goto_state(47); break;
-   case SYMBOL_SUBTERM_999: Base::shift_and_goto_state(268); break;
+   case SYMBOL_SUBTERM_999: Base::shift_and_goto_state(241); break;
    case SYMBOL_NATURAL_NUMBER: Base::shift_and_goto_state(48); break;
    case SYMBOL_UNSIGNED_FLOAT: Base::shift_and_goto_state(49); break;
   }
  }
 
- void state233() {
+ void state206() {
   switch (lookahead().ordinal()) {
    case SYMBOL_RBRACKET:
     Base::push(Base::lookahead().ordinal(), Base::reduce_listexpr__subterm_999_comma_listexpr(Base::args(3)));
@@ -3727,7 +3400,7 @@ template<typename Base, typename... Args> class term_parser_gen : public Base {
   }
  }
 
- void state234() {
+ void state207() {
   switch (lookahead().ordinal()) {
    case SYMBOL_BIN_OP_999:
    case SYMBOL_RBRACKET:
@@ -3736,7 +3409,7 @@ template<typename Base, typename... Args> class term_parser_gen : public Base {
   }
  }
 
- void state235() {
+ void state208() {
   switch (lookahead().ordinal()) {
    case SYMBOL_BIN_OP_999:
    case SYMBOL_RBRACKET:
@@ -3745,7 +3418,7 @@ template<typename Base, typename... Args> class term_parser_gen : public Base {
   }
  }
 
- void state236() {
+ void state209() {
   switch (lookahead().ordinal()) {
    case SYMBOL_BIN_OP_999:
    case SYMBOL_RBRACKET:
@@ -3754,15 +3427,15 @@ template<typename Base, typename... Args> class term_parser_gen : public Base {
   }
  }
 
- void state237() {
+ void state210() {
   switch (lookahead().ordinal()) {
    case SYMBOL_NAME: Base::shift_and_goto_state(29); break;
    case SYMBOL_ATOM: Base::shift_and_goto_state(30); break;
    case SYMBOL_NUMBER: Base::shift_and_goto_state(31); break;
    case SYMBOL_NAME_LPAREN: Base::shift_and_goto_state(4); break;
    case SYMBOL_LBRACKET: Base::shift_and_goto_state(32); break;
-   case SYMBOL_LISTEXPR: Base::shift_and_goto_state(253); break;
-   case SYMBOL_RBRACKET: Base::shift_and_goto_state(254); break;
+   case SYMBOL_LISTEXPR: Base::shift_and_goto_state(226); break;
+   case SYMBOL_RBRACKET: Base::shift_and_goto_state(227); break;
    case SYMBOL_SIGN: Base::shift_and_goto_state(35); break;
    case SYMBOL_UNSIGNED_NUMBER: Base::shift_and_goto_state(36); break;
    case SYMBOL_MINUS: Base::shift_and_goto_state(8); break;
@@ -3783,13 +3456,349 @@ template<typename Base, typename... Args> class term_parser_gen : public Base {
   }
  }
 
+ void state211() {
+  switch (lookahead().ordinal()) {
+   case SYMBOL_INF: Base::shift_and_goto_state(229); break;
+   case SYMBOL_NAN: Base::shift_and_goto_state(230); break;
+   case SYMBOL_UNSIGNED_NUMBER: Base::shift_and_goto_state(231); break;
+   case SYMBOL_NATURAL_NUMBER: Base::shift_and_goto_state(224); break;
+   case SYMBOL_UNSIGNED_FLOAT: Base::shift_and_goto_state(225); break;
+  }
+ }
+
+ void state212() {
+  switch (lookahead().ordinal()) {
+   case SYMBOL_BIN_OP_999:
+   case SYMBOL_RBRACKET:
+    Base::push(Base::lookahead().ordinal(), Base::reduce_number__unsigned_number(Base::args(1)));
+    break;
+  }
+ }
+
+ void state213() {
+  switch (lookahead().ordinal()) {
+   case SYMBOL_BIN_OP_999:
+   case SYMBOL_RBRACKET:
+    Base::push(Base::lookahead().ordinal(), Base::reduce_subterm_999__term_0(Base::args(1)));
+    break;
+  }
+ }
+
+ void state214() {
+  switch (lookahead().ordinal()) {
+   case SYMBOL_BIN_OP_999:
+   case SYMBOL_RBRACKET:
+    Base::push(Base::lookahead().ordinal(), Base::reduce_subterm_999__term_999(Base::args(1)));
+    break;
+  }
+ }
+
+ void state215() {
+  switch (lookahead().ordinal()) {
+   case SYMBOL_BIN_OP_999:
+   case SYMBOL_RBRACKET:
+    Base::push(Base::lookahead().ordinal(), Base::reduce_term_0__constant(Base::args(1)));
+    break;
+  }
+ }
+
+ void state216() {
+  switch (lookahead().ordinal()) {
+   case SYMBOL_NAME: Base::shift_and_goto_state(57); break;
+   case SYMBOL_ATOM: Base::shift_and_goto_state(58); break;
+   case SYMBOL_NUMBER: Base::shift_and_goto_state(59); break;
+   case SYMBOL_NAME_LPAREN: Base::shift_and_goto_state(4); break;
+   case SYMBOL_LBRACKET: Base::shift_and_goto_state(60); break;
+   case SYMBOL_SIGN: Base::shift_and_goto_state(61); break;
+   case SYMBOL_UNSIGNED_NUMBER: Base::shift_and_goto_state(62); break;
+   case SYMBOL_MINUS: Base::shift_and_goto_state(8); break;
+   case SYMBOL_PLUS: Base::shift_and_goto_state(9); break;
+   case SYMBOL_TERM_0: Base::shift_and_goto_state(63); break;
+   case SYMBOL_TERM_999: Base::shift_and_goto_state(64); break;
+   case SYMBOL_CONSTANT: Base::shift_and_goto_state(65); break;
+   case SYMBOL_FUNCTOR_LPAREN: Base::shift_and_goto_state(66); break;
+   case SYMBOL_LBRACE: Base::shift_and_goto_state(67); break;
+   case SYMBOL_LIST: Base::shift_and_goto_state(68); break;
+   case SYMBOL_LPAREN: Base::shift_and_goto_state(69); break;
+   case SYMBOL_STRING: Base::shift_and_goto_state(70); break;
+   case SYMBOL_VARIABLE: Base::shift_and_goto_state(71); break;
+   case SYMBOL_ARGUMENTS: Base::shift_and_goto_state(232); break;
+   case SYMBOL_SUBTERM_999: Base::shift_and_goto_state(73); break;
+   case SYMBOL_UNARY_OP_999: Base::shift_and_goto_state(74); break;
+   case SYMBOL_NATURAL_NUMBER: Base::shift_and_goto_state(75); break;
+   case SYMBOL_UNSIGNED_FLOAT: Base::shift_and_goto_state(76); break;
+  }
+ }
+
+ void state217() {
+  switch (lookahead().ordinal()) {
+   case SYMBOL_NAME: Base::shift_and_goto_state(85); break;
+   case SYMBOL_ATOM: Base::shift_and_goto_state(86); break;
+   case SYMBOL_NUMBER: Base::shift_and_goto_state(87); break;
+   case SYMBOL_NAME_LPAREN: Base::shift_and_goto_state(4); break;
+   case SYMBOL_LBRACKET: Base::shift_and_goto_state(88); break;
+   case SYMBOL_SIGN: Base::shift_and_goto_state(89); break;
+   case SYMBOL_UNSIGNED_NUMBER: Base::shift_and_goto_state(90); break;
+   case SYMBOL_MINUS: Base::shift_and_goto_state(8); break;
+   case SYMBOL_PLUS: Base::shift_and_goto_state(9); break;
+   case SYMBOL_TERM_1000: Base::shift_and_goto_state(91); break;
+   case SYMBOL_TERM_1200: Base::shift_and_goto_state(92); break;
+   case SYMBOL_TERM_0: Base::shift_and_goto_state(93); break;
+   case SYMBOL_TERM_999: Base::shift_and_goto_state(94); break;
+   case SYMBOL_CONSTANT: Base::shift_and_goto_state(95); break;
+   case SYMBOL_FUNCTOR_LPAREN: Base::shift_and_goto_state(96); break;
+   case SYMBOL_LBRACE: Base::shift_and_goto_state(97); break;
+   case SYMBOL_LIST: Base::shift_and_goto_state(98); break;
+   case SYMBOL_LPAREN: Base::shift_and_goto_state(99); break;
+   case SYMBOL_STRING: Base::shift_and_goto_state(100); break;
+   case SYMBOL_VARIABLE: Base::shift_and_goto_state(101); break;
+   case SYMBOL_SUBTERM_1000: Base::shift_and_goto_state(102); break;
+   case SYMBOL_UNARY_OP_1000: Base::shift_and_goto_state(103); break;
+   case SYMBOL_SUBTERM_1200: Base::shift_and_goto_state(234); break;
+   case SYMBOL_UNARY_OP_1200: Base::shift_and_goto_state(105); break;
+   case SYMBOL_SUBTERM_999: Base::shift_and_goto_state(106); break;
+   case SYMBOL_UNARY_OP_999: Base::shift_and_goto_state(107); break;
+   case SYMBOL_NATURAL_NUMBER: Base::shift_and_goto_state(108); break;
+   case SYMBOL_UNSIGNED_FLOAT: Base::shift_and_goto_state(109); break;
+  }
+ }
+
+ void state218() {
+  switch (lookahead().ordinal()) {
+   case SYMBOL_BIN_OP_999:
+   case SYMBOL_RBRACKET:
+    Base::push(Base::lookahead().ordinal(), Base::reduce_term_0__list(Base::args(1)));
+    break;
+  }
+ }
+
+ void state219() {
+  switch (lookahead().ordinal()) {
+   case SYMBOL_NAME: Base::shift_and_goto_state(122); break;
+   case SYMBOL_ATOM: Base::shift_and_goto_state(123); break;
+   case SYMBOL_NUMBER: Base::shift_and_goto_state(124); break;
+   case SYMBOL_NAME_LPAREN: Base::shift_and_goto_state(4); break;
+   case SYMBOL_LBRACKET: Base::shift_and_goto_state(125); break;
+   case SYMBOL_SIGN: Base::shift_and_goto_state(126); break;
+   case SYMBOL_UNSIGNED_NUMBER: Base::shift_and_goto_state(127); break;
+   case SYMBOL_MINUS: Base::shift_and_goto_state(8); break;
+   case SYMBOL_PLUS: Base::shift_and_goto_state(9); break;
+   case SYMBOL_TERM_1000: Base::shift_and_goto_state(128); break;
+   case SYMBOL_TERM_1200: Base::shift_and_goto_state(129); break;
+   case SYMBOL_TERM_0: Base::shift_and_goto_state(130); break;
+   case SYMBOL_TERM_999: Base::shift_and_goto_state(131); break;
+   case SYMBOL_CONSTANT: Base::shift_and_goto_state(132); break;
+   case SYMBOL_FUNCTOR_LPAREN: Base::shift_and_goto_state(133); break;
+   case SYMBOL_LBRACE: Base::shift_and_goto_state(134); break;
+   case SYMBOL_LIST: Base::shift_and_goto_state(135); break;
+   case SYMBOL_LPAREN: Base::shift_and_goto_state(136); break;
+   case SYMBOL_STRING: Base::shift_and_goto_state(137); break;
+   case SYMBOL_VARIABLE: Base::shift_and_goto_state(138); break;
+   case SYMBOL_SUBTERM_1000: Base::shift_and_goto_state(139); break;
+   case SYMBOL_UNARY_OP_1000: Base::shift_and_goto_state(140); break;
+   case SYMBOL_SUBTERM_1200: Base::shift_and_goto_state(236); break;
+   case SYMBOL_UNARY_OP_1200: Base::shift_and_goto_state(142); break;
+   case SYMBOL_SUBTERM_999: Base::shift_and_goto_state(143); break;
+   case SYMBOL_UNARY_OP_999: Base::shift_and_goto_state(144); break;
+   case SYMBOL_NATURAL_NUMBER: Base::shift_and_goto_state(145); break;
+   case SYMBOL_UNSIGNED_FLOAT: Base::shift_and_goto_state(146); break;
+  }
+ }
+
+ void state220() {
+  switch (lookahead().ordinal()) {
+   case SYMBOL_BIN_OP_999:
+   case SYMBOL_RBRACKET:
+    Base::push(Base::lookahead().ordinal(), Base::reduce_term_0__string(Base::args(1)));
+    break;
+  }
+ }
+
+ void state221() {
+  switch (lookahead().ordinal()) {
+   case SYMBOL_BIN_OP_999:
+   case SYMBOL_RBRACKET:
+    Base::push(Base::lookahead().ordinal(), Base::reduce_term_0__variable(Base::args(1)));
+    break;
+  }
+ }
+
+ void state222() {
+  switch (lookahead().ordinal()) {
+   case SYMBOL_BIN_OP_999: Base::shift_and_goto_state(238); break;
+   case SYMBOL_RBRACKET:
+    Base::push(Base::lookahead().ordinal(), Base::reduce_listexpr__subterm_999_vbar_subterm_999(Base::args(3)));
+    break;
+  }
+ }
+
+ void state223() {
+  switch (lookahead().ordinal()) {
+   case SYMBOL_NAME: Base::shift_and_goto_state(207); break;
+   case SYMBOL_ATOM: Base::shift_and_goto_state(208); break;
+   case SYMBOL_NUMBER: Base::shift_and_goto_state(209); break;
+   case SYMBOL_NAME_LPAREN: Base::shift_and_goto_state(4); break;
+   case SYMBOL_LBRACKET: Base::shift_and_goto_state(210); break;
+   case SYMBOL_SIGN: Base::shift_and_goto_state(211); break;
+   case SYMBOL_UNSIGNED_NUMBER: Base::shift_and_goto_state(212); break;
+   case SYMBOL_MINUS: Base::shift_and_goto_state(8); break;
+   case SYMBOL_PLUS: Base::shift_and_goto_state(9); break;
+   case SYMBOL_TERM_0: Base::shift_and_goto_state(213); break;
+   case SYMBOL_TERM_999: Base::shift_and_goto_state(214); break;
+   case SYMBOL_CONSTANT: Base::shift_and_goto_state(215); break;
+   case SYMBOL_FUNCTOR_LPAREN: Base::shift_and_goto_state(216); break;
+   case SYMBOL_LBRACE: Base::shift_and_goto_state(217); break;
+   case SYMBOL_LIST: Base::shift_and_goto_state(218); break;
+   case SYMBOL_LPAREN: Base::shift_and_goto_state(219); break;
+   case SYMBOL_STRING: Base::shift_and_goto_state(220); break;
+   case SYMBOL_VARIABLE: Base::shift_and_goto_state(221); break;
+   case SYMBOL_UNARY_OP_999: Base::shift_and_goto_state(223); break;
+   case SYMBOL_SUBTERM_999: Base::shift_and_goto_state(240); break;
+   case SYMBOL_NATURAL_NUMBER: Base::shift_and_goto_state(224); break;
+   case SYMBOL_UNSIGNED_FLOAT: Base::shift_and_goto_state(225); break;
+  }
+ }
+
+ void state224() {
+  switch (lookahead().ordinal()) {
+   case SYMBOL_BIN_OP_999:
+   case SYMBOL_RBRACKET:
+    Base::push(Base::lookahead().ordinal(), Base::reduce_unsigned_number__natural_number(Base::args(1)));
+    break;
+  }
+ }
+
+ void state225() {
+  switch (lookahead().ordinal()) {
+   case SYMBOL_BIN_OP_999:
+   case SYMBOL_RBRACKET:
+    Base::push(Base::lookahead().ordinal(), Base::reduce_unsigned_number__unsigned_float(Base::args(1)));
+    break;
+  }
+ }
+
+ void state226() {
+  switch (lookahead().ordinal()) {
+   case SYMBOL_RBRACKET: Base::shift_and_goto_state(228); break;
+  }
+ }
+
+ void state227() {
+  switch (lookahead().ordinal()) {
+   case SYMBOL_BIN_OP_999:
+   case SYMBOL_RBRACKET:
+    Base::push(Base::lookahead().ordinal(), Base::reduce_list__lbracket_rbracket(Base::args(2)));
+    break;
+  }
+ }
+
+ void state228() {
+  switch (lookahead().ordinal()) {
+   case SYMBOL_BIN_OP_999:
+   case SYMBOL_RBRACKET:
+    Base::push(Base::lookahead().ordinal(), Base::reduce_list__lbracket_listexpr_rbracket(Base::args(3)));
+    break;
+  }
+ }
+
+ void state229() {
+  switch (lookahead().ordinal()) {
+   case SYMBOL_BIN_OP_999:
+   case SYMBOL_RBRACKET:
+    Base::push(Base::lookahead().ordinal(), Base::reduce_number__sign_inf(Base::args(2)));
+    break;
+  }
+ }
+
+ void state230() {
+  switch (lookahead().ordinal()) {
+   case SYMBOL_BIN_OP_999:
+   case SYMBOL_RBRACKET:
+    Base::push(Base::lookahead().ordinal(), Base::reduce_number__sign_nan(Base::args(2)));
+    break;
+  }
+ }
+
+ void state231() {
+  switch (lookahead().ordinal()) {
+   case SYMBOL_BIN_OP_999:
+   case SYMBOL_RBRACKET:
+    Base::push(Base::lookahead().ordinal(), Base::reduce_number__sign_unsigned_number(Base::args(2)));
+    break;
+  }
+ }
+
+ void state232() {
+  switch (lookahead().ordinal()) {
+   case SYMBOL_RPAREN: Base::shift_and_goto_state(233); break;
+  }
+ }
+
+ void state233() {
+  switch (lookahead().ordinal()) {
+   case SYMBOL_BIN_OP_999:
+   case SYMBOL_RBRACKET:
+    Base::push(Base::lookahead().ordinal(), Base::reduce_term_0__functor_lparen_arguments_rparen(Base::args(3)));
+    break;
+  }
+ }
+
+ void state234() {
+  switch (lookahead().ordinal()) {
+   case SYMBOL_RBRACE: Base::shift_and_goto_state(235); break;
+   case SYMBOL_BIN_OP_1200: Base::shift_and_goto_state(120); break;
+  }
+ }
+
+ void state235() {
+  switch (lookahead().ordinal()) {
+   case SYMBOL_BIN_OP_999:
+   case SYMBOL_RBRACKET:
+    Base::push(Base::lookahead().ordinal(), Base::reduce_term_0__lbrace_subterm_1200_rbrace(Base::args(3)));
+    break;
+  }
+ }
+
+ void state236() {
+  switch (lookahead().ordinal()) {
+   case SYMBOL_RPAREN: Base::shift_and_goto_state(237); break;
+   case SYMBOL_BIN_OP_1200: Base::shift_and_goto_state(159); break;
+  }
+ }
+
+ void state237() {
+  switch (lookahead().ordinal()) {
+   case SYMBOL_BIN_OP_999:
+   case SYMBOL_RBRACKET:
+    Base::push(Base::lookahead().ordinal(), Base::reduce_term_0__lparen_subterm_1200_rparen(Base::args(3)));
+    break;
+  }
+ }
+
  void state238() {
   switch (lookahead().ordinal()) {
-   case SYMBOL_INF: Base::shift_and_goto_state(256); break;
-   case SYMBOL_NAN: Base::shift_and_goto_state(257); break;
-   case SYMBOL_UNSIGNED_NUMBER: Base::shift_and_goto_state(258); break;
-   case SYMBOL_NATURAL_NUMBER: Base::shift_and_goto_state(251); break;
-   case SYMBOL_UNSIGNED_FLOAT: Base::shift_and_goto_state(252); break;
+   case SYMBOL_NAME: Base::shift_and_goto_state(207); break;
+   case SYMBOL_ATOM: Base::shift_and_goto_state(208); break;
+   case SYMBOL_NUMBER: Base::shift_and_goto_state(209); break;
+   case SYMBOL_NAME_LPAREN: Base::shift_and_goto_state(4); break;
+   case SYMBOL_LBRACKET: Base::shift_and_goto_state(210); break;
+   case SYMBOL_SIGN: Base::shift_and_goto_state(211); break;
+   case SYMBOL_UNSIGNED_NUMBER: Base::shift_and_goto_state(212); break;
+   case SYMBOL_MINUS: Base::shift_and_goto_state(8); break;
+   case SYMBOL_PLUS: Base::shift_and_goto_state(9); break;
+   case SYMBOL_TERM_0: Base::shift_and_goto_state(213); break;
+   case SYMBOL_TERM_999: Base::shift_and_goto_state(214); break;
+   case SYMBOL_CONSTANT: Base::shift_and_goto_state(215); break;
+   case SYMBOL_FUNCTOR_LPAREN: Base::shift_and_goto_state(216); break;
+   case SYMBOL_LBRACE: Base::shift_and_goto_state(217); break;
+   case SYMBOL_LIST: Base::shift_and_goto_state(218); break;
+   case SYMBOL_LPAREN: Base::shift_and_goto_state(219); break;
+   case SYMBOL_STRING: Base::shift_and_goto_state(220); break;
+   case SYMBOL_VARIABLE: Base::shift_and_goto_state(221); break;
+   case SYMBOL_UNARY_OP_999: Base::shift_and_goto_state(223); break;
+   case SYMBOL_SUBTERM_999: Base::shift_and_goto_state(239); break;
+   case SYMBOL_NATURAL_NUMBER: Base::shift_and_goto_state(224); break;
+   case SYMBOL_UNSIGNED_FLOAT: Base::shift_and_goto_state(225); break;
   }
  }
 
@@ -3797,7 +3806,7 @@ template<typename Base, typename... Args> class term_parser_gen : public Base {
   switch (lookahead().ordinal()) {
    case SYMBOL_BIN_OP_999:
    case SYMBOL_RBRACKET:
-    Base::push(Base::lookahead().ordinal(), Base::reduce_number__unsigned_number(Base::args(1)));
+    Base::push(Base::lookahead().ordinal(), Base::reduce_term_999__subterm_999_bin_op_999_subterm_999(Base::args(3)));
     break;
   }
  }
@@ -3806,7 +3815,7 @@ template<typename Base, typename... Args> class term_parser_gen : public Base {
   switch (lookahead().ordinal()) {
    case SYMBOL_BIN_OP_999:
    case SYMBOL_RBRACKET:
-    Base::push(Base::lookahead().ordinal(), Base::reduce_subterm_999__term_0(Base::args(1)));
+    Base::push(Base::lookahead().ordinal(), Base::reduce_term_999__unary_op_999_subterm_999(Base::args(2)));
     break;
   }
  }
@@ -3814,8 +3823,10 @@ template<typename Base, typename... Args> class term_parser_gen : public Base {
  void state241() {
   switch (lookahead().ordinal()) {
    case SYMBOL_BIN_OP_999:
+   case SYMBOL_COMMA:
    case SYMBOL_RBRACKET:
-    Base::push(Base::lookahead().ordinal(), Base::reduce_subterm_999__term_999(Base::args(1)));
+   case SYMBOL_VBAR:
+    Base::push(Base::lookahead().ordinal(), Base::reduce_term_999__subterm_999_bin_op_999_subterm_999(Base::args(3)));
     break;
   }
  }
@@ -3823,427 +3834,107 @@ template<typename Base, typename... Args> class term_parser_gen : public Base {
  void state242() {
   switch (lookahead().ordinal()) {
    case SYMBOL_BIN_OP_999:
+   case SYMBOL_COMMA:
    case SYMBOL_RBRACKET:
-    Base::push(Base::lookahead().ordinal(), Base::reduce_term_0__constant(Base::args(1)));
+   case SYMBOL_VBAR:
+    Base::push(Base::lookahead().ordinal(), Base::reduce_term_999__unary_op_999_subterm_999(Base::args(2)));
     break;
   }
  }
 
  void state243() {
   switch (lookahead().ordinal()) {
-   case SYMBOL_NAME: Base::shift_and_goto_state(57); break;
-   case SYMBOL_ATOM: Base::shift_and_goto_state(58); break;
-   case SYMBOL_NUMBER: Base::shift_and_goto_state(59); break;
-   case SYMBOL_NAME_LPAREN: Base::shift_and_goto_state(4); break;
-   case SYMBOL_LBRACKET: Base::shift_and_goto_state(60); break;
-   case SYMBOL_SIGN: Base::shift_and_goto_state(61); break;
-   case SYMBOL_UNSIGNED_NUMBER: Base::shift_and_goto_state(62); break;
-   case SYMBOL_MINUS: Base::shift_and_goto_state(8); break;
-   case SYMBOL_PLUS: Base::shift_and_goto_state(9); break;
-   case SYMBOL_TERM_0: Base::shift_and_goto_state(63); break;
-   case SYMBOL_TERM_999: Base::shift_and_goto_state(64); break;
-   case SYMBOL_CONSTANT: Base::shift_and_goto_state(65); break;
-   case SYMBOL_FUNCTOR_LPAREN: Base::shift_and_goto_state(66); break;
-   case SYMBOL_LBRACE: Base::shift_and_goto_state(67); break;
-   case SYMBOL_LIST: Base::shift_and_goto_state(68); break;
-   case SYMBOL_LPAREN: Base::shift_and_goto_state(69); break;
-   case SYMBOL_STRING: Base::shift_and_goto_state(70); break;
-   case SYMBOL_VARIABLE: Base::shift_and_goto_state(71); break;
-   case SYMBOL_ARGUMENTS: Base::shift_and_goto_state(259); break;
-   case SYMBOL_SUBTERM_999: Base::shift_and_goto_state(73); break;
-   case SYMBOL_UNARY_OP_999: Base::shift_and_goto_state(74); break;
-   case SYMBOL_NATURAL_NUMBER: Base::shift_and_goto_state(75); break;
-   case SYMBOL_UNSIGNED_FLOAT: Base::shift_and_goto_state(76); break;
+   case SYMBOL_BIN_OP_1000:
+   case SYMBOL_BIN_OP_1200:
+   case SYMBOL_BIN_OP_999:
+   case SYMBOL_COMMA:
+   case SYMBOL_FULL_STOP:
+    Base::push(Base::lookahead().ordinal(), Base::reduce_number__sign_inf(Base::args(2)));
+    break;
   }
  }
 
  void state244() {
   switch (lookahead().ordinal()) {
-   case SYMBOL_NAME: Base::shift_and_goto_state(1); break;
-   case SYMBOL_ATOM: Base::shift_and_goto_state(2); break;
-   case SYMBOL_NUMBER: Base::shift_and_goto_state(3); break;
-   case SYMBOL_NAME_LPAREN: Base::shift_and_goto_state(4); break;
-   case SYMBOL_LBRACKET: Base::shift_and_goto_state(5); break;
-   case SYMBOL_SIGN: Base::shift_and_goto_state(6); break;
-   case SYMBOL_UNSIGNED_NUMBER: Base::shift_and_goto_state(7); break;
-   case SYMBOL_MINUS: Base::shift_and_goto_state(8); break;
-   case SYMBOL_PLUS: Base::shift_and_goto_state(9); break;
-   case SYMBOL_TERM_1000: Base::shift_and_goto_state(85); break;
-   case SYMBOL_TERM_1200: Base::shift_and_goto_state(86); break;
-   case SYMBOL_TERM_0: Base::shift_and_goto_state(12); break;
-   case SYMBOL_TERM_999: Base::shift_and_goto_state(13); break;
-   case SYMBOL_CONSTANT: Base::shift_and_goto_state(14); break;
-   case SYMBOL_FUNCTOR_LPAREN: Base::shift_and_goto_state(15); break;
-   case SYMBOL_LBRACE: Base::shift_and_goto_state(16); break;
-   case SYMBOL_LIST: Base::shift_and_goto_state(17); break;
-   case SYMBOL_LPAREN: Base::shift_and_goto_state(18); break;
-   case SYMBOL_STRING: Base::shift_and_goto_state(19); break;
-   case SYMBOL_VARIABLE: Base::shift_and_goto_state(20); break;
-   case SYMBOL_SUBTERM_1000: Base::shift_and_goto_state(87); break;
-   case SYMBOL_UNARY_OP_1000: Base::shift_and_goto_state(88); break;
-   case SYMBOL_SUBTERM_1200: Base::shift_and_goto_state(261); break;
-   case SYMBOL_UNARY_OP_1200: Base::shift_and_goto_state(90); break;
-   case SYMBOL_SUBTERM_999: Base::shift_and_goto_state(91); break;
-   case SYMBOL_UNARY_OP_999: Base::shift_and_goto_state(26); break;
-   case SYMBOL_NATURAL_NUMBER: Base::shift_and_goto_state(27); break;
-   case SYMBOL_UNSIGNED_FLOAT: Base::shift_and_goto_state(28); break;
+   case SYMBOL_BIN_OP_1000:
+   case SYMBOL_BIN_OP_1200:
+   case SYMBOL_BIN_OP_999:
+   case SYMBOL_COMMA:
+   case SYMBOL_FULL_STOP:
+    Base::push(Base::lookahead().ordinal(), Base::reduce_number__sign_nan(Base::args(2)));
+    break;
   }
  }
 
  void state245() {
   switch (lookahead().ordinal()) {
+   case SYMBOL_BIN_OP_1000:
+   case SYMBOL_BIN_OP_1200:
    case SYMBOL_BIN_OP_999:
-   case SYMBOL_RBRACKET:
-    Base::push(Base::lookahead().ordinal(), Base::reduce_term_0__list(Base::args(1)));
+   case SYMBOL_COMMA:
+   case SYMBOL_FULL_STOP:
+    Base::push(Base::lookahead().ordinal(), Base::reduce_number__sign_unsigned_number(Base::args(2)));
     break;
   }
  }
 
  void state246() {
   switch (lookahead().ordinal()) {
-   case SYMBOL_NAME: Base::shift_and_goto_state(1); break;
-   case SYMBOL_ATOM: Base::shift_and_goto_state(2); break;
-   case SYMBOL_NUMBER: Base::shift_and_goto_state(3); break;
-   case SYMBOL_NAME_LPAREN: Base::shift_and_goto_state(4); break;
-   case SYMBOL_LBRACKET: Base::shift_and_goto_state(5); break;
-   case SYMBOL_SIGN: Base::shift_and_goto_state(6); break;
-   case SYMBOL_UNSIGNED_NUMBER: Base::shift_and_goto_state(7); break;
-   case SYMBOL_MINUS: Base::shift_and_goto_state(8); break;
-   case SYMBOL_PLUS: Base::shift_and_goto_state(9); break;
-   case SYMBOL_TERM_1000: Base::shift_and_goto_state(131); break;
-   case SYMBOL_TERM_1200: Base::shift_and_goto_state(132); break;
-   case SYMBOL_TERM_0: Base::shift_and_goto_state(12); break;
-   case SYMBOL_TERM_999: Base::shift_and_goto_state(13); break;
-   case SYMBOL_CONSTANT: Base::shift_and_goto_state(14); break;
-   case SYMBOL_FUNCTOR_LPAREN: Base::shift_and_goto_state(15); break;
-   case SYMBOL_LBRACE: Base::shift_and_goto_state(16); break;
-   case SYMBOL_LIST: Base::shift_and_goto_state(17); break;
-   case SYMBOL_LPAREN: Base::shift_and_goto_state(18); break;
-   case SYMBOL_STRING: Base::shift_and_goto_state(19); break;
-   case SYMBOL_VARIABLE: Base::shift_and_goto_state(20); break;
-   case SYMBOL_SUBTERM_1000: Base::shift_and_goto_state(133); break;
-   case SYMBOL_UNARY_OP_1000: Base::shift_and_goto_state(134); break;
-   case SYMBOL_SUBTERM_1200: Base::shift_and_goto_state(263); break;
-   case SYMBOL_UNARY_OP_1200: Base::shift_and_goto_state(136); break;
-   case SYMBOL_SUBTERM_999: Base::shift_and_goto_state(137); break;
-   case SYMBOL_UNARY_OP_999: Base::shift_and_goto_state(26); break;
-   case SYMBOL_NATURAL_NUMBER: Base::shift_and_goto_state(27); break;
-   case SYMBOL_UNSIGNED_FLOAT: Base::shift_and_goto_state(28); break;
+   case SYMBOL_RPAREN: Base::shift_and_goto_state(247); break;
   }
  }
 
  void state247() {
   switch (lookahead().ordinal()) {
+   case SYMBOL_BIN_OP_1000:
+   case SYMBOL_BIN_OP_1200:
    case SYMBOL_BIN_OP_999:
-   case SYMBOL_RBRACKET:
-    Base::push(Base::lookahead().ordinal(), Base::reduce_term_0__string(Base::args(1)));
+   case SYMBOL_COMMA:
+   case SYMBOL_FULL_STOP:
+    Base::push(Base::lookahead().ordinal(), Base::reduce_term_0__functor_lparen_arguments_rparen(Base::args(3)));
     break;
   }
  }
 
  void state248() {
   switch (lookahead().ordinal()) {
-   case SYMBOL_BIN_OP_999:
-   case SYMBOL_RBRACKET:
-    Base::push(Base::lookahead().ordinal(), Base::reduce_term_0__variable(Base::args(1)));
-    break;
+   case SYMBOL_RBRACE: Base::shift_and_goto_state(249); break;
+   case SYMBOL_BIN_OP_1200: Base::shift_and_goto_state(120); break;
   }
  }
 
  void state249() {
   switch (lookahead().ordinal()) {
-   case SYMBOL_BIN_OP_999: Base::shift_and_goto_state(265); break;
-   case SYMBOL_RBRACKET:
-    Base::push(Base::lookahead().ordinal(), Base::reduce_listexpr__subterm_999_vbar_subterm_999(Base::args(3)));
+   case SYMBOL_BIN_OP_1000:
+   case SYMBOL_BIN_OP_1200:
+   case SYMBOL_BIN_OP_999:
+   case SYMBOL_COMMA:
+   case SYMBOL_FULL_STOP:
+    Base::push(Base::lookahead().ordinal(), Base::reduce_term_0__lbrace_subterm_1200_rbrace(Base::args(3)));
     break;
   }
  }
 
  void state250() {
   switch (lookahead().ordinal()) {
-   case SYMBOL_NAME: Base::shift_and_goto_state(234); break;
-   case SYMBOL_ATOM: Base::shift_and_goto_state(235); break;
-   case SYMBOL_NUMBER: Base::shift_and_goto_state(236); break;
-   case SYMBOL_NAME_LPAREN: Base::shift_and_goto_state(4); break;
-   case SYMBOL_LBRACKET: Base::shift_and_goto_state(237); break;
-   case SYMBOL_SIGN: Base::shift_and_goto_state(238); break;
-   case SYMBOL_UNSIGNED_NUMBER: Base::shift_and_goto_state(239); break;
-   case SYMBOL_MINUS: Base::shift_and_goto_state(8); break;
-   case SYMBOL_PLUS: Base::shift_and_goto_state(9); break;
-   case SYMBOL_TERM_0: Base::shift_and_goto_state(240); break;
-   case SYMBOL_TERM_999: Base::shift_and_goto_state(241); break;
-   case SYMBOL_CONSTANT: Base::shift_and_goto_state(242); break;
-   case SYMBOL_FUNCTOR_LPAREN: Base::shift_and_goto_state(243); break;
-   case SYMBOL_LBRACE: Base::shift_and_goto_state(244); break;
-   case SYMBOL_LIST: Base::shift_and_goto_state(245); break;
-   case SYMBOL_LPAREN: Base::shift_and_goto_state(246); break;
-   case SYMBOL_STRING: Base::shift_and_goto_state(247); break;
-   case SYMBOL_VARIABLE: Base::shift_and_goto_state(248); break;
-   case SYMBOL_UNARY_OP_999: Base::shift_and_goto_state(250); break;
-   case SYMBOL_SUBTERM_999: Base::shift_and_goto_state(267); break;
-   case SYMBOL_NATURAL_NUMBER: Base::shift_and_goto_state(251); break;
-   case SYMBOL_UNSIGNED_FLOAT: Base::shift_and_goto_state(252); break;
+   case SYMBOL_RPAREN: Base::shift_and_goto_state(251); break;
+   case SYMBOL_BIN_OP_1200: Base::shift_and_goto_state(159); break;
   }
  }
 
  void state251() {
   switch (lookahead().ordinal()) {
+   case SYMBOL_BIN_OP_1000:
+   case SYMBOL_BIN_OP_1200:
    case SYMBOL_BIN_OP_999:
-   case SYMBOL_RBRACKET:
-    Base::push(Base::lookahead().ordinal(), Base::reduce_unsigned_number__natural_number(Base::args(1)));
+   case SYMBOL_COMMA:
+   case SYMBOL_FULL_STOP:
+    Base::push(Base::lookahead().ordinal(), Base::reduce_term_0__lparen_subterm_1200_rparen(Base::args(3)));
     break;
   }
  }
 
  void state252() {
-  switch (lookahead().ordinal()) {
-   case SYMBOL_BIN_OP_999:
-   case SYMBOL_RBRACKET:
-    Base::push(Base::lookahead().ordinal(), Base::reduce_unsigned_number__unsigned_float(Base::args(1)));
-    break;
-  }
- }
-
- void state253() {
-  switch (lookahead().ordinal()) {
-   case SYMBOL_RBRACKET: Base::shift_and_goto_state(255); break;
-  }
- }
-
- void state254() {
-  switch (lookahead().ordinal()) {
-   case SYMBOL_BIN_OP_999:
-   case SYMBOL_RBRACKET:
-    Base::push(Base::lookahead().ordinal(), Base::reduce_list__lbracket_rbracket(Base::args(2)));
-    break;
-  }
- }
-
- void state255() {
-  switch (lookahead().ordinal()) {
-   case SYMBOL_BIN_OP_999:
-   case SYMBOL_RBRACKET:
-    Base::push(Base::lookahead().ordinal(), Base::reduce_list__lbracket_listexpr_rbracket(Base::args(3)));
-    break;
-  }
- }
-
- void state256() {
-  switch (lookahead().ordinal()) {
-   case SYMBOL_BIN_OP_999:
-   case SYMBOL_RBRACKET:
-    Base::push(Base::lookahead().ordinal(), Base::reduce_number__sign_inf(Base::args(2)));
-    break;
-  }
- }
-
- void state257() {
-  switch (lookahead().ordinal()) {
-   case SYMBOL_BIN_OP_999:
-   case SYMBOL_RBRACKET:
-    Base::push(Base::lookahead().ordinal(), Base::reduce_number__sign_nan(Base::args(2)));
-    break;
-  }
- }
-
- void state258() {
-  switch (lookahead().ordinal()) {
-   case SYMBOL_BIN_OP_999:
-   case SYMBOL_RBRACKET:
-    Base::push(Base::lookahead().ordinal(), Base::reduce_number__sign_unsigned_number(Base::args(2)));
-    break;
-  }
- }
-
- void state259() {
-  switch (lookahead().ordinal()) {
-   case SYMBOL_RPAREN: Base::shift_and_goto_state(260); break;
-  }
- }
-
- void state260() {
-  switch (lookahead().ordinal()) {
-   case SYMBOL_BIN_OP_999:
-   case SYMBOL_RBRACKET:
-    Base::push(Base::lookahead().ordinal(), Base::reduce_term_0__functor_lparen_arguments_rparen(Base::args(3)));
-    break;
-  }
- }
-
- void state261() {
-  switch (lookahead().ordinal()) {
-   case SYMBOL_RBRACE: Base::shift_and_goto_state(262); break;
-   case SYMBOL_BIN_OP_1200: Base::shift_and_goto_state(129); break;
-  }
- }
-
- void state262() {
-  switch (lookahead().ordinal()) {
-   case SYMBOL_BIN_OP_999:
-   case SYMBOL_RBRACKET:
-    Base::push(Base::lookahead().ordinal(), Base::reduce_term_0__lbrace_subterm_1200_rbrace(Base::args(3)));
-    break;
-  }
- }
-
- void state263() {
-  switch (lookahead().ordinal()) {
-   case SYMBOL_RPAREN: Base::shift_and_goto_state(264); break;
-   case SYMBOL_BIN_OP_1200: Base::shift_and_goto_state(177); break;
-  }
- }
-
- void state264() {
-  switch (lookahead().ordinal()) {
-   case SYMBOL_BIN_OP_999:
-   case SYMBOL_RBRACKET:
-    Base::push(Base::lookahead().ordinal(), Base::reduce_term_0__lparen_subterm_1200_rparen(Base::args(3)));
-    break;
-  }
- }
-
- void state265() {
-  switch (lookahead().ordinal()) {
-   case SYMBOL_NAME: Base::shift_and_goto_state(234); break;
-   case SYMBOL_ATOM: Base::shift_and_goto_state(235); break;
-   case SYMBOL_NUMBER: Base::shift_and_goto_state(236); break;
-   case SYMBOL_NAME_LPAREN: Base::shift_and_goto_state(4); break;
-   case SYMBOL_LBRACKET: Base::shift_and_goto_state(237); break;
-   case SYMBOL_SIGN: Base::shift_and_goto_state(238); break;
-   case SYMBOL_UNSIGNED_NUMBER: Base::shift_and_goto_state(239); break;
-   case SYMBOL_MINUS: Base::shift_and_goto_state(8); break;
-   case SYMBOL_PLUS: Base::shift_and_goto_state(9); break;
-   case SYMBOL_TERM_0: Base::shift_and_goto_state(240); break;
-   case SYMBOL_TERM_999: Base::shift_and_goto_state(241); break;
-   case SYMBOL_CONSTANT: Base::shift_and_goto_state(242); break;
-   case SYMBOL_FUNCTOR_LPAREN: Base::shift_and_goto_state(243); break;
-   case SYMBOL_LBRACE: Base::shift_and_goto_state(244); break;
-   case SYMBOL_LIST: Base::shift_and_goto_state(245); break;
-   case SYMBOL_LPAREN: Base::shift_and_goto_state(246); break;
-   case SYMBOL_STRING: Base::shift_and_goto_state(247); break;
-   case SYMBOL_VARIABLE: Base::shift_and_goto_state(248); break;
-   case SYMBOL_UNARY_OP_999: Base::shift_and_goto_state(250); break;
-   case SYMBOL_SUBTERM_999: Base::shift_and_goto_state(266); break;
-   case SYMBOL_NATURAL_NUMBER: Base::shift_and_goto_state(251); break;
-   case SYMBOL_UNSIGNED_FLOAT: Base::shift_and_goto_state(252); break;
-  }
- }
-
- void state266() {
-  switch (lookahead().ordinal()) {
-   case SYMBOL_BIN_OP_999:
-   case SYMBOL_RBRACKET:
-    Base::push(Base::lookahead().ordinal(), Base::reduce_term_999__subterm_999_bin_op_999_subterm_999(Base::args(3)));
-    break;
-  }
- }
-
- void state267() {
-  switch (lookahead().ordinal()) {
-   case SYMBOL_BIN_OP_999:
-   case SYMBOL_RBRACKET:
-    Base::push(Base::lookahead().ordinal(), Base::reduce_term_999__unary_op_999_subterm_999(Base::args(2)));
-    break;
-  }
- }
-
- void state268() {
-  switch (lookahead().ordinal()) {
-   case SYMBOL_BIN_OP_999:
-   case SYMBOL_COMMA:
-   case SYMBOL_RBRACKET:
-   case SYMBOL_VBAR:
-    Base::push(Base::lookahead().ordinal(), Base::reduce_term_999__subterm_999_bin_op_999_subterm_999(Base::args(3)));
-    break;
-  }
- }
-
- void state269() {
-  switch (lookahead().ordinal()) {
-   case SYMBOL_BIN_OP_999:
-   case SYMBOL_COMMA:
-   case SYMBOL_RBRACKET:
-   case SYMBOL_VBAR:
-    Base::push(Base::lookahead().ordinal(), Base::reduce_term_999__unary_op_999_subterm_999(Base::args(2)));
-    break;
-  }
- }
-
- void state270() {
-  switch (lookahead().ordinal()) {
-   case SYMBOL_BIN_OP_999:
-   case SYMBOL_COMMA:
-    Base::push(Base::lookahead().ordinal(), Base::reduce_number__sign_inf(Base::args(2)));
-    break;
-  }
- }
-
- void state271() {
-  switch (lookahead().ordinal()) {
-   case SYMBOL_BIN_OP_999:
-   case SYMBOL_COMMA:
-    Base::push(Base::lookahead().ordinal(), Base::reduce_number__sign_nan(Base::args(2)));
-    break;
-  }
- }
-
- void state272() {
-  switch (lookahead().ordinal()) {
-   case SYMBOL_BIN_OP_999:
-   case SYMBOL_COMMA:
-    Base::push(Base::lookahead().ordinal(), Base::reduce_number__sign_unsigned_number(Base::args(2)));
-    break;
-  }
- }
-
- void state273() {
-  switch (lookahead().ordinal()) {
-   case SYMBOL_RPAREN: Base::shift_and_goto_state(274); break;
-  }
- }
-
- void state274() {
-  switch (lookahead().ordinal()) {
-   case SYMBOL_BIN_OP_999:
-   case SYMBOL_COMMA:
-    Base::push(Base::lookahead().ordinal(), Base::reduce_term_0__functor_lparen_arguments_rparen(Base::args(3)));
-    break;
-  }
- }
-
- void state275() {
-  switch (lookahead().ordinal()) {
-   case SYMBOL_RBRACE: Base::shift_and_goto_state(276); break;
-   case SYMBOL_BIN_OP_1200: Base::shift_and_goto_state(129); break;
-  }
- }
-
- void state276() {
-  switch (lookahead().ordinal()) {
-   case SYMBOL_BIN_OP_999:
-   case SYMBOL_COMMA:
-    Base::push(Base::lookahead().ordinal(), Base::reduce_term_0__lbrace_subterm_1200_rbrace(Base::args(3)));
-    break;
-  }
- }
-
- void state277() {
-  switch (lookahead().ordinal()) {
-   case SYMBOL_RPAREN: Base::shift_and_goto_state(278); break;
-   case SYMBOL_BIN_OP_1200: Base::shift_and_goto_state(177); break;
-  }
- }
-
- void state278() {
-  switch (lookahead().ordinal()) {
-   case SYMBOL_BIN_OP_999:
-   case SYMBOL_COMMA:
-    Base::push(Base::lookahead().ordinal(), Base::reduce_term_0__lparen_subterm_1200_rparen(Base::args(3)));
-    break;
-  }
- }
-
- void state279() {
   switch (lookahead().ordinal()) {
    case SYMBOL_NAME: Base::shift_and_goto_state(1); break;
    case SYMBOL_ATOM: Base::shift_and_goto_state(2); break;
@@ -4254,9 +3945,9 @@ template<typename Base, typename... Args> class term_parser_gen : public Base {
    case SYMBOL_UNSIGNED_NUMBER: Base::shift_and_goto_state(7); break;
    case SYMBOL_MINUS: Base::shift_and_goto_state(8); break;
    case SYMBOL_PLUS: Base::shift_and_goto_state(9); break;
-   case SYMBOL_TERM_1000: Base::shift_and_goto_state(280); break;
-   case SYMBOL_TERM_0: Base::shift_and_goto_state(12); break;
-   case SYMBOL_TERM_999: Base::shift_and_goto_state(281); break;
+   case SYMBOL_TERM_1000: Base::shift_and_goto_state(253); break;
+   case SYMBOL_TERM_0: Base::shift_and_goto_state(254); break;
+   case SYMBOL_TERM_999: Base::shift_and_goto_state(255); break;
    case SYMBOL_CONSTANT: Base::shift_and_goto_state(14); break;
    case SYMBOL_FUNCTOR_LPAREN: Base::shift_and_goto_state(15); break;
    case SYMBOL_LBRACE: Base::shift_and_goto_state(16); break;
@@ -4265,15 +3956,15 @@ template<typename Base, typename... Args> class term_parser_gen : public Base {
    case SYMBOL_STRING: Base::shift_and_goto_state(19); break;
    case SYMBOL_VARIABLE: Base::shift_and_goto_state(20); break;
    case SYMBOL_UNARY_OP_1000: Base::shift_and_goto_state(22); break;
-   case SYMBOL_SUBTERM_1000: Base::shift_and_goto_state(282); break;
-   case SYMBOL_SUBTERM_999: Base::shift_and_goto_state(283); break;
-   case SYMBOL_UNARY_OP_999: Base::shift_and_goto_state(284); break;
+   case SYMBOL_SUBTERM_1000: Base::shift_and_goto_state(256); break;
+   case SYMBOL_SUBTERM_999: Base::shift_and_goto_state(25); break;
+   case SYMBOL_UNARY_OP_999: Base::shift_and_goto_state(26); break;
    case SYMBOL_NATURAL_NUMBER: Base::shift_and_goto_state(27); break;
    case SYMBOL_UNSIGNED_FLOAT: Base::shift_and_goto_state(28); break;
   }
  }
 
- void state280() {
+ void state253() {
   switch (lookahead().ordinal()) {
    case SYMBOL_BIN_OP_1000:
    case SYMBOL_BIN_OP_1200:
@@ -4283,7 +3974,21 @@ template<typename Base, typename... Args> class term_parser_gen : public Base {
   }
  }
 
- void state281() {
+ void state254() {
+  switch (lookahead().ordinal()) {
+   case SYMBOL_BIN_OP_999:
+   case SYMBOL_COMMA:
+    Base::push(Base::lookahead().ordinal(), Base::reduce_subterm_999__term_0(Base::args(1)));
+    break;
+   case SYMBOL_BIN_OP_1000:
+   case SYMBOL_BIN_OP_1200:
+   case SYMBOL_FULL_STOP:
+    Base::push(Base::lookahead().ordinal(), Base::reduce_subterm_1000__term_0(Base::args(1)));
+    break;
+  }
+ }
+
+ void state255() {
   switch (lookahead().ordinal()) {
    case SYMBOL_BIN_OP_999:
    case SYMBOL_COMMA:
@@ -4297,7 +4002,7 @@ template<typename Base, typename... Args> class term_parser_gen : public Base {
   }
  }
 
- void state282() {
+ void state256() {
   switch (lookahead().ordinal()) {
    case SYMBOL_BIN_OP_1000:
    case SYMBOL_BIN_OP_1200:
@@ -4307,531 +4012,7 @@ template<typename Base, typename... Args> class term_parser_gen : public Base {
   }
  }
 
- void state283() {
-  switch (lookahead().ordinal()) {
-   case SYMBOL_COMMA: Base::shift_and_goto_state(285); break;
-   case SYMBOL_BIN_OP_999: Base::shift_and_goto_state(286); break;
-  }
- }
-
- void state284() {
-  switch (lookahead().ordinal()) {
-   case SYMBOL_NAME: Base::shift_and_goto_state(288); break;
-   case SYMBOL_ATOM: Base::shift_and_goto_state(289); break;
-   case SYMBOL_NUMBER: Base::shift_and_goto_state(290); break;
-   case SYMBOL_NAME_LPAREN: Base::shift_and_goto_state(4); break;
-   case SYMBOL_LBRACKET: Base::shift_and_goto_state(291); break;
-   case SYMBOL_SIGN: Base::shift_and_goto_state(292); break;
-   case SYMBOL_UNSIGNED_NUMBER: Base::shift_and_goto_state(293); break;
-   case SYMBOL_MINUS: Base::shift_and_goto_state(8); break;
-   case SYMBOL_PLUS: Base::shift_and_goto_state(9); break;
-   case SYMBOL_TERM_0: Base::shift_and_goto_state(294); break;
-   case SYMBOL_TERM_999: Base::shift_and_goto_state(295); break;
-   case SYMBOL_CONSTANT: Base::shift_and_goto_state(296); break;
-   case SYMBOL_FUNCTOR_LPAREN: Base::shift_and_goto_state(297); break;
-   case SYMBOL_LBRACE: Base::shift_and_goto_state(298); break;
-   case SYMBOL_LIST: Base::shift_and_goto_state(299); break;
-   case SYMBOL_LPAREN: Base::shift_and_goto_state(300); break;
-   case SYMBOL_STRING: Base::shift_and_goto_state(301); break;
-   case SYMBOL_VARIABLE: Base::shift_and_goto_state(302); break;
-   case SYMBOL_UNARY_OP_999: Base::shift_and_goto_state(284); break;
-   case SYMBOL_SUBTERM_999: Base::shift_and_goto_state(318); break;
-   case SYMBOL_NATURAL_NUMBER: Base::shift_and_goto_state(304); break;
-   case SYMBOL_UNSIGNED_FLOAT: Base::shift_and_goto_state(305); break;
-  }
- }
-
- void state285() {
-  switch (lookahead().ordinal()) {
-   case SYMBOL_NAME: Base::shift_and_goto_state(1); break;
-   case SYMBOL_ATOM: Base::shift_and_goto_state(2); break;
-   case SYMBOL_NUMBER: Base::shift_and_goto_state(3); break;
-   case SYMBOL_NAME_LPAREN: Base::shift_and_goto_state(4); break;
-   case SYMBOL_LBRACKET: Base::shift_and_goto_state(5); break;
-   case SYMBOL_SIGN: Base::shift_and_goto_state(6); break;
-   case SYMBOL_UNSIGNED_NUMBER: Base::shift_and_goto_state(7); break;
-   case SYMBOL_MINUS: Base::shift_and_goto_state(8); break;
-   case SYMBOL_PLUS: Base::shift_and_goto_state(9); break;
-   case SYMBOL_TERM_1000: Base::shift_and_goto_state(280); break;
-   case SYMBOL_TERM_0: Base::shift_and_goto_state(12); break;
-   case SYMBOL_TERM_999: Base::shift_and_goto_state(281); break;
-   case SYMBOL_CONSTANT: Base::shift_and_goto_state(14); break;
-   case SYMBOL_FUNCTOR_LPAREN: Base::shift_and_goto_state(15); break;
-   case SYMBOL_LBRACE: Base::shift_and_goto_state(16); break;
-   case SYMBOL_LIST: Base::shift_and_goto_state(17); break;
-   case SYMBOL_LPAREN: Base::shift_and_goto_state(18); break;
-   case SYMBOL_STRING: Base::shift_and_goto_state(19); break;
-   case SYMBOL_VARIABLE: Base::shift_and_goto_state(20); break;
-   case SYMBOL_UNARY_OP_1000: Base::shift_and_goto_state(22); break;
-   case SYMBOL_SUBTERM_1000: Base::shift_and_goto_state(287); break;
-   case SYMBOL_SUBTERM_999: Base::shift_and_goto_state(283); break;
-   case SYMBOL_UNARY_OP_999: Base::shift_and_goto_state(284); break;
-   case SYMBOL_NATURAL_NUMBER: Base::shift_and_goto_state(27); break;
-   case SYMBOL_UNSIGNED_FLOAT: Base::shift_and_goto_state(28); break;
-  }
- }
-
- void state286() {
-  switch (lookahead().ordinal()) {
-   case SYMBOL_NAME: Base::shift_and_goto_state(288); break;
-   case SYMBOL_ATOM: Base::shift_and_goto_state(289); break;
-   case SYMBOL_NUMBER: Base::shift_and_goto_state(290); break;
-   case SYMBOL_NAME_LPAREN: Base::shift_and_goto_state(4); break;
-   case SYMBOL_LBRACKET: Base::shift_and_goto_state(291); break;
-   case SYMBOL_SIGN: Base::shift_and_goto_state(292); break;
-   case SYMBOL_UNSIGNED_NUMBER: Base::shift_and_goto_state(293); break;
-   case SYMBOL_MINUS: Base::shift_and_goto_state(8); break;
-   case SYMBOL_PLUS: Base::shift_and_goto_state(9); break;
-   case SYMBOL_TERM_0: Base::shift_and_goto_state(294); break;
-   case SYMBOL_TERM_999: Base::shift_and_goto_state(295); break;
-   case SYMBOL_CONSTANT: Base::shift_and_goto_state(296); break;
-   case SYMBOL_FUNCTOR_LPAREN: Base::shift_and_goto_state(297); break;
-   case SYMBOL_LBRACE: Base::shift_and_goto_state(298); break;
-   case SYMBOL_LIST: Base::shift_and_goto_state(299); break;
-   case SYMBOL_LPAREN: Base::shift_and_goto_state(300); break;
-   case SYMBOL_STRING: Base::shift_and_goto_state(301); break;
-   case SYMBOL_VARIABLE: Base::shift_and_goto_state(302); break;
-   case SYMBOL_UNARY_OP_999: Base::shift_and_goto_state(284); break;
-   case SYMBOL_SUBTERM_999: Base::shift_and_goto_state(303); break;
-   case SYMBOL_NATURAL_NUMBER: Base::shift_and_goto_state(304); break;
-   case SYMBOL_UNSIGNED_FLOAT: Base::shift_and_goto_state(305); break;
-  }
- }
-
- void state287() {
-  switch (lookahead().ordinal()) {
-   case SYMBOL_BIN_OP_1000:
-   case SYMBOL_BIN_OP_1200:
-   case SYMBOL_FULL_STOP:
-    Base::push(Base::lookahead().ordinal(), Base::reduce_term_1000__subterm_999_comma_subterm_1000(Base::args(3)));
-    break;
-  }
- }
-
- void state288() {
-  switch (lookahead().ordinal()) {
-   case SYMBOL_BIN_OP_1000:
-   case SYMBOL_BIN_OP_1200:
-   case SYMBOL_BIN_OP_999:
-   case SYMBOL_COMMA:
-   case SYMBOL_FULL_STOP:
-    Base::push(Base::lookahead().ordinal(), Base::reduce_atom__name(Base::args(1)));
-    break;
-  }
- }
-
- void state289() {
-  switch (lookahead().ordinal()) {
-   case SYMBOL_BIN_OP_1000:
-   case SYMBOL_BIN_OP_1200:
-   case SYMBOL_BIN_OP_999:
-   case SYMBOL_COMMA:
-   case SYMBOL_FULL_STOP:
-    Base::push(Base::lookahead().ordinal(), Base::reduce_constant__atom(Base::args(1)));
-    break;
-  }
- }
-
- void state290() {
-  switch (lookahead().ordinal()) {
-   case SYMBOL_BIN_OP_1000:
-   case SYMBOL_BIN_OP_1200:
-   case SYMBOL_BIN_OP_999:
-   case SYMBOL_COMMA:
-   case SYMBOL_FULL_STOP:
-    Base::push(Base::lookahead().ordinal(), Base::reduce_constant__number(Base::args(1)));
-    break;
-  }
- }
-
- void state291() {
-  switch (lookahead().ordinal()) {
-   case SYMBOL_NAME: Base::shift_and_goto_state(29); break;
-   case SYMBOL_ATOM: Base::shift_and_goto_state(30); break;
-   case SYMBOL_NUMBER: Base::shift_and_goto_state(31); break;
-   case SYMBOL_NAME_LPAREN: Base::shift_and_goto_state(4); break;
-   case SYMBOL_LBRACKET: Base::shift_and_goto_state(32); break;
-   case SYMBOL_LISTEXPR: Base::shift_and_goto_state(306); break;
-   case SYMBOL_RBRACKET: Base::shift_and_goto_state(307); break;
-   case SYMBOL_SIGN: Base::shift_and_goto_state(35); break;
-   case SYMBOL_UNSIGNED_NUMBER: Base::shift_and_goto_state(36); break;
-   case SYMBOL_MINUS: Base::shift_and_goto_state(8); break;
-   case SYMBOL_PLUS: Base::shift_and_goto_state(9); break;
-   case SYMBOL_TERM_0: Base::shift_and_goto_state(37); break;
-   case SYMBOL_TERM_999: Base::shift_and_goto_state(38); break;
-   case SYMBOL_CONSTANT: Base::shift_and_goto_state(39); break;
-   case SYMBOL_FUNCTOR_LPAREN: Base::shift_and_goto_state(40); break;
-   case SYMBOL_LBRACE: Base::shift_and_goto_state(41); break;
-   case SYMBOL_LIST: Base::shift_and_goto_state(42); break;
-   case SYMBOL_LPAREN: Base::shift_and_goto_state(43); break;
-   case SYMBOL_STRING: Base::shift_and_goto_state(44); break;
-   case SYMBOL_VARIABLE: Base::shift_and_goto_state(45); break;
-   case SYMBOL_SUBTERM_999: Base::shift_and_goto_state(46); break;
-   case SYMBOL_UNARY_OP_999: Base::shift_and_goto_state(47); break;
-   case SYMBOL_NATURAL_NUMBER: Base::shift_and_goto_state(48); break;
-   case SYMBOL_UNSIGNED_FLOAT: Base::shift_and_goto_state(49); break;
-  }
- }
-
- void state292() {
-  switch (lookahead().ordinal()) {
-   case SYMBOL_INF: Base::shift_and_goto_state(309); break;
-   case SYMBOL_NAN: Base::shift_and_goto_state(310); break;
-   case SYMBOL_UNSIGNED_NUMBER: Base::shift_and_goto_state(311); break;
-   case SYMBOL_NATURAL_NUMBER: Base::shift_and_goto_state(304); break;
-   case SYMBOL_UNSIGNED_FLOAT: Base::shift_and_goto_state(305); break;
-  }
- }
-
- void state293() {
-  switch (lookahead().ordinal()) {
-   case SYMBOL_BIN_OP_1000:
-   case SYMBOL_BIN_OP_1200:
-   case SYMBOL_BIN_OP_999:
-   case SYMBOL_COMMA:
-   case SYMBOL_FULL_STOP:
-    Base::push(Base::lookahead().ordinal(), Base::reduce_number__unsigned_number(Base::args(1)));
-    break;
-  }
- }
-
- void state294() {
-  switch (lookahead().ordinal()) {
-   case SYMBOL_BIN_OP_1000:
-   case SYMBOL_BIN_OP_1200:
-   case SYMBOL_BIN_OP_999:
-   case SYMBOL_COMMA:
-   case SYMBOL_FULL_STOP:
-    Base::push(Base::lookahead().ordinal(), Base::reduce_subterm_999__term_0(Base::args(1)));
-    break;
-  }
- }
-
- void state295() {
-  switch (lookahead().ordinal()) {
-   case SYMBOL_BIN_OP_1000:
-   case SYMBOL_BIN_OP_1200:
-   case SYMBOL_BIN_OP_999:
-   case SYMBOL_COMMA:
-   case SYMBOL_FULL_STOP:
-    Base::push(Base::lookahead().ordinal(), Base::reduce_subterm_999__term_999(Base::args(1)));
-    break;
-  }
- }
-
- void state296() {
-  switch (lookahead().ordinal()) {
-   case SYMBOL_BIN_OP_1000:
-   case SYMBOL_BIN_OP_1200:
-   case SYMBOL_BIN_OP_999:
-   case SYMBOL_COMMA:
-   case SYMBOL_FULL_STOP:
-    Base::push(Base::lookahead().ordinal(), Base::reduce_term_0__constant(Base::args(1)));
-    break;
-  }
- }
-
- void state297() {
-  switch (lookahead().ordinal()) {
-   case SYMBOL_NAME: Base::shift_and_goto_state(57); break;
-   case SYMBOL_ATOM: Base::shift_and_goto_state(58); break;
-   case SYMBOL_NUMBER: Base::shift_and_goto_state(59); break;
-   case SYMBOL_NAME_LPAREN: Base::shift_and_goto_state(4); break;
-   case SYMBOL_LBRACKET: Base::shift_and_goto_state(60); break;
-   case SYMBOL_SIGN: Base::shift_and_goto_state(61); break;
-   case SYMBOL_UNSIGNED_NUMBER: Base::shift_and_goto_state(62); break;
-   case SYMBOL_MINUS: Base::shift_and_goto_state(8); break;
-   case SYMBOL_PLUS: Base::shift_and_goto_state(9); break;
-   case SYMBOL_TERM_0: Base::shift_and_goto_state(63); break;
-   case SYMBOL_TERM_999: Base::shift_and_goto_state(64); break;
-   case SYMBOL_CONSTANT: Base::shift_and_goto_state(65); break;
-   case SYMBOL_FUNCTOR_LPAREN: Base::shift_and_goto_state(66); break;
-   case SYMBOL_LBRACE: Base::shift_and_goto_state(67); break;
-   case SYMBOL_LIST: Base::shift_and_goto_state(68); break;
-   case SYMBOL_LPAREN: Base::shift_and_goto_state(69); break;
-   case SYMBOL_STRING: Base::shift_and_goto_state(70); break;
-   case SYMBOL_VARIABLE: Base::shift_and_goto_state(71); break;
-   case SYMBOL_ARGUMENTS: Base::shift_and_goto_state(312); break;
-   case SYMBOL_SUBTERM_999: Base::shift_and_goto_state(73); break;
-   case SYMBOL_UNARY_OP_999: Base::shift_and_goto_state(74); break;
-   case SYMBOL_NATURAL_NUMBER: Base::shift_and_goto_state(75); break;
-   case SYMBOL_UNSIGNED_FLOAT: Base::shift_and_goto_state(76); break;
-  }
- }
-
- void state298() {
-  switch (lookahead().ordinal()) {
-   case SYMBOL_NAME: Base::shift_and_goto_state(1); break;
-   case SYMBOL_ATOM: Base::shift_and_goto_state(2); break;
-   case SYMBOL_NUMBER: Base::shift_and_goto_state(3); break;
-   case SYMBOL_NAME_LPAREN: Base::shift_and_goto_state(4); break;
-   case SYMBOL_LBRACKET: Base::shift_and_goto_state(5); break;
-   case SYMBOL_SIGN: Base::shift_and_goto_state(6); break;
-   case SYMBOL_UNSIGNED_NUMBER: Base::shift_and_goto_state(7); break;
-   case SYMBOL_MINUS: Base::shift_and_goto_state(8); break;
-   case SYMBOL_PLUS: Base::shift_and_goto_state(9); break;
-   case SYMBOL_TERM_1000: Base::shift_and_goto_state(85); break;
-   case SYMBOL_TERM_1200: Base::shift_and_goto_state(86); break;
-   case SYMBOL_TERM_0: Base::shift_and_goto_state(12); break;
-   case SYMBOL_TERM_999: Base::shift_and_goto_state(13); break;
-   case SYMBOL_CONSTANT: Base::shift_and_goto_state(14); break;
-   case SYMBOL_FUNCTOR_LPAREN: Base::shift_and_goto_state(15); break;
-   case SYMBOL_LBRACE: Base::shift_and_goto_state(16); break;
-   case SYMBOL_LIST: Base::shift_and_goto_state(17); break;
-   case SYMBOL_LPAREN: Base::shift_and_goto_state(18); break;
-   case SYMBOL_STRING: Base::shift_and_goto_state(19); break;
-   case SYMBOL_VARIABLE: Base::shift_and_goto_state(20); break;
-   case SYMBOL_SUBTERM_1000: Base::shift_and_goto_state(87); break;
-   case SYMBOL_UNARY_OP_1000: Base::shift_and_goto_state(88); break;
-   case SYMBOL_SUBTERM_1200: Base::shift_and_goto_state(314); break;
-   case SYMBOL_UNARY_OP_1200: Base::shift_and_goto_state(90); break;
-   case SYMBOL_SUBTERM_999: Base::shift_and_goto_state(91); break;
-   case SYMBOL_UNARY_OP_999: Base::shift_and_goto_state(26); break;
-   case SYMBOL_NATURAL_NUMBER: Base::shift_and_goto_state(27); break;
-   case SYMBOL_UNSIGNED_FLOAT: Base::shift_and_goto_state(28); break;
-  }
- }
-
- void state299() {
-  switch (lookahead().ordinal()) {
-   case SYMBOL_BIN_OP_1000:
-   case SYMBOL_BIN_OP_1200:
-   case SYMBOL_BIN_OP_999:
-   case SYMBOL_COMMA:
-   case SYMBOL_FULL_STOP:
-    Base::push(Base::lookahead().ordinal(), Base::reduce_term_0__list(Base::args(1)));
-    break;
-  }
- }
-
- void state300() {
-  switch (lookahead().ordinal()) {
-   case SYMBOL_NAME: Base::shift_and_goto_state(1); break;
-   case SYMBOL_ATOM: Base::shift_and_goto_state(2); break;
-   case SYMBOL_NUMBER: Base::shift_and_goto_state(3); break;
-   case SYMBOL_NAME_LPAREN: Base::shift_and_goto_state(4); break;
-   case SYMBOL_LBRACKET: Base::shift_and_goto_state(5); break;
-   case SYMBOL_SIGN: Base::shift_and_goto_state(6); break;
-   case SYMBOL_UNSIGNED_NUMBER: Base::shift_and_goto_state(7); break;
-   case SYMBOL_MINUS: Base::shift_and_goto_state(8); break;
-   case SYMBOL_PLUS: Base::shift_and_goto_state(9); break;
-   case SYMBOL_TERM_1000: Base::shift_and_goto_state(131); break;
-   case SYMBOL_TERM_1200: Base::shift_and_goto_state(132); break;
-   case SYMBOL_TERM_0: Base::shift_and_goto_state(12); break;
-   case SYMBOL_TERM_999: Base::shift_and_goto_state(13); break;
-   case SYMBOL_CONSTANT: Base::shift_and_goto_state(14); break;
-   case SYMBOL_FUNCTOR_LPAREN: Base::shift_and_goto_state(15); break;
-   case SYMBOL_LBRACE: Base::shift_and_goto_state(16); break;
-   case SYMBOL_LIST: Base::shift_and_goto_state(17); break;
-   case SYMBOL_LPAREN: Base::shift_and_goto_state(18); break;
-   case SYMBOL_STRING: Base::shift_and_goto_state(19); break;
-   case SYMBOL_VARIABLE: Base::shift_and_goto_state(20); break;
-   case SYMBOL_SUBTERM_1000: Base::shift_and_goto_state(133); break;
-   case SYMBOL_UNARY_OP_1000: Base::shift_and_goto_state(134); break;
-   case SYMBOL_SUBTERM_1200: Base::shift_and_goto_state(316); break;
-   case SYMBOL_UNARY_OP_1200: Base::shift_and_goto_state(136); break;
-   case SYMBOL_SUBTERM_999: Base::shift_and_goto_state(137); break;
-   case SYMBOL_UNARY_OP_999: Base::shift_and_goto_state(26); break;
-   case SYMBOL_NATURAL_NUMBER: Base::shift_and_goto_state(27); break;
-   case SYMBOL_UNSIGNED_FLOAT: Base::shift_and_goto_state(28); break;
-  }
- }
-
- void state301() {
-  switch (lookahead().ordinal()) {
-   case SYMBOL_BIN_OP_1000:
-   case SYMBOL_BIN_OP_1200:
-   case SYMBOL_BIN_OP_999:
-   case SYMBOL_COMMA:
-   case SYMBOL_FULL_STOP:
-    Base::push(Base::lookahead().ordinal(), Base::reduce_term_0__string(Base::args(1)));
-    break;
-  }
- }
-
- void state302() {
-  switch (lookahead().ordinal()) {
-   case SYMBOL_BIN_OP_1000:
-   case SYMBOL_BIN_OP_1200:
-   case SYMBOL_BIN_OP_999:
-   case SYMBOL_COMMA:
-   case SYMBOL_FULL_STOP:
-    Base::push(Base::lookahead().ordinal(), Base::reduce_term_0__variable(Base::args(1)));
-    break;
-  }
- }
-
- void state303() {
-  switch (lookahead().ordinal()) {
-   case SYMBOL_BIN_OP_1000:
-   case SYMBOL_BIN_OP_1200:
-   case SYMBOL_BIN_OP_999:
-   case SYMBOL_COMMA:
-   case SYMBOL_FULL_STOP:
-    Base::push(Base::lookahead().ordinal(), Base::reduce_term_999__subterm_999_bin_op_999_subterm_999(Base::args(3)));
-    break;
-  }
- }
-
- void state304() {
-  switch (lookahead().ordinal()) {
-   case SYMBOL_BIN_OP_1000:
-   case SYMBOL_BIN_OP_1200:
-   case SYMBOL_BIN_OP_999:
-   case SYMBOL_COMMA:
-   case SYMBOL_FULL_STOP:
-    Base::push(Base::lookahead().ordinal(), Base::reduce_unsigned_number__natural_number(Base::args(1)));
-    break;
-  }
- }
-
- void state305() {
-  switch (lookahead().ordinal()) {
-   case SYMBOL_BIN_OP_1000:
-   case SYMBOL_BIN_OP_1200:
-   case SYMBOL_BIN_OP_999:
-   case SYMBOL_COMMA:
-   case SYMBOL_FULL_STOP:
-    Base::push(Base::lookahead().ordinal(), Base::reduce_unsigned_number__unsigned_float(Base::args(1)));
-    break;
-  }
- }
-
- void state306() {
-  switch (lookahead().ordinal()) {
-   case SYMBOL_RBRACKET: Base::shift_and_goto_state(308); break;
-  }
- }
-
- void state307() {
-  switch (lookahead().ordinal()) {
-   case SYMBOL_BIN_OP_1000:
-   case SYMBOL_BIN_OP_1200:
-   case SYMBOL_BIN_OP_999:
-   case SYMBOL_COMMA:
-   case SYMBOL_FULL_STOP:
-    Base::push(Base::lookahead().ordinal(), Base::reduce_list__lbracket_rbracket(Base::args(2)));
-    break;
-  }
- }
-
- void state308() {
-  switch (lookahead().ordinal()) {
-   case SYMBOL_BIN_OP_1000:
-   case SYMBOL_BIN_OP_1200:
-   case SYMBOL_BIN_OP_999:
-   case SYMBOL_COMMA:
-   case SYMBOL_FULL_STOP:
-    Base::push(Base::lookahead().ordinal(), Base::reduce_list__lbracket_listexpr_rbracket(Base::args(3)));
-    break;
-  }
- }
-
- void state309() {
-  switch (lookahead().ordinal()) {
-   case SYMBOL_BIN_OP_1000:
-   case SYMBOL_BIN_OP_1200:
-   case SYMBOL_BIN_OP_999:
-   case SYMBOL_COMMA:
-   case SYMBOL_FULL_STOP:
-    Base::push(Base::lookahead().ordinal(), Base::reduce_number__sign_inf(Base::args(2)));
-    break;
-  }
- }
-
- void state310() {
-  switch (lookahead().ordinal()) {
-   case SYMBOL_BIN_OP_1000:
-   case SYMBOL_BIN_OP_1200:
-   case SYMBOL_BIN_OP_999:
-   case SYMBOL_COMMA:
-   case SYMBOL_FULL_STOP:
-    Base::push(Base::lookahead().ordinal(), Base::reduce_number__sign_nan(Base::args(2)));
-    break;
-  }
- }
-
- void state311() {
-  switch (lookahead().ordinal()) {
-   case SYMBOL_BIN_OP_1000:
-   case SYMBOL_BIN_OP_1200:
-   case SYMBOL_BIN_OP_999:
-   case SYMBOL_COMMA:
-   case SYMBOL_FULL_STOP:
-    Base::push(Base::lookahead().ordinal(), Base::reduce_number__sign_unsigned_number(Base::args(2)));
-    break;
-  }
- }
-
- void state312() {
-  switch (lookahead().ordinal()) {
-   case SYMBOL_RPAREN: Base::shift_and_goto_state(313); break;
-  }
- }
-
- void state313() {
-  switch (lookahead().ordinal()) {
-   case SYMBOL_BIN_OP_1000:
-   case SYMBOL_BIN_OP_1200:
-   case SYMBOL_BIN_OP_999:
-   case SYMBOL_COMMA:
-   case SYMBOL_FULL_STOP:
-    Base::push(Base::lookahead().ordinal(), Base::reduce_term_0__functor_lparen_arguments_rparen(Base::args(3)));
-    break;
-  }
- }
-
- void state314() {
-  switch (lookahead().ordinal()) {
-   case SYMBOL_RBRACE: Base::shift_and_goto_state(315); break;
-   case SYMBOL_BIN_OP_1200: Base::shift_and_goto_state(129); break;
-  }
- }
-
- void state315() {
-  switch (lookahead().ordinal()) {
-   case SYMBOL_BIN_OP_1000:
-   case SYMBOL_BIN_OP_1200:
-   case SYMBOL_BIN_OP_999:
-   case SYMBOL_COMMA:
-   case SYMBOL_FULL_STOP:
-    Base::push(Base::lookahead().ordinal(), Base::reduce_term_0__lbrace_subterm_1200_rbrace(Base::args(3)));
-    break;
-  }
- }
-
- void state316() {
-  switch (lookahead().ordinal()) {
-   case SYMBOL_RPAREN: Base::shift_and_goto_state(317); break;
-   case SYMBOL_BIN_OP_1200: Base::shift_and_goto_state(177); break;
-  }
- }
-
- void state317() {
-  switch (lookahead().ordinal()) {
-   case SYMBOL_BIN_OP_1000:
-   case SYMBOL_BIN_OP_1200:
-   case SYMBOL_BIN_OP_999:
-   case SYMBOL_COMMA:
-   case SYMBOL_FULL_STOP:
-    Base::push(Base::lookahead().ordinal(), Base::reduce_term_0__lparen_subterm_1200_rparen(Base::args(3)));
-    break;
-  }
- }
-
- void state318() {
-  switch (lookahead().ordinal()) {
-   case SYMBOL_BIN_OP_1000:
-   case SYMBOL_BIN_OP_1200:
-   case SYMBOL_BIN_OP_999:
-   case SYMBOL_COMMA:
-   case SYMBOL_FULL_STOP:
-    Base::push(Base::lookahead().ordinal(), Base::reduce_term_999__unary_op_999_subterm_999(Base::args(2)));
-    break;
-  }
- }
-
- void state319() {
+ void state257() {
   switch (lookahead().ordinal()) {
    case SYMBOL_BIN_OP_1000:
    case SYMBOL_BIN_OP_1200:
@@ -4841,14 +4022,14 @@ template<typename Base, typename... Args> class term_parser_gen : public Base {
   }
  }
 
- void state320() {
+ void state258() {
   switch (lookahead().ordinal()) {
     Base::push(Base::lookahead().ordinal(), Base::reduce_start__subterm_1200_full_stop(Base::args(2)));
     break;
   }
  }
 
- void state321() {
+ void state259() {
   switch (lookahead().ordinal()) {
    case SYMBOL_NAME: Base::shift_and_goto_state(1); break;
    case SYMBOL_ATOM: Base::shift_and_goto_state(2); break;
@@ -4873,7 +4054,7 @@ template<typename Base, typename... Args> class term_parser_gen : public Base {
    case SYMBOL_SUBTERM_1000: Base::shift_and_goto_state(21); break;
    case SYMBOL_UNARY_OP_1000: Base::shift_and_goto_state(22); break;
    case SYMBOL_UNARY_OP_1200: Base::shift_and_goto_state(24); break;
-   case SYMBOL_SUBTERM_1200: Base::shift_and_goto_state(322); break;
+   case SYMBOL_SUBTERM_1200: Base::shift_and_goto_state(260); break;
    case SYMBOL_SUBTERM_999: Base::shift_and_goto_state(25); break;
    case SYMBOL_UNARY_OP_999: Base::shift_and_goto_state(26); break;
    case SYMBOL_NATURAL_NUMBER: Base::shift_and_goto_state(27); break;
@@ -4881,7 +4062,7 @@ template<typename Base, typename... Args> class term_parser_gen : public Base {
   }
  }
 
- void state322() {
+ void state260() {
   switch (lookahead().ordinal()) {
    case SYMBOL_BIN_OP_1200:
    case SYMBOL_FULL_STOP:
@@ -4890,7 +4071,7 @@ template<typename Base, typename... Args> class term_parser_gen : public Base {
   }
  }
 
- void state323() {
+ void state261() {
   switch (lookahead().ordinal()) {
    case SYMBOL_BIN_OP_1200:
    case SYMBOL_FULL_STOP:
@@ -4899,11 +4080,116 @@ template<typename Base, typename... Args> class term_parser_gen : public Base {
   }
  }
 
- void state324() {
+ void state262() {
+  switch (lookahead().ordinal()) {
+   case SYMBOL_NAME: Base::shift_and_goto_state(1); break;
+   case SYMBOL_ATOM: Base::shift_and_goto_state(2); break;
+   case SYMBOL_NUMBER: Base::shift_and_goto_state(3); break;
+   case SYMBOL_NAME_LPAREN: Base::shift_and_goto_state(4); break;
+   case SYMBOL_LBRACKET: Base::shift_and_goto_state(5); break;
+   case SYMBOL_SIGN: Base::shift_and_goto_state(6); break;
+   case SYMBOL_UNSIGNED_NUMBER: Base::shift_and_goto_state(7); break;
+   case SYMBOL_MINUS: Base::shift_and_goto_state(8); break;
+   case SYMBOL_PLUS: Base::shift_and_goto_state(9); break;
+   case SYMBOL_TERM_1000: Base::shift_and_goto_state(253); break;
+   case SYMBOL_TERM_0: Base::shift_and_goto_state(254); break;
+   case SYMBOL_TERM_999: Base::shift_and_goto_state(255); break;
+   case SYMBOL_CONSTANT: Base::shift_and_goto_state(14); break;
+   case SYMBOL_FUNCTOR_LPAREN: Base::shift_and_goto_state(15); break;
+   case SYMBOL_LBRACE: Base::shift_and_goto_state(16); break;
+   case SYMBOL_LIST: Base::shift_and_goto_state(17); break;
+   case SYMBOL_LPAREN: Base::shift_and_goto_state(18); break;
+   case SYMBOL_STRING: Base::shift_and_goto_state(19); break;
+   case SYMBOL_VARIABLE: Base::shift_and_goto_state(20); break;
+   case SYMBOL_UNARY_OP_1000: Base::shift_and_goto_state(22); break;
+   case SYMBOL_SUBTERM_1000: Base::shift_and_goto_state(264); break;
+   case SYMBOL_SUBTERM_999: Base::shift_and_goto_state(25); break;
+   case SYMBOL_UNARY_OP_999: Base::shift_and_goto_state(26); break;
+   case SYMBOL_NATURAL_NUMBER: Base::shift_and_goto_state(27); break;
+   case SYMBOL_UNSIGNED_FLOAT: Base::shift_and_goto_state(28); break;
+  }
+ }
+
+ void state263() {
+  switch (lookahead().ordinal()) {
+   case SYMBOL_NAME: Base::shift_and_goto_state(1); break;
+   case SYMBOL_ATOM: Base::shift_and_goto_state(2); break;
+   case SYMBOL_NUMBER: Base::shift_and_goto_state(3); break;
+   case SYMBOL_NAME_LPAREN: Base::shift_and_goto_state(4); break;
+   case SYMBOL_LBRACKET: Base::shift_and_goto_state(5); break;
+   case SYMBOL_SIGN: Base::shift_and_goto_state(6); break;
+   case SYMBOL_UNSIGNED_NUMBER: Base::shift_and_goto_state(7); break;
+   case SYMBOL_MINUS: Base::shift_and_goto_state(8); break;
+   case SYMBOL_PLUS: Base::shift_and_goto_state(9); break;
+   case SYMBOL_TERM_0: Base::shift_and_goto_state(265); break;
+   case SYMBOL_TERM_999: Base::shift_and_goto_state(266); break;
+   case SYMBOL_CONSTANT: Base::shift_and_goto_state(14); break;
+   case SYMBOL_FUNCTOR_LPAREN: Base::shift_and_goto_state(15); break;
+   case SYMBOL_LBRACE: Base::shift_and_goto_state(16); break;
+   case SYMBOL_LIST: Base::shift_and_goto_state(17); break;
+   case SYMBOL_LPAREN: Base::shift_and_goto_state(18); break;
+   case SYMBOL_STRING: Base::shift_and_goto_state(19); break;
+   case SYMBOL_VARIABLE: Base::shift_and_goto_state(20); break;
+   case SYMBOL_UNARY_OP_999: Base::shift_and_goto_state(26); break;
+   case SYMBOL_SUBTERM_999: Base::shift_and_goto_state(267); break;
+   case SYMBOL_NATURAL_NUMBER: Base::shift_and_goto_state(27); break;
+   case SYMBOL_UNSIGNED_FLOAT: Base::shift_and_goto_state(28); break;
+  }
+ }
+
+ void state264() {
   switch (lookahead().ordinal()) {
    case SYMBOL_BIN_OP_1000:
+   case SYMBOL_BIN_OP_1200:
+   case SYMBOL_FULL_STOP:
+    Base::push(Base::lookahead().ordinal(), Base::reduce_term_1000__subterm_999_comma_subterm_1000(Base::args(3)));
+    break;
+  }
+ }
+
+ void state265() {
+  switch (lookahead().ordinal()) {
+   case SYMBOL_BIN_OP_1000:
+   case SYMBOL_BIN_OP_1200:
    case SYMBOL_BIN_OP_999:
    case SYMBOL_COMMA:
+   case SYMBOL_FULL_STOP:
+    Base::push(Base::lookahead().ordinal(), Base::reduce_subterm_999__term_0(Base::args(1)));
+    break;
+  }
+ }
+
+ void state266() {
+  switch (lookahead().ordinal()) {
+   case SYMBOL_BIN_OP_1000:
+   case SYMBOL_BIN_OP_1200:
+   case SYMBOL_BIN_OP_999:
+   case SYMBOL_COMMA:
+   case SYMBOL_FULL_STOP:
+    Base::push(Base::lookahead().ordinal(), Base::reduce_subterm_999__term_999(Base::args(1)));
+    break;
+  }
+ }
+
+ void state267() {
+  switch (lookahead().ordinal()) {
+   case SYMBOL_BIN_OP_1000:
+   case SYMBOL_BIN_OP_1200:
+   case SYMBOL_BIN_OP_999:
+   case SYMBOL_COMMA:
+   case SYMBOL_FULL_STOP:
+    Base::push(Base::lookahead().ordinal(), Base::reduce_term_999__subterm_999_bin_op_999_subterm_999(Base::args(3)));
+    break;
+  }
+ }
+
+ void state268() {
+  switch (lookahead().ordinal()) {
+   case SYMBOL_BIN_OP_1000:
+   case SYMBOL_BIN_OP_1200:
+   case SYMBOL_BIN_OP_999:
+   case SYMBOL_COMMA:
+   case SYMBOL_FULL_STOP:
     Base::push(Base::lookahead().ordinal(), Base::reduce_term_999__unary_op_999_subterm_999(Base::args(2)));
     break;
   }

@@ -118,6 +118,16 @@ protected:
     return ext<cell>();
   }
 
+  ext<cell> reduce_subterm_1200__term_999(args_t &args)
+  {
+    return ext<cell>();
+  }
+
+  ext<cell> reduce_subterm_1200__term_0(args_t &args)
+  {
+    return ext<cell>();
+  }
+
   // subterm_1000 :- ...
 
   ext<cell> reduce_subterm_1000__term_1000(args_t &args)
@@ -126,6 +136,11 @@ protected:
   }
 
   ext<cell> reduce_subterm_1000__term_999(args_t &args)
+  {
+    return ext<cell>();
+  }
+
+  ext<cell> reduce_subterm_1000__term_0(args_t &args)
   {
     return ext<cell>();
   }
