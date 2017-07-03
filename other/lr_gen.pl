@@ -20,36 +20,20 @@
 %    code that better fits with the rest of the code.
 %
 
-%
-% TODO:
-%
-% What remains for the state machine:
-%
-% We need to collapse items where only lookaheads are different.
-% Also we'd like to collapse even when the heads differ in the
-% case of f(N) and f('<'(N)). This will bring us closer to LALR(1)
-% (instead of LR(1)). Should reduce both conflicts and number of
-% states.
-%
-%
-
-test :-
+main :-
     (retract(log_cnt(_)) ; true),
     assert(log_cnt(0)),
     !,
-    read_grammar(G),
-	StartItem = [(start :- 'DOT', subterm_1200, full_stop)],
-	Start = state(0, StartItem, []),
-	states(G, Start, States),
-	tell('states.txt'),
-	print_states(States),
-	told,
-
-%    tell('debug.txt'),
-%    closure(G, [(start :- 'DOT', subterm_1200, full_stop)], Closure),
-%    print_closure(Closure),
-%    told,
-    true.
+    read_grammar_and_properties('term_grammar.pl', G),
+    extract_properties(G, Properties, Grammar),
+    StartItem = [(start :- 'DOT', subterm_1200, full_stop)],
+    Start = state(0, StartItem, []),
+    states(Grammar, Start, States),
+    resolve_conflicts(States, Properties, NewStates),
+    emit(Grammar, Properties, NewStates),
+    tell('states.txt'),
+    print_states(NewStates),
+    told.
 
 %
 % read_grammar(-G)
@@ -57,8 +41,8 @@ test :-
 % Read grammar from prolog_grammar.pl. Return list of clauses
 % (represented as terms) in G.
 %
-read_grammar(G) :-
-    open('prolog_grammar2.pl', read, F),
+read_grammar_and_properties(FileName, G) :-
+    open(FileName, read, F),
     read_clauses(F,G),
     close(F),
     !.
@@ -70,6 +54,240 @@ read_clauses(F, Cs) :-
        ; Cs = [C|Cs1], read_clauses(F, Cs1)
 	).
 
+extract_properties([], [], []).
+extract_properties([(Head :- Body)|Gs], Properties, [(Head :- Body)|Grammar]):-
+    extract_properties(Gs, Properties, Grammar).
+extract_properties([property(A,B)|Gs], [property(A,B)|Properties], Grammar) :-
+    extract_properties(Gs, Properties, Grammar).
+
+get_property(Properties, Name, Value) :-
+    member(property(Name, Value), Properties), !.
+
+%
+% Emit states
+%
+
+emit(Grammar, Properties, States) :-
+    get_property(Properties, filename, FileName),
+    tell(FileName),
+    emit_begin(Grammar, Properties, States),
+    emit_states(States, Properties),
+    emit_end(Properties),
+    told,
+    true.
+
+emit_begin(Grammar, Properties, States) :-
+    get_property(Properties, namespace, NameSpace),
+    emit_namespace_begin(NameSpace),
+    nl, nl,
+    all_symbols(Grammar, States, Symbols),
+    emit_symbols_enum(Symbols),
+    write('template<typename Base, typename... Args> class '),
+    get_property(Properties, classname, ClassName),
+    write(ClassName), write(' : public Base {'), nl,
+    i1, write('protected:'), nl, nl,
+    i1, write('term_parser_gen(Args&... args) : Base(args...) { }'), nl, nl,
+    emit_process_state(States).
+
+emit_symbols_enum(Symbols) :-
+    i1, write('enum symbol_t {'), nl,
+    emit_symbols_enum_body([sym(unknown,unknown,0)|Symbols]),
+    i1, write('};'), nl, nl.
+
+emit_symbols_enum_body([]).
+emit_symbols_enum_body([sym(Type,Name,Ordinal)|Syms]) :-
+    emit_symbols_enum_name(Name,Type,Ordinal),
+    (Syms = [_|_] -> write(',') ; true), !,
+    nl,
+    emit_symbols_enum_body(Syms).
+
+emit_symbols_enum_name(Name, _Type, Ordinal) :-
+    i2, emit_symbol(Name), write(' = '), write(Ordinal).
+
+emit_process_state(States) :-
+    i1, write('void process_state() {'), nl,
+    i2, write('switch (Base::current_state()) {'), nl,
+    length(States, NumStates),
+    emit_process_state_case(0, NumStates),
+    i2, write('}'),
+    i1, write('}'), nl, nl.
+
+emit_process_state_case(Num, Num) :- !.
+emit_process_state_case(N, Num) :-
+    i3, write('case '), write(N), write(': '),
+    write('state'), write(N), write('(); break;'), nl,
+    N1 is N + 1,
+    emit_process_state_case(N1, Num).
+
+emit_end(Properties) :-
+    write('};'), nl, nl,
+    get_property(Properties, namespace, NameSpace),
+    emit_namespace_end(NameSpace),
+    nl.
+
+emit_namespace_begin([]).
+emit_namespace_begin([N|Ns]) :-
+    write('namespace '), write(N), write(' { '),
+    emit_namespace_begin(Ns).
+
+emit_namespace_end([]).
+emit_namespace_end([_|Ns]) :-
+    write('} '),
+    emit_namespace_end(Ns).
+
+emit_states([], _).
+emit_states([State | States], Properties) :-
+    emit_state(State, Properties),
+    emit_states(States, Properties).
+
+i1 :- write(' ').
+i2 :- i1, i1.
+i3 :- i1, i1, i1.
+i4 :- i2, i2.
+
+emit_state(state(N, _, Actions), _Properties) :-
+    i1, write('void state'), write(N), write('() {'), nl,
+    i2, write('switch (lookahead().ordinal()) {'), nl,
+    emit_shift_actions(Actions),
+    emit_reduce_actions(Actions),
+    i2, write('}'), nl,
+    i1, write('}'),
+    nl, nl.
+
+emit_shift_actions([shift(Symbol, N)|Actions]) :-
+    !, i3, write('case '), emit_symbol(Symbol), write(': '),
+    write('Base::shift_and_goto_state('), write(N), write('); break;'), nl,
+    emit_shift_actions(Actions).
+emit_shift_actions([_|Actions]) :-
+    emit_shift_actions(Actions).
+emit_shift_actions([]).
+
+emit_reduce_actions([reduce(Symbols,(Head:-Body))|Actions]) :-
+    !, emit_cases(Symbols),
+    i4,
+    length_body(Body,Num),
+    write('Base::push(Base::lookahead().ordinal(), '),
+    write('Base::reduce_'), emit_tokenize_rule((Head:-Body)),
+    write('(Base::args('), write(Num), write(')));'), nl,
+    i4, write('break;'), nl,
+    emit_reduce_actions(Actions).
+emit_reduce_actions([_|Actions]) :-
+    emit_reduce_actions(Actions).
+emit_reduce_actions([]).
+
+length_body((_,B), N) :-
+    !,
+    length_body(B, N1),
+    N is N1 + 1.
+length_body(_, 1).
+
+emit_cases([]).
+emit_cases([Symbol|Symbols]) :-
+    i3, write('case '), emit_symbol(Symbol), write(':'), nl,
+    emit_cases(Symbols).
+
+emit_tokenize_rule((Head:-Body)) :-
+    body_to_list(Body,List),
+    write(Head),
+    write('__'),
+    emit_tokenize_rule_list(List).
+
+emit_tokenize_rule_list([]).
+emit_tokenize_rule_list([X1,X2|Xs]) :-
+    write(X1),
+    write('_'),
+    !,
+    emit_tokenize_rule_list([X2|Xs]).
+emit_tokenize_rule_list([X|Xs]) :-
+    write(X),
+    emit_tokenize_rule_list(Xs).
+
+emit_symbol(Symbol) :-
+    atom_string(Symbol, Str),
+    string_upper(Str, Upper),
+    write('SYMBOL_'),
+    write(Upper).
+
+body_to_list((A,B), [A|L]) :-
+    !, body_to_list(B, L).
+body_to_list(X, [X]).
+
+%
+% Get all symbols
+%
+
+all_symbols(Grammar, States, Symbols) :-
+    all_symbols_states(States, Syms),
+    sort(Syms, UniqueSyms),
+    partition_symbols(UniqueSyms, Grammar, Symbols1),
+    sort(Symbols1, Symbols),
+    symbol_ordinals(Symbols, nt, 1),
+    symbol_ordinals(Symbols, t, 1000).
+
+symbol_ordinals([],_,_).
+symbol_ordinals([sym(Type,_,Ordinal)|Syms],Type,Ordinal) :-
+    !, Ordinal1 is Ordinal + 1,
+    symbol_ordinals(Syms, Type, Ordinal1).
+symbol_ordinals([_|Syms],Type,Ordinal) :-
+    symbol_ordinals(Syms, Type, Ordinal).
+
+partition_symbols([], _, []).
+partition_symbols([S|Symbols], Grammar, [sym(Type,S,_)|Partitioned]) :-
+    (terminal(Grammar, S) -> Type = t ; Type = nt), !,
+    partition_symbols(Symbols, Grammar, Partitioned).
+
+all_symbols_states([], []).
+all_symbols_states([state(_N, _, Actions)|States], Symbols) :-
+    all_symbols_actions(Actions, S),
+    append(S, Symbols1, Symbols),
+    all_symbols_states(States, Symbols1).
+
+all_symbols_actions([shift(S,_)|Actions], [S|Symbols]) :-
+    !, all_symbols_actions(Actions, Symbols).
+all_symbols_actions([reduce(S,_)|Actions], Symbols) :-
+    !,
+    append(S, Symbols1, Symbols),
+    all_symbols_actions(Actions, Symbols1).
+    
+all_symbols_actions([], []).
+
+%
+% Resolve conflicts
+%
+
+resolve_conflicts([], _Properties, []).
+resolve_conflicts([State|States], Properties, [NewState|NewStates]) :-
+    resolve_conflicts_state(State, Properties, NewState),
+    resolve_conflicts(States, Properties, NewStates).
+
+resolve_conflicts_state(state(N, KernelItems, Actions),
+			Properties,
+			state(N, KernelItems, NewActions)) :-
+    resolve_conflicts_actions(Actions, Properties, NewActions).
+
+resolve_conflicts_actions(Actions, Properties, NewActions) :-
+    action_syms(Actions, ShiftSyms, ReduceSyms),
+    get_property(Properties, prefer, Prefer),
+    (Prefer = shift ->
+	 filter_actions(Actions, shift, ShiftSyms, NewActions)
+       ; filter_actions(Actions, reduce, ReduceSyms, NewActions)
+    ), !.
+
+
+filter_actions([], _, _, []).
+filter_actions([shift(Sym,N)|Actions], Prefer, ExcludedSyms,
+	       [shift(Sym,N)|NewActions]) :-
+    (Prefer = reduce, \+ member(Sym, ExcludedSyms) ;
+     Prefer = shift), !,
+    filter_actions(Actions, Prefer, ExcludedSyms, NewActions).
+filter_actions([reduce(Sym,Rule)|Actions], Prefer, ExcludedSyms,
+	       [reduce(Sym,Rule)|NewActions]) :-
+    (Prefer = shift, \+ member(Sym, ExcludedSyms) ;
+     Prefer = reduce), !,
+    filter_actions(Actions, Prefer, ExcludedSyms, NewActions).
+filter_actions([_|Actions], Prefer, ExcludedSyms, NewActions) :-
+    filter_actions(Actions, Prefer, ExcludedSyms, NewActions).
+	      
 %
 % Pretty print states
 %
@@ -117,11 +335,14 @@ print_reduce([LA|LAs],Rule) :-
 print_reduce([],_).
 
 print_check_actions(Actions) :-
+    action_syms(Actions, ShiftSyms, ReduceSyms),
+    append(ShiftSyms, ReduceSyms, AllSyms),
+    print_check_syms(AllSyms).
+
+action_syms(Actions, ShiftSyms, ReduceSyms) :-
 	findall(Sym, member(shift(Sym,_), Actions), ShiftSyms),
 	findall(SymsList, member(reduce(SymsList,_), Actions), ReduceSymsList),
-	flatten(ReduceSymsList, ReduceSyms),
-	append(ShiftSyms, ReduceSyms, AllSyms),
-	print_check_syms(AllSyms).
+	flatten(ReduceSymsList, ReduceSyms).
 
 print_check_syms([]).
 print_check_syms([Sym|Syms]) :-

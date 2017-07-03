@@ -26,52 +26,19 @@ public:
 
     void process_next();
 
+    inline term_tokenizer & tokenizer() { return tokenizer_; }
+
 private:
     typedef term_tokenizer::token token;
 
     void shift(const token &t);
-    void reduce_to_functor();
-    void reduce_to_constant();
-    void reduce_to_string();
-    void reduce_to_variable();
-    void reduce_to_unsigned_number();
-    void reduce_to_number();
-    void reduce_to_term0();
 
     term_tokenizer &tokenizer_;
     heap &heap_;
     term_ops &ops_;
     bool debug_;
 
-    struct grammar_item {
-
-	enum item_type { UNKNOWN,
-			 TERMINAL,
-			 NT_ATOM,
-			 NT_FUNCTOR,
-			 NT_UNSIGNED_NUMBER,
-			 NT_NUMBER,
-			 NT_CONSTANT,
-			 NT_LISTEXPR,
-			 NT_LIST,
-			 NT_STRING,
-			 NT_VARIABLE,
-			 NT_ARGUMENTS,
-			 NT_OP,
-			 NT_TERM,
-			 NT_SUBTERM
-	               } type_;
-
-	grammar_item();
-	grammar_item(const token &t);
-	grammar_item(item_type ty, const ext<cell> &nt);
-	token terminal_;
-	ext<cell> non_terminal_;
-	int precedence_;
-    };
-
     size_t state_;
-    std::vector<grammar_item> stack_;
 };
 
 }}
