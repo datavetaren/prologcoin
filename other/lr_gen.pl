@@ -35,13 +35,13 @@
 
 test :-
 	read_grammar(G),
-	StartItem = [(start :- 'DOT', subterm(1200), full_stop)],
+	StartItem = [(start :- 'DOT', subterm_1200, full_stop)],
 	Start = state(0, StartItem, []),
 	states(G, Start, States),
 	tell('states.txt'),
 	print_states(States),
 	told,
-%    closure(G, [(start :- 'DOT', subterm(10000), full_stop)], Closure),
+%    closure(G, StartItem, Closure),
 %    print_closure(Closure),
     true.
 %    lookahead(G, (start :- 'DOT', subterm(_), full_stop), Q).
@@ -53,7 +53,7 @@ test :-
 % (represented as terms) in G.
 %
 read_grammar(G) :-
-    open('prolog_grammar.pl', read, F),
+    open('prolog_grammar2.pl', read, F),
     read_clauses(F,G),
     close(F).
 
