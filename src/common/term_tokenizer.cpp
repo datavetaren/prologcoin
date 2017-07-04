@@ -632,6 +632,12 @@ const term_tokenizer::token & term_tokenizer::peek_token()
     return current_;
 }
 
+void term_tokenizer::consume_token()
+{
+    peek_token();
+    clear_token();
+}
+
 void term_tokenizer::clear_token()
 {
     current_.type_ = TOKEN_UNKNOWN;

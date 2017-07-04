@@ -24,14 +24,13 @@ static void test_simple_parse()
     term_ops ops;
     term_tokenizer tokenizer(ss);
     term_parser parser(tokenizer, h, ops);
-    parser.set_debug(true);
 
-    /*
+    //    parser.set_debug(true);
+
     parser.process_next();
     parser.process_next();
     parser.process_next();
     parser.process_next();
-    */
 }
 
 int main( int argc, char *argv[] )

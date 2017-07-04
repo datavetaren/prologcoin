@@ -3,12 +3,24 @@
 #ifndef _common_term_parser_hpp
 #define _common_term_parser_hpp
 
+#include <memory>
 #include <vector>
 #include "term.hpp"
 #include "term_ops.hpp"
 #include "term_tokenizer.hpp"
 
 namespace prologcoin { namespace common {
+
+class token_exception_unrecognized_operator : public ::std::runtime_error
+{
+public:
+    token_exception_unrecognized_operator(const token_position &pos, const std::string &msg) : ::std::runtime_error(msg), pos_(pos) { }
+
+    const token_position & pos() const { return pos_; }
+
+private:
+    token_position pos_;
+};
 
 //
 // term_parser
@@ -18,27 +30,17 @@ namespace prologcoin { namespace common {
 // XXX: Parked this for now. I'll finish the (LA)LR state machine generator
 //      in Prolog first.
 //
+class term_parser_impl;
+
 class term_parser {
 public:
     term_parser(term_tokenizer &tokenizer, heap &h, term_ops &ops);
-
-    void set_debug(bool d);
+    ~term_parser();
 
     void process_next();
 
-    inline term_tokenizer & tokenizer() { return tokenizer_; }
-
 private:
-    typedef term_tokenizer::token token;
-
-    void shift(const token &t);
-
-    term_tokenizer &tokenizer_;
-    heap &heap_;
-    term_ops &ops_;
-    bool debug_;
-
-    size_t state_;
+    term_parser_impl *impl_;
 };
 
 }}

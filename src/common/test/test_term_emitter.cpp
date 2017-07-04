@@ -58,15 +58,15 @@ static size_t my_rand(size_t bound)
     return state % bound;
 }
 
-static cell new_term(heap &heap, size_t max_depth, size_t depth = 0)
+static ext<cell> new_term(heap &heap, size_t max_depth, size_t depth = 0)
 {
     size_t arity = (depth >= max_depth) ? 0 : my_rand(6);
     char functorName[2];
     functorName[0] = 'a' + (char)arity;
     functorName[1] = '\0';
-    str_cell str = heap.new_str(con_cell(functorName, arity));
+    auto str = heap.new_str(con_cell(functorName, arity));
     for (size_t j = 0; j < arity; j++) {
-	cell arg = new_term(heap, max_depth, depth+1);
+	auto arg = new_term(heap, max_depth, depth+1);
 	heap.set_arg(str, j, arg);
     }
     return str;
@@ -197,29 +197,29 @@ static void test_ops()
     con_cell pow_2("^", 2);
     con_cell minus_1("-", 1);
 
-    str_cell plus_expr = h.new_str(plus_2);
-    str_cell plus_expr1 = h.new_str(plus_2);
+    auto plus_expr = h.new_str(plus_2);
+    auto plus_expr1 = h.new_str(plus_2);
     h.set_arg(plus_expr1, 0, int_cell(1));
     h.set_arg(plus_expr1, 1, int_cell(2));
     h.set_arg(plus_expr, 0, plus_expr1);
     h.set_arg(plus_expr, 1, int_cell(3));
 
-    str_cell times_expr = h.new_str(times_2);
+    auto times_expr = h.new_str(times_2);
     h.set_arg(times_expr, 0, int_cell(42));
     h.set_arg(times_expr, 1, plus_expr);
 
-    str_cell mod_expr = h.new_str(mod_2);
+    auto mod_expr = h.new_str(mod_2);
     h.set_arg(mod_expr, 0, times_expr);
     h.set_arg(mod_expr, 1, int_cell(100));
 
-    str_cell pow_expr = h.new_str(pow_2);
+    auto pow_expr = h.new_str(pow_2);
     h.set_arg(pow_expr, 0, mod_expr);
     h.set_arg(pow_expr, 1, int_cell(123));
 
-    str_cell minus1_expr = h.new_str(minus_1);
+    auto minus1_expr = h.new_str(minus_1);
     h.set_arg(minus1_expr, 0, pow_expr);
 
-    str_cell minus1_expr1 = h.new_str(minus_1);
+    auto minus1_expr1 = h.new_str(minus_1);
     h.set_arg(minus1_expr1, 0, minus1_expr);
 
     emit.print(minus1_expr1);

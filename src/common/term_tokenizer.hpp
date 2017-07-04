@@ -197,6 +197,8 @@ public:
 
     const token & next_token();
     const token & peek_token();
+    void consume_token();
+
     void clear_token();
 
 private:

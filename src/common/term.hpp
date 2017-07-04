@@ -397,9 +397,6 @@ public:
 
     inline operator T & () { return static_cast<T &>(ptr_); }
 
-    inline operator ext<cell> & ()
-    { return static_cast<ext<cell> &>(*this); }
-
 private:
     inline void ext_register(const heap &h, cell *p);
     inline void ext_unregister(const heap &h, cell *p);
@@ -443,18 +440,20 @@ public:
 	return cc;
     }
 
-    inline ext<cell> arg(const str_cell &s, size_t index) const
+    inline ext<cell> arg(const cell &c, size_t index) const
     {
+        const str_cell &s = static_cast<const str_cell &>(c);
 	return ext<cell>(*this, get(s.index() + index + 1));
     }
 
-    void set_arg(const str_cell &s, size_t index, cell c)
+    void set_arg(cell &str, size_t index, cell c)
     {
+        str_cell &s = static_cast<str_cell &>(str);
 	size_t i = s.index() + index + 1;
 	(*this)[i] = c;
     }
 
-    inline ext<str_cell> new_str(con_cell con)
+    inline ext<cell> new_str(con_cell con)
     {
 	size_t index = size_;
 	size_t arity = con.arity();
@@ -464,15 +463,15 @@ public:
 	for (size_t i = 0; i < arity; i++) {
 	    p[i+2] = ref_cell(index+i+2);
 	}
-	return ext<str_cell>(*this, *p);
+	return ext<cell>(*this, *p);
     }
 
-    inline ext<ref_cell> new_ref()
+    inline ext<cell> new_ref()
     {
 	size_t index = size_;
 	cell *p = allocate(tag_t::REF, 1);
 	static_cast<ref_cell &>(*p).set_index(index);
-	return ext<ref_cell>(*this, *p);
+	return ext<cell>(*this, *p);
     }
 
     inline size_t external_ptr_count() const
