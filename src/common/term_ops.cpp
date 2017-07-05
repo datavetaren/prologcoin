@@ -68,7 +68,7 @@ term_ops::term_ops()
     op_none_.precedence = 0;
     op_none_.type = FX;
 
-    for (auto i = 0; i < sizeof(DEFAULT) / sizeof(op_entry); i++) {
+    for (auto i = std::size_t(0); i < sizeof(DEFAULT) / sizeof(op_entry); i++) {
 	const std::string &name = DEFAULT[i].name;
 	size_t precedence = DEFAULT[i].precedence;
 	size_t arity = DEFAULT[i].arity;
