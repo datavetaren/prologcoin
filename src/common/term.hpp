@@ -185,6 +185,12 @@ public:
 	: term_exception( std::string("Expected CON cell at index ") + boost::lexical_cast<std::string>(index) + "; was " + c.tag().str()) { }
 };
 
+class expected_str_cell_exception : public term_exception {
+public:
+    expected_str_cell_exception(cell c)
+      : term_exception( std::string("Expected STR cell; was " + c.tag().str())) { }
+};
+
 //
 // ptr_cell this is not a real cell, but any class that uses the upper
 // bits for referencing another cell is inheriting from this class:
@@ -413,7 +419,7 @@ private:
 
 class heap {
 public:
-    inline heap() : size_(0), external_ptrs_max_(0) { new_block(0); }
+    heap();
 
     inline size_t size() const { return size_; }
 
@@ -424,9 +430,24 @@ public:
 	}
     }
 
+    size_t list_length(const cell lst) const;
+
     inline con_cell atom(const std::string &name) const
     {
 	return con_cell(name, 0);
+    }
+
+    inline con_cell functor(const std::string &name, size_t arity)
+    {
+        return con_cell(name, arity);
+    }
+
+    inline con_cell functor(const cell &s) const
+    {
+        if (s.tag() != tag_t::STR) {
+	  throw expected_str_cell_exception(s);
+        }
+	return functor(static_cast<const str_cell &>(s));
     }
 
     inline con_cell functor(const str_cell &s) const
@@ -568,12 +589,17 @@ private:
         external_ptrs_.erase(p);
     }
 
+    bool check_functor(const cell c) const;
+
     typedef std::vector<std::unique_ptr<heap_block> >::iterator block_iterator;
 
     size_t size_;
     std::vector<std::unique_ptr<heap_block> > blocks_;
     mutable std::unordered_set<cell *> external_ptrs_;
     mutable size_t external_ptrs_max_;
+
+    con_cell empty_list_;
+    con_cell dotted_pair_;
 
     template<typename T> friend class ext;
 };

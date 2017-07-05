@@ -161,6 +161,7 @@ const std::string term_tokenizer::token::str() const
 {
     std::string s("token<");
     switch (type_) {
+    case TOKEN_EOF: s += "EOF"; break;
     case TOKEN_NAME: s += "NAME"; break;
     case TOKEN_NATURAL_NUMBER: s += "NATURAL_NUMBER"; break;
     case TOKEN_UNSIGNED_FLOAT: s += "UNSIGNED_FLOAT"; break;
@@ -579,6 +580,11 @@ const term_tokenizer::token & term_tokenizer::next_token()
 {
     current_.reset();
     current_.set_position(position_);
+
+    if (is_eof()) {
+        set_token_type(TOKEN_EOF);
+	return current_;
+    }
 
     if (is_comment_begin()) {
         set_token_type(TOKEN_LAYOUT_TEXT);

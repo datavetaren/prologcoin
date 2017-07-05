@@ -15,7 +15,10 @@ protected:
   term_tokenizer &tokenizer_;
   heap &heap_;
   term_ops &ops_;
+  bool is_debug_;
   std::unordered_map<std::string, symbol_t> predefined_symbols_;
+  cell empty_list_;
+  cell dotted_pair_;
 
   struct sym {
       sym()
@@ -58,10 +61,14 @@ protected:
 
   std::vector<sym> stack_;
   sym lookahead_;
+  sym old_lookahead_;
+
+  ext<cell> result_;
+  bool accept_;
 
   typedef std::vector<sym> args_t;
   args_t args_;
-  
+
   friend class term_parser_gen<term_parser_interim, term_tokenizer, heap, term_ops>;
 
 protected:
@@ -83,15 +90,31 @@ protected:
     return args_;
   }
 
-  void push( symbol_t ordinal, ext<cell> &result ) { 
-    stack_.push_back( sym(current_state_, ordinal, result) );
+  void reduce( symbol_t ordinal, ext<cell> &result ) { 
+    old_lookahead_ = lookahead_;
+    lookahead_ = sym(current_state_, ordinal, result);
+    if (is_debug_) {
+      std::cout << "reduce(): " << lookahead_.ordinal() << "\n";
+    }
+    stack_.push_back(lookahead_);
   }
 
   void shift_and_goto_state(int new_state) {
-    std::cout << "shift_and_goto_state(): " << new_state << "\n";
+    if (is_debug_) {
+      std::cout << "shift_and_goto_state(): " << new_state << "\n";
+    }
     stack_.push_back(lookahead_);
     lookahead_.clear();
     current_state_ = new_state;
+  }
+
+  void goto_state(int new_state) {
+    if (is_debug_) {
+      std::cout << "goto_state(): " << new_state << "\n";
+    }
+    current_state_ = new_state;
+    lookahead_ = old_lookahead_;
+    old_lookahead_.clear();
   }
 
   void skip_whitespace()
@@ -102,12 +125,19 @@ protected:
     }
   }
 
+  bool is_last_char_alpha(const term_tokenizer::token &token) const
+  {
+    return token_chars::is_alpha(token.lexeme()[token.lexeme().length()-1]);
+  }
+
   const sym next_symbol()
   {
     skip_whitespace();
 
     auto tok = tokenizer().peek_token();
     auto lexeme = tok.lexeme();
+
+    bool consumed = false;
 
     symbol_t prec = predefined_symbols_[lexeme];
 
@@ -118,21 +148,27 @@ protected:
     }
 
     switch (tok.type()) {
+    case term_tokenizer::TOKEN_EOF:
+      lookahead_ = sym(current_state_, tok, SYMBOL_EOF);
+      return lookahead_;
     case term_tokenizer::TOKEN_NAME:
       // Prolog has this funny grammar rule that if an '(' (LPAREN)
       // immediately follows a name (with no white space in between)
       // then it is a functor.
       lookahead_ = sym(current_state_, tok, SYMBOL_NAME);
       tokenizer().consume_token();
-      if (tokenizer().peek_token().type()
+      consumed = true;
+      if (is_last_char_alpha(tok) &&
+	  tokenizer().peek_token().type()
 	  == term_tokenizer::TOKEN_PUNCTUATION_CHAR) {
 	if (tokenizer().peek_token().lexeme() == "(") {
 	  lookahead_ = sym(current_state_, lookahead_.token(),
 			   SYMBOL_FUNCTOR_LPAREN);
 	  tokenizer().consume_token();
 	}
-	return lookahead_;
+        return lookahead_;
       }
+      break; // Requires operator check...
     case term_tokenizer::TOKEN_NATURAL_NUMBER:
       lookahead_ = sym(current_state_, tok, SYMBOL_NATURAL_NUMBER);
       tokenizer().consume_token();
@@ -161,7 +197,10 @@ protected:
       prec = SYMBOL_OP_1200;
     }
     lookahead_ = sym(current_state_, tok, prec);
-    tokenizer().consume_token();
+
+    if (!consumed) {
+      tokenizer().consume_token();
+    }
     return lookahead_;
   }
 
@@ -169,7 +208,9 @@ protected:
 
   ext<cell> reduce_start__subterm_1200_full_stop(args_t &args)
   {
-    return args[0].result();
+    result_ = args[0].result();
+    accept_ = true;
+    return result_;
   }
 
   // subterm_1200 :- ...
@@ -298,7 +339,23 @@ protected:
 
   ext<cell> reduce_term_0__functor_lparen_arguments_rparen(args_t &args)
   {
-    return args[1].result();
+    auto arg_list = args[1].result();
+    size_t num_args = heap_.list_length(arg_list);
+    auto fname = args[0].token().lexeme();
+    auto farity = num_args;
+
+    con_cell f = heap_.functor(fname, farity);
+    cell fstr = heap_.new_str(f);
+
+    size_t index = 0;
+    cell lst = arg_list;
+    while (lst != empty_list_) {
+        heap_.set_arg(fstr, index, heap_.arg(lst, 0));
+	lst = heap_.arg(lst, 1);
+	index++;
+    }
+
+    return ext<cell>(heap_,fstr);
   }
 
   ext<cell> reduce_term_0__lparen_subterm_1200_rparen(args_t &args)
@@ -335,12 +392,16 @@ protected:
 
   ext<cell> reduce_arguments__subterm_999(args_t &args)
   {
-    return args[0].result();
+    // Construct list with single element
+
+    con_cell empty_list("[]", 0);
+    ext<cell> ext_empty_list(heap_, empty_list);
+    return reduce_binary_op(".", args[0].result(), ext_empty_list);
   }
 
   ext<cell> reduce_arguments__subterm_999_comma_arguments(args_t &args)
   {
-    return reduce_binary_op(",", args[0].result(), args[2].result());
+    return reduce_binary_op(".", args[0].result(), args[2].result());
   }
 
   // list :- ...
@@ -389,20 +450,15 @@ protected:
 
   ext<cell> reduce_number__unsigned_number(args_t &args)
   {
-    return ext<cell>();
+    return args[0].result();
   }
 
-  ext<cell> reduce_number__sign_unsigned_number(args_t &args)
+  ext<cell> reduce_number__inf(args_t &args)
   {
     return ext<cell>();
   }
 
-  ext<cell> reduce_number__sign_inf(args_t &args)
-  {
-    return ext<cell>();
-  }
-
-  ext<cell> reduce_number__sign_nan(args_t &args)
+  ext<cell> reduce_number__nan(args_t &args)
   {
     return ext<cell>();
   }
@@ -411,7 +467,9 @@ protected:
 
   ext<cell> reduce_unsigned_number__natural_number(args_t &args)
   {
-    return ext<cell>();
+    auto &tok = args[0].token();
+    int_cell val(boost::lexical_cast<int>(tok.lexeme()));
+    return ext<cell>(heap_, val);
   }
 
   ext<cell> reduce_unsigned_number__unsigned_float(args_t &args)
@@ -448,21 +506,26 @@ protected:
 
 public:
   term_parser_interim(term_tokenizer &tokenizer, heap &h, term_ops &ops)
-    : tokenizer_(tokenizer), heap_(h), ops_(ops) {
+    : tokenizer_(tokenizer), heap_(h), ops_(ops),
+      is_debug_(false),
+      empty_list_(con_cell("[]", 0)),
+      dotted_pair_(con_cell(".", 2)) {
     current_state_ = 0;
     predefined_symbols_[","] = SYMBOL_COMMA;
-    predefined_symbols_["!"] = SYMBOL_FULL_STOP;
+    predefined_symbols_["."] = SYMBOL_FULL_STOP;
     predefined_symbols_["inf"] = SYMBOL_INF;
     predefined_symbols_["{"] = SYMBOL_LBRACE;
     predefined_symbols_["("] = SYMBOL_LPAREN;
-    predefined_symbols_["-"] = SYMBOL_MINUS;
     predefined_symbols_["nan"] = SYMBOL_NAN;
-    predefined_symbols_["+"] = SYMBOL_PLUS;
     predefined_symbols_["}"] = SYMBOL_RBRACE;
     predefined_symbols_["]"] = SYMBOL_RBRACKET;
     predefined_symbols_[")"] = SYMBOL_RPAREN;
     predefined_symbols_["|"] = SYMBOL_VBAR;
   }
+
+  bool is_accept() const { return accept_; }
+  ext<cell> get_result() const { return result_; }
+  void init() { accept_ = false; result_ = ext<cell>(); }
 };
 
 class term_parser_impl : public term_parser_gen<term_parser_interim, term_tokenizer, heap, term_ops>
@@ -478,7 +541,9 @@ public:
         lookahead_ = next_symbol();
     }
 
-    std::cout << "In state " << current_state() << " SYM " << lookahead_.ordinal() << " lexeme " << lookahead_.token().lexeme() << "\n";
+    if (is_debug_) {
+      std::cout << "In state " << current_state() << " SYM " << lookahead_.ordinal() << " lexeme " << lookahead_.token().lexeme() << "\n";
+    }
 
     process_state();
   }
@@ -495,10 +560,13 @@ term_parser::~term_parser()
   delete impl_;
 }
 
-
-void term_parser::process_next()
+ext<cell> term_parser::parse()
 {
+  impl_->init();
+  while (!impl_->is_accept()) {
     impl_->process_next();
+  }
+  return impl_->get_result();
 }
 
 }}

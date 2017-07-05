@@ -37,7 +37,7 @@ public:
     term_parser(term_tokenizer &tokenizer, heap &h, term_ops &ops);
     ~term_parser();
 
-    void process_next();
+    ext<cell> parse();
 
 private:
     term_parser_impl *impl_;

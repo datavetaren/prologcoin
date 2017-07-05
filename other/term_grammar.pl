@@ -49,17 +49,11 @@ constant :- atom.
 constant :- number.
 
 number :- unsigned_number.
-number :- sign, unsigned_number.
-number :- sign, inf.
-number :- sign, nan.
+number :- inf.
+number :- nan.
 
 unsigned_number :- natural_number.
 unsigned_number :- unsigned_float.
 
 atom :- name.
-
-functor_lparen :- name_lparen.
-
-sign :- plus.
-sign :- minus.
 

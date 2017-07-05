@@ -78,6 +78,7 @@ private:
     void emit_fx(con_cell f, cell x, bool wrap_x);
     void emit_xfy(cell x, con_cell f, cell y, bool wrap_x, bool wrap_y);
     void emit_functor_elem(const elem &a);
+    void emit_list(const cell lst);
     void emit_functor(const con_cell &f, size_t index);
     void push_functor_args(size_t index, size_t arity);
     void emit_ref(const elem &a);
@@ -109,6 +110,9 @@ private:
     std::vector<size_t> indent_table_;
 
     std::vector<elem> stack_;
+
+    con_cell dotted_pair_;
+    con_cell empty_list_;
 };
 
 }}

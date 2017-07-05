@@ -10,8 +10,9 @@ term_emitter::term_emitter(std::ostream &out, heap &h, term_ops &ops)
           line_(0),
           indent_level_(0),
 	  last_char_('\0'),
-	  scan_mode_(false)
-
+	  scan_mode_(false),
+	  dotted_pair_(".", 2),
+	  empty_list_("[]", 0)
 {
     set_max_column(78);
 }
@@ -401,6 +402,12 @@ void term_emitter::emit_functor_elem(const term_emitter::elem &e)
 
     auto str = static_cast<const str_cell &>(e.cell_);
     auto f = static_cast<const con_cell &>(fc);
+
+    if (f == dotted_pair_ || f == empty_list_) {
+        emit_list(str);
+	return;
+    }
+
     auto p = ops_.prec(f);
     auto f_prec = p.precedence;
     
@@ -437,6 +444,56 @@ void term_emitter::emit_functor_elem(const term_emitter::elem &e)
     case term_ops::YFX: emit_xfy(x,f,y,x_prec<=f_prec,y_prec<f_prec);return;
     default: emit_functor(f, index); return;
     }
+}
+
+void term_emitter::emit_list(const cell lst0)
+{
+    cell lst = lst0;
+
+    auto lbracket = elem(con_cell("[",0));
+    lbracket.set_as_token(true);
+    lbracket.set_at_begin(true);
+
+    auto rbracket = elem(con_cell("]",0));
+    rbracket.set_as_token(true);
+    rbracket.set_at_end(true);
+
+    auto comma = elem(con_cell(",",0));
+    comma.set_as_token(true);
+
+    auto vbar = elem(con_cell("|",0));
+    vbar.set_as_token(true);
+
+    size_t lst_index = stack_.size();
+
+    stack_.push_back(lbracket);
+
+    while (lst != empty_list_ && lst.tag() == tag_t::STR) {
+        stack_.push_back(elem(heap_.arg(lst, 0)));
+        lst = heap_.arg(lst, 1);
+	if (lst.tag() == tag_t::STR) {
+	  bool r; cell fc; size_t index;
+	  std::tie(r, fc, index) = check_functor(lst);
+	  if (!r) {
+	    break;
+	  }
+	  if (fc == dotted_pair_) {
+	    stack_.push_back(comma);
+	  } else {
+	    stack_.push_back(vbar);
+	  }
+	} else if (lst != empty_list_) {
+	  stack_.push_back(vbar);
+	}
+    }
+
+    if (lst != empty_list_) {
+        stack_.push_back(lst);
+    }
+
+    stack_.push_back(rbracket);
+
+    std::reverse(stack_.begin() + lst_index, stack_.end());
 }
 
 void term_emitter::emit_ref(const term_emitter::elem &e)
