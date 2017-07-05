@@ -118,7 +118,7 @@ number.
 
 ## The State
 
-We'll use an never ending query to define "the blockchain." Each goal
+We'll use a never ending query to define "the blockchain." Each goal
 in the query ("a.k.a sub-query") could basically represent a
 transaction. We bundle the sub-queries in blocks, so that we can
 bundle many sub-queries together and order them in time. We'll use
