@@ -6,8 +6,8 @@ execution engine of Prolog (a logic programming language.)
 
 ## What is Prolog
 
-Prolog is a language based on predicates (~= program) and terms (~=
-data structures.) Prolog is basically all about "equation solving on
+Prolog is a language based on predicates (= "program") and terms (=
+"data structures.") Prolog is basically all about "equation solving on
 data structures".)
 
 ## Why Prolog?
@@ -20,7 +20,7 @@ paradigm very well.
 
 Prolog also has a pecular concept called "logic variables." The word
 "logic" should not be confused with true/false, but rather that these
-variablescan be bound (to terms) in order to solve a "data structure"
+variables can be bound (to terms) in order to solve a "data structure"
 equation.
 
 For example, given
@@ -41,7 +41,7 @@ data structure equations" is known as "unification."
 
 When you write programs in Prolog it's all about writing predicates
 that are proven true. For example, you can type your query (= "the
-stuff you wan't to prove to be true") as:
+stuff you'd like to prove") as:
 
 ```
    append(X, [1,2,3,4], Z)
@@ -70,7 +70,7 @@ it yourself:
 
 i.e. you define when append/3 should be true. ":-" is an implication
 arrow. I know that ":-" looks ugly and why not "<-" ? But that's
-legacy we're just inheriting. "[A|B]" is list construction (where A is
+legacy we're inheriting. "[A|B]" is list construction (where A is
 the first element and B the rest of the list.) A common idiom is to
 name variables "X" to represent a single element and "Xs" for multiple
 elements ("s" for plural.)
@@ -102,12 +102,19 @@ By the use of MimbleWimble Pedersen commits, we can define:
 p(<some UTXO>, <blinding factor>, ValidatedValue)
 ```
 
-and whenever we want to spend the coin we just bind ValidatedValue to
-something that proves we own it. If all variables are named (and have
-unique references), then just referring to a prior variable and bind
-it to a proper value will spend it. If the heap is based on 64-bit
-cells, we can use the address space of 2^64. Referring to an UTXO (a
-prior variable) will just be a 64-bit number.
+to be true iff ValidatedValue is the number that proves the Pedersen
+commit is true.
+
+And whenever we want to spend the coin we just bind ValidatedValue to
+something that proves we own it. Binding this variable will trigger
+the goal to evaluate to true. If it's unable to prove it, then it's
+not true and will not be accepted by the blockchain.
+
+If all variables are named (and have unique references), then just
+referring to a prior variable and bind it to a proper value will spend
+it. If the heap is based on 64-bit cells, we can use the address space
+of 2^64. Referring to an UTXO (a prior variable) will just be a 64-bit
+number.
 
 ## The State
 
