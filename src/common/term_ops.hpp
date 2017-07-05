@@ -11,8 +11,8 @@
 	
 namespace std {
 
-    template<> struct hash<::prologcoin::common::cell> {
-        size_t operator()(const ::prologcoin::common::cell& k) const {
+    template<> struct hash<prologcoin::common::cell> {
+        size_t operator()(const prologcoin::common::cell& k) const {
 	    return hash<uint64_t>()(k.value());
 	}
     };

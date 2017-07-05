@@ -45,7 +45,7 @@ define printerr
 endef
 
 define printfile
-	(echo ; while read -r line; do if [[ $$line =~ (.*[Ee][Rr][Rr][Oo][Rr].*|.*[Ff][Aa][Ii][Ll].*) ]]; then echo $(red)$(bold)$$line$(off)$(white); else echo $$line; fi; done <$1; exit 1;)
+	(echo ; while read -r line; do if echo "$$line" |grep -E -i 'error|fail'; then echo $(red)$(bold)$$line$(off)$(white); else echo $$line; fi; done <$1; exit 1;)
 endef
 
 define checkval

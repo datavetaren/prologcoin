@@ -4,6 +4,7 @@
 #define _common_Term_hpp
 
 #include <stdint.h>
+#include <stdexcept>
 #include <algorithm>
 #include <vector>
 #include <memory>
@@ -168,9 +169,9 @@ private:
 // Exceptions
 //
 
-class term_exception : public ::std::runtime_error {
+class term_exception : public std::runtime_error {
 public:
-    term_exception(const std::string &msg) : ::std::runtime_error(msg) { }
+    term_exception(const std::string &msg) : std::runtime_error(msg) { }
 };
 
 class heap_index_out_of_range_exception : public term_exception {
