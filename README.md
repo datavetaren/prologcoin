@@ -15,7 +15,7 @@ data structures".)
 Blockchains are about synchronizing a state among N machines (nodes)
 over a non-trusted network. The state is proven to be valid using
 various axioms/rules (also known as consensus.) Words such as
-"proving," "validation," "axioms," and "logic" fits the Prolog
+"proving," "validation," "axioms," and "logic" fit the Prolog
 paradigm very well.
 
 Prolog also has a pecular concept called "logic variables." The word
@@ -99,7 +99,7 @@ bound, the coin is spent.
 By the use of MimbleWimble Pedersen commits, we can define:
 
 ```
-p(<some UTXO>, <blinding factor>, ValidatedValue)
+p(<some UTXO>, <TransactionKernel>, ..., ValidatedValue)
 ```
 
 to be true iff ValidatedValue is the number that proves the Pedersen
