@@ -25,10 +25,8 @@ private:
 //
 // term_parser
 //
-// This class parses ASCII characters and builds a term (or errors)
-//
-// XXX: Parked this for now. I'll finish the (LA)LR state machine generator
-//      in Prolog first.
+// This class parses ASCII characters via a given tokenizer and builds
+// a term on the provided heap (or errors.)
 //
 class term_parser_impl;
 
