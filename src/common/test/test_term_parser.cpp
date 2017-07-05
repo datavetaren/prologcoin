@@ -39,6 +39,18 @@ static void test_simple_parse()
     std::cout << "EXP: " << expected << "\n";
 
     assert(sout.str() == expected);
+
+    std::stringstream sout2;
+    std::stringstream sin2(expected+ ".");
+    term_tokenizer tokenizer2(sin2);
+    term_parser parser2(tokenizer2, h, ops);
+    ext<cell> result2 = parser2.parse();
+    term_emitter emitter2(sout2, h, ops);
+    emitter2.print(result2);
+
+    std::cout << "2ND: " << sout2.str() << "\n";
+    // Should be the same
+    assert(sout2.str() == sout.str());
 }
 
 int main( int argc, char *argv[] )
