@@ -22,28 +22,28 @@ protected:
 
   struct sym {
       sym()
-	: old_state_(-1),
-	  ordinal_(SYMBOL_UNKNOWN),
+	: ordinal_(SYMBOL_UNKNOWN),
 	  result_(),
-	  token_() { }
+	  token_(),
+          old_state_(-1) { }
 
       sym( int old_state, const sym &other )
-        : old_state_(old_state),
-	  ordinal_(other.ordinal_),
+        : ordinal_(other.ordinal_),
 	  result_(other.result_),
-	  token_(other.token_) { }
+	  token_(other.token_),
+          old_state_(old_state) { }
 
       sym( int old_state, const term_tokenizer::token &t, symbol_t ordinal )
-        : old_state_(old_state),
-	  ordinal_(ordinal),
+        : ordinal_(ordinal),
   	  result_(),
-  	  token_(t) { }
+  	  token_(t),
+          old_state_(old_state) { }
 
-      sym( int old_state, symbol_t ord, ext<cell> &result)
-	: old_state_(old_state),
-	  ordinal_(ord),
+      sym( int old_state, symbol_t ord, const ext<cell> &result)
+	: ordinal_(ord),
 	  result_(result),
-	  token_() { }
+	  token_(),
+	  old_state_(old_state) { }
 
     inline void clear() { ordinal_ = SYMBOL_UNKNOWN; }
 
@@ -65,6 +65,7 @@ protected:
 
   ext<cell> result_;
   bool accept_;
+  bool error_;
 
   typedef std::vector<sym> args_t;
   args_t args_;
@@ -90,7 +91,7 @@ protected:
     return args_;
   }
 
-  void reduce( symbol_t ordinal, ext<cell> &result ) { 
+  void reduce( symbol_t ordinal, const ext<cell> &result ) { 
     old_lookahead_ = lookahead_;
     lookahead_ = sym(current_state_, ordinal, result);
     if (is_debug_) {
@@ -115,6 +116,13 @@ protected:
     current_state_ = new_state;
     lookahead_ = old_lookahead_;
     old_lookahead_.clear();
+  }
+
+  void parse_error() {
+    if (is_debug_) {
+      std::cout << "parse_error(): at state " << current_state_ << "\n";
+    }
+    error_ = true;
   }
 
   void skip_whitespace()
@@ -148,6 +156,12 @@ protected:
     }
 
     switch (tok.type()) {
+    case term_tokenizer::TOKEN_UNKNOWN:
+    case term_tokenizer::TOKEN_PUNCTUATION_CHAR: // Should already be handled
+    case term_tokenizer::TOKEN_LAYOUT_TEXT:      // --- " " ---
+    case term_tokenizer::TOKEN_FULL_STOP:        // --- " " ---
+      lookahead_ = sym(current_state_, tok, SYMBOL_UNKNOWN);
+      return lookahead_;
     case term_tokenizer::TOKEN_EOF:
       lookahead_ = sym(current_state_, tok, SYMBOL_EOF);
       return lookahead_;
@@ -181,6 +195,10 @@ protected:
       lookahead_ = sym(current_state_, tok, SYMBOL_VARIABLE);
       tokenizer().consume_token();
       return lookahead_;
+    case term_tokenizer::TOKEN_STRING:
+      lookahead_ = sym(current_state_, tok, SYMBOL_STRING);
+      tokenizer().consume_token();
+      return lookahead_;	
     }
 
     auto entry = ops_.prec(lexeme);
@@ -524,8 +542,9 @@ public:
   }
 
   bool is_accept() const { return accept_; }
+  bool is_error() const { return error_; }
   ext<cell> get_result() const { return result_; }
-  void init() { accept_ = false; result_ = ext<cell>(); }
+  void init() { accept_ = false; error_ = false; result_ = ext<cell>(); }
 };
 
 class term_parser_impl : public term_parser_gen<term_parser_interim, term_tokenizer, heap, term_ops>
@@ -563,7 +582,7 @@ term_parser::~term_parser()
 ext<cell> term_parser::parse()
 {
   impl_->init();
-  while (!impl_->is_accept()) {
+  while (!impl_->is_accept() && !impl_->is_error()) {
     impl_->process_next();
   }
   return impl_->get_result();

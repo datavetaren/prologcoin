@@ -148,10 +148,13 @@ i4 :- i2, i2.
 
 emit_state(state(N, _, Actions), _Properties) :-
     i1, write('void state'), write(N), write('() {'), nl,
-    i2, write('switch (lookahead().ordinal()) {'), nl,
+    i2, write('switch (Base::lookahead().ordinal()) {'), nl,
     emit_shift_actions(Actions),
     emit_goto_actions(Actions),
     emit_reduce_actions(Actions),
+    (\+ member(reduce([empty], _), Actions) ->
+	i3, write('default: Base::parse_error(); break;'), nl
+    ; true),
     i2, write('}'), nl,
     i1, write('}'),
     nl, nl.
@@ -197,6 +200,9 @@ emit_cases([Symbol|Symbols]) :-
     (Symbol = empty -> write('default: ') ; write('case '), emit_symbol(Symbol), write(':') ), nl,
     emit_cases(Symbols).
 
+has_empty_symbol([empty|_]) :- !.
+has_empty_symbol([_|Syms]) :- has_empty_symbol(Syms).
+
 emit_tokenize_rule((Head:-Body)) :-
     body_to_list(Body,List),
     write(Head),
@@ -214,8 +220,7 @@ emit_tokenize_rule_list([X|Xs]) :-
     emit_tokenize_rule_list(Xs).
 
 emit_symbol(Symbol) :-
-    atom_string(Symbol, Str),
-    string_upper(Str, Upper),
+    upcase_atom(Symbol, Upper),
     write('SYMBOL_'),
     write(Upper).
 

@@ -305,7 +305,7 @@ template<typename Base, typename... Args> class term_parser_gen : public Base {
   } }
 
  void state0() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_FUNCTOR_LPAREN: Base::shift_and_goto_state(13); break;
    case SYMBOL_INF: Base::shift_and_goto_state(5); break;
    case SYMBOL_LBRACE: Base::shift_and_goto_state(14); break;
@@ -332,11 +332,12 @@ template<typename Base, typename... Args> class term_parser_gen : public Base {
    case SYMBOL_TERM_1200: Base::goto_state(9); break;
    case SYMBOL_TERM_999: Base::goto_state(11); break;
    case SYMBOL_UNSIGNED_NUMBER: Base::goto_state(7); break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state1() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_COMMA:
    case SYMBOL_FULL_STOP:
    case SYMBOL_OP_1000:
@@ -344,11 +345,12 @@ template<typename Base, typename... Args> class term_parser_gen : public Base {
    case SYMBOL_OP_999:
     Base::reduce(SYMBOL_ATOM, Base::reduce_atom__name(Base::args(1)));
     break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state2() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_COMMA:
    case SYMBOL_FULL_STOP:
    case SYMBOL_OP_1000:
@@ -356,11 +358,12 @@ template<typename Base, typename... Args> class term_parser_gen : public Base {
    case SYMBOL_OP_999:
     Base::reduce(SYMBOL_CONSTANT, Base::reduce_constant__atom(Base::args(1)));
     break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state3() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_COMMA:
    case SYMBOL_FULL_STOP:
    case SYMBOL_OP_1000:
@@ -368,11 +371,12 @@ template<typename Base, typename... Args> class term_parser_gen : public Base {
    case SYMBOL_OP_999:
     Base::reduce(SYMBOL_CONSTANT, Base::reduce_constant__number(Base::args(1)));
     break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state4() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_FUNCTOR_LPAREN: Base::shift_and_goto_state(39); break;
    case SYMBOL_INF: Base::shift_and_goto_state(33); break;
    case SYMBOL_LBRACE: Base::shift_and_goto_state(40); break;
@@ -395,11 +399,12 @@ template<typename Base, typename... Args> class term_parser_gen : public Base {
    case SYMBOL_TERM_0: Base::goto_state(36); break;
    case SYMBOL_TERM_999: Base::goto_state(37); break;
    case SYMBOL_UNSIGNED_NUMBER: Base::goto_state(35); break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state5() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_COMMA:
    case SYMBOL_FULL_STOP:
    case SYMBOL_OP_1000:
@@ -407,11 +412,12 @@ template<typename Base, typename... Args> class term_parser_gen : public Base {
    case SYMBOL_OP_999:
     Base::reduce(SYMBOL_NUMBER, Base::reduce_number__inf(Base::args(1)));
     break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state6() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_COMMA:
    case SYMBOL_FULL_STOP:
    case SYMBOL_OP_1000:
@@ -419,11 +425,12 @@ template<typename Base, typename... Args> class term_parser_gen : public Base {
    case SYMBOL_OP_999:
     Base::reduce(SYMBOL_NUMBER, Base::reduce_number__nan(Base::args(1)));
     break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state7() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_COMMA:
    case SYMBOL_FULL_STOP:
    case SYMBOL_OP_1000:
@@ -431,11 +438,12 @@ template<typename Base, typename... Args> class term_parser_gen : public Base {
    case SYMBOL_OP_999:
     Base::reduce(SYMBOL_NUMBER, Base::reduce_number__unsigned_number(Base::args(1)));
     break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state8() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_FULL_STOP:
    case SYMBOL_OP_1200:
     Base::reduce(SYMBOL_SUBTERM_1200, Base::reduce_subterm_1200__term_1000(Base::args(1)));
@@ -443,20 +451,22 @@ template<typename Base, typename... Args> class term_parser_gen : public Base {
    case SYMBOL_OP_1000:
     Base::reduce(SYMBOL_SUBTERM_1000, Base::reduce_subterm_1000__term_1000(Base::args(1)));
     break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state9() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_FULL_STOP:
    case SYMBOL_OP_1200:
     Base::reduce(SYMBOL_SUBTERM_1200, Base::reduce_subterm_1200__term_1200(Base::args(1)));
     break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state10() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_COMMA:
    case SYMBOL_OP_999:
     Base::reduce(SYMBOL_SUBTERM_999, Base::reduce_subterm_999__term_0(Base::args(1)));
@@ -468,11 +478,12 @@ template<typename Base, typename... Args> class term_parser_gen : public Base {
    case SYMBOL_OP_1000:
     Base::reduce(SYMBOL_SUBTERM_1000, Base::reduce_subterm_1000__term_0(Base::args(1)));
     break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state11() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_COMMA:
    case SYMBOL_OP_999:
     Base::reduce(SYMBOL_SUBTERM_999, Base::reduce_subterm_999__term_999(Base::args(1)));
@@ -484,11 +495,12 @@ template<typename Base, typename... Args> class term_parser_gen : public Base {
    case SYMBOL_OP_1000:
     Base::reduce(SYMBOL_SUBTERM_1000, Base::reduce_subterm_1000__term_999(Base::args(1)));
     break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state12() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_COMMA:
    case SYMBOL_FULL_STOP:
    case SYMBOL_OP_1000:
@@ -496,11 +508,12 @@ template<typename Base, typename... Args> class term_parser_gen : public Base {
    case SYMBOL_OP_999:
     Base::reduce(SYMBOL_TERM_0, Base::reduce_term_0__constant(Base::args(1)));
     break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state13() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_FUNCTOR_LPAREN: Base::shift_and_goto_state(63); break;
    case SYMBOL_INF: Base::shift_and_goto_state(57); break;
    case SYMBOL_LBRACE: Base::shift_and_goto_state(64); break;
@@ -522,11 +535,12 @@ template<typename Base, typename... Args> class term_parser_gen : public Base {
    case SYMBOL_TERM_0: Base::goto_state(60); break;
    case SYMBOL_TERM_999: Base::goto_state(61); break;
    case SYMBOL_UNSIGNED_NUMBER: Base::goto_state(59); break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state14() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_FUNCTOR_LPAREN: Base::shift_and_goto_state(91); break;
    case SYMBOL_INF: Base::shift_and_goto_state(83); break;
    case SYMBOL_LBRACE: Base::shift_and_goto_state(92); break;
@@ -553,11 +567,12 @@ template<typename Base, typename... Args> class term_parser_gen : public Base {
    case SYMBOL_TERM_1200: Base::goto_state(87); break;
    case SYMBOL_TERM_999: Base::goto_state(89); break;
    case SYMBOL_UNSIGNED_NUMBER: Base::goto_state(85); break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state15() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_COMMA:
    case SYMBOL_FULL_STOP:
    case SYMBOL_OP_1000:
@@ -565,11 +580,12 @@ template<typename Base, typename... Args> class term_parser_gen : public Base {
    case SYMBOL_OP_999:
     Base::reduce(SYMBOL_TERM_0, Base::reduce_term_0__list(Base::args(1)));
     break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state16() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_FUNCTOR_LPAREN: Base::shift_and_goto_state(126); break;
    case SYMBOL_INF: Base::shift_and_goto_state(118); break;
    case SYMBOL_LBRACE: Base::shift_and_goto_state(127); break;
@@ -596,11 +612,12 @@ template<typename Base, typename... Args> class term_parser_gen : public Base {
    case SYMBOL_TERM_1200: Base::goto_state(122); break;
    case SYMBOL_TERM_999: Base::goto_state(124); break;
    case SYMBOL_UNSIGNED_NUMBER: Base::goto_state(120); break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state17() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_COMMA:
    case SYMBOL_FULL_STOP:
    case SYMBOL_OP_1000:
@@ -608,11 +625,12 @@ template<typename Base, typename... Args> class term_parser_gen : public Base {
    case SYMBOL_OP_999:
     Base::reduce(SYMBOL_TERM_0, Base::reduce_term_0__string(Base::args(1)));
     break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state18() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_COMMA:
    case SYMBOL_FULL_STOP:
    case SYMBOL_OP_1000:
@@ -620,11 +638,12 @@ template<typename Base, typename... Args> class term_parser_gen : public Base {
    case SYMBOL_OP_999:
     Base::reduce(SYMBOL_TERM_0, Base::reduce_term_0__variable(Base::args(1)));
     break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state19() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_FUNCTOR_LPAREN: Base::shift_and_goto_state(13); break;
    case SYMBOL_INF: Base::shift_and_goto_state(5); break;
    case SYMBOL_LBRACE: Base::shift_and_goto_state(14); break;
@@ -648,17 +667,19 @@ template<typename Base, typename... Args> class term_parser_gen : public Base {
    case SYMBOL_TERM_1000: Base::goto_state(237); break;
    case SYMBOL_TERM_999: Base::goto_state(239); break;
    case SYMBOL_UNSIGNED_NUMBER: Base::goto_state(7); break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state20() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_OP_1000: Base::shift_and_goto_state(241); break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state21() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_FUNCTOR_LPAREN: Base::shift_and_goto_state(13); break;
    case SYMBOL_INF: Base::shift_and_goto_state(5); break;
    case SYMBOL_LBRACE: Base::shift_and_goto_state(14); break;
@@ -685,18 +706,20 @@ template<typename Base, typename... Args> class term_parser_gen : public Base {
    case SYMBOL_TERM_1200: Base::goto_state(9); break;
    case SYMBOL_TERM_999: Base::goto_state(11); break;
    case SYMBOL_UNSIGNED_NUMBER: Base::goto_state(7); break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state22() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_FULL_STOP: Base::shift_and_goto_state(246); break;
    case SYMBOL_OP_1200: Base::shift_and_goto_state(244); break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state23() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_FUNCTOR_LPAREN: Base::shift_and_goto_state(13); break;
    case SYMBOL_INF: Base::shift_and_goto_state(5); break;
    case SYMBOL_LBRACE: Base::shift_and_goto_state(14); break;
@@ -717,18 +740,20 @@ template<typename Base, typename... Args> class term_parser_gen : public Base {
    case SYMBOL_TERM_0: Base::goto_state(247); break;
    case SYMBOL_TERM_999: Base::goto_state(248); break;
    case SYMBOL_UNSIGNED_NUMBER: Base::goto_state(7); break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state24() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_COMMA: Base::shift_and_goto_state(252); break;
    case SYMBOL_OP_999: Base::shift_and_goto_state(250); break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state25() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_COMMA:
    case SYMBOL_FULL_STOP:
    case SYMBOL_OP_1000:
@@ -736,11 +761,12 @@ template<typename Base, typename... Args> class term_parser_gen : public Base {
    case SYMBOL_OP_999:
     Base::reduce(SYMBOL_UNSIGNED_NUMBER, Base::reduce_unsigned_number__natural_number(Base::args(1)));
     break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state26() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_COMMA:
    case SYMBOL_FULL_STOP:
    case SYMBOL_OP_1000:
@@ -748,44 +774,48 @@ template<typename Base, typename... Args> class term_parser_gen : public Base {
    case SYMBOL_OP_999:
     Base::reduce(SYMBOL_UNSIGNED_NUMBER, Base::reduce_unsigned_number__unsigned_float(Base::args(1)));
     break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state27() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_COMMA:
    case SYMBOL_OP_999:
    case SYMBOL_RBRACKET:
    case SYMBOL_VBAR:
     Base::reduce(SYMBOL_ATOM, Base::reduce_atom__name(Base::args(1)));
     break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state28() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_COMMA:
    case SYMBOL_OP_999:
    case SYMBOL_RBRACKET:
    case SYMBOL_VBAR:
     Base::reduce(SYMBOL_CONSTANT, Base::reduce_constant__atom(Base::args(1)));
     break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state29() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_COMMA:
    case SYMBOL_OP_999:
    case SYMBOL_RBRACKET:
    case SYMBOL_VBAR:
     Base::reduce(SYMBOL_CONSTANT, Base::reduce_constant__number(Base::args(1)));
     break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state30() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_FUNCTOR_LPAREN: Base::shift_and_goto_state(39); break;
    case SYMBOL_INF: Base::shift_and_goto_state(33); break;
    case SYMBOL_LBRACE: Base::shift_and_goto_state(40); break;
@@ -808,17 +838,19 @@ template<typename Base, typename... Args> class term_parser_gen : public Base {
    case SYMBOL_TERM_0: Base::goto_state(36); break;
    case SYMBOL_TERM_999: Base::goto_state(37); break;
    case SYMBOL_UNSIGNED_NUMBER: Base::goto_state(35); break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state31() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_RBRACKET: Base::shift_and_goto_state(52); break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state32() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_COMMA:
    case SYMBOL_FULL_STOP:
    case SYMBOL_OP_1000:
@@ -826,77 +858,84 @@ template<typename Base, typename... Args> class term_parser_gen : public Base {
    case SYMBOL_OP_999:
     Base::reduce(SYMBOL_LIST, Base::reduce_list__lbracket_rbracket(Base::args(2)));
     break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state33() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_COMMA:
    case SYMBOL_OP_999:
    case SYMBOL_RBRACKET:
    case SYMBOL_VBAR:
     Base::reduce(SYMBOL_NUMBER, Base::reduce_number__inf(Base::args(1)));
     break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state34() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_COMMA:
    case SYMBOL_OP_999:
    case SYMBOL_RBRACKET:
    case SYMBOL_VBAR:
     Base::reduce(SYMBOL_NUMBER, Base::reduce_number__nan(Base::args(1)));
     break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state35() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_COMMA:
    case SYMBOL_OP_999:
    case SYMBOL_RBRACKET:
    case SYMBOL_VBAR:
     Base::reduce(SYMBOL_NUMBER, Base::reduce_number__unsigned_number(Base::args(1)));
     break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state36() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_COMMA:
    case SYMBOL_OP_999:
    case SYMBOL_RBRACKET:
    case SYMBOL_VBAR:
     Base::reduce(SYMBOL_SUBTERM_999, Base::reduce_subterm_999__term_0(Base::args(1)));
     break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state37() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_COMMA:
    case SYMBOL_OP_999:
    case SYMBOL_RBRACKET:
    case SYMBOL_VBAR:
     Base::reduce(SYMBOL_SUBTERM_999, Base::reduce_subterm_999__term_999(Base::args(1)));
     break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state38() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_COMMA:
    case SYMBOL_OP_999:
    case SYMBOL_RBRACKET:
    case SYMBOL_VBAR:
     Base::reduce(SYMBOL_TERM_0, Base::reduce_term_0__constant(Base::args(1)));
     break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state39() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_FUNCTOR_LPAREN: Base::shift_and_goto_state(63); break;
    case SYMBOL_INF: Base::shift_and_goto_state(57); break;
    case SYMBOL_LBRACE: Base::shift_and_goto_state(64); break;
@@ -918,11 +957,12 @@ template<typename Base, typename... Args> class term_parser_gen : public Base {
    case SYMBOL_TERM_0: Base::goto_state(60); break;
    case SYMBOL_TERM_999: Base::goto_state(61); break;
    case SYMBOL_UNSIGNED_NUMBER: Base::goto_state(59); break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state40() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_FUNCTOR_LPAREN: Base::shift_and_goto_state(91); break;
    case SYMBOL_INF: Base::shift_and_goto_state(83); break;
    case SYMBOL_LBRACE: Base::shift_and_goto_state(92); break;
@@ -949,22 +989,24 @@ template<typename Base, typename... Args> class term_parser_gen : public Base {
    case SYMBOL_TERM_1200: Base::goto_state(87); break;
    case SYMBOL_TERM_999: Base::goto_state(89); break;
    case SYMBOL_UNSIGNED_NUMBER: Base::goto_state(85); break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state41() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_COMMA:
    case SYMBOL_OP_999:
    case SYMBOL_RBRACKET:
    case SYMBOL_VBAR:
     Base::reduce(SYMBOL_TERM_0, Base::reduce_term_0__list(Base::args(1)));
     break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state42() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_FUNCTOR_LPAREN: Base::shift_and_goto_state(126); break;
    case SYMBOL_INF: Base::shift_and_goto_state(118); break;
    case SYMBOL_LBRACE: Base::shift_and_goto_state(127); break;
@@ -991,33 +1033,36 @@ template<typename Base, typename... Args> class term_parser_gen : public Base {
    case SYMBOL_TERM_1200: Base::goto_state(122); break;
    case SYMBOL_TERM_999: Base::goto_state(124); break;
    case SYMBOL_UNSIGNED_NUMBER: Base::goto_state(120); break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state43() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_COMMA:
    case SYMBOL_OP_999:
    case SYMBOL_RBRACKET:
    case SYMBOL_VBAR:
     Base::reduce(SYMBOL_TERM_0, Base::reduce_term_0__string(Base::args(1)));
     break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state44() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_COMMA:
    case SYMBOL_OP_999:
    case SYMBOL_RBRACKET:
    case SYMBOL_VBAR:
     Base::reduce(SYMBOL_TERM_0, Base::reduce_term_0__variable(Base::args(1)));
     break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state45() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_FUNCTOR_LPAREN: Base::shift_and_goto_state(39); break;
    case SYMBOL_INF: Base::shift_and_goto_state(33); break;
    case SYMBOL_LBRACE: Base::shift_and_goto_state(40); break;
@@ -1038,72 +1083,79 @@ template<typename Base, typename... Args> class term_parser_gen : public Base {
    case SYMBOL_TERM_0: Base::goto_state(36); break;
    case SYMBOL_TERM_999: Base::goto_state(37); break;
    case SYMBOL_UNSIGNED_NUMBER: Base::goto_state(35); break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state46() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_COMMA: Base::shift_and_goto_state(196); break;
    case SYMBOL_OP_999: Base::shift_and_goto_state(194); break;
    case SYMBOL_VBAR: Base::shift_and_goto_state(197); break;
    case SYMBOL_RBRACKET:
     Base::reduce(SYMBOL_LISTEXPR, Base::reduce_listexpr__subterm_999(Base::args(1)));
     break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state47() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_COMMA:
    case SYMBOL_OP_999:
    case SYMBOL_RBRACKET:
    case SYMBOL_VBAR:
     Base::reduce(SYMBOL_UNSIGNED_NUMBER, Base::reduce_unsigned_number__natural_number(Base::args(1)));
     break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state48() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_COMMA:
    case SYMBOL_OP_999:
    case SYMBOL_RBRACKET:
    case SYMBOL_VBAR:
     Base::reduce(SYMBOL_UNSIGNED_NUMBER, Base::reduce_unsigned_number__unsigned_float(Base::args(1)));
     break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state49() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_RBRACKET: Base::shift_and_goto_state(51); break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state50() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_COMMA:
    case SYMBOL_OP_999:
    case SYMBOL_RBRACKET:
    case SYMBOL_VBAR:
     Base::reduce(SYMBOL_LIST, Base::reduce_list__lbracket_rbracket(Base::args(2)));
     break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state51() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_COMMA:
    case SYMBOL_OP_999:
    case SYMBOL_RBRACKET:
    case SYMBOL_VBAR:
     Base::reduce(SYMBOL_LIST, Base::reduce_list__lbracket_listexpr_rbracket(Base::args(3)));
     break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state52() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_COMMA:
    case SYMBOL_FULL_STOP:
    case SYMBOL_OP_1000:
@@ -1111,41 +1163,45 @@ template<typename Base, typename... Args> class term_parser_gen : public Base {
    case SYMBOL_OP_999:
     Base::reduce(SYMBOL_LIST, Base::reduce_list__lbracket_listexpr_rbracket(Base::args(3)));
     break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state53() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_COMMA:
    case SYMBOL_OP_999:
    case SYMBOL_RPAREN:
     Base::reduce(SYMBOL_ATOM, Base::reduce_atom__name(Base::args(1)));
     break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state54() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_COMMA:
    case SYMBOL_OP_999:
    case SYMBOL_RPAREN:
     Base::reduce(SYMBOL_CONSTANT, Base::reduce_constant__atom(Base::args(1)));
     break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state55() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_COMMA:
    case SYMBOL_OP_999:
    case SYMBOL_RPAREN:
     Base::reduce(SYMBOL_CONSTANT, Base::reduce_constant__number(Base::args(1)));
     break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state56() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_FUNCTOR_LPAREN: Base::shift_and_goto_state(39); break;
    case SYMBOL_INF: Base::shift_and_goto_state(33); break;
    case SYMBOL_LBRACE: Base::shift_and_goto_state(40); break;
@@ -1168,71 +1224,78 @@ template<typename Base, typename... Args> class term_parser_gen : public Base {
    case SYMBOL_TERM_0: Base::goto_state(36); break;
    case SYMBOL_TERM_999: Base::goto_state(37); break;
    case SYMBOL_UNSIGNED_NUMBER: Base::goto_state(35); break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state57() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_COMMA:
    case SYMBOL_OP_999:
    case SYMBOL_RPAREN:
     Base::reduce(SYMBOL_NUMBER, Base::reduce_number__inf(Base::args(1)));
     break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state58() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_COMMA:
    case SYMBOL_OP_999:
    case SYMBOL_RPAREN:
     Base::reduce(SYMBOL_NUMBER, Base::reduce_number__nan(Base::args(1)));
     break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state59() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_COMMA:
    case SYMBOL_OP_999:
    case SYMBOL_RPAREN:
     Base::reduce(SYMBOL_NUMBER, Base::reduce_number__unsigned_number(Base::args(1)));
     break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state60() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_COMMA:
    case SYMBOL_OP_999:
    case SYMBOL_RPAREN:
     Base::reduce(SYMBOL_SUBTERM_999, Base::reduce_subterm_999__term_0(Base::args(1)));
     break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state61() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_COMMA:
    case SYMBOL_OP_999:
    case SYMBOL_RPAREN:
     Base::reduce(SYMBOL_SUBTERM_999, Base::reduce_subterm_999__term_999(Base::args(1)));
     break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state62() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_COMMA:
    case SYMBOL_OP_999:
    case SYMBOL_RPAREN:
     Base::reduce(SYMBOL_TERM_0, Base::reduce_term_0__constant(Base::args(1)));
     break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state63() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_FUNCTOR_LPAREN: Base::shift_and_goto_state(63); break;
    case SYMBOL_INF: Base::shift_and_goto_state(57); break;
    case SYMBOL_LBRACE: Base::shift_and_goto_state(64); break;
@@ -1254,11 +1317,12 @@ template<typename Base, typename... Args> class term_parser_gen : public Base {
    case SYMBOL_TERM_0: Base::goto_state(60); break;
    case SYMBOL_TERM_999: Base::goto_state(61); break;
    case SYMBOL_UNSIGNED_NUMBER: Base::goto_state(59); break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state64() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_FUNCTOR_LPAREN: Base::shift_and_goto_state(91); break;
    case SYMBOL_INF: Base::shift_and_goto_state(83); break;
    case SYMBOL_LBRACE: Base::shift_and_goto_state(92); break;
@@ -1285,21 +1349,23 @@ template<typename Base, typename... Args> class term_parser_gen : public Base {
    case SYMBOL_TERM_1200: Base::goto_state(87); break;
    case SYMBOL_TERM_999: Base::goto_state(89); break;
    case SYMBOL_UNSIGNED_NUMBER: Base::goto_state(85); break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state65() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_COMMA:
    case SYMBOL_OP_999:
    case SYMBOL_RPAREN:
     Base::reduce(SYMBOL_TERM_0, Base::reduce_term_0__list(Base::args(1)));
     break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state66() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_FUNCTOR_LPAREN: Base::shift_and_goto_state(126); break;
    case SYMBOL_INF: Base::shift_and_goto_state(118); break;
    case SYMBOL_LBRACE: Base::shift_and_goto_state(127); break;
@@ -1326,37 +1392,41 @@ template<typename Base, typename... Args> class term_parser_gen : public Base {
    case SYMBOL_TERM_1200: Base::goto_state(122); break;
    case SYMBOL_TERM_999: Base::goto_state(124); break;
    case SYMBOL_UNSIGNED_NUMBER: Base::goto_state(120); break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state67() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_COMMA:
    case SYMBOL_OP_999:
    case SYMBOL_RPAREN:
     Base::reduce(SYMBOL_TERM_0, Base::reduce_term_0__string(Base::args(1)));
     break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state68() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_COMMA:
    case SYMBOL_OP_999:
    case SYMBOL_RPAREN:
     Base::reduce(SYMBOL_TERM_0, Base::reduce_term_0__variable(Base::args(1)));
     break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state69() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_RPAREN: Base::shift_and_goto_state(183); break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state70() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_FUNCTOR_LPAREN: Base::shift_and_goto_state(63); break;
    case SYMBOL_INF: Base::shift_and_goto_state(57); break;
    case SYMBOL_LBRACE: Base::shift_and_goto_state(64); break;
@@ -1377,83 +1447,92 @@ template<typename Base, typename... Args> class term_parser_gen : public Base {
    case SYMBOL_TERM_0: Base::goto_state(60); break;
    case SYMBOL_TERM_999: Base::goto_state(61); break;
    case SYMBOL_UNSIGNED_NUMBER: Base::goto_state(59); break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state71() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_COMMA: Base::shift_and_goto_state(187); break;
    case SYMBOL_OP_999: Base::shift_and_goto_state(185); break;
    case SYMBOL_RPAREN:
     Base::reduce(SYMBOL_ARGUMENTS, Base::reduce_arguments__subterm_999(Base::args(1)));
     break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state72() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_COMMA:
    case SYMBOL_OP_999:
    case SYMBOL_RPAREN:
     Base::reduce(SYMBOL_UNSIGNED_NUMBER, Base::reduce_unsigned_number__natural_number(Base::args(1)));
     break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state73() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_COMMA:
    case SYMBOL_OP_999:
    case SYMBOL_RPAREN:
     Base::reduce(SYMBOL_UNSIGNED_NUMBER, Base::reduce_unsigned_number__unsigned_float(Base::args(1)));
     break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state74() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_RBRACKET: Base::shift_and_goto_state(76); break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state75() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_COMMA:
    case SYMBOL_OP_999:
    case SYMBOL_RPAREN:
     Base::reduce(SYMBOL_LIST, Base::reduce_list__lbracket_rbracket(Base::args(2)));
     break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state76() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_COMMA:
    case SYMBOL_OP_999:
    case SYMBOL_RPAREN:
     Base::reduce(SYMBOL_LIST, Base::reduce_list__lbracket_listexpr_rbracket(Base::args(3)));
     break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state77() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_RPAREN: Base::shift_and_goto_state(78); break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state78() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_COMMA:
    case SYMBOL_OP_999:
    case SYMBOL_RPAREN:
     Base::reduce(SYMBOL_TERM_0, Base::reduce_term_0__functor_lparen_arguments_rparen(Base::args(3)));
     break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state79() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_COMMA:
    case SYMBOL_OP_1000:
    case SYMBOL_OP_1200:
@@ -1461,11 +1540,12 @@ template<typename Base, typename... Args> class term_parser_gen : public Base {
    case SYMBOL_RBRACE:
     Base::reduce(SYMBOL_ATOM, Base::reduce_atom__name(Base::args(1)));
     break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state80() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_COMMA:
    case SYMBOL_OP_1000:
    case SYMBOL_OP_1200:
@@ -1473,11 +1553,12 @@ template<typename Base, typename... Args> class term_parser_gen : public Base {
    case SYMBOL_RBRACE:
     Base::reduce(SYMBOL_CONSTANT, Base::reduce_constant__atom(Base::args(1)));
     break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state81() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_COMMA:
    case SYMBOL_OP_1000:
    case SYMBOL_OP_1200:
@@ -1485,11 +1566,12 @@ template<typename Base, typename... Args> class term_parser_gen : public Base {
    case SYMBOL_RBRACE:
     Base::reduce(SYMBOL_CONSTANT, Base::reduce_constant__number(Base::args(1)));
     break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state82() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_FUNCTOR_LPAREN: Base::shift_and_goto_state(39); break;
    case SYMBOL_INF: Base::shift_and_goto_state(33); break;
    case SYMBOL_LBRACE: Base::shift_and_goto_state(40); break;
@@ -1512,11 +1594,12 @@ template<typename Base, typename... Args> class term_parser_gen : public Base {
    case SYMBOL_TERM_0: Base::goto_state(36); break;
    case SYMBOL_TERM_999: Base::goto_state(37); break;
    case SYMBOL_UNSIGNED_NUMBER: Base::goto_state(35); break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state83() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_COMMA:
    case SYMBOL_OP_1000:
    case SYMBOL_OP_1200:
@@ -1524,11 +1607,12 @@ template<typename Base, typename... Args> class term_parser_gen : public Base {
    case SYMBOL_RBRACE:
     Base::reduce(SYMBOL_NUMBER, Base::reduce_number__inf(Base::args(1)));
     break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state84() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_COMMA:
    case SYMBOL_OP_1000:
    case SYMBOL_OP_1200:
@@ -1536,11 +1620,12 @@ template<typename Base, typename... Args> class term_parser_gen : public Base {
    case SYMBOL_RBRACE:
     Base::reduce(SYMBOL_NUMBER, Base::reduce_number__nan(Base::args(1)));
     break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state85() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_COMMA:
    case SYMBOL_OP_1000:
    case SYMBOL_OP_1200:
@@ -1548,11 +1633,12 @@ template<typename Base, typename... Args> class term_parser_gen : public Base {
    case SYMBOL_RBRACE:
     Base::reduce(SYMBOL_NUMBER, Base::reduce_number__unsigned_number(Base::args(1)));
     break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state86() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_OP_1000:
     Base::reduce(SYMBOL_SUBTERM_1000, Base::reduce_subterm_1000__term_1000(Base::args(1)));
     break;
@@ -1560,20 +1646,22 @@ template<typename Base, typename... Args> class term_parser_gen : public Base {
    case SYMBOL_RBRACE:
     Base::reduce(SYMBOL_SUBTERM_1200, Base::reduce_subterm_1200__term_1000(Base::args(1)));
     break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state87() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_OP_1200:
    case SYMBOL_RBRACE:
     Base::reduce(SYMBOL_SUBTERM_1200, Base::reduce_subterm_1200__term_1200(Base::args(1)));
     break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state88() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_COMMA:
    case SYMBOL_OP_999:
     Base::reduce(SYMBOL_SUBTERM_999, Base::reduce_subterm_999__term_0(Base::args(1)));
@@ -1585,11 +1673,12 @@ template<typename Base, typename... Args> class term_parser_gen : public Base {
    case SYMBOL_RBRACE:
     Base::reduce(SYMBOL_SUBTERM_1200, Base::reduce_subterm_1200__term_0(Base::args(1)));
     break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state89() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_COMMA:
    case SYMBOL_OP_999:
     Base::reduce(SYMBOL_SUBTERM_999, Base::reduce_subterm_999__term_999(Base::args(1)));
@@ -1601,11 +1690,12 @@ template<typename Base, typename... Args> class term_parser_gen : public Base {
    case SYMBOL_RBRACE:
     Base::reduce(SYMBOL_SUBTERM_1200, Base::reduce_subterm_1200__term_999(Base::args(1)));
     break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state90() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_COMMA:
    case SYMBOL_OP_1000:
    case SYMBOL_OP_1200:
@@ -1613,11 +1703,12 @@ template<typename Base, typename... Args> class term_parser_gen : public Base {
    case SYMBOL_RBRACE:
     Base::reduce(SYMBOL_TERM_0, Base::reduce_term_0__constant(Base::args(1)));
     break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state91() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_FUNCTOR_LPAREN: Base::shift_and_goto_state(63); break;
    case SYMBOL_INF: Base::shift_and_goto_state(57); break;
    case SYMBOL_LBRACE: Base::shift_and_goto_state(64); break;
@@ -1639,11 +1730,12 @@ template<typename Base, typename... Args> class term_parser_gen : public Base {
    case SYMBOL_TERM_0: Base::goto_state(60); break;
    case SYMBOL_TERM_999: Base::goto_state(61); break;
    case SYMBOL_UNSIGNED_NUMBER: Base::goto_state(59); break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state92() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_FUNCTOR_LPAREN: Base::shift_and_goto_state(91); break;
    case SYMBOL_INF: Base::shift_and_goto_state(83); break;
    case SYMBOL_LBRACE: Base::shift_and_goto_state(92); break;
@@ -1670,11 +1762,12 @@ template<typename Base, typename... Args> class term_parser_gen : public Base {
    case SYMBOL_TERM_1200: Base::goto_state(87); break;
    case SYMBOL_TERM_999: Base::goto_state(89); break;
    case SYMBOL_UNSIGNED_NUMBER: Base::goto_state(85); break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state93() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_COMMA:
    case SYMBOL_OP_1000:
    case SYMBOL_OP_1200:
@@ -1682,11 +1775,12 @@ template<typename Base, typename... Args> class term_parser_gen : public Base {
    case SYMBOL_RBRACE:
     Base::reduce(SYMBOL_TERM_0, Base::reduce_term_0__list(Base::args(1)));
     break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state94() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_FUNCTOR_LPAREN: Base::shift_and_goto_state(126); break;
    case SYMBOL_INF: Base::shift_and_goto_state(118); break;
    case SYMBOL_LBRACE: Base::shift_and_goto_state(127); break;
@@ -1713,11 +1807,12 @@ template<typename Base, typename... Args> class term_parser_gen : public Base {
    case SYMBOL_TERM_1200: Base::goto_state(122); break;
    case SYMBOL_TERM_999: Base::goto_state(124); break;
    case SYMBOL_UNSIGNED_NUMBER: Base::goto_state(120); break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state95() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_COMMA:
    case SYMBOL_OP_1000:
    case SYMBOL_OP_1200:
@@ -1725,11 +1820,12 @@ template<typename Base, typename... Args> class term_parser_gen : public Base {
    case SYMBOL_RBRACE:
     Base::reduce(SYMBOL_TERM_0, Base::reduce_term_0__string(Base::args(1)));
     break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state96() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_COMMA:
    case SYMBOL_OP_1000:
    case SYMBOL_OP_1200:
@@ -1737,11 +1833,12 @@ template<typename Base, typename... Args> class term_parser_gen : public Base {
    case SYMBOL_RBRACE:
     Base::reduce(SYMBOL_TERM_0, Base::reduce_term_0__variable(Base::args(1)));
     break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state97() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_FUNCTOR_LPAREN: Base::shift_and_goto_state(91); break;
    case SYMBOL_INF: Base::shift_and_goto_state(83); break;
    case SYMBOL_LBRACE: Base::shift_and_goto_state(92); break;
@@ -1765,17 +1862,19 @@ template<typename Base, typename... Args> class term_parser_gen : public Base {
    case SYMBOL_TERM_1000: Base::goto_state(166); break;
    case SYMBOL_TERM_999: Base::goto_state(168); break;
    case SYMBOL_UNSIGNED_NUMBER: Base::goto_state(85); break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state98() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_OP_1000: Base::shift_and_goto_state(170); break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state99() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_FUNCTOR_LPAREN: Base::shift_and_goto_state(91); break;
    case SYMBOL_INF: Base::shift_and_goto_state(83); break;
    case SYMBOL_LBRACE: Base::shift_and_goto_state(92); break;
@@ -1802,18 +1901,20 @@ template<typename Base, typename... Args> class term_parser_gen : public Base {
    case SYMBOL_TERM_1200: Base::goto_state(87); break;
    case SYMBOL_TERM_999: Base::goto_state(89); break;
    case SYMBOL_UNSIGNED_NUMBER: Base::goto_state(85); break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state100() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_OP_1200: Base::shift_and_goto_state(112); break;
    case SYMBOL_RBRACE: Base::shift_and_goto_state(173); break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state101() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_FUNCTOR_LPAREN: Base::shift_and_goto_state(91); break;
    case SYMBOL_INF: Base::shift_and_goto_state(83); break;
    case SYMBOL_LBRACE: Base::shift_and_goto_state(92); break;
@@ -1834,18 +1935,20 @@ template<typename Base, typename... Args> class term_parser_gen : public Base {
    case SYMBOL_TERM_0: Base::goto_state(174); break;
    case SYMBOL_TERM_999: Base::goto_state(175); break;
    case SYMBOL_UNSIGNED_NUMBER: Base::goto_state(85); break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state102() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_COMMA: Base::shift_and_goto_state(179); break;
    case SYMBOL_OP_999: Base::shift_and_goto_state(177); break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state103() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_COMMA:
    case SYMBOL_OP_1000:
    case SYMBOL_OP_1200:
@@ -1853,11 +1956,12 @@ template<typename Base, typename... Args> class term_parser_gen : public Base {
    case SYMBOL_RBRACE:
     Base::reduce(SYMBOL_UNSIGNED_NUMBER, Base::reduce_unsigned_number__natural_number(Base::args(1)));
     break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state104() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_COMMA:
    case SYMBOL_OP_1000:
    case SYMBOL_OP_1200:
@@ -1865,17 +1969,19 @@ template<typename Base, typename... Args> class term_parser_gen : public Base {
    case SYMBOL_RBRACE:
     Base::reduce(SYMBOL_UNSIGNED_NUMBER, Base::reduce_unsigned_number__unsigned_float(Base::args(1)));
     break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state105() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_RBRACKET: Base::shift_and_goto_state(107); break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state106() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_COMMA:
    case SYMBOL_OP_1000:
    case SYMBOL_OP_1200:
@@ -1883,11 +1989,12 @@ template<typename Base, typename... Args> class term_parser_gen : public Base {
    case SYMBOL_RBRACE:
     Base::reduce(SYMBOL_LIST, Base::reduce_list__lbracket_rbracket(Base::args(2)));
     break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state107() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_COMMA:
    case SYMBOL_OP_1000:
    case SYMBOL_OP_1200:
@@ -1895,17 +2002,19 @@ template<typename Base, typename... Args> class term_parser_gen : public Base {
    case SYMBOL_RBRACE:
     Base::reduce(SYMBOL_LIST, Base::reduce_list__lbracket_listexpr_rbracket(Base::args(3)));
     break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state108() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_RPAREN: Base::shift_and_goto_state(109); break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state109() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_COMMA:
    case SYMBOL_OP_1000:
    case SYMBOL_OP_1200:
@@ -1913,18 +2022,20 @@ template<typename Base, typename... Args> class term_parser_gen : public Base {
    case SYMBOL_RBRACE:
     Base::reduce(SYMBOL_TERM_0, Base::reduce_term_0__functor_lparen_arguments_rparen(Base::args(3)));
     break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state110() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_OP_1200: Base::shift_and_goto_state(112); break;
    case SYMBOL_RBRACE: Base::shift_and_goto_state(111); break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state111() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_COMMA:
    case SYMBOL_OP_1000:
    case SYMBOL_OP_1200:
@@ -1932,11 +2043,12 @@ template<typename Base, typename... Args> class term_parser_gen : public Base {
    case SYMBOL_RBRACE:
     Base::reduce(SYMBOL_TERM_0, Base::reduce_term_0__lbrace_subterm_1200_rbrace(Base::args(3)));
     break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state112() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_FUNCTOR_LPAREN: Base::shift_and_goto_state(91); break;
    case SYMBOL_INF: Base::shift_and_goto_state(83); break;
    case SYMBOL_LBRACE: Base::shift_and_goto_state(92); break;
@@ -1963,20 +2075,22 @@ template<typename Base, typename... Args> class term_parser_gen : public Base {
    case SYMBOL_TERM_1200: Base::goto_state(87); break;
    case SYMBOL_TERM_999: Base::goto_state(89); break;
    case SYMBOL_UNSIGNED_NUMBER: Base::goto_state(85); break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state113() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_OP_1200:
    case SYMBOL_RBRACE:
     Base::reduce(SYMBOL_TERM_1200, Base::reduce_term_1200__subterm_1200_op_1200_subterm_1200(Base::args(3)));
     break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state114() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_COMMA:
    case SYMBOL_OP_1000:
    case SYMBOL_OP_1200:
@@ -1984,11 +2098,12 @@ template<typename Base, typename... Args> class term_parser_gen : public Base {
    case SYMBOL_RPAREN:
     Base::reduce(SYMBOL_ATOM, Base::reduce_atom__name(Base::args(1)));
     break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state115() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_COMMA:
    case SYMBOL_OP_1000:
    case SYMBOL_OP_1200:
@@ -1996,11 +2111,12 @@ template<typename Base, typename... Args> class term_parser_gen : public Base {
    case SYMBOL_RPAREN:
     Base::reduce(SYMBOL_CONSTANT, Base::reduce_constant__atom(Base::args(1)));
     break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state116() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_COMMA:
    case SYMBOL_OP_1000:
    case SYMBOL_OP_1200:
@@ -2008,11 +2124,12 @@ template<typename Base, typename... Args> class term_parser_gen : public Base {
    case SYMBOL_RPAREN:
     Base::reduce(SYMBOL_CONSTANT, Base::reduce_constant__number(Base::args(1)));
     break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state117() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_FUNCTOR_LPAREN: Base::shift_and_goto_state(39); break;
    case SYMBOL_INF: Base::shift_and_goto_state(33); break;
    case SYMBOL_LBRACE: Base::shift_and_goto_state(40); break;
@@ -2035,11 +2152,12 @@ template<typename Base, typename... Args> class term_parser_gen : public Base {
    case SYMBOL_TERM_0: Base::goto_state(36); break;
    case SYMBOL_TERM_999: Base::goto_state(37); break;
    case SYMBOL_UNSIGNED_NUMBER: Base::goto_state(35); break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state118() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_COMMA:
    case SYMBOL_OP_1000:
    case SYMBOL_OP_1200:
@@ -2047,11 +2165,12 @@ template<typename Base, typename... Args> class term_parser_gen : public Base {
    case SYMBOL_RPAREN:
     Base::reduce(SYMBOL_NUMBER, Base::reduce_number__inf(Base::args(1)));
     break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state119() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_COMMA:
    case SYMBOL_OP_1000:
    case SYMBOL_OP_1200:
@@ -2059,11 +2178,12 @@ template<typename Base, typename... Args> class term_parser_gen : public Base {
    case SYMBOL_RPAREN:
     Base::reduce(SYMBOL_NUMBER, Base::reduce_number__nan(Base::args(1)));
     break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state120() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_COMMA:
    case SYMBOL_OP_1000:
    case SYMBOL_OP_1200:
@@ -2071,11 +2191,12 @@ template<typename Base, typename... Args> class term_parser_gen : public Base {
    case SYMBOL_RPAREN:
     Base::reduce(SYMBOL_NUMBER, Base::reduce_number__unsigned_number(Base::args(1)));
     break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state121() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_OP_1000:
     Base::reduce(SYMBOL_SUBTERM_1000, Base::reduce_subterm_1000__term_1000(Base::args(1)));
     break;
@@ -2083,20 +2204,22 @@ template<typename Base, typename... Args> class term_parser_gen : public Base {
    case SYMBOL_RPAREN:
     Base::reduce(SYMBOL_SUBTERM_1200, Base::reduce_subterm_1200__term_1000(Base::args(1)));
     break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state122() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_OP_1200:
    case SYMBOL_RPAREN:
     Base::reduce(SYMBOL_SUBTERM_1200, Base::reduce_subterm_1200__term_1200(Base::args(1)));
     break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state123() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_COMMA:
    case SYMBOL_OP_999:
     Base::reduce(SYMBOL_SUBTERM_999, Base::reduce_subterm_999__term_0(Base::args(1)));
@@ -2108,11 +2231,12 @@ template<typename Base, typename... Args> class term_parser_gen : public Base {
    case SYMBOL_RPAREN:
     Base::reduce(SYMBOL_SUBTERM_1200, Base::reduce_subterm_1200__term_0(Base::args(1)));
     break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state124() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_COMMA:
    case SYMBOL_OP_999:
     Base::reduce(SYMBOL_SUBTERM_999, Base::reduce_subterm_999__term_999(Base::args(1)));
@@ -2124,11 +2248,12 @@ template<typename Base, typename... Args> class term_parser_gen : public Base {
    case SYMBOL_RPAREN:
     Base::reduce(SYMBOL_SUBTERM_1200, Base::reduce_subterm_1200__term_999(Base::args(1)));
     break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state125() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_COMMA:
    case SYMBOL_OP_1000:
    case SYMBOL_OP_1200:
@@ -2136,11 +2261,12 @@ template<typename Base, typename... Args> class term_parser_gen : public Base {
    case SYMBOL_RPAREN:
     Base::reduce(SYMBOL_TERM_0, Base::reduce_term_0__constant(Base::args(1)));
     break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state126() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_FUNCTOR_LPAREN: Base::shift_and_goto_state(63); break;
    case SYMBOL_INF: Base::shift_and_goto_state(57); break;
    case SYMBOL_LBRACE: Base::shift_and_goto_state(64); break;
@@ -2162,11 +2288,12 @@ template<typename Base, typename... Args> class term_parser_gen : public Base {
    case SYMBOL_TERM_0: Base::goto_state(60); break;
    case SYMBOL_TERM_999: Base::goto_state(61); break;
    case SYMBOL_UNSIGNED_NUMBER: Base::goto_state(59); break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state127() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_FUNCTOR_LPAREN: Base::shift_and_goto_state(91); break;
    case SYMBOL_INF: Base::shift_and_goto_state(83); break;
    case SYMBOL_LBRACE: Base::shift_and_goto_state(92); break;
@@ -2193,11 +2320,12 @@ template<typename Base, typename... Args> class term_parser_gen : public Base {
    case SYMBOL_TERM_1200: Base::goto_state(87); break;
    case SYMBOL_TERM_999: Base::goto_state(89); break;
    case SYMBOL_UNSIGNED_NUMBER: Base::goto_state(85); break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state128() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_COMMA:
    case SYMBOL_OP_1000:
    case SYMBOL_OP_1200:
@@ -2205,11 +2333,12 @@ template<typename Base, typename... Args> class term_parser_gen : public Base {
    case SYMBOL_RPAREN:
     Base::reduce(SYMBOL_TERM_0, Base::reduce_term_0__list(Base::args(1)));
     break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state129() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_FUNCTOR_LPAREN: Base::shift_and_goto_state(126); break;
    case SYMBOL_INF: Base::shift_and_goto_state(118); break;
    case SYMBOL_LBRACE: Base::shift_and_goto_state(127); break;
@@ -2236,11 +2365,12 @@ template<typename Base, typename... Args> class term_parser_gen : public Base {
    case SYMBOL_TERM_1200: Base::goto_state(122); break;
    case SYMBOL_TERM_999: Base::goto_state(124); break;
    case SYMBOL_UNSIGNED_NUMBER: Base::goto_state(120); break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state130() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_COMMA:
    case SYMBOL_OP_1000:
    case SYMBOL_OP_1200:
@@ -2248,11 +2378,12 @@ template<typename Base, typename... Args> class term_parser_gen : public Base {
    case SYMBOL_RPAREN:
     Base::reduce(SYMBOL_TERM_0, Base::reduce_term_0__string(Base::args(1)));
     break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state131() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_COMMA:
    case SYMBOL_OP_1000:
    case SYMBOL_OP_1200:
@@ -2260,11 +2391,12 @@ template<typename Base, typename... Args> class term_parser_gen : public Base {
    case SYMBOL_RPAREN:
     Base::reduce(SYMBOL_TERM_0, Base::reduce_term_0__variable(Base::args(1)));
     break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state132() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_FUNCTOR_LPAREN: Base::shift_and_goto_state(126); break;
    case SYMBOL_INF: Base::shift_and_goto_state(118); break;
    case SYMBOL_LBRACE: Base::shift_and_goto_state(127); break;
@@ -2288,17 +2420,19 @@ template<typename Base, typename... Args> class term_parser_gen : public Base {
    case SYMBOL_TERM_1000: Base::goto_state(151); break;
    case SYMBOL_TERM_999: Base::goto_state(153); break;
    case SYMBOL_UNSIGNED_NUMBER: Base::goto_state(120); break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state133() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_OP_1000: Base::shift_and_goto_state(155); break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state134() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_FUNCTOR_LPAREN: Base::shift_and_goto_state(126); break;
    case SYMBOL_INF: Base::shift_and_goto_state(118); break;
    case SYMBOL_LBRACE: Base::shift_and_goto_state(127); break;
@@ -2325,18 +2459,20 @@ template<typename Base, typename... Args> class term_parser_gen : public Base {
    case SYMBOL_TERM_1200: Base::goto_state(122); break;
    case SYMBOL_TERM_999: Base::goto_state(124); break;
    case SYMBOL_UNSIGNED_NUMBER: Base::goto_state(120); break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state135() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_OP_1200: Base::shift_and_goto_state(149); break;
    case SYMBOL_RPAREN: Base::shift_and_goto_state(158); break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state136() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_FUNCTOR_LPAREN: Base::shift_and_goto_state(126); break;
    case SYMBOL_INF: Base::shift_and_goto_state(118); break;
    case SYMBOL_LBRACE: Base::shift_and_goto_state(127); break;
@@ -2357,18 +2493,20 @@ template<typename Base, typename... Args> class term_parser_gen : public Base {
    case SYMBOL_TERM_0: Base::goto_state(159); break;
    case SYMBOL_TERM_999: Base::goto_state(160); break;
    case SYMBOL_UNSIGNED_NUMBER: Base::goto_state(120); break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state137() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_COMMA: Base::shift_and_goto_state(164); break;
    case SYMBOL_OP_999: Base::shift_and_goto_state(162); break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state138() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_COMMA:
    case SYMBOL_OP_1000:
    case SYMBOL_OP_1200:
@@ -2376,11 +2514,12 @@ template<typename Base, typename... Args> class term_parser_gen : public Base {
    case SYMBOL_RPAREN:
     Base::reduce(SYMBOL_UNSIGNED_NUMBER, Base::reduce_unsigned_number__natural_number(Base::args(1)));
     break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state139() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_COMMA:
    case SYMBOL_OP_1000:
    case SYMBOL_OP_1200:
@@ -2388,17 +2527,19 @@ template<typename Base, typename... Args> class term_parser_gen : public Base {
    case SYMBOL_RPAREN:
     Base::reduce(SYMBOL_UNSIGNED_NUMBER, Base::reduce_unsigned_number__unsigned_float(Base::args(1)));
     break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state140() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_RBRACKET: Base::shift_and_goto_state(142); break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state141() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_COMMA:
    case SYMBOL_OP_1000:
    case SYMBOL_OP_1200:
@@ -2406,11 +2547,12 @@ template<typename Base, typename... Args> class term_parser_gen : public Base {
    case SYMBOL_RPAREN:
     Base::reduce(SYMBOL_LIST, Base::reduce_list__lbracket_rbracket(Base::args(2)));
     break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state142() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_COMMA:
    case SYMBOL_OP_1000:
    case SYMBOL_OP_1200:
@@ -2418,17 +2560,19 @@ template<typename Base, typename... Args> class term_parser_gen : public Base {
    case SYMBOL_RPAREN:
     Base::reduce(SYMBOL_LIST, Base::reduce_list__lbracket_listexpr_rbracket(Base::args(3)));
     break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state143() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_RPAREN: Base::shift_and_goto_state(144); break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state144() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_COMMA:
    case SYMBOL_OP_1000:
    case SYMBOL_OP_1200:
@@ -2436,18 +2580,20 @@ template<typename Base, typename... Args> class term_parser_gen : public Base {
    case SYMBOL_RPAREN:
     Base::reduce(SYMBOL_TERM_0, Base::reduce_term_0__functor_lparen_arguments_rparen(Base::args(3)));
     break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state145() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_OP_1200: Base::shift_and_goto_state(112); break;
    case SYMBOL_RBRACE: Base::shift_and_goto_state(146); break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state146() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_COMMA:
    case SYMBOL_OP_1000:
    case SYMBOL_OP_1200:
@@ -2455,18 +2601,20 @@ template<typename Base, typename... Args> class term_parser_gen : public Base {
    case SYMBOL_RPAREN:
     Base::reduce(SYMBOL_TERM_0, Base::reduce_term_0__lbrace_subterm_1200_rbrace(Base::args(3)));
     break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state147() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_OP_1200: Base::shift_and_goto_state(149); break;
    case SYMBOL_RPAREN: Base::shift_and_goto_state(148); break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state148() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_COMMA:
    case SYMBOL_OP_1000:
    case SYMBOL_OP_1200:
@@ -2474,11 +2622,12 @@ template<typename Base, typename... Args> class term_parser_gen : public Base {
    case SYMBOL_RPAREN:
     Base::reduce(SYMBOL_TERM_0, Base::reduce_term_0__lparen_subterm_1200_rparen(Base::args(3)));
     break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state149() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_FUNCTOR_LPAREN: Base::shift_and_goto_state(126); break;
    case SYMBOL_INF: Base::shift_and_goto_state(118); break;
    case SYMBOL_LBRACE: Base::shift_and_goto_state(127); break;
@@ -2505,30 +2654,33 @@ template<typename Base, typename... Args> class term_parser_gen : public Base {
    case SYMBOL_TERM_1200: Base::goto_state(122); break;
    case SYMBOL_TERM_999: Base::goto_state(124); break;
    case SYMBOL_UNSIGNED_NUMBER: Base::goto_state(120); break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state150() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_OP_1200:
    case SYMBOL_RPAREN:
     Base::reduce(SYMBOL_TERM_1200, Base::reduce_term_1200__subterm_1200_op_1200_subterm_1200(Base::args(3)));
     break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state151() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_OP_1000:
    case SYMBOL_OP_1200:
    case SYMBOL_RPAREN:
     Base::reduce(SYMBOL_SUBTERM_1000, Base::reduce_subterm_1000__term_1000(Base::args(1)));
     break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state152() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_COMMA:
    case SYMBOL_OP_999:
     Base::reduce(SYMBOL_SUBTERM_999, Base::reduce_subterm_999__term_0(Base::args(1)));
@@ -2538,11 +2690,12 @@ template<typename Base, typename... Args> class term_parser_gen : public Base {
    case SYMBOL_RPAREN:
     Base::reduce(SYMBOL_SUBTERM_1000, Base::reduce_subterm_1000__term_0(Base::args(1)));
     break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state153() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_COMMA:
    case SYMBOL_OP_999:
     Base::reduce(SYMBOL_SUBTERM_999, Base::reduce_subterm_999__term_999(Base::args(1)));
@@ -2552,21 +2705,23 @@ template<typename Base, typename... Args> class term_parser_gen : public Base {
    case SYMBOL_RPAREN:
     Base::reduce(SYMBOL_SUBTERM_1000, Base::reduce_subterm_1000__term_999(Base::args(1)));
     break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state154() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_OP_1000:
    case SYMBOL_OP_1200:
    case SYMBOL_RPAREN:
     Base::reduce(SYMBOL_TERM_1000, Base::reduce_term_1000__op_1000_subterm_1000(Base::args(2)));
     break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state155() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_FUNCTOR_LPAREN: Base::shift_and_goto_state(126); break;
    case SYMBOL_INF: Base::shift_and_goto_state(118); break;
    case SYMBOL_LBRACE: Base::shift_and_goto_state(127); break;
@@ -2590,30 +2745,33 @@ template<typename Base, typename... Args> class term_parser_gen : public Base {
    case SYMBOL_TERM_1000: Base::goto_state(151); break;
    case SYMBOL_TERM_999: Base::goto_state(153); break;
    case SYMBOL_UNSIGNED_NUMBER: Base::goto_state(120); break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state156() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_OP_1000:
    case SYMBOL_OP_1200:
    case SYMBOL_RPAREN:
     Base::reduce(SYMBOL_TERM_1000, Base::reduce_term_1000__subterm_1000_op_1000_subterm_1000(Base::args(3)));
     break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state157() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_OP_1200:
    case SYMBOL_RPAREN:
     Base::reduce(SYMBOL_TERM_1200, Base::reduce_term_1200__op_1200_subterm_1200(Base::args(2)));
     break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state158() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_COMMA:
    case SYMBOL_OP_1000:
    case SYMBOL_OP_1200:
@@ -2621,11 +2779,12 @@ template<typename Base, typename... Args> class term_parser_gen : public Base {
    case SYMBOL_RBRACE:
     Base::reduce(SYMBOL_TERM_0, Base::reduce_term_0__lparen_subterm_1200_rparen(Base::args(3)));
     break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state159() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_COMMA:
    case SYMBOL_OP_1000:
    case SYMBOL_OP_1200:
@@ -2633,11 +2792,12 @@ template<typename Base, typename... Args> class term_parser_gen : public Base {
    case SYMBOL_RPAREN:
     Base::reduce(SYMBOL_SUBTERM_999, Base::reduce_subterm_999__term_0(Base::args(1)));
     break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state160() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_COMMA:
    case SYMBOL_OP_1000:
    case SYMBOL_OP_1200:
@@ -2645,11 +2805,12 @@ template<typename Base, typename... Args> class term_parser_gen : public Base {
    case SYMBOL_RPAREN:
     Base::reduce(SYMBOL_SUBTERM_999, Base::reduce_subterm_999__term_999(Base::args(1)));
     break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state161() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_COMMA:
    case SYMBOL_OP_1000:
    case SYMBOL_OP_1200:
@@ -2657,11 +2818,12 @@ template<typename Base, typename... Args> class term_parser_gen : public Base {
    case SYMBOL_RPAREN:
     Base::reduce(SYMBOL_TERM_999, Base::reduce_term_999__op_999_subterm_999(Base::args(2)));
     break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state162() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_FUNCTOR_LPAREN: Base::shift_and_goto_state(126); break;
    case SYMBOL_INF: Base::shift_and_goto_state(118); break;
    case SYMBOL_LBRACE: Base::shift_and_goto_state(127); break;
@@ -2682,11 +2844,12 @@ template<typename Base, typename... Args> class term_parser_gen : public Base {
    case SYMBOL_TERM_0: Base::goto_state(159); break;
    case SYMBOL_TERM_999: Base::goto_state(160); break;
    case SYMBOL_UNSIGNED_NUMBER: Base::goto_state(120); break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state163() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_COMMA:
    case SYMBOL_OP_1000:
    case SYMBOL_OP_1200:
@@ -2694,11 +2857,12 @@ template<typename Base, typename... Args> class term_parser_gen : public Base {
    case SYMBOL_RPAREN:
     Base::reduce(SYMBOL_TERM_999, Base::reduce_term_999__subterm_999_op_999_subterm_999(Base::args(3)));
     break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state164() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_FUNCTOR_LPAREN: Base::shift_and_goto_state(126); break;
    case SYMBOL_INF: Base::shift_and_goto_state(118); break;
    case SYMBOL_LBRACE: Base::shift_and_goto_state(127); break;
@@ -2722,31 +2886,34 @@ template<typename Base, typename... Args> class term_parser_gen : public Base {
    case SYMBOL_TERM_1000: Base::goto_state(151); break;
    case SYMBOL_TERM_999: Base::goto_state(153); break;
    case SYMBOL_UNSIGNED_NUMBER: Base::goto_state(120); break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state165() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_OP_1000:
    case SYMBOL_OP_1200:
    case SYMBOL_RPAREN:
     Base::reduce(SYMBOL_TERM_1000, Base::reduce_term_1000__subterm_999_comma_subterm_1000(Base::args(3)));
     break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state166() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_OP_1000:
    case SYMBOL_OP_1200:
    case SYMBOL_RBRACE:
     Base::reduce(SYMBOL_SUBTERM_1000, Base::reduce_subterm_1000__term_1000(Base::args(1)));
     break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state167() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_COMMA:
    case SYMBOL_OP_999:
     Base::reduce(SYMBOL_SUBTERM_999, Base::reduce_subterm_999__term_0(Base::args(1)));
@@ -2756,11 +2923,12 @@ template<typename Base, typename... Args> class term_parser_gen : public Base {
    case SYMBOL_RBRACE:
     Base::reduce(SYMBOL_SUBTERM_1000, Base::reduce_subterm_1000__term_0(Base::args(1)));
     break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state168() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_COMMA:
    case SYMBOL_OP_999:
     Base::reduce(SYMBOL_SUBTERM_999, Base::reduce_subterm_999__term_999(Base::args(1)));
@@ -2770,21 +2938,23 @@ template<typename Base, typename... Args> class term_parser_gen : public Base {
    case SYMBOL_RBRACE:
     Base::reduce(SYMBOL_SUBTERM_1000, Base::reduce_subterm_1000__term_999(Base::args(1)));
     break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state169() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_OP_1000:
    case SYMBOL_OP_1200:
    case SYMBOL_RBRACE:
     Base::reduce(SYMBOL_TERM_1000, Base::reduce_term_1000__op_1000_subterm_1000(Base::args(2)));
     break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state170() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_FUNCTOR_LPAREN: Base::shift_and_goto_state(91); break;
    case SYMBOL_INF: Base::shift_and_goto_state(83); break;
    case SYMBOL_LBRACE: Base::shift_and_goto_state(92); break;
@@ -2808,40 +2978,44 @@ template<typename Base, typename... Args> class term_parser_gen : public Base {
    case SYMBOL_TERM_1000: Base::goto_state(166); break;
    case SYMBOL_TERM_999: Base::goto_state(168); break;
    case SYMBOL_UNSIGNED_NUMBER: Base::goto_state(85); break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state171() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_OP_1000:
    case SYMBOL_OP_1200:
    case SYMBOL_RBRACE:
     Base::reduce(SYMBOL_TERM_1000, Base::reduce_term_1000__subterm_1000_op_1000_subterm_1000(Base::args(3)));
     break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state172() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_OP_1200:
    case SYMBOL_RBRACE:
     Base::reduce(SYMBOL_TERM_1200, Base::reduce_term_1200__op_1200_subterm_1200(Base::args(2)));
     break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state173() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_COMMA:
    case SYMBOL_OP_999:
    case SYMBOL_RPAREN:
     Base::reduce(SYMBOL_TERM_0, Base::reduce_term_0__lbrace_subterm_1200_rbrace(Base::args(3)));
     break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state174() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_COMMA:
    case SYMBOL_OP_1000:
    case SYMBOL_OP_1200:
@@ -2849,11 +3023,12 @@ template<typename Base, typename... Args> class term_parser_gen : public Base {
    case SYMBOL_RBRACE:
     Base::reduce(SYMBOL_SUBTERM_999, Base::reduce_subterm_999__term_0(Base::args(1)));
     break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state175() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_COMMA:
    case SYMBOL_OP_1000:
    case SYMBOL_OP_1200:
@@ -2861,11 +3036,12 @@ template<typename Base, typename... Args> class term_parser_gen : public Base {
    case SYMBOL_RBRACE:
     Base::reduce(SYMBOL_SUBTERM_999, Base::reduce_subterm_999__term_999(Base::args(1)));
     break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state176() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_COMMA:
    case SYMBOL_OP_1000:
    case SYMBOL_OP_1200:
@@ -2873,11 +3049,12 @@ template<typename Base, typename... Args> class term_parser_gen : public Base {
    case SYMBOL_RBRACE:
     Base::reduce(SYMBOL_TERM_999, Base::reduce_term_999__op_999_subterm_999(Base::args(2)));
     break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state177() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_FUNCTOR_LPAREN: Base::shift_and_goto_state(91); break;
    case SYMBOL_INF: Base::shift_and_goto_state(83); break;
    case SYMBOL_LBRACE: Base::shift_and_goto_state(92); break;
@@ -2898,11 +3075,12 @@ template<typename Base, typename... Args> class term_parser_gen : public Base {
    case SYMBOL_TERM_0: Base::goto_state(174); break;
    case SYMBOL_TERM_999: Base::goto_state(175); break;
    case SYMBOL_UNSIGNED_NUMBER: Base::goto_state(85); break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state178() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_COMMA:
    case SYMBOL_OP_1000:
    case SYMBOL_OP_1200:
@@ -2910,11 +3088,12 @@ template<typename Base, typename... Args> class term_parser_gen : public Base {
    case SYMBOL_RBRACE:
     Base::reduce(SYMBOL_TERM_999, Base::reduce_term_999__subterm_999_op_999_subterm_999(Base::args(3)));
     break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state179() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_FUNCTOR_LPAREN: Base::shift_and_goto_state(91); break;
    case SYMBOL_INF: Base::shift_and_goto_state(83); break;
    case SYMBOL_LBRACE: Base::shift_and_goto_state(92); break;
@@ -2938,59 +3117,65 @@ template<typename Base, typename... Args> class term_parser_gen : public Base {
    case SYMBOL_TERM_1000: Base::goto_state(166); break;
    case SYMBOL_TERM_999: Base::goto_state(168); break;
    case SYMBOL_UNSIGNED_NUMBER: Base::goto_state(85); break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state180() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_OP_1000:
    case SYMBOL_OP_1200:
    case SYMBOL_RBRACE:
     Base::reduce(SYMBOL_TERM_1000, Base::reduce_term_1000__subterm_999_comma_subterm_1000(Base::args(3)));
     break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state181() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_OP_1200: Base::shift_and_goto_state(149); break;
    case SYMBOL_RPAREN: Base::shift_and_goto_state(182); break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state182() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_COMMA:
    case SYMBOL_OP_999:
    case SYMBOL_RPAREN:
     Base::reduce(SYMBOL_TERM_0, Base::reduce_term_0__lparen_subterm_1200_rparen(Base::args(3)));
     break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state183() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_COMMA:
    case SYMBOL_OP_999:
    case SYMBOL_RBRACKET:
    case SYMBOL_VBAR:
     Base::reduce(SYMBOL_TERM_0, Base::reduce_term_0__functor_lparen_arguments_rparen(Base::args(3)));
     break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state184() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_COMMA:
    case SYMBOL_OP_999:
    case SYMBOL_RPAREN:
     Base::reduce(SYMBOL_TERM_999, Base::reduce_term_999__op_999_subterm_999(Base::args(2)));
     break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state185() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_FUNCTOR_LPAREN: Base::shift_and_goto_state(63); break;
    case SYMBOL_INF: Base::shift_and_goto_state(57); break;
    case SYMBOL_LBRACE: Base::shift_and_goto_state(64); break;
@@ -3011,21 +3196,23 @@ template<typename Base, typename... Args> class term_parser_gen : public Base {
    case SYMBOL_TERM_0: Base::goto_state(60); break;
    case SYMBOL_TERM_999: Base::goto_state(61); break;
    case SYMBOL_UNSIGNED_NUMBER: Base::goto_state(59); break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state186() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_COMMA:
    case SYMBOL_OP_999:
    case SYMBOL_RPAREN:
     Base::reduce(SYMBOL_TERM_999, Base::reduce_term_999__subterm_999_op_999_subterm_999(Base::args(3)));
     break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state187() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_FUNCTOR_LPAREN: Base::shift_and_goto_state(63); break;
    case SYMBOL_INF: Base::shift_and_goto_state(57); break;
    case SYMBOL_LBRACE: Base::shift_and_goto_state(64); break;
@@ -3047,66 +3234,73 @@ template<typename Base, typename... Args> class term_parser_gen : public Base {
    case SYMBOL_TERM_0: Base::goto_state(60); break;
    case SYMBOL_TERM_999: Base::goto_state(61); break;
    case SYMBOL_UNSIGNED_NUMBER: Base::goto_state(59); break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state188() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_RPAREN:
     Base::reduce(SYMBOL_ARGUMENTS, Base::reduce_arguments__subterm_999_comma_arguments(Base::args(3)));
     break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state189() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_OP_1200: Base::shift_and_goto_state(112); break;
    case SYMBOL_RBRACE: Base::shift_and_goto_state(190); break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state190() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_COMMA:
    case SYMBOL_OP_999:
    case SYMBOL_RBRACKET:
    case SYMBOL_VBAR:
     Base::reduce(SYMBOL_TERM_0, Base::reduce_term_0__lbrace_subterm_1200_rbrace(Base::args(3)));
     break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state191() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_OP_1200: Base::shift_and_goto_state(149); break;
    case SYMBOL_RPAREN: Base::shift_and_goto_state(192); break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state192() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_COMMA:
    case SYMBOL_OP_999:
    case SYMBOL_RBRACKET:
    case SYMBOL_VBAR:
     Base::reduce(SYMBOL_TERM_0, Base::reduce_term_0__lparen_subterm_1200_rparen(Base::args(3)));
     break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state193() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_COMMA:
    case SYMBOL_OP_999:
    case SYMBOL_RBRACKET:
    case SYMBOL_VBAR:
     Base::reduce(SYMBOL_TERM_999, Base::reduce_term_999__op_999_subterm_999(Base::args(2)));
     break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state194() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_FUNCTOR_LPAREN: Base::shift_and_goto_state(39); break;
    case SYMBOL_INF: Base::shift_and_goto_state(33); break;
    case SYMBOL_LBRACE: Base::shift_and_goto_state(40); break;
@@ -3127,22 +3321,24 @@ template<typename Base, typename... Args> class term_parser_gen : public Base {
    case SYMBOL_TERM_0: Base::goto_state(36); break;
    case SYMBOL_TERM_999: Base::goto_state(37); break;
    case SYMBOL_UNSIGNED_NUMBER: Base::goto_state(35); break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state195() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_COMMA:
    case SYMBOL_OP_999:
    case SYMBOL_RBRACKET:
    case SYMBOL_VBAR:
     Base::reduce(SYMBOL_TERM_999, Base::reduce_term_999__subterm_999_op_999_subterm_999(Base::args(3)));
     break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state196() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_FUNCTOR_LPAREN: Base::shift_and_goto_state(39); break;
    case SYMBOL_INF: Base::shift_and_goto_state(33); break;
    case SYMBOL_LBRACE: Base::shift_and_goto_state(40); break;
@@ -3164,11 +3360,12 @@ template<typename Base, typename... Args> class term_parser_gen : public Base {
    case SYMBOL_TERM_0: Base::goto_state(36); break;
    case SYMBOL_TERM_999: Base::goto_state(37); break;
    case SYMBOL_UNSIGNED_NUMBER: Base::goto_state(35); break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state197() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_FUNCTOR_LPAREN: Base::shift_and_goto_state(209); break;
    case SYMBOL_INF: Base::shift_and_goto_state(203); break;
    case SYMBOL_LBRACE: Base::shift_and_goto_state(210); break;
@@ -3189,46 +3386,51 @@ template<typename Base, typename... Args> class term_parser_gen : public Base {
    case SYMBOL_TERM_0: Base::goto_state(206); break;
    case SYMBOL_TERM_999: Base::goto_state(207); break;
    case SYMBOL_UNSIGNED_NUMBER: Base::goto_state(205); break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state198() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_RBRACKET:
     Base::reduce(SYMBOL_LISTEXPR, Base::reduce_listexpr__subterm_999_comma_listexpr(Base::args(3)));
     break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state199() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_OP_999:
    case SYMBOL_RBRACKET:
     Base::reduce(SYMBOL_ATOM, Base::reduce_atom__name(Base::args(1)));
     break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state200() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_OP_999:
    case SYMBOL_RBRACKET:
     Base::reduce(SYMBOL_CONSTANT, Base::reduce_constant__atom(Base::args(1)));
     break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state201() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_OP_999:
    case SYMBOL_RBRACKET:
     Base::reduce(SYMBOL_CONSTANT, Base::reduce_constant__number(Base::args(1)));
     break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state202() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_FUNCTOR_LPAREN: Base::shift_and_goto_state(39); break;
    case SYMBOL_INF: Base::shift_and_goto_state(33); break;
    case SYMBOL_LBRACE: Base::shift_and_goto_state(40); break;
@@ -3251,65 +3453,72 @@ template<typename Base, typename... Args> class term_parser_gen : public Base {
    case SYMBOL_TERM_0: Base::goto_state(36); break;
    case SYMBOL_TERM_999: Base::goto_state(37); break;
    case SYMBOL_UNSIGNED_NUMBER: Base::goto_state(35); break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state203() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_OP_999:
    case SYMBOL_RBRACKET:
     Base::reduce(SYMBOL_NUMBER, Base::reduce_number__inf(Base::args(1)));
     break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state204() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_OP_999:
    case SYMBOL_RBRACKET:
     Base::reduce(SYMBOL_NUMBER, Base::reduce_number__nan(Base::args(1)));
     break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state205() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_OP_999:
    case SYMBOL_RBRACKET:
     Base::reduce(SYMBOL_NUMBER, Base::reduce_number__unsigned_number(Base::args(1)));
     break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state206() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_OP_999:
    case SYMBOL_RBRACKET:
     Base::reduce(SYMBOL_SUBTERM_999, Base::reduce_subterm_999__term_0(Base::args(1)));
     break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state207() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_OP_999:
    case SYMBOL_RBRACKET:
     Base::reduce(SYMBOL_SUBTERM_999, Base::reduce_subterm_999__term_999(Base::args(1)));
     break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state208() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_OP_999:
    case SYMBOL_RBRACKET:
     Base::reduce(SYMBOL_TERM_0, Base::reduce_term_0__constant(Base::args(1)));
     break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state209() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_FUNCTOR_LPAREN: Base::shift_and_goto_state(63); break;
    case SYMBOL_INF: Base::shift_and_goto_state(57); break;
    case SYMBOL_LBRACE: Base::shift_and_goto_state(64); break;
@@ -3331,11 +3540,12 @@ template<typename Base, typename... Args> class term_parser_gen : public Base {
    case SYMBOL_TERM_0: Base::goto_state(60); break;
    case SYMBOL_TERM_999: Base::goto_state(61); break;
    case SYMBOL_UNSIGNED_NUMBER: Base::goto_state(59); break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state210() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_FUNCTOR_LPAREN: Base::shift_and_goto_state(91); break;
    case SYMBOL_INF: Base::shift_and_goto_state(83); break;
    case SYMBOL_LBRACE: Base::shift_and_goto_state(92); break;
@@ -3362,20 +3572,22 @@ template<typename Base, typename... Args> class term_parser_gen : public Base {
    case SYMBOL_TERM_1200: Base::goto_state(87); break;
    case SYMBOL_TERM_999: Base::goto_state(89); break;
    case SYMBOL_UNSIGNED_NUMBER: Base::goto_state(85); break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state211() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_OP_999:
    case SYMBOL_RBRACKET:
     Base::reduce(SYMBOL_TERM_0, Base::reduce_term_0__list(Base::args(1)));
     break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state212() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_FUNCTOR_LPAREN: Base::shift_and_goto_state(126); break;
    case SYMBOL_INF: Base::shift_and_goto_state(118); break;
    case SYMBOL_LBRACE: Base::shift_and_goto_state(127); break;
@@ -3402,29 +3614,32 @@ template<typename Base, typename... Args> class term_parser_gen : public Base {
    case SYMBOL_TERM_1200: Base::goto_state(122); break;
    case SYMBOL_TERM_999: Base::goto_state(124); break;
    case SYMBOL_UNSIGNED_NUMBER: Base::goto_state(120); break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state213() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_OP_999:
    case SYMBOL_RBRACKET:
     Base::reduce(SYMBOL_TERM_0, Base::reduce_term_0__string(Base::args(1)));
     break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state214() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_OP_999:
    case SYMBOL_RBRACKET:
     Base::reduce(SYMBOL_TERM_0, Base::reduce_term_0__variable(Base::args(1)));
     break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state215() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_FUNCTOR_LPAREN: Base::shift_and_goto_state(209); break;
    case SYMBOL_INF: Base::shift_and_goto_state(203); break;
    case SYMBOL_LBRACE: Base::shift_and_goto_state(210); break;
@@ -3445,118 +3660,132 @@ template<typename Base, typename... Args> class term_parser_gen : public Base {
    case SYMBOL_TERM_0: Base::goto_state(206); break;
    case SYMBOL_TERM_999: Base::goto_state(207); break;
    case SYMBOL_UNSIGNED_NUMBER: Base::goto_state(205); break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state216() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_OP_999: Base::shift_and_goto_state(229); break;
    case SYMBOL_RBRACKET:
     Base::reduce(SYMBOL_LISTEXPR, Base::reduce_listexpr__subterm_999_vbar_subterm_999(Base::args(3)));
     break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state217() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_OP_999:
    case SYMBOL_RBRACKET:
     Base::reduce(SYMBOL_UNSIGNED_NUMBER, Base::reduce_unsigned_number__natural_number(Base::args(1)));
     break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state218() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_OP_999:
    case SYMBOL_RBRACKET:
     Base::reduce(SYMBOL_UNSIGNED_NUMBER, Base::reduce_unsigned_number__unsigned_float(Base::args(1)));
     break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state219() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_RBRACKET: Base::shift_and_goto_state(221); break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state220() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_OP_999:
    case SYMBOL_RBRACKET:
     Base::reduce(SYMBOL_LIST, Base::reduce_list__lbracket_rbracket(Base::args(2)));
     break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state221() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_OP_999:
    case SYMBOL_RBRACKET:
     Base::reduce(SYMBOL_LIST, Base::reduce_list__lbracket_listexpr_rbracket(Base::args(3)));
     break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state222() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_RPAREN: Base::shift_and_goto_state(223); break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state223() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_OP_999:
    case SYMBOL_RBRACKET:
     Base::reduce(SYMBOL_TERM_0, Base::reduce_term_0__functor_lparen_arguments_rparen(Base::args(3)));
     break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state224() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_OP_1200: Base::shift_and_goto_state(112); break;
    case SYMBOL_RBRACE: Base::shift_and_goto_state(225); break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state225() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_OP_999:
    case SYMBOL_RBRACKET:
     Base::reduce(SYMBOL_TERM_0, Base::reduce_term_0__lbrace_subterm_1200_rbrace(Base::args(3)));
     break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state226() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_OP_1200: Base::shift_and_goto_state(149); break;
    case SYMBOL_RPAREN: Base::shift_and_goto_state(227); break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state227() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_OP_999:
    case SYMBOL_RBRACKET:
     Base::reduce(SYMBOL_TERM_0, Base::reduce_term_0__lparen_subterm_1200_rparen(Base::args(3)));
     break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state228() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_OP_999:
    case SYMBOL_RBRACKET:
     Base::reduce(SYMBOL_TERM_999, Base::reduce_term_999__op_999_subterm_999(Base::args(2)));
     break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state229() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_FUNCTOR_LPAREN: Base::shift_and_goto_state(209); break;
    case SYMBOL_INF: Base::shift_and_goto_state(203); break;
    case SYMBOL_LBRACE: Base::shift_and_goto_state(210); break;
@@ -3577,26 +3806,29 @@ template<typename Base, typename... Args> class term_parser_gen : public Base {
    case SYMBOL_TERM_0: Base::goto_state(206); break;
    case SYMBOL_TERM_999: Base::goto_state(207); break;
    case SYMBOL_UNSIGNED_NUMBER: Base::goto_state(205); break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state230() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_OP_999:
    case SYMBOL_RBRACKET:
     Base::reduce(SYMBOL_TERM_999, Base::reduce_term_999__subterm_999_op_999_subterm_999(Base::args(3)));
     break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state231() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_RPAREN: Base::shift_and_goto_state(232); break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state232() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_COMMA:
    case SYMBOL_FULL_STOP:
    case SYMBOL_OP_1000:
@@ -3604,18 +3836,20 @@ template<typename Base, typename... Args> class term_parser_gen : public Base {
    case SYMBOL_OP_999:
     Base::reduce(SYMBOL_TERM_0, Base::reduce_term_0__functor_lparen_arguments_rparen(Base::args(3)));
     break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state233() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_OP_1200: Base::shift_and_goto_state(112); break;
    case SYMBOL_RBRACE: Base::shift_and_goto_state(234); break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state234() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_COMMA:
    case SYMBOL_FULL_STOP:
    case SYMBOL_OP_1000:
@@ -3623,18 +3857,20 @@ template<typename Base, typename... Args> class term_parser_gen : public Base {
    case SYMBOL_OP_999:
     Base::reduce(SYMBOL_TERM_0, Base::reduce_term_0__lbrace_subterm_1200_rbrace(Base::args(3)));
     break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state235() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_OP_1200: Base::shift_and_goto_state(149); break;
    case SYMBOL_RPAREN: Base::shift_and_goto_state(236); break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state236() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_COMMA:
    case SYMBOL_FULL_STOP:
    case SYMBOL_OP_1000:
@@ -3642,21 +3878,23 @@ template<typename Base, typename... Args> class term_parser_gen : public Base {
    case SYMBOL_OP_999:
     Base::reduce(SYMBOL_TERM_0, Base::reduce_term_0__lparen_subterm_1200_rparen(Base::args(3)));
     break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state237() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_FULL_STOP:
    case SYMBOL_OP_1000:
    case SYMBOL_OP_1200:
     Base::reduce(SYMBOL_SUBTERM_1000, Base::reduce_subterm_1000__term_1000(Base::args(1)));
     break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state238() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_COMMA:
    case SYMBOL_OP_999:
     Base::reduce(SYMBOL_SUBTERM_999, Base::reduce_subterm_999__term_0(Base::args(1)));
@@ -3666,11 +3904,12 @@ template<typename Base, typename... Args> class term_parser_gen : public Base {
    case SYMBOL_OP_1200:
     Base::reduce(SYMBOL_SUBTERM_1000, Base::reduce_subterm_1000__term_0(Base::args(1)));
     break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state239() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_COMMA:
    case SYMBOL_OP_999:
     Base::reduce(SYMBOL_SUBTERM_999, Base::reduce_subterm_999__term_999(Base::args(1)));
@@ -3680,21 +3919,23 @@ template<typename Base, typename... Args> class term_parser_gen : public Base {
    case SYMBOL_OP_1200:
     Base::reduce(SYMBOL_SUBTERM_1000, Base::reduce_subterm_1000__term_999(Base::args(1)));
     break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state240() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_FULL_STOP:
    case SYMBOL_OP_1000:
    case SYMBOL_OP_1200:
     Base::reduce(SYMBOL_TERM_1000, Base::reduce_term_1000__op_1000_subterm_1000(Base::args(2)));
     break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state241() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_FUNCTOR_LPAREN: Base::shift_and_goto_state(13); break;
    case SYMBOL_INF: Base::shift_and_goto_state(5); break;
    case SYMBOL_LBRACE: Base::shift_and_goto_state(14); break;
@@ -3718,30 +3959,33 @@ template<typename Base, typename... Args> class term_parser_gen : public Base {
    case SYMBOL_TERM_1000: Base::goto_state(237); break;
    case SYMBOL_TERM_999: Base::goto_state(239); break;
    case SYMBOL_UNSIGNED_NUMBER: Base::goto_state(7); break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state242() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_FULL_STOP:
    case SYMBOL_OP_1000:
    case SYMBOL_OP_1200:
     Base::reduce(SYMBOL_TERM_1000, Base::reduce_term_1000__subterm_1000_op_1000_subterm_1000(Base::args(3)));
     break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state243() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_FULL_STOP:
    case SYMBOL_OP_1200:
     Base::reduce(SYMBOL_TERM_1200, Base::reduce_term_1200__op_1200_subterm_1200(Base::args(2)));
     break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state244() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_FUNCTOR_LPAREN: Base::shift_and_goto_state(13); break;
    case SYMBOL_INF: Base::shift_and_goto_state(5); break;
    case SYMBOL_LBRACE: Base::shift_and_goto_state(14); break;
@@ -3768,20 +4012,22 @@ template<typename Base, typename... Args> class term_parser_gen : public Base {
    case SYMBOL_TERM_1200: Base::goto_state(9); break;
    case SYMBOL_TERM_999: Base::goto_state(11); break;
    case SYMBOL_UNSIGNED_NUMBER: Base::goto_state(7); break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state245() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_FULL_STOP:
    case SYMBOL_OP_1200:
     Base::reduce(SYMBOL_TERM_1200, Base::reduce_term_1200__subterm_1200_op_1200_subterm_1200(Base::args(3)));
     break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state246() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    default: 
     Base::reduce(SYMBOL_START, Base::reduce_start__subterm_1200_full_stop(Base::args(2)));
     break;
@@ -3789,7 +4035,7 @@ template<typename Base, typename... Args> class term_parser_gen : public Base {
  }
 
  void state247() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_COMMA:
    case SYMBOL_FULL_STOP:
    case SYMBOL_OP_1000:
@@ -3797,11 +4043,12 @@ template<typename Base, typename... Args> class term_parser_gen : public Base {
    case SYMBOL_OP_999:
     Base::reduce(SYMBOL_SUBTERM_999, Base::reduce_subterm_999__term_0(Base::args(1)));
     break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state248() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_COMMA:
    case SYMBOL_FULL_STOP:
    case SYMBOL_OP_1000:
@@ -3809,11 +4056,12 @@ template<typename Base, typename... Args> class term_parser_gen : public Base {
    case SYMBOL_OP_999:
     Base::reduce(SYMBOL_SUBTERM_999, Base::reduce_subterm_999__term_999(Base::args(1)));
     break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state249() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_COMMA:
    case SYMBOL_FULL_STOP:
    case SYMBOL_OP_1000:
@@ -3821,11 +4069,12 @@ template<typename Base, typename... Args> class term_parser_gen : public Base {
    case SYMBOL_OP_999:
     Base::reduce(SYMBOL_TERM_999, Base::reduce_term_999__op_999_subterm_999(Base::args(2)));
     break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state250() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_FUNCTOR_LPAREN: Base::shift_and_goto_state(13); break;
    case SYMBOL_INF: Base::shift_and_goto_state(5); break;
    case SYMBOL_LBRACE: Base::shift_and_goto_state(14); break;
@@ -3846,11 +4095,12 @@ template<typename Base, typename... Args> class term_parser_gen : public Base {
    case SYMBOL_TERM_0: Base::goto_state(247); break;
    case SYMBOL_TERM_999: Base::goto_state(248); break;
    case SYMBOL_UNSIGNED_NUMBER: Base::goto_state(7); break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state251() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_COMMA:
    case SYMBOL_FULL_STOP:
    case SYMBOL_OP_1000:
@@ -3858,11 +4108,12 @@ template<typename Base, typename... Args> class term_parser_gen : public Base {
    case SYMBOL_OP_999:
     Base::reduce(SYMBOL_TERM_999, Base::reduce_term_999__subterm_999_op_999_subterm_999(Base::args(3)));
     break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state252() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_FUNCTOR_LPAREN: Base::shift_and_goto_state(13); break;
    case SYMBOL_INF: Base::shift_and_goto_state(5); break;
    case SYMBOL_LBRACE: Base::shift_and_goto_state(14); break;
@@ -3886,16 +4137,18 @@ template<typename Base, typename... Args> class term_parser_gen : public Base {
    case SYMBOL_TERM_1000: Base::goto_state(237); break;
    case SYMBOL_TERM_999: Base::goto_state(239); break;
    case SYMBOL_UNSIGNED_NUMBER: Base::goto_state(7); break;
+   default: Base::parse_error(); break;
   }
  }
 
  void state253() {
-  switch (lookahead().ordinal()) {
+  switch (Base::lookahead().ordinal()) {
    case SYMBOL_FULL_STOP:
    case SYMBOL_OP_1000:
    case SYMBOL_OP_1200:
     Base::reduce(SYMBOL_TERM_1000, Base::reduce_term_1000__subterm_999_comma_subterm_1000(Base::args(3)));
     break;
+   default: Base::parse_error(); break;
   }
  }
 
