@@ -260,9 +260,9 @@ void term_tokenizer::next_escape_sequence()
 	} else if (is_small_letter(ch)) {
 	    c = (ch - 'a' + 1) % 32;
 	} else {
-	    throw token_exception_control_char(
-		       pos(), "Unexpected control character (" 
-				+ boost::lexical_cast<std::string>(c) + ")");
+	    std::string msg = "Unexpected control character (" 
+	 	+ boost::lexical_cast<std::string>(ch) + ")";
+	    throw token_exception_control_char(pos(), msg);
 	}
 	break;
         }

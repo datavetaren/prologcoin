@@ -16,6 +16,8 @@ public:
     heap_owner_ = true;
     ops_ = new term_ops();
     ops_owner_ = true;
+    register_hb_ = 0;
+    register_h_ = 0;
   }
 
   ~term_env_impl()
@@ -30,7 +32,7 @@ public:
   }
 
   ext<cell> parse(const std::string &term_expr);
-  std::string to_string(ext<cell> &cell) const;
+  std::string to_string(const cell &c) const;
   std::string status() const;
 
   inline size_t heap_size() const { return register_h_; }
@@ -94,12 +96,13 @@ ext<cell> term_env_impl::parse(const std::string &term_expr)
     return r;
 }
 
-std::string term_env_impl::to_string(ext<cell> &cell) const
+std::string term_env_impl::to_string(const cell &c) const
 {
+    cell dc = deref(c);
     std::stringstream ss;
     term_emitter emitter(ss, *heap_, *ops_);
     emitter.set_var_naming(var_naming_);
-    emitter.print(cell);
+    emitter.print(dc);
     return ss.str();
 }
 
@@ -122,14 +125,22 @@ bool term_env_impl::unify(cell a, cell b)
     size_t start_trail = trail_depth();
     size_t start_stack = stack_depth();
 
+    size_t old_register_hb = register_hb_;
+
+    register_hb_ = register_h_;
+
     bool r = unify_helper(a, b);
+
     if (!r) {
       unwind_trail(start_trail, trail_depth());
       trim_trail(start_trail);
       trim_stack(start_stack);
+
+      register_hb_ = old_register_hb;
       return false;
     }
 
+    register_hb_ = old_register_hb;
     return true;
 }
 

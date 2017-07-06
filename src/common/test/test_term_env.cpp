@@ -103,7 +103,10 @@ static void test_failed_unification()
 
     std::cout << "Status : " << env.status() << "\n";
     
-    std::cout << "Unify should fail: " << env.unify(r1,r2) << "\n";
+    bool r = env.unify(r1,r2);
+
+    std::cout << "Unify should fail: " << r << "\n";
+    assert(!r);
 
     std::cout << "Status : " << env.status() << "\n";
 
