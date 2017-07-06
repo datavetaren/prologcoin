@@ -16,7 +16,7 @@ namespace prologcoin { namespace common {
 // bound during the unification process and thus need to be recorded so
 // they can become unbound.
 //
-
+class term_env_impl; // Forward
 class term_env {
 public:
   // Create a complete new blank term environment

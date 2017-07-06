@@ -43,7 +43,7 @@ public:
   inline void push(cell c) { stack_.push_back(c); }
   inline cell pop() { cell c = stack_.back(); stack_.pop_back(); return c; }
   inline size_t stack_depth() const { return stack_.size(); }
-  void trim(size_t stack_depth);
+  inline void trim_stack(size_t depth) { stack_.resize(depth); }
 
   inline void trail(size_t index) {
     if (index < register_hb_) {
@@ -124,14 +124,13 @@ cell term_env_impl::deref(cell c)
 bool term_env_impl::unify(cell a, cell b)
 {
     size_t start_trail = trail_depth();
-
-    size_t t = trail_depth();
-    size_t d = stack_depth();
+    size_t start_stack = stack_depth();
 
     bool r = unify_helper(a, b);
     if (!r) {
       unwind_trail(start_trail, trail_depth());
       trim_trail(start_trail);
+      trim_stack(start_stack);
       return false;
     }
 
