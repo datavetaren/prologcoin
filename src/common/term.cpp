@@ -1,5 +1,6 @@
 #include <iomanip>
 #include "term.hpp"
+#include "term_ops.hpp"
 
 namespace prologcoin { namespace common {
 

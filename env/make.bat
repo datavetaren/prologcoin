@@ -194,6 +194,19 @@ for %%i in (!CPP_FILES!) DO (
     set OBJFILE=!CPPFILE:.cpp=.obj!
     set OBJFILE=!OBJFILE:%SRC%=%OUT%!
 
+REM 
+REM Check if CPP file is newer than OBJ file.
+REM Delete OBJ file if it is.
+REM
+
+    IF EXIST !OBJFILE! (
+        set R=0
+        call :FCMP !CPPFILE! !OBJFILE! !R!
+        IF "!R!"=="0" (
+            del /Q /F !OBJFILE!
+        )
+    )
+
     IF NOT EXIST !OBJFILE! (
         set PDBFILE=
         IF "!DEBUGMODE!"=="1" set PDBFILE=/Fd:!OBJFILE:.obj=.pdb!
@@ -218,10 +231,10 @@ IF "%1"=="test" (
 GOTO :TEST
 )
 
-IF EXIST !GOAL! (
-echo !GOAL! already exists. Run make clean to first to recompile.
-GOTO :EOF
-)
+REM IF EXIST !GOAL! (
+REM echo !GOAL! already exists. Run make clean to first to recompile.
+REM GOTO :EOF
+REM )
 
 REM
 REM Link final goal
@@ -265,6 +278,7 @@ for %%S in (%SRC%\%SUBDIR%\test\*.cpp) DO (
     set OBJFILE=!OBJFILE:%SRC%=%OUT%!
     set BINOKFILE=!OBJFILE:%OUT%=%BIN%!
     set BINEXEFILE=!OBJFILE:%OUT%=%BIN%!
+
     for %%i in (!CPPFILE!) do set BINOKFILE=%BIN%\test\%%~ni.ok
     for %%i in (!CPPFILE!) do set BINEXEFILE=%BIN%\test\%%~ni.exe
     for %%i in (!CPPFILE!) do set BINLOGFILE=%BIN%\test\%%~ni.log
@@ -313,6 +327,17 @@ del /S /F /Q %OUT%\!SUBDIR!\test
 del /S /F /Q %BIN%\test
 rmdir /S /Q %OUT%\!SUBDIR!\test
 rmdir /S /Q %BIN%\test
+
+GOTO :EOF
+
+REM ----------------------------------------------------
+REM  FCMP (file time compare)
+REM ----------------------------------------------------
+
+:FCMP
+set r=0
+xcopy /DYLR "%1" "%2*" |findstr /BC:0 >nul && set r=1
+set %3=!r!
 
 GOTO :EOF
 

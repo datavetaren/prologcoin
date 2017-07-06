@@ -72,11 +72,10 @@
 // parts don't yet have definitive addresses. Once the term is
 // committed to the (common) heap, these addresses will be definitive.
 // Therefore, we need tentitive (relative) addresses for some cells.
-// We'll use the upper bit (bit 63) to represent a relative reference.
 //
-// You can also view this as if the upper bit 63 tells whether the
-// reference is refering to a secondary (tentative) heap or not.
-// 
+// We use a separate tag GBL as a "REF cell" referring to the global heap.
+// This makes unification (among other things) slightly more complicated
+// but I like the clear distinction between local heaps and global heaps.
 //
 
 namespace prologcoin { namespace common {
@@ -577,6 +576,12 @@ private:
 	return find_block(index)[index];
     }
 
+    inline cell arg0(const cell &c, size_t index) const
+    {
+        const str_cell &s = static_cast<const str_cell &>(c);
+	return get(s.index() + index + 1);
+    }
+
     inline void register_ext(cell *p) const
     {
 	if (external_ptrs_.size() > external_ptrs_max_) {
@@ -603,6 +608,12 @@ private:
     con_cell dotted_pair_;
 
     template<typename T> friend class ext;
+
+    // We want the implementator class of term environment to have
+    // direct cell access (not having to use reference counted pointers
+    // i.e. ext<cell>.) The term environment explicitly keeps track of
+    // root references.
+    friend class term_env_impl;
 };
 
 //
