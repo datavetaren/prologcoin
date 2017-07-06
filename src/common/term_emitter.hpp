@@ -18,6 +18,8 @@ class term_emitter {
 public:
     term_emitter(std::ostream &out, heap &h, term_ops &ops);
 
+    void set_var_naming(const std::unordered_map<ext<cell>, std::string> &var_naming);
+
     void print(cell c);
 
     void set_max_column( size_t max_column );
@@ -25,6 +27,8 @@ public:
     std::string name_ref(size_t index) const;
 
 private:
+    cell deref(cell c) const { return heap_.deref(c); }
+
     void nl();
     void indent();
     void emit_token(const std::string &str);
@@ -113,6 +117,8 @@ private:
 
     con_cell dotted_pair_;
     con_cell empty_list_;
+
+    const std::unordered_map<ext<cell>, std::string> *var_naming_;
 };
 
 }}

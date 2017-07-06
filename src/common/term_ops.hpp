@@ -9,15 +9,6 @@
 #include "term.hpp"
 
 	
-namespace std {
-
-    template<> struct hash<prologcoin::common::cell> {
-        size_t operator()(const prologcoin::common::cell& k) const {
-	    return hash<uint64_t>()(k.value());
-	}
-    };
-}
-
 namespace prologcoin { namespace common {
 
 //

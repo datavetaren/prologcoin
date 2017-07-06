@@ -20,6 +20,7 @@ public:
 
   ~term_env_impl()
   {
+    var_naming_.clear();
     if (heap_owner_) {
       delete heap_;
     }
@@ -30,8 +31,11 @@ public:
 
   ext<cell> parse(const std::string &term_expr);
   std::string to_string(ext<cell> &cell) const;
+  std::string status() const;
 
-  cell deref(cell a);
+  inline size_t heap_size() const { return register_h_; }
+  inline cell deref(cell c) const { return heap_->deref(c); }
+      
   bool unify(cell a, cell b);
   bool unify_helper(cell a, cell b);
   void bind(cell a, cell b);
@@ -72,7 +76,7 @@ private:
   std::vector<cell> stack_;
   std::vector<size_t> trail_;
   std::vector<cell> registers_;
-  std::unordered_map<cell, std::string> var_naming_;
+  std::unordered_map<ext<cell>, std::string> var_naming_;
 };
 
 ext<cell> term_env_impl::parse(const std::string &term_expr)
@@ -81,6 +85,11 @@ ext<cell> term_env_impl::parse(const std::string &term_expr)
     term_tokenizer tokenizer(ss);
     term_parser parser(tokenizer, *heap_, *ops_);
     ext<cell> r = parser.parse();
+    // Once parsing is done we'll copy over the var-name bindings
+    // so we can pretty print the variable names.
+    parser.for_each_var_name( [&](const ext<cell> &ref,
+				  const std::string &name)
+			      { var_naming_[ref] = name; } );
     register_h_ = heap_->size();
     return r;
 }
@@ -89,33 +98,20 @@ std::string term_env_impl::to_string(ext<cell> &cell) const
 {
     std::stringstream ss;
     term_emitter emitter(ss, *heap_, *ops_);
+    emitter.set_var_naming(var_naming_);
     emitter.print(cell);
     return ss.str();
 }
 
-//
-// Dereference chain of REF cells.
-//
-// TODO: What do to with GBL? Perhaps we just treat them specially?
-// GBL cells point to global heap, which then have REF cells. It feels
-// good to have a firewall between the two. Yet, some extra logic is
-// needed to manually "go through" that firewall. Perhaps another helper
-// function would do, e.g. deref_global(c)
-//
-cell term_env_impl::deref(cell c)
+
+std::string term_env_impl::status() const
 {
-    heap &h = *heap_;
-    while (c.tag() == tag_t::REF) {
-      auto &rc = static_cast<ref_cell &>(c);
-      size_t index = rc.index();
-      cell referred = h[index];
-      if (referred == c) {
-	return c;
-      }
-      c = referred;
-    }
-    return c;
+    std::stringstream ss;
+    ss << "term_env::status() { heap_size=" << register_h_ 
+       << ",stack_size=" << stack_depth() << ",trail_size=" << trail_depth() <<"}";
+    return ss.str();
 }
+
 
 //
 // This is the basic unification algorithm for two terms.
@@ -167,6 +163,7 @@ bool term_env_impl::unify_helper(cell a, cell b)
     while (stack_depth() > d) {
         a = deref(pop());
 	b = deref(pop());
+
 	if (a == b) {
 	    continue;
 	}
@@ -189,7 +186,7 @@ bool term_env_impl::unify_helper(cell a, cell b)
 	      bind(a, b);
 	      continue;
 	    }
-	} else {
+	} else if (b.tag() == tag_t::REF) {
 	    bind(b, a);
 	    continue;
 	}
@@ -253,6 +250,31 @@ ext<cell> term_env::parse(const std::string &term_expr)
 std::string term_env::to_string(ext<cell> &cell) const
 {
     return impl_->to_string(cell);
+}
+
+std::string term_env::status() const
+{
+    return impl_->status();
+}
+
+size_t term_env::stack_size() const
+{
+    return impl_->stack_depth();
+}
+
+size_t term_env::trail_size() const
+{
+    return impl_->trail_depth();
+}
+
+size_t term_env::heap_size() const
+{
+    return impl_->heap_size();
+}
+
+bool term_env::unify(ext<cell> &a, ext<cell> &b)
+{
+    return impl_->unify(a,b);
 }
 
 }}

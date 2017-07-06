@@ -37,6 +37,11 @@ public:
 
     ext<cell> parse();
 
+    const std::string & get_variable_name( ext<cell> cell );
+
+    void for_each_var_name(std::function<void (const ext<cell> &ref,
+				       const std::string &name)> f) const;
+
 private:
     term_parser_impl *impl_;
 };

@@ -70,6 +70,12 @@ protected:
   typedef std::vector<sym> args_t;
   args_t args_;
 
+  typedef std::unordered_map<ext<cell>, std::string> var_name_map_type;
+  typedef std::unordered_map<std::string, ext<cell> > name_var_map_type;
+
+  var_name_map_type var_name_map_;
+  name_var_map_type name_var_map_;
+
   friend class term_parser_gen<term_parser_interim, term_tokenizer, heap, term_ops>;
 
 protected:
@@ -403,7 +409,25 @@ protected:
 
   ext<cell> reduce_term_0__variable(args_t &args)
   {
-    return args[0].result();
+      term_tokenizer::token var_token = args[0].token();
+      const std::string &var_name = var_token.lexeme();
+
+      // Check if we have seen this name before
+      auto found = name_var_map_.find(var_name);
+      if (found != name_var_map_.end()) {
+	  return found->second;
+      }
+
+      // We didn't find this variable, so we create a new one.
+
+      auto ref = heap_.new_ref();
+
+      // Register this ref cell so we can give the same name for it
+      // when printing.
+      var_name_map_[ref] = var_name;
+      name_var_map_[var_name] = ref;
+
+      return ref;
   }
 
   // arguments :- ...
@@ -545,6 +569,16 @@ public:
   bool is_error() const { return error_; }
   ext<cell> get_result() const { return result_; }
   void init() { accept_ = false; error_ = false; result_ = ext<cell>(); }
+
+  const std::string & get_var_name(ext<cell> &cell);
+
+  void for_each_var_name(std::function<void (const ext<cell> &ref, const std::string &name)> f) const {
+      for (auto e : var_name_map_) {
+	  const ext<cell> &ref = e.first;
+	  const std::string &name = e.second;
+	  f(ref,name);
+      }
+  }
 };
 
 class term_parser_impl : public term_parser_gen<term_parser_interim, term_tokenizer, heap, term_ops>
@@ -586,6 +620,10 @@ ext<cell> term_parser::parse()
     impl_->process_next();
   }
   return impl_->get_result();
+}
+
+void term_parser::for_each_var_name(std::function<void (const ext<cell> &ref, const std::string &name)> f) const {
+    impl_->for_each_var_name(f);
 }
 
 }}

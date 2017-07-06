@@ -401,7 +401,13 @@ public:
         { ext_register(h, &ptr_); }
     inline ~ext() { if (heap_ != nullptr) ext_unregister(*heap_, &ptr_); }
 
-    inline operator T & () { return static_cast<T &>(ptr_); }
+    inline operator T ();
+    inline T operator * () const;
+    inline T deref() const;
+
+    inline bool operator == (const ext<T> &other) const {
+	return ptr_ == other.ptr_;
+    }
 
 private:
     inline void ext_register(const heap &h, cell *p);
@@ -461,15 +467,17 @@ public:
 	return cc;
     }
 
-    inline ext<cell> arg(const cell &c, size_t index) const
+    inline ext<cell> arg(const cell c, size_t index) const
     {
-        const str_cell &s = static_cast<const str_cell &>(c);
+	auto dc = deref(c);
+        const str_cell &s = static_cast<const str_cell &>(dc);
 	return ext<cell>(*this, get(s.index() + index + 1));
     }
 
-    void set_arg(cell &str, size_t index, cell c)
+    void set_arg(cell str, size_t index, cell c)
     {
-        str_cell &s = static_cast<str_cell &>(str);
+	auto dc = deref(str);
+        str_cell &s = static_cast<str_cell &>(dc);
 	size_t i = s.index() + index + 1;
 	(*this)[i] = c;
     }
@@ -595,6 +603,8 @@ private:
         external_ptrs_.erase(p);
     }
 
+    cell deref(cell c) const;
+
     bool check_functor(const cell c) const;
 
     typedef std::vector<std::unique_ptr<heap_block> >::iterator block_iterator;
@@ -630,7 +640,43 @@ template<typename T> void ext<T>::ext_unregister(const heap &h, cell *p)
     h.unregister_ext(p);
 }
 
+template<typename T> T ext<T>::deref() const
+{
+    cell c = heap_->deref(ptr_);
+    return ext<T>(*heap_, c);
+}
+
+template<typename T> T ext<T>::operator * () const
+{
+    return deref();
+}
+
+template<typename T> ext<T>::operator T ()
+{
+    return ptr_;
+}
+
 } }
+
+namespace std {
+
+    typedef prologcoin::common::cell cell;
+    typedef prologcoin::common::ext<cell> ext_cell;
+
+    template<> struct hash<cell> {
+        size_t operator()(const cell& k) const {
+	    return hash<uint64_t>()(k.value());
+	}
+    };
+
+    template<> struct hash<ext_cell> {
+        size_t operator()(const ext_cell& k) const {
+	    const cell &c = static_cast<const cell &>(*k);
+	    return hash<uint64_t>()(c.value());
+	}
+    };
+}
+
 
 #endif
 

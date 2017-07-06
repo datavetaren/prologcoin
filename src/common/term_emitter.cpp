@@ -12,15 +12,21 @@ term_emitter::term_emitter(std::ostream &out, heap &h, term_ops &ops)
 	  last_char_('\0'),
 	  scan_mode_(false),
 	  dotted_pair_(".", 2),
-	  empty_list_("[]", 0)
+	  empty_list_("[]", 0),
+	  var_naming_(nullptr)
 {
     set_max_column(78);
 }
 
 void term_emitter::print(cell c)
 {
-    stack_.push_back(elem(c,0));
+    stack_.push_back(elem(deref(c),0));
     print_from_stack();
+}
+
+void term_emitter::set_var_naming(const std::unordered_map<ext<cell>, std::string> &var_naming)
+{
+    var_naming_ = &var_naming;
 }
 
 void term_emitter::nl()
@@ -160,7 +166,8 @@ void term_emitter::emit_error(const std::string &msg)
 void term_emitter::push_functor_args(size_t index, size_t arity)
 {
     for (size_t i = 0; i < arity; i++) {
-	auto arg = heap_[arity+index-i]; // Push last argument first
+	// Push last argument first
+	auto arg = deref(heap_[arity+index-i]);
 	auto e = elem(arg);
 	if (i == 0) {
 	    auto rparen = elem(con_cell(")",0));
@@ -254,6 +261,7 @@ void term_emitter::emit_functor(const con_cell &f, size_t index)
 
 std::tuple<bool, cell, size_t> term_emitter::check_functor(cell c)
 {
+    c = deref(c);
     auto str = static_cast<const str_cell &>(c);
     auto index = str.index();
     if (!heap_.in_range(index)) {
@@ -499,6 +507,17 @@ void term_emitter::emit_list(const cell lst0)
 void term_emitter::emit_ref(const term_emitter::elem &e)
 {
     const ref_cell &ref = static_cast<const ref_cell &>(e.cell_);
+
+    if (var_naming_ != nullptr) {
+	ext<cell> search(heap_, ref);
+	auto it = var_naming_->find(search);
+	if (it != var_naming_->end()) {
+	    const std::string &name = it->second;
+	    emit_token(name);
+	    return;
+	}
+    }
+
     emit_token(name_ref(ref.index()));
 }
 

@@ -29,6 +29,14 @@ public:
   ext<cell> parse(const std::string &str);
   std::string to_string(ext<cell> &cell) const;
 
+  bool unify(ext<cell> &a, ext<cell> &b);
+
+  size_t stack_size() const;
+  size_t heap_size() const;
+  size_t trail_size() const;
+
+  std::string status() const;
+
 private:
   friend class term_env_impl;
   term_env_impl *impl_;

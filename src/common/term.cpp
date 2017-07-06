@@ -143,6 +143,29 @@ bool heap::check_functor(const cell c) const
 }
 
 
+//
+// Dereference chain of REF cells.
+//
+// TODO: What do to with GBL? Perhaps we just treat them specially?
+// GBL cells point to global heap, which then have REF cells. It feels
+// good to have a firewall between the two. Yet, some extra logic is
+// needed to manually "go through" that firewall. Perhaps another helper
+// function would do, e.g. deref_global(c)
+//
+cell heap::deref(cell c) const
+{
+    while (c.tag() == tag_t::REF) {
+      auto &rc = static_cast<ref_cell &>(c);
+      size_t index = rc.index();
+      cell referred = get(index);
+      if (referred == c) {
+	return c;
+      }
+      c = referred;
+    }
+    return c;
+}
+
 void heap::print(std::ostream &out) const
 {
     out << std::setw(8) << " " << std::setw(0) << "  ." << std::string(27, '-') << "." << "\n";
@@ -156,5 +179,7 @@ void heap::print_status(std::ostream &out) const
 {
     out << "Heap status: Size: " << size_ << " External refs: " << external_ptr_count() << " (at most it was " << external_ptrs_max_ << ")\n";
 }
+
+
 
 }}
