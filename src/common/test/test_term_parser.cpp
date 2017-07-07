@@ -1,4 +1,5 @@
 #include <iostream>
+#include <fstream>
 #include <iomanip>
 #include <assert.h>
 #include <common/term_tokenizer.hpp>
@@ -7,6 +8,14 @@
 #include <common/term_emitter.hpp>
 
 using namespace prologcoin::common;
+
+static std::string home_dir;
+
+static void do_parent(std::string &path)
+{
+    size_t slashIndex = path.find_last_of("/\\");
+    path = path.substr(0, slashIndex);
+}
 
 static void header( const std::string &str )
 {
@@ -53,9 +62,55 @@ static void test_simple_parse()
     assert(sout2.str() == sout.str());
 }
 
+//
+// Read in my own "Yacc/Bison" like parser generator...
+static void test_complicated_parse()
+{
+    header( "test_complicated_parse()" );
+
+    std::ifstream infile(home_dir + "/src/common/test/test_parser_sample.pl");
+
+    heap h;
+    term_ops ops;
+    term_tokenizer tokenizer(infile);
+    term_parser parser(tokenizer, h, ops);
+
+    ext<cell> result = parser.parse();
+
+    std::cout << "HEAP IS: "; h.print_status(std::cout); std::cout << "\n";
+
+    term_emitter emitter(std::cout, h, ops);
+
+    parser.for_each_var_name( [&](const ext<cell> &ref,
+				  const std::string &name)
+			      { emitter.set_var_name(ref, name); } );
+
+    emitter.print(result);    
+}
+
+static void find_home_dir(const char *selfpath)
+{
+    // Current path
+    home_dir = selfpath;
+    std::replace( home_dir.begin(), home_dir.end(), '\\', '/');
+
+    bool found = false;
+    do {
+      do_parent(home_dir);
+      std::string checkfile = home_dir + "/env/Makefile.main";
+      if (auto f = fopen(checkfile.c_str(), "r")) {
+   	  fclose(f);
+          found = true;
+      }
+    } while (!found);
+}
+
 int main( int argc, char *argv[] )
 {
+    find_home_dir(argv[0]);   
+
     test_simple_parse();
+    test_complicated_parse();
 
     return 0;
 }

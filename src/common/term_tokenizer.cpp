@@ -578,6 +578,12 @@ void term_tokenizer::next_string()
 
 const term_tokenizer::token & term_tokenizer::next_token()
 {
+    auto &token = next_token_helper();
+    return token;
+}
+
+const term_tokenizer::token & term_tokenizer::next_token_helper()
+{
     current_.reset();
     current_.set_position(position_);
 

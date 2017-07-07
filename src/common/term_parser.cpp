@@ -151,7 +151,7 @@ protected:
     auto tok = tokenizer().peek_token();
     auto lexeme = tok.lexeme();
 
-    bool consumed = false;
+    bool consumed_name = false;
 
     symbol_t prec = predefined_symbols_[lexeme];
 
@@ -177,7 +177,7 @@ protected:
       // then it is a functor.
       lookahead_ = sym(current_state_, tok, SYMBOL_NAME);
       tokenizer().consume_token();
-      consumed = true;
+      consumed_name = true;
       if (is_last_char_alpha(tok) &&
 	  tokenizer().peek_token().type()
 	  == term_tokenizer::TOKEN_PUNCTUATION_CHAR) {
@@ -209,22 +209,28 @@ protected:
 
     auto entry = ops_.prec(lexeme);
 
+    if (consumed_name && entry.is_none()) {
+        return lookahead_;
+    }
+
     if (entry.is_none()) {
         throw token_exception_unrecognized_operator(tok.pos(), tok.lexeme());
     }
 
     if (entry.precedence <= 999) {
-      prec = SYMBOL_OP_999;
+        prec = SYMBOL_OP_999;
     } else if (entry.precedence <= 1000) {
-      prec = SYMBOL_OP_1000;
+        prec = SYMBOL_OP_1000;
     } else {
-      prec = SYMBOL_OP_1200;
+        prec = SYMBOL_OP_1200;
     }
+
     lookahead_ = sym(current_state_, tok, prec);
 
-    if (!consumed) {
-      tokenizer().consume_token();
+    if (!consumed_name) {
+        tokenizer().consume_token();
     }
+
     return lookahead_;
   }
 
@@ -523,27 +529,8 @@ protected:
 
   ext<cell> reduce_atom__name(args_t &args)
   {
-    con_cell name(args[0].token().lexeme(), 0);
-    return ext<cell>(heap_, name);
-  }
-
-  // functor_lparen :- ...
-
-  ext<cell> reduce_functor_lparen__name_lparen(args_t &args)
-  {
-    return ext<cell>();
-  }
-
-  // sign :- ...
-
-  ext<cell> reduce_sign__plus(args_t &args)
-  {
-    return ext<cell>();
-  }
-
-  ext<cell> reduce_sign__minus(args_t &args)
-  {
-    return ext<cell>();
+    con_cell con = heap_.atom(args[0].token().lexeme());
+    return ext<cell>(heap_, con);
   }
 
 public:
@@ -557,6 +544,7 @@ public:
     predefined_symbols_["."] = SYMBOL_FULL_STOP;
     predefined_symbols_["inf"] = SYMBOL_INF;
     predefined_symbols_["{"] = SYMBOL_LBRACE;
+    predefined_symbols_["["] = SYMBOL_LBRACKET;
     predefined_symbols_["("] = SYMBOL_LPAREN;
     predefined_symbols_["nan"] = SYMBOL_NAN;
     predefined_symbols_["}"] = SYMBOL_RBRACE;

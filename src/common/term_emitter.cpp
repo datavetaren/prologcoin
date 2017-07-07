@@ -1,4 +1,5 @@
 #include "term_emitter.hpp"
+#include "token_chars.hpp"
 
 namespace prologcoin { namespace common {
 
@@ -13,9 +14,17 @@ term_emitter::term_emitter(std::ostream &out, heap &h, term_ops &ops)
 	  scan_mode_(false),
 	  dotted_pair_(".", 2),
 	  empty_list_("[]", 0),
-	  var_naming_(nullptr)
+	  var_naming_(nullptr),
+	  var_naming_owned_(false)
 {
     set_max_column(78);
+}
+
+term_emitter::~term_emitter()
+{
+    if (var_naming_owned_ && var_naming_) {
+        delete var_naming_;
+    }
 }
 
 void term_emitter::print(cell c)
@@ -26,7 +35,17 @@ void term_emitter::print(cell c)
 
 void term_emitter::set_var_naming(const std::unordered_map<ext<cell>, std::string> &var_naming)
 {
-    var_naming_ = &var_naming;
+    var_naming_ = const_cast<std::unordered_map<ext<cell>, std::string> *>(&var_naming);
+    var_naming_owned_ = false;
+}
+
+void term_emitter::set_var_name(const ext<cell> &c, const std::string &name)
+{
+    if (var_naming_ == nullptr) {
+        var_naming_ = new std::unordered_map<ext<cell>, std::string>;
+	var_naming_owned_ = true;
+    }
+    (*var_naming_)[c] = name;
 }
 
 void term_emitter::nl()
@@ -253,9 +272,51 @@ void term_emitter::wrap_paren(const term_emitter::elem &e)
     stack_.push_back(lparen);
 }
 
+
+
+bool term_emitter::atom_name_needs_quotes(const std::string &name) const
+{
+    auto first = name[0];
+    if (token_chars::is_capital_letter(first) ||
+	token_chars::is_underline_char(first) ||
+	token_chars::is_digit(first)) {
+        return true;
+    }
+
+    std::function<int (char ch)> categorize = [&](char ch)
+      { if (token_chars::is_alpha(ch)) { return 0; }
+	if (token_chars::is_punctuation_char(ch)) { return 1; }
+	if (token_chars::is_solo_char(ch)) { return 2; }
+	if (token_chars::is_symbol_char(ch)) { return 3; }
+	return -1;
+      };
+
+    int cat = categorize(name[0]);
+
+    for (auto ch : name) {
+        if (token_chars::is_layout_char(ch)) { return true; }
+	// Using mixed categories? Then quote it!
+	if (categorize(ch) != cat) {
+	    return true;
+	}
+    }
+
+    return false;
+}
+
+void term_emitter::emit_atom_name(const std::string &name)
+{
+    if (atom_name_needs_quotes(name)) {
+        emit_token("'" + name + "'");
+    } else {
+        emit_token(name);
+    }
+}
+
 void term_emitter::emit_functor(const con_cell &f, size_t index)
 {
-    emit_token(f.name());
+    std::string name = heap_.atom_name(f);
+    emit_atom_name(name);
     push_functor_args(index, f.arity());
 }
 
@@ -282,13 +343,13 @@ std::tuple<bool, cell, size_t> term_emitter::check_functor(cell c)
 
 bool term_emitter::is_begin_alphanum(con_cell f) const
 {
-    std::string name = f.name();
+    std::string name = heap_.atom_name(f);
     return name.length() > 0 && isalnum(name[0]);
 }
 
 bool term_emitter::is_end_alphanum(con_cell f) const
 {
-    std::string name = f.name();
+    std::string name = heap_.atom_name(f);
     return !name.empty() && isalnum(name[name.size()-1]);
 }
 
@@ -418,7 +479,7 @@ void term_emitter::emit_functor_elem(const term_emitter::elem &e)
 
     auto p = ops_.prec(f);
     auto f_prec = p.precedence;
-    
+
     // No operator or arity == 0? Then emit functor and exit.
     if (f_prec == 0 || f.arity() == 0 || f.arity() > 2) {
 	emit_functor(f, index);
@@ -429,7 +490,7 @@ void term_emitter::emit_functor_elem(const term_emitter::elem &e)
 
     // This is an operator. Extract 1st arg.
     auto x = heap_.arg(str, 0);
-    auto x_prec = get_precedence(str);
+    auto x_prec = get_precedence(x);
 
     if (f.arity() == 1) {
 	switch (p.type) {
@@ -541,12 +602,12 @@ void term_emitter::print_from_stack(size_t top)
 
 	if (e.as_token()) {
 	    const con_cell &c = static_cast<const con_cell &>(e.cell_);
-	    emit_token(c.name());
+	    emit_token(heap_.atom_name(c));
 	} else {
 	    switch (e.cell_.tag()) {
 	    case tag_t::CON: {
 		const con_cell &c = static_cast<const con_cell &>(e.cell_);
-		emit_token(c.name());
+		emit_atom_name(heap_.atom_name(c));
 		break;
 	    }
 	    case tag_t::STR:

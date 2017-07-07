@@ -9,6 +9,7 @@
 #include <vector>
 #include <memory>
 #include <unordered_set>
+#include <unordered_map>
 #include <boost/lexical_cast.hpp>
 #include <boost/noncopyable.hpp>
 
@@ -81,6 +82,7 @@
 namespace prologcoin { namespace common {
 
 class term_emitter;
+class heap;
 
 //
 // tag
@@ -269,9 +271,34 @@ public:
 
 class con_cell : public cell {
 public:
+    inline con_cell( size_t atom_index, size_t arity ) : cell(tag_t::CON)
+    {
+        set_value((atom_index << 13) | arity);
+    }
+
     con_cell( const std::string &name, size_t arity );
 
-    size_t arity() const;
+    static inline bool use_compacted( const std::string &name, size_t arity)
+    {
+        return name.length() <= 7 && arity <= 31;
+    }    
+
+    size_t arity() const
+    {
+        if (is_direct()) {
+    	    // Only 5 bits for arity
+	    return static_cast<size_t>(value() & 0x1f);
+        } else {
+	    // 5+8=13 bits for arity
+	    return static_cast<size_t>(value() & ((1 << 12)-1));
+        }
+    }
+
+    inline size_t atom_index() const
+    {
+        assert(!is_direct());
+	return static_cast<size_t>(value() >> 13);
+    }
 
     std::string name() const;
     size_t name_length() const;
@@ -289,6 +316,8 @@ private:
     }
 
     uint8_t get_name_byte(size_t index) const;
+
+    friend class heap;
 };
 
 //
@@ -440,13 +469,31 @@ public:
 
     inline con_cell atom(const std::string &name) const
     {
+        if (name.length() > 7) {
+	    return con_cell(resolve_atom_index(name), 0);
+	}
 	return con_cell(name, 0);
+    }
+
+    inline const std::string atom_name(con_cell cell) const
+    {
+        if (cell.is_direct()) {
+	    return cell.name();
+        } else {
+  	    return atom_index_to_name_table_[cell.atom_index()];
+	}
     }
 
     inline con_cell functor(const std::string &name, size_t arity)
     {
+        if (name.length() > 7) {
+   	    return con_cell(resolve_atom_index(name), arity);
+	}
+	
         return con_cell(name, arity);
     }
+
+    size_t resolve_atom_index(const std::string &name) const;
 
     inline con_cell functor(const cell &s) const
     {
@@ -613,6 +660,9 @@ private:
     std::vector<std::unique_ptr<heap_block> > blocks_;
     mutable std::unordered_set<cell *> external_ptrs_;
     mutable size_t external_ptrs_max_;
+
+    mutable std::vector<std::string> atom_index_to_name_table_;
+    mutable std::unordered_map<std::string, size_t> atom_name_to_index_table_;
 
     con_cell empty_list_;
     con_cell dotted_pair_;

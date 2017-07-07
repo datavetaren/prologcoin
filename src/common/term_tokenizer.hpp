@@ -203,6 +203,8 @@ public:
     void clear_token();
 
 private:
+    const token & next_token_helper();
+
     inline int next_char()
     {
 	int ch = in_.get();

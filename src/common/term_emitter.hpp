@@ -17,8 +17,11 @@ namespace prologcoin { namespace common {
 class term_emitter {
 public:
     term_emitter(std::ostream &out, heap &h, term_ops &ops);
+    ~term_emitter();
 
     void set_var_naming(const std::unordered_map<ext<cell>, std::string> &var_naming);
+
+    void set_var_name(const ext<cell> &cell, const std::string &name);
 
     void print(cell c);
 
@@ -83,6 +86,8 @@ private:
     void emit_xfy(cell x, con_cell f, cell y, bool wrap_x, bool wrap_y);
     void emit_functor_elem(const elem &a);
     void emit_list(const cell lst);
+    bool atom_name_needs_quotes(const std::string &name) const;
+    void emit_atom_name(const std::string &name);
     void emit_functor(const con_cell &f, size_t index);
     void push_functor_args(size_t index, size_t arity);
     void emit_ref(const elem &a);
@@ -118,7 +123,8 @@ private:
     con_cell dotted_pair_;
     con_cell empty_list_;
 
-    const std::unordered_map<ext<cell>, std::string> *var_naming_;
+    std::unordered_map<ext<cell>, std::string> *var_naming_;
+    bool var_naming_owned_;
 };
 
 }}

@@ -17,8 +17,7 @@ std::string cell::str() const
 
 con_cell::con_cell(const std::string &name, size_t arity) : cell(tag_t::CON)
 {
-    assert(name.length() <= 7);
-    assert(arity <= 31);
+    assert(use_compacted(name, arity));
     size_t n = name.length();
     value_t v = static_cast<value_t>(1) << 60;
     for (size_t i = 0; i < n; i++) {
@@ -26,17 +25,6 @@ con_cell::con_cell(const std::string &name, size_t arity) : cell(tag_t::CON)
     }
     v |= arity;
     set_value(v);
-}
-
-size_t con_cell::arity() const
-{
-    if (is_direct()) {
-	// Only 5 bits for arity
-	return static_cast<size_t>(value() & 0x1f);
-    } else {
-	// 5+8=13 bits for arity
-	return static_cast<size_t>(value() & ~(1 << 12));
-    }
 }
 
 size_t con_cell::name_length() const
@@ -142,6 +130,18 @@ bool heap::check_functor(const cell c) const
     return true;
 }
 
+size_t heap::resolve_atom_index(const std::string &name) const
+{
+    auto found = atom_name_to_index_table_.find(name);
+    if (found == atom_name_to_index_table_.end()) {
+        // Not found. Create a new entry.
+        size_t index = atom_index_to_name_table_.size();
+        atom_index_to_name_table_.push_back(name);
+	atom_name_to_index_table_[name] = index;
+	return index;
+    }
+    return found->second;
+}
 
 //
 // Dereference chain of REF cells.
