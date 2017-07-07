@@ -202,7 +202,7 @@ REM
     IF EXIST !OBJFILE! (
         set R=0
         call :FCMP !CPPFILE! !OBJFILE! !R!
-        IF "!R!"=="0" (
+        IF "!R!"=="1" (
             del /Q /F !OBJFILE!
         )
     )
@@ -279,9 +279,26 @@ for %%S in (%SRC%\%SUBDIR%\test\*.cpp) DO (
     set BINOKFILE=!OBJFILE:%OUT%=%BIN%!
     set BINEXEFILE=!OBJFILE:%OUT%=%BIN%!
 
+REM 
+REM Check if CPP file is newer than OBJ file.
+REM Delete OBJ file if it is.
+REM
+
     for %%i in (!CPPFILE!) do set BINOKFILE=%BIN%\test\%%~ni.ok
     for %%i in (!CPPFILE!) do set BINEXEFILE=%BIN%\test\%%~ni.exe
     for %%i in (!CPPFILE!) do set BINLOGFILE=%BIN%\test\%%~ni.log
+
+
+    IF EXIST !BINOKFILE! (
+        set R=0
+        call :FCMP !CPPFILE! !BINOKFILE! !R!
+        IF "!R!"=="1" (
+            del /Q /F !OBJFILE!
+            del /Q /F !BINOKFILE!
+            del /Q /F !BINEXEFILE!
+        )
+    )
+
     IF NOT EXIST !BINOKFILE! (
 	set PDBFILE=
         IF "!DEBUGMODE!"=="1" set PDBFILE=/Fd:!OBJFILE:.obj=.pdb!
@@ -336,7 +353,9 @@ REM ----------------------------------------------------
 
 :FCMP
 set r=0
-xcopy /DYLR "%1" "%2*" |findstr /BC:0 >nul && set r=1
+for /f "delims=" %%k in ('xcopy /D /Y /f /e "%1" "%2*"') do (
+    if "%%k" EQU "1 File(s) copied" set r=1
+)
 set %3=!r!
 
 GOTO :EOF

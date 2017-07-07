@@ -202,6 +202,11 @@ public class make_vcproj
 
        foreach (var srcFile in srcFiles) {
            string filePath = Path.GetFullPath(srcFile);
+
+	   if (Path.GetExtension(srcFile) != ".cpp") {
+	      continue;
+ 	   }
+
            string srcFilePath = @"$(SolutionDir)" + MakeRelative(filePath, theRootDir);
 	   string mainFun = "main_" + Path.GetFileNameWithoutExtension(srcFile);
 
