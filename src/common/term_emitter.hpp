@@ -16,8 +16,12 @@ namespace prologcoin { namespace common {
 //
 class term_emitter {
 public:
+  enum style { STYLE_TERM, STYLE_PROGRAM };
+
     term_emitter(std::ostream &out, heap &h, term_ops &ops);
     ~term_emitter();
+
+    void set_style( style s );
 
     void set_var_naming(const std::unordered_map<ext<cell>, std::string> &var_naming);
 
@@ -44,6 +48,8 @@ private:
     static const flags_t IN_LIST = 1 << 3;
     static const flags_t AS_ARG = 1 << 4;
     static const flags_t AS_TOKEN = 1 << 5;
+    static const flags_t INDENT_INC = 1 << 6;
+    static const flags_t INDENT_DEC = 1 << 7;
 
     struct elem {
 	cell cell_;
@@ -60,6 +66,8 @@ private:
 	inline bool in_list() const { return (flags & IN_LIST) != 0; }
 	inline bool as_arg() const { return (flags & AS_ARG) != 0; }
 	inline bool as_token() const { return (flags & AS_TOKEN) != 0; }
+        inline bool is_indent_inc() const { return (flags & INDENT_INC) != 0; }
+        inline bool is_indent_dec() const { return (flags & INDENT_DEC) != 0; }
 
 	void set_flag(flags_t flag, bool b) {
 	    flags = ((flags &~flag) | flag*(int)b); }
@@ -70,6 +78,8 @@ private:
 	void set_in_list(bool b) { set_flag(IN_LIST, b); }
 	void set_as_arg(bool b) { set_flag(AS_ARG, b); }
 	void set_as_token(bool b) { set_flag(AS_TOKEN, b); }
+	void set_indent_inc(bool b) { set_flag(INDENT_INC, b); }
+	void set_indent_dec(bool b) { set_flag(INDENT_DEC, b); }
     };
 
     void emit_error(const std::string &msg);
@@ -81,6 +91,9 @@ private:
     bool is_end_alphanum(cell c) const;
     void emit_char(char ch);
     void emit_space();
+    void emit_nl();
+    void emit_indent_increment();
+    void emit_indent_decrement();
     void emit_xf(cell x, con_cell f, bool wrap_x);
     void emit_fx(con_cell f, cell x, bool wrap_x);
     void emit_xfy(cell x, con_cell f, cell y, bool wrap_x, bool wrap_y);
@@ -125,6 +138,8 @@ private:
 
     std::unordered_map<ext<cell>, std::string> *var_naming_;
     bool var_naming_owned_;
+
+    style style_;
 };
 
 }}

@@ -143,6 +143,15 @@ size_t heap::resolve_atom_index(const std::string &name) const
     return found->second;
 }
 
+bool heap::is_name(con_cell c, const std::string &name) const
+{
+    if (c.is_direct()) {
+        return c.name() == name;
+    } else {
+        return atom_name(c) == name;
+    }
+}
+
 //
 // Dereference chain of REF cells.
 //

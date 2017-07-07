@@ -484,6 +484,8 @@ public:
 	}
     }
 
+    bool is_name(con_cell cell, const std::string &name) const;
+
     inline con_cell functor(const std::string &name, size_t arity)
     {
         if (name.length() > 7) {

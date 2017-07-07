@@ -85,6 +85,7 @@ static void test_complicated_parse()
 				  const std::string &name)
 			      { emitter.set_var_name(ref, name); } );
 
+    emitter.set_style(term_emitter::STYLE_PROGRAM);
     emitter.print(result);    
 }
 

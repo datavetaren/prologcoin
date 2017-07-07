@@ -15,7 +15,8 @@ term_emitter::term_emitter(std::ostream &out, heap &h, term_ops &ops)
 	  dotted_pair_(".", 2),
 	  empty_list_("[]", 0),
 	  var_naming_(nullptr),
-	  var_naming_owned_(false)
+	  var_naming_owned_(false),
+	  style_(STYLE_TERM)
 {
     set_max_column(78);
 }
@@ -25,6 +26,11 @@ term_emitter::~term_emitter()
     if (var_naming_owned_ && var_naming_) {
         delete var_naming_;
     }
+}
+
+void term_emitter::set_style(term_emitter::style st)
+{
+    style_ = st;
 }
 
 void term_emitter::print(cell c)
@@ -148,6 +154,7 @@ void term_emitter::emit_char(char ch)
     column_++;
 }
 
+
 void term_emitter::emit_token(const std::string &str)
 {
     static const char *exempt = "(),[]{} ";
@@ -171,9 +178,14 @@ void term_emitter::emit_token(const std::string &str)
     if (!scan_mode_) {
 	out_ << str;
     }
+
     column_ += str.size();
 
     last_char_ = str.empty() ? '\0' : str[str.size()-1];
+
+    if (last_char_ == '\n') {
+        column_ = 0;
+    }
 }
 	
 void term_emitter::emit_error(const std::string &msg)
@@ -408,6 +420,29 @@ void term_emitter::emit_space()
     stack_.push_back(e);
 }
 
+void term_emitter::emit_nl()
+{
+    elem e(con_cell("\n",0));
+    e.set_as_token(true);
+    stack_.push_back(e);
+}
+
+void term_emitter::emit_indent_increment()
+{
+    elem e(con_cell("",0));
+    e.set_as_token(true);
+    e.set_indent_inc(true);
+    stack_.push_back(e);
+}
+
+void term_emitter::emit_indent_decrement()
+{
+    elem e(con_cell("",0));
+    e.set_as_token(true);
+    e.set_indent_dec(true);
+    stack_.push_back(e);
+}
+
 void term_emitter::emit_xf(cell x, con_cell f, bool x_ok)
 {
     bool op_is_alnum = is_begin_alphanum(f);
@@ -440,12 +475,30 @@ void term_emitter::emit_fx(con_cell f, cell x, bool x_ok)
 
 void term_emitter::emit_xfy(cell x, con_cell f, cell y, bool x_ok, bool y_ok)
 {
+    bool is_def = style_ == STYLE_PROGRAM && 
+		  f.arity() == 2 &&
+                  heap_.is_name(f, ":-");
+
     bool op_is_alnum = is_end_alphanum(f);
+
+    if (is_def) {
+        emit_indent_decrement();
+    }
 
     emit_fx(f, y, y_ok);
     if (op_is_alnum) {
 	emit_space();
     }
+
+    if (is_def) {
+        emit_indent_increment();
+        emit_space();
+        emit_space();
+        emit_space();
+        emit_space();
+        emit_nl();
+    }
+
     if (x_ok) {
 	stack_.push_back(elem(x));
     } else {
@@ -600,6 +653,12 @@ void term_emitter::print_from_stack(size_t top)
 
 	stack_.pop_back();
 
+        if (e.is_indent_inc()) {
+	    increment_indent_level();
+	}
+	if (e.is_indent_dec()) {
+	    decrement_indent_level();
+	}
 	if (e.as_token()) {
 	    const con_cell &c = static_cast<const con_cell &>(e.cell_);
 	    emit_token(heap_.atom_name(c));
