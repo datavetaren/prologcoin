@@ -25,11 +25,14 @@ public:
     enum type_t { XF = 0, YF = 1, XFX = 2, XFY = 3,
 		  YFX = 4, FY = 5, FX = 6 };
 
+    enum space_t { SPACE_F = 0, SPACE_XFX = 1, SPACE_XF = 2, SPACE_FX = 3 };
+
     struct op_entry {
 	std::string name;
 	size_t arity;
         size_t precedence;
 	type_t type;
+	space_t space;
 
 	std::string typestr() const {
 	    switch (type) {
@@ -53,7 +56,8 @@ public:
 	}
     };
 
-    void put(const std::string &name, size_t arity, size_t precedence, type_t type);
+    void put(const std::string &name, size_t arity, size_t precedence, type_t type,
+	     space_t space);
 
     const op_entry & none() const
     {

@@ -28,6 +28,7 @@ public:
     void set_var_name(const ext<cell> &cell, const std::string &name);
 
     void print(cell c);
+    void nl();
 
     void set_max_column( size_t max_column );
 
@@ -36,7 +37,6 @@ public:
 private:
     cell deref(cell c) const { return heap_.deref(c); }
 
-    void nl();
     void indent();
     void emit_token(const std::string &str);
     size_t get_precedence(cell c) const;
@@ -50,6 +50,7 @@ private:
     static const flags_t AS_TOKEN = 1 << 5;
     static const flags_t INDENT_INC = 1 << 6;
     static const flags_t INDENT_DEC = 1 << 7;
+    static const flags_t SET_INDENT = 1 << 8;
 
     struct elem {
 	cell cell_;
@@ -68,6 +69,7 @@ private:
 	inline bool as_token() const { return (flags & AS_TOKEN) != 0; }
         inline bool is_indent_inc() const { return (flags & INDENT_INC) != 0; }
         inline bool is_indent_dec() const { return (flags & INDENT_DEC) != 0; }
+	inline bool is_set_indent() const { return (flags & SET_INDENT) != 0; }
 
 	void set_flag(flags_t flag, bool b) {
 	    flags = ((flags &~flag) | flag*(int)b); }
@@ -80,6 +82,7 @@ private:
 	void set_as_token(bool b) { set_flag(AS_TOKEN, b); }
 	void set_indent_inc(bool b) { set_flag(INDENT_INC, b); }
 	void set_indent_dec(bool b) { set_flag(INDENT_DEC, b); }
+	void set_indent(bool b) { set_flag(SET_INDENT,b); }
     };
 
     void emit_error(const std::string &msg);
@@ -89,15 +92,20 @@ private:
     bool is_end_alphanum(con_cell c) const;
     bool is_begin_alphanum(cell c) const;
     bool is_end_alphanum(cell c) const;
+
     void emit_char(char ch);
     void emit_space();
+    void emit_space4();
+    void emit_dot();
     void emit_nl();
     void emit_indent_increment();
     void emit_indent_decrement();
+    void emit_set_indent(size_t new_column);
     void emit_xf(cell x, con_cell f, bool wrap_x);
     void emit_fx(con_cell f, cell x, bool wrap_x);
     void emit_xfy(cell x, con_cell f, cell y, bool wrap_x, bool wrap_y);
     void emit_functor_elem(const elem &a);
+    void emit_functor_elem_helper(const elem &a);
     void emit_list(const cell lst);
     bool atom_name_needs_quotes(const std::string &name) const;
     void emit_atom_name(const std::string &name);
@@ -128,6 +136,7 @@ private:
     size_t max_column_;
     char last_char_;
     bool scan_mode_;
+    bool first_def_;
 
     std::vector<size_t> indent_table_;
 

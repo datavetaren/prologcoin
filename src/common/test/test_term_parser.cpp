@@ -75,7 +75,19 @@ static void test_complicated_parse()
     term_tokenizer tokenizer(infile);
     term_parser parser(tokenizer, h, ops);
 
-    ext<cell> result = parser.parse();
+    std::vector<ext<cell> > clauses;
+
+    int clause_no = 0;
+    while (!parser.is_eof()) {
+	ext<cell> result = parser.parse();
+	if (parser.is_error()) {
+	    std::cout << "Parse error at clause " << clause_no << ".\n";
+	    assert(!parser.is_error());
+	    return;
+	}
+	clauses.push_back(result);
+	clause_no++;
+    }
 
     std::cout << "HEAP IS: "; h.print_status(std::cout); std::cout << "\n";
 
@@ -86,7 +98,12 @@ static void test_complicated_parse()
 			      { emitter.set_var_name(ref, name); } );
 
     emitter.set_style(term_emitter::STYLE_PROGRAM);
-    emitter.print(result);    
+
+    for (auto clause : clauses) {
+	emitter.print(clause);
+	emitter.nl();
+	emitter.nl();
+    }
 }
 
 static void find_home_dir(const char *selfpath)

@@ -7,81 +7,83 @@ namespace prologcoin { namespace common {
 term_ops::term_ops()
 {
     static op_entry DEFAULT[] =
-	  { { "-->",    2, 1200,       XFX },
-	    { ":-",     2, 1200,       XFX },
-	    { ":-",     1, 1200,       FX },
-	    { "?-",     1, 1200,       FX },
-	    { ";",      2, 1100,       XFY },
-	    { "|",      2, 1100,       XFY },
-	    { "->",     2, 1050,       XFY },
-	    { "*->",    2, 1050,       XFY },
-	    { ",",      2, 1000,       XFY },
-	    { ":=",     2, 990,        XFX },
-	    { "\\+",    1, 900,        FY },
-	    { "<",      2, 700,        XFX },
-	    { "=",      2, 700,        XFX },
-	    { "=..",    2, 700,        XFX },
-	    { "=@=",    2, 700,        XFX },
-	    { "\\=@=",  2, 700,        XFX },
-	    { "=:=",    2, 700,        XFX },
-	    { "=<",     2, 700,        XFX },
-	    { "==",     2, 700,        XFX },
-	    { "=\\=",   2, 700,        XFX },
-	    { ">",      2, 700,        XFX },
-	    { ">=",     2, 700,        XFX },
-	    { "@<",     2, 700,        XFX },
-	    { "@=<",    2, 700,        XFX },
-	    { "@>",     2, 700,        XFX },
-	    { "@>=",    2, 700,        XFX },
-	    { "\\=",    2, 700,        XFX },
-	    { "\\==",   2, 700,        XFX },
-	    { "as",     2, 700,        XFX },
-	    { "is",     2, 700,        XFX },
-	    { ">:<",    2, 700,        XFX },
-	    { ":<",     2, 700,        XFX },
-	    { ":",      2, 600,        XFY },
-	    { "+",      2, 500,        YFX },
-	    { "-",      2, 500,        YFX },
-	    { "/\\",    2, 500,        YFX },
-	    { "\\/",    2, 500,        YFX },
-	    { "xor",    2, 500,        YFX },
-	    { "?",      1, 500,        FX },
-	    { "*",      2, 400,        YFX },
-	    { "/",      2, 400,        YFX },
-	    { "//",     2, 400,        YFX },
-	    { "div",    2, 400,        YFX },
-	    { "rdiv",   2, 400,        YFX },
-	    { "<<",     2, 400,        YFX },
-	    { ">>",     2, 400,        YFX },
-	    { "mod",    2, 400,        YFX },
-	    { "rem",    2, 400,        YFX },
-	    { "**",     2, 200,        XFX },
-	    { "^",      2, 200,        XFY },
-	    { "+",      1, 200,        FY },
-	    { "-",      1, 200,        FY },
-	    { "\\",     1, 200,        FY },
-	    { ".",      2, 100,        YFX },
-	    { "$",      1, 1,          FX }
+  	  { { "-->",    2, 1200,       XFX, SPACE_XFX},
+	    { ":-",     2, 1200,       XFX, SPACE_XFX },
+	    { ":-",     1, 1200,       FX,  SPACE_XF },
+	    { "?-",     1, 1200,       FX,  SPACE_XF },
+	    { ";",      2, 1100,       XFY, SPACE_XFX },
+	    { "|",      2, 1100,       XFY, SPACE_XFX },
+	    { "->",     2, 1050,       XFY, SPACE_XFX },
+	    { "*->",    2, 1050,       XFY, SPACE_XFX },
+	    { ",",      2, 1000,       XFY, SPACE_FX },
+	    { ":=",     2, 990,        XFX, SPACE_XFX },
+	    { "\\+",    1, 900,        FY, SPACE_FX },
+	    { "<",      2, 700,        XFX, SPACE_XFX },
+	    { "=",      2, 700,        XFX, SPACE_XFX },
+	    { "=..",    2, 700,        XFX, SPACE_XFX },
+	    { "=@=",    2, 700,        XFX, SPACE_XFX },
+	    { "\\=@=",  2, 700,        XFX, SPACE_XFX },
+	    { "=:=",    2, 700,        XFX, SPACE_XFX },
+	    { "=<",     2, 700,        XFX, SPACE_XFX },
+	    { "==",     2, 700,        XFX, SPACE_XFX },
+	    { "=\\=",   2, 700,        XFX, SPACE_XFX },
+	    { ">",      2, 700,        XFX, SPACE_XFX },
+	    { ">=",     2, 700,        XFX, SPACE_XFX },
+	    { "@<",     2, 700,        XFX, SPACE_XFX },
+	    { "@=<",    2, 700,        XFX, SPACE_XFX },
+	    { "@>",     2, 700,        XFX, SPACE_XFX },
+	    { "@>=",    2, 700,        XFX, SPACE_XFX },
+	    { "\\=",    2, 700,        XFX, SPACE_XFX },
+	    { "\\==",   2, 700,        XFX, SPACE_XFX },
+	    { "as",     2, 700,        XFX, SPACE_XFX },
+	    { "is",     2, 700,        XFX, SPACE_XFX },
+	    { ">:<",    2, 700,        XFX, SPACE_XFX },
+	    { ":<",     2, 700,        XFX, SPACE_XFX },
+	    { ":",      2, 600,        XFY, SPACE_XFX },
+	    { "+",      2, 500,        YFX, SPACE_F },
+	    { "-",      2, 500,        YFX, SPACE_F },
+	    { "/\\",    2, 500,        YFX, SPACE_XFX },
+	    { "\\/",    2, 500,        YFX, SPACE_XFX },
+	    { "xor",    2, 500,        YFX, SPACE_XFX },
+	    { "?",      1, 500,        FX, SPACE_F },
+	    { "*",      2, 400,        YFX, SPACE_F },
+	    { "/",      2, 400,        YFX, SPACE_F },
+	    { "//",     2, 400,        YFX, SPACE_XFX },
+	    { "div",    2, 400,        YFX, SPACE_XFX },
+	    { "rdiv",   2, 400,        YFX, SPACE_XFX },
+	    { "<<",     2, 400,        YFX, SPACE_F },
+	    { ">>",     2, 400,        YFX, SPACE_F },
+	    { "mod",    2, 400,        YFX, SPACE_XFX },
+	    { "rem",    2, 400,        YFX, SPACE_XFX },
+	    { "**",     2, 200,        XFX, SPACE_F },
+	    { "^",      2, 200,        XFY, SPACE_F },
+	    { "+",      1, 200,        FY, SPACE_FX },
+	    { "-",      1, 200,        FY, SPACE_FX },
+	    { "\\",     1, 200,        FY, SPACE_F },
+	    { ".",      2, 100,        YFX, SPACE_F },
+	    { "$",      1, 1,          FX, SPACE_F }
 	  };
 
     op_none_.arity = 0;
     op_none_.precedence = 0;
     op_none_.type = FX;
+    op_none_.space = SPACE_F;
 
     for (auto i = std::size_t(0); i < sizeof(DEFAULT) / sizeof(op_entry); i++) {
 	const std::string &name = DEFAULT[i].name;
 	size_t precedence = DEFAULT[i].precedence;
 	size_t arity = DEFAULT[i].arity;
 	type_t type = DEFAULT[i].type;
+	space_t space = DEFAULT[i].space;
 	std::string namekey(name);
-	put( namekey, arity, precedence, type );
+	put( namekey, arity, precedence, type, space );
     }
 }
 
-void term_ops::put(const std::string &name, size_t arity, size_t precedence, term_ops::type_t type)
+void term_ops::put(const std::string &name, size_t arity, size_t precedence, term_ops::type_t type, term_ops::space_t space)
 {
     con_cell c = con_cell( name, arity );
-    op_entry newE = {name, arity, precedence, type};
+    op_entry newE = {name, arity, precedence, type, space};
     op_prec_[c] = newE;
 
     const op_entry &e = name_prec_[name];

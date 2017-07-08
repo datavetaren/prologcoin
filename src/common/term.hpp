@@ -520,7 +520,7 @@ public:
     {
 	auto dc = deref(c);
         const str_cell &s = static_cast<const str_cell &>(dc);
-	return ext<cell>(*this, get(s.index() + index + 1));
+	return ext<cell>(*this, deref(get(s.index() + index + 1)));
     }
 
     void set_arg(cell str, size_t index, cell c)

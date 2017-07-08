@@ -157,16 +157,20 @@ public:
         inline token()
 	  : type_(TOKEN_UNKNOWN),
 	    lexeme_(),
+	    quoted_(false),
 	    position_() { }
 
         inline token(const token &other)
 	  : type_(other.type_),
 	    lexeme_(other.lexeme_),
+	    quoted_(other.quoted_),
 	    position_(other.position_) { }
 
 	token_type type() const { return type_; }
 
 	const std::string & lexeme() const { return lexeme_; }
+
+	bool is_quoted() const { return quoted_; }
 
         // Pretty print token
         const std::string str() const;
@@ -183,10 +187,12 @@ public:
 
 	token_type type_;
 	std::string lexeme_;
+	bool quoted_;
         token_position position_;
 
-	inline void reset() { lexeme_.clear(); }
+	inline void reset() { lexeme_.clear(); quoted_ = false; }
         inline void set_position(const token_position &pos) { position_ = pos; }
+	inline void set_quoted(bool q) { quoted_ = q; }
     };
 
     bool has_more_tokens() const {

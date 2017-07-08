@@ -35,7 +35,12 @@ public:
     term_parser(term_tokenizer &tokenizer, heap &h, term_ops &ops);
     ~term_parser();
 
+    void set_debug(bool dbg);
+
     ext<cell> parse();
+
+    bool is_eof();
+    bool is_error();
 
     const std::string & get_variable_name( ext<cell> cell );
 

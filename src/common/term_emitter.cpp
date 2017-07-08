@@ -12,6 +12,7 @@ term_emitter::term_emitter(std::ostream &out, heap &h, term_ops &ops)
           indent_level_(0),
 	  last_char_('\0'),
 	  scan_mode_(false),
+	  first_def_(true),
 	  dotted_pair_(".", 2),
 	  empty_list_("[]", 0),
 	  var_naming_(nullptr),
@@ -35,6 +36,7 @@ void term_emitter::set_style(term_emitter::style st)
 
 void term_emitter::print(cell c)
 {
+    first_def_ = true;
     stack_.push_back(elem(deref(c),0));
     print_from_stack();
 }
@@ -145,7 +147,7 @@ size_t term_emitter::get_emit_length(cell c)
 
 void term_emitter::emit_char(char ch)
 {
-    if (!scan_mode_ && will_wrap(1)) {
+    if (!scan_mode_ && will_wrap(1) && !at_beginning()) {
 	nl();
     }
     if (!scan_mode_) {
@@ -159,6 +161,13 @@ void term_emitter::emit_token(const std::string &str)
 {
     static const char *exempt = "(),[]{} ";
 
+    if (str == "\n") {
+	if (!scan_mode_ && !at_beginning()) {
+	    nl();
+	}
+	return;
+    }
+
     char next_char = str.empty() ? '\0' : str[0];
 
     if (strchr(exempt, last_char_) == nullptr &&
@@ -171,7 +180,7 @@ void term_emitter::emit_token(const std::string &str)
 
     size_t len = str.size();
     if (will_wrap(len)) {
-	if (!scan_mode_) {
+	if (!scan_mode_ && !at_beginning()) {
 	    nl();
 	}
     }
@@ -182,10 +191,6 @@ void term_emitter::emit_token(const std::string &str)
     column_ += str.size();
 
     last_char_ = str.empty() ? '\0' : str[str.size()-1];
-
-    if (last_char_ == '\n') {
-        column_ = 0;
-    }
 }
 	
 void term_emitter::emit_error(const std::string &msg)
@@ -319,7 +324,7 @@ bool term_emitter::atom_name_needs_quotes(const std::string &name) const
 void term_emitter::emit_atom_name(const std::string &name)
 {
     if (atom_name_needs_quotes(name)) {
-        emit_token("'" + name + "'");
+        emit_token("'" + token_chars::escape_pretty(name) + "'");
     } else {
         emit_token(name);
     }
@@ -420,6 +425,20 @@ void term_emitter::emit_space()
     stack_.push_back(e);
 }
 
+void term_emitter::emit_space4()
+{
+    elem e(con_cell("    ",0));
+    e.set_as_token(true);
+    stack_.push_back(e);
+}
+
+void term_emitter::emit_dot()
+{
+    elem e(con_cell(".",0));
+    e.set_as_token(true);
+    stack_.push_back(e);
+}
+
 void term_emitter::emit_nl()
 {
     elem e(con_cell("\n",0));
@@ -443,12 +462,26 @@ void term_emitter::emit_indent_decrement()
     stack_.push_back(e);
 }
 
+void term_emitter::emit_set_indent(size_t new_column)
+{
+    std::string str(new_column, ' ');
+    elem e(con_cell(str, 0));
+    e.set_as_token(true);
+    e.set_indent(true);
+    stack_.push_back(e);
+}
+
 void term_emitter::emit_xf(cell x, con_cell f, bool x_ok)
 {
     bool op_is_alnum = is_begin_alphanum(f);
 
     stack_.push_back(elem(f));
-    if (op_is_alnum || f.arity() == 1) {
+
+    auto p = ops_.prec(f);
+
+    if (op_is_alnum ||
+	p.space == term_ops::SPACE_XFX ||
+	p.space == term_ops::SPACE_XF) {
 	emit_space();
     }
     if (x_ok) {
@@ -460,43 +493,52 @@ void term_emitter::emit_xf(cell x, con_cell f, bool x_ok)
 
 void term_emitter::emit_fx(con_cell f, cell x, bool x_ok)
 {
-    bool op_is_alnum = is_end_alphanum(f);
-
-    if (x_ok) {
-	stack_.push_back(elem(x));
-    } else {
-	wrap_paren(elem(x));
-    }
-    if (op_is_alnum || f.arity() == 1) {
-	emit_space();
-    }
-    stack_.push_back(elem(f));
-}
-
-void term_emitter::emit_xfy(cell x, con_cell f, cell y, bool x_ok, bool y_ok)
-{
     bool is_def = style_ == STYLE_PROGRAM && 
+	          first_def_ &&
 		  f.arity() == 2 &&
                   heap_.is_name(f, ":-");
 
     bool op_is_alnum = is_end_alphanum(f);
 
     if (is_def) {
+	emit_dot();
         emit_indent_decrement();
     }
 
-    emit_fx(f, y, y_ok);
-    if (op_is_alnum) {
-	emit_space();
+    if (x_ok) {
+	stack_.push_back(elem(x));
+    } else {
+	wrap_paren(elem(x));
     }
 
     if (is_def) {
+	emit_nl();
+	emit_set_indent(4);
         emit_indent_increment();
-        emit_space();
-        emit_space();
-        emit_space();
-        emit_space();
-        emit_nl();
+	first_def_ = false;
+    } else {
+	auto p = ops_.prec(f);
+	if (op_is_alnum ||
+	    p.space == term_ops::SPACE_FX ||
+	    p.space == term_ops::SPACE_XFX) {
+	    emit_space();
+	}
+    }
+
+    stack_.push_back(elem(f));
+}
+
+void term_emitter::emit_xfy(cell x, con_cell f, cell y, bool x_ok, bool y_ok)
+{
+    bool op_is_alnum = is_end_alphanum(f);
+
+    emit_fx(f, y, y_ok);
+
+    auto p = ops_.prec(f);
+    if (op_is_alnum ||
+	p.space == term_ops::SPACE_XF ||
+	p.space == term_ops::SPACE_XFX) {
+	emit_space();
     }
 
     if (x_ok) {
@@ -507,6 +549,11 @@ void term_emitter::emit_xfy(cell x, con_cell f, cell y, bool x_ok, bool y_ok)
 }
 
 void term_emitter::emit_functor_elem(const term_emitter::elem &e)
+{
+    emit_functor_elem_helper(e);
+}
+
+void term_emitter::emit_functor_elem_helper(const term_emitter::elem &e)
 {
     // Emit functor. Check if the entire functor with args fits
     if (!scan_mode_ && !at_beginning()) {
@@ -535,6 +582,9 @@ void term_emitter::emit_functor_elem(const term_emitter::elem &e)
 
     // No operator or arity == 0? Then emit functor and exit.
     if (f_prec == 0 || f.arity() == 0 || f.arity() > 2) {
+	if (first_def_ && style_ == STYLE_PROGRAM) {
+	    emit_dot();
+	}
 	emit_functor(f, index);
 	return;
     }
@@ -542,7 +592,8 @@ void term_emitter::emit_functor_elem(const term_emitter::elem &e)
     // Arity must be 1 or 2
 
     // This is an operator. Extract 1st arg.
-    auto x = heap_.arg(str, 0);
+    auto x = deref(heap_.arg(str, 0));
+
     auto x_prec = get_precedence(x);
 
     if (f.arity() == 1) {
@@ -557,7 +608,7 @@ void term_emitter::emit_functor_elem(const term_emitter::elem &e)
 
     // Arity must be 2
 
-    auto y = heap_.arg(str, 1);
+    auto y = deref(heap_.arg(str, 1));
     auto y_prec = get_precedence(y);
 
     switch (p.type) {
@@ -652,7 +703,7 @@ void term_emitter::print_from_stack(size_t top)
 	auto e = *(stack_.end() - 1);
 
 	stack_.pop_back();
-
+	
         if (e.is_indent_inc()) {
 	    increment_indent_level();
 	}
@@ -661,7 +712,12 @@ void term_emitter::print_from_stack(size_t top)
 	}
 	if (e.as_token()) {
 	    const con_cell &c = static_cast<const con_cell &>(e.cell_);
-	    emit_token(heap_.atom_name(c));
+	    std::string str = heap_.atom_name(c);
+	    if (e.is_set_indent()) {
+		indent_table_[indent_level_-1] = str.size();
+	    } else {
+		emit_token(str);
+	    }
 	} else {
 	    switch (e.cell_.tag()) {
 	    case tag_t::CON: {

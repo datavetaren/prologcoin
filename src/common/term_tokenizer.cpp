@@ -189,6 +189,7 @@ void term_tokenizer::next_quoted_name()
     assert(ch == '\'');
 
     current_.type_ = TOKEN_NAME;
+    current_.set_quoted(true);
 
     bool cont = true;
     while (cont) {
@@ -408,8 +409,7 @@ void term_tokenizer::parse_line_comment()
 
 void term_tokenizer::next_symbol()
 {
-    while (is_symbol_char(peek_char()) && !is_comment_begin()
-	   && !is_full_stop()) {
+    while (is_symbol_char(peek_char()) && !is_comment_begin()) {
 	consume_next_char();
     }
 }
@@ -433,7 +433,16 @@ bool term_tokenizer::is_comment_begin() const
 
 bool term_tokenizer::is_full_stop() const
 {
-    return peek_char() == '.';
+    if (peek_char() != '.') {
+	return false;
+    }
+    next_char_la();
+    if (peek_char() == -1 || is_layout_char(peek_char())) {
+	unget_char();
+	return true;
+    }
+    unget_char();
+    return false;
 }
 
 bool term_tokenizer::is_full_stop(int ch) const
@@ -504,6 +513,14 @@ void term_tokenizer::next_number()
 	    }
 	}
     } else if (ch == '.' || ch == 'e' || ch == 'E') {
+	// We need to double check that there's a digit after '.' in
+	// order to parse this as a float.
+	next_char_la();
+	if (is_layout_char(peek_char())) {
+	    unget_char();
+	    return;
+	}
+	unget_char();
 	set_token_type(TOKEN_UNSIGNED_FLOAT);
 	next_float();
     }

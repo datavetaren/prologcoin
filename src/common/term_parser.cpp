@@ -51,6 +51,7 @@ protected:
     inline symbol_t ordinal() const { return ordinal_; }
     const term_tokenizer::token & token() const { return token_; }
     ext<cell> result() { return result_; }
+    inline void set_old_state(int no) { old_state_ = no; }
 
     private:
       symbol_t ordinal_;
@@ -151,9 +152,15 @@ protected:
     auto tok = tokenizer().peek_token();
     auto lexeme = tok.lexeme();
 
+    //    std::cout << "Next_symbol(): " << lexeme << " " << tok.type() << "\n";
+
     bool consumed_name = false;
 
-    symbol_t prec = predefined_symbols_[lexeme];
+    symbol_t prec = SYMBOL_UNKNOWN;
+
+    if (!tok.is_quoted()) {
+	prec = predefined_symbols_[lexeme];
+    }
 
     if (prec != SYMBOL_UNKNOWN) {
         lookahead_ = sym(current_state_, tok, prec);
@@ -178,7 +185,7 @@ protected:
       lookahead_ = sym(current_state_, tok, SYMBOL_NAME);
       tokenizer().consume_token();
       consumed_name = true;
-      if (is_last_char_alpha(tok) &&
+      if ((is_last_char_alpha(tok) || tok.is_quoted()) &&
 	  tokenizer().peek_token().type()
 	  == term_tokenizer::TOKEN_PUNCTUATION_CHAR) {
 	if (tokenizer().peek_token().lexeme() == "(") {
@@ -187,6 +194,9 @@ protected:
 	  tokenizer().consume_token();
 	}
         return lookahead_;
+      }
+      if (tok.is_quoted()) {
+	return lookahead_;
       }
       break; // Requires operator check...
     case term_tokenizer::TOKEN_NATURAL_NUMBER:
@@ -553,10 +563,21 @@ public:
     predefined_symbols_["|"] = SYMBOL_VBAR;
   }
 
+  void set_debug(bool dbg) { is_debug_ = dbg; }
+
   bool is_accept() const { return accept_; }
   bool is_error() const { return error_; }
   ext<cell> get_result() const { return result_; }
-  void init() { accept_ = false; error_ = false; result_ = ext<cell>(); }
+  void init() {
+      current_state_ = 0;
+      accept_ = false;
+      error_ = false;
+      result_ = ext<cell>();
+  }
+  bool is_eof() {
+      skip_whitespace();
+      return lookahead().ordinal() == SYMBOL_EOF;
+  }
 
   const std::string & get_var_name(ext<cell> &cell);
 
@@ -587,6 +608,12 @@ public:
     }
 
     process_state();
+
+    if (accept_) {
+	lookahead_ = old_lookahead_;
+	stack_.pop_back();
+	lookahead_.set_old_state(0);
+    }
   }
 };
 
@@ -601,6 +628,11 @@ term_parser::~term_parser()
   delete impl_;
 }
 
+void term_parser::set_debug(bool dbg)
+{
+    impl_->set_debug(dbg);
+}
+
 ext<cell> term_parser::parse()
 {
   impl_->init();
@@ -608,6 +640,16 @@ ext<cell> term_parser::parse()
     impl_->process_next();
   }
   return impl_->get_result();
+}
+
+bool term_parser::is_eof()
+{
+    return impl_->is_eof();
+}
+
+bool term_parser::is_error()
+{
+    return impl_->is_error();
 }
 
 void term_parser::for_each_var_name(std::function<void (const ext<cell> &ref, const std::string &name)> f) const {
