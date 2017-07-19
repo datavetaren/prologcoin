@@ -62,8 +62,20 @@ static void test_simple_parse()
     assert(sout2.str() == sout.str());
 }
 
+static void skip_whitespace(term_tokenizer &tokenizer)
+{
+    while (tokenizer.has_more_tokens()) {
+	auto &token = tokenizer.peek_token();
+	if (token.type() != term_tokenizer::TOKEN_LAYOUT_TEXT) {
+	    return;
+	}
+	tokenizer.consume_token();
+    }
+}
+
 //
 // Read in my own "Yacc/Bison" like parser generator...
+//
 static void test_complicated_parse()
 {
     header( "test_complicated_parse()" );
@@ -75,15 +87,21 @@ static void test_complicated_parse()
     term_tokenizer tokenizer(infile);
     term_parser parser(tokenizer, h, ops);
 
+    // parser.set_debug(true);
+
     std::vector<ext<cell> > clauses;
 
     int clause_no = 0;
     while (!parser.is_eof()) {
-	ext<cell> result = parser.parse();
-	if (parser.is_error()) {
-	    std::cout << "Parse error at clause " << clause_no << ".\n";
-	    assert(!parser.is_error());
-	    return;
+	ext<cell> result;
+	try {
+	    result = parser.parse();
+	} catch (std::runtime_error &ex) {
+	    if (parser.is_error()) {
+		std::cout << "Parse error at clause " << clause_no << ".\n";
+		assert(!parser.is_error());
+		throw;
+	    }
 	}
 	clauses.push_back(result);
 	clause_no++;
@@ -91,7 +109,9 @@ static void test_complicated_parse()
 
     std::cout << "HEAP IS: "; h.print_status(std::cout); std::cout << "\n";
 
-    term_emitter emitter(std::cout, h, ops);
+    std::stringstream reemit;
+
+    term_emitter emitter(reemit, h, ops);
 
     parser.for_each_var_name( [&](const ext<cell> &ref,
 				  const std::string &name)
@@ -103,6 +123,45 @@ static void test_complicated_parse()
 	emitter.print(clause);
 	emitter.nl();
 	emitter.nl();
+    }
+
+    // Write entire 'reemit' to file for debug
+    std::ofstream outfile(home_dir + "/bin/test/common/test_parser_sample.pl.cmp");
+    outfile << reemit.str() << "\n";
+
+    // We now have everything remitten in 'reemit'.
+    // Let's compare using original file
+    {
+	std::ifstream infile(home_dir + "/src/common/test/test_parser_sample.pl");
+
+	term_tokenizer orig_tokens(infile);
+	term_tokenizer cmp_tokens(reemit);
+
+	skip_whitespace(orig_tokens);
+	skip_whitespace(cmp_tokens);
+
+	while (orig_tokens.has_more_tokens() && cmp_tokens.has_more_tokens()) {
+	    auto &orig_token = orig_tokens.peek_token();
+	    auto &cmp_token = cmp_tokens.peek_token();
+
+	    if (orig_token.lexeme() != cmp_token.lexeme()) {
+		std::cout << "Difference found at " << orig_token.pos().str() << "\n";
+		std::cout << token_chars::escape_pretty(orig_token.lexeme()) << " != " << token_chars::escape_pretty(cmp_token.lexeme()) << "\n";
+	    }
+
+	    assert(orig_token.lexeme() == cmp_token.lexeme());
+
+	    orig_tokens.consume_token();
+	    cmp_tokens.consume_token();
+
+	    skip_whitespace(orig_tokens);
+	    skip_whitespace(cmp_tokens);
+	}
+
+	// EOF should happen for both.
+	assert(orig_tokens.has_more_tokens() ==
+	       cmp_tokens.has_more_tokens());
+
     }
 }
 

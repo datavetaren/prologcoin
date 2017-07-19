@@ -42,15 +42,15 @@ private:
     size_t get_precedence(cell c) const;
 
     typedef unsigned int flags_t;
-    static const flags_t NEED_PAREN = 1 << 0;
-    static const flags_t AT_BEGIN = 1 << 1;
-    static const flags_t AT_END = 1 << 2;
-    static const flags_t IN_LIST = 1 << 3;
-    static const flags_t AS_ARG = 1 << 4;
-    static const flags_t AS_TOKEN = 1 << 5;
-    static const flags_t INDENT_INC = 1 << 6;
-    static const flags_t INDENT_DEC = 1 << 7;
-    static const flags_t SET_INDENT = 1 << 8;
+    static const flags_t AT_BEGIN = 1 << 0;
+    static const flags_t AT_END = 1 << 1;
+    static const flags_t AS_TOKEN = 1 << 2;
+    static const flags_t INDENT_INC = 1 << 3;
+    static const flags_t INDENT_DEC = 1 << 4;
+    static const flags_t SET_INDENT = 1 << 5;
+    static const flags_t IS_DEF = 1 << 6;
+    static const flags_t HAS_PAREN = 1 << 7;
+    static const flags_t CHECK_PAREN = 1 << 8;
 
     struct elem {
 	cell cell_;
@@ -61,28 +61,28 @@ private:
 	inline elem(cell c, flags_t f) : cell_(c), flags(f) { }
 	inline elem(const elem &other) : cell_(other.cell_), flags(other.flags) { }
 
-	inline bool need_paren() const { return (flags & NEED_PAREN) != 0; }
 	inline bool at_begin() const { return (flags & AT_BEGIN) != 0; }
 	inline bool at_end() const { return (flags & AT_END) != 0; }
-	inline bool in_list() const { return (flags & IN_LIST) != 0; }
-	inline bool as_arg() const { return (flags & AS_ARG) != 0; }
 	inline bool as_token() const { return (flags & AS_TOKEN) != 0; }
         inline bool is_indent_inc() const { return (flags & INDENT_INC) != 0; }
         inline bool is_indent_dec() const { return (flags & INDENT_DEC) != 0; }
 	inline bool is_set_indent() const { return (flags & SET_INDENT) != 0; }
+	inline bool is_def() const { return (flags & IS_DEF) != 0; }
+	inline bool has_paren() const { return (flags & HAS_PAREN) != 0; }
+	inline bool check_paren() const { return (flags & CHECK_PAREN) != 0; }
 
 	void set_flag(flags_t flag, bool b) {
 	    flags = ((flags &~flag) | flag*(int)b); }
 
-	void set_need_paren(bool b) { set_flag(NEED_PAREN, b); }
 	void set_at_begin(bool b) { set_flag(AT_BEGIN, b); }
 	void set_at_end(bool b) { set_flag(AT_END, b); }
-	void set_in_list(bool b) { set_flag(IN_LIST, b); }
-	void set_as_arg(bool b) { set_flag(AS_ARG, b); }
 	void set_as_token(bool b) { set_flag(AS_TOKEN, b); }
 	void set_indent_inc(bool b) { set_flag(INDENT_INC, b); }
 	void set_indent_dec(bool b) { set_flag(INDENT_DEC, b); }
 	void set_indent(bool b) { set_flag(SET_INDENT,b); }
+	void set_is_def(bool b) { set_flag(IS_DEF,b); }
+	void set_has_paren(bool b) { set_flag(HAS_PAREN,b); }
+	void set_check_paren(bool b) { set_flag(CHECK_PAREN,b); }
     };
 
     void emit_error(const std::string &msg);
@@ -97,13 +97,14 @@ private:
     void emit_space();
     void emit_space4();
     void emit_dot();
+    void emit_str(const std::string &str);
     void emit_nl();
     void emit_indent_increment();
     void emit_indent_decrement();
     void emit_set_indent(size_t new_column);
-    void emit_xf(cell x, con_cell f, bool wrap_x);
-    void emit_fx(con_cell f, cell x, bool wrap_x);
-    void emit_xfy(cell x, con_cell f, cell y, bool wrap_x, bool wrap_y);
+    void emit_xf(bool is_def, cell x, con_cell f, bool wrap_x);
+    void emit_fx(bool is_def, con_cell f, cell x, bool wrap_x);
+    void emit_xfy(bool is_def, cell x, con_cell f, cell y, bool wrap_x, bool wrap_y);
     void emit_functor_elem(const elem &a);
     void emit_functor_elem_helper(const elem &a);
     void emit_list(const cell lst);
@@ -116,6 +117,7 @@ private:
     void increment_indent_level();
     void decrement_indent_level();
     void wrap_paren(const term_emitter::elem &e);
+    bool check_wrap_paren(const term_emitter::elem &e, size_t prec_low, size_t prec_high = 1201);
 
     void mark_indent_column();
     bool will_wrap(size_t len) const;

@@ -69,6 +69,7 @@ std::string token_chars::escape_pretty(const std::string &str)
 	case 12: ss << "\\f"; break;
 	case 13: ss << "\\r"; break;
 	case 27: ss << "\\e"; break;
+        case 32: ss << " "; break;
 	case 127: ss << "\\d"; break;
 	case 7: ss << "\\a"; break;
 	case '\'': ss << "\\\'"; break;

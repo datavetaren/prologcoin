@@ -29,8 +29,8 @@ main :-
     StartItem = [(start :- 'DOT', subterm_1200, full_stop)],
     Start = state(0, StartItem, []),
     states(Grammar, Start, States),
-    resolve_conflicts(States, Properties, States1),
-    sort_actions(States1, NewStates),
+    % resolve_conflicts(States, Properties, States1),
+    sort_actions(States, NewStates),
     emit(Grammar, Properties, NewStates),
     tell('states.txt'),
     print_states(NewStates),
@@ -145,27 +145,37 @@ i1 :- write(' ').
 i2 :- i1, i1.
 i3 :- i1, i1, i1.
 i4 :- i2, i2.
+i5 :- i3, i2.
 
 emit_state(state(N, _, Actions), _Properties) :-
     i1, write('void state'), write(N), write('() {'), nl,
     i2, write('switch (Base::lookahead().ordinal()) {'), nl,
-    emit_shift_actions(Actions),
+    emit_shift_actions(Actions, Actions),
     emit_goto_actions(Actions),
     emit_reduce_actions(Actions),
-    (\+ member(reduce([empty], _), Actions) ->
+    emit_extra_actions(Actions),
+    (\+ member(reduce([empty], _, _), Actions) ->
 	i3, write('default: Base::parse_error(); break;'), nl
     ; true),
     i2, write('}'), nl,
     i1, write('}'),
     nl, nl.
 
-emit_shift_actions([shift(Symbol, N)|Actions]) :-
+emit_shift_actions([shift(Symbol, N)|Actions], AllActions) :-
+    check_no_cond_reduce(AllActions, Symbol),
     !, i3, write('case '), emit_symbol(Symbol), write(': '),
     write('Base::shift_and_goto_state('), write(N), write('); break;'), nl,
-    emit_shift_actions(Actions).
-emit_shift_actions([_|Actions]) :-
-    emit_shift_actions(Actions).
-emit_shift_actions([]).
+    emit_shift_actions(Actions, AllActions).
+emit_shift_actions([_|Actions], AllActions) :-
+    emit_shift_actions(Actions, AllActions).
+emit_shift_actions([], _).
+
+check_no_cond_reduce([], _).
+check_no_cond_reduce([reduce(SymList,Cond,_)|Actions], Symbol) :-
+	Cond \= [], !, \+ member(Symbol, SymList),
+	check_no_cond_reduce(Actions, Symbol).
+check_no_cond_reduce([_|Actions], Symbol) :-
+	check_no_cond_reduce(Actions, Symbol).
 
 emit_goto_actions([goto(Symbol, N)|Actions]) :-
     !, i3, write('case '), emit_symbol(Symbol), write(': '),
@@ -175,18 +185,43 @@ emit_goto_actions([_|Actions]) :-
     emit_goto_actions(Actions).
 emit_goto_actions([]).
 
-emit_reduce_actions([reduce(Symbols,(Head:-Body))|Actions]) :-
+emit_reduce_actions([reduce(Symbols,[],(Head:-Body))|Actions]) :-
     !, emit_cases(Symbols),
     i4,
-    length_body(Body,Num),
-    write('Base::reduce('), emit_symbol(Head), write(', '),
-    write('Base::reduce_'), emit_tokenize_rule((Head:-Body)),
-    write('(Base::args('), write(Num), write(')));'), nl,
+    emit_reduce_rule((Head:-Body)),
     i4, write('break;'), nl,
     emit_reduce_actions(Actions).
 emit_reduce_actions([_|Actions]) :-
     emit_reduce_actions(Actions).
 emit_reduce_actions([]).
+
+emit_reduce_rule((Head:-Body)) :-
+    length_body(Body,Num),
+    write('Base::reduce('), emit_symbol(Head), write(', '),
+    write('Base::reduce_'), emit_tokenize_rule((Head:-Body)),
+    write('(Base::args('), write(Num), write(')));'), nl.
+
+emit_extra_actions(Actions) :-
+	findall(reduce(Symbol,Cond,Rule), 
+	       (member(reduce(Symbols,Cond,Rule),Actions),
+	       Cond \= [],member(Symbol,Symbols)),
+	       Reduce),
+        sort(Reduce,ReduceSorted),
+	emit_extra_actions1(ReduceSorted, Actions).
+
+emit_extra_actions1([], _).
+emit_extra_actions1([reduce(Symbol,Cond,(Head:-Body))|Actions], AllActions) :-
+	emit_cases([Symbol]),
+	(member(shift(Symbol, N), AllActions) ->
+	    i4, write('if ('), write('Base::'), write(Cond), write('(Base::lookahead())) {'), nl,
+	    i5, emit_reduce_rule((Head:-Body)),
+	    i4, write('} else {'), nl,
+	    i5, write('Base::shift_and_goto_state('), write(N), write(');'), nl,
+	    i4, write('}'), nl
+	; i4, emit_reduce_rule((Head:-Body))
+        ), i4, write('break;'), nl,
+	emit_extra_actions1(Actions, AllActions).
+
 
 length_body((_,B), N) :-
     !,
@@ -220,9 +255,20 @@ emit_tokenize_rule_list([X|Xs]) :-
     emit_tokenize_rule_list(Xs).
 
 emit_symbol(Symbol) :-
-    upcase_atom(Symbol, Upper),
+    Symbol =.. Atoms,
+    upcase_atoms(Atoms, UpAtoms),
     write('SYMBOL_'),
-    write(Upper).
+    emit_atom_list(UpAtoms).
+
+emit_atom_list([]).
+emit_atom_list([A,A1|As]) :-
+    !,write(A), write('_'), emit_atom_list([A1|As]).
+emit_atom_list([A]) :- write(A).
+
+upcase_atoms([], []).
+upcase_atoms([Atom|Atoms], [UpAtom|UpAtoms]) :-
+	upcase_atom(Atom,UpAtom),
+	upcase_atoms(Atoms,UpAtoms).
 
 body_to_list((A,B), [A|L]) :-
     !, body_to_list(B, L).
@@ -262,7 +308,7 @@ all_symbols_actions([shift(S,_)|Actions], [S|Symbols]) :-
     !, all_symbols_actions(Actions, Symbols).
 all_symbols_actions([goto(S,_)|Actions], [S|Symbols]) :-
     !, all_symbols_actions(Actions, Symbols).
-all_symbols_actions([reduce(S,(Head:-_))|Actions], Symbols) :-
+all_symbols_actions([reduce(S,_Cond,(Head:-_))|Actions], Symbols) :-
     !,
     append([Head|S], Symbols1, Symbols),
     all_symbols_actions(Actions, Symbols1).
@@ -273,10 +319,15 @@ all_symbols_actions([], []).
 % Resolve conflicts
 %
 
-resolve_conflicts([], _Properties, []).
-resolve_conflicts([State|States], Properties, [NewState|NewStates]) :-
+resolve_conflicts(States, Properties, NewStates) :-
+	(get_property(Properties, prefer, _Prefer) ->
+	    resolve_conflicts1(States, Properties, NewStates)
+	; NewStates = States).
+
+resolve_conflicts1([], _Properties, []).
+resolve_conflicts1([State|States], Properties, [NewState|NewStates]) :-
     resolve_conflicts_state(State, Properties, NewState),
-    resolve_conflicts(States, Properties, NewStates).
+    resolve_conflicts1(States, Properties, NewStates).
 
 resolve_conflicts_state(state(N, KernelItems, Actions),
 			Properties,
@@ -305,7 +356,7 @@ sort_actions([state(N, KernelItems, Actions)|States],
 sort_actions1(Actions, SortedActions) :-
     findall(shift(Sym,N), member(shift(Sym,N), Actions),ShiftActions1),
     findall(goto(Sym,N), member(goto(Sym,N), Actions), GotoActions1),
-    findall(reduce(Syms,Rule),member(reduce(Syms,Rule),Actions),ReduceActions1),
+    findall(reduce(Syms,Cond,Rule),member(reduce(Syms,Cond,Rule),Actions),ReduceActions1),
     sort(ShiftActions1, ShiftActions),
     sort(GotoActions1, GotoActions),
     sort(ReduceActions1, ReduceActions),
@@ -323,8 +374,8 @@ filter_actions([shift(Sym,N)|Actions], Prefer, ExcludedSyms,
     (Prefer = reduce, \+ member(Sym, ExcludedSyms) ;
      Prefer = shift), !,
     filter_actions(Actions, Prefer, ExcludedSyms, NewActions).
-filter_actions([reduce(Syms,Rule)|Actions], Prefer, ExcludedSyms,
-	       [reduce(Syms,Rule)|NewActions]) :-
+filter_actions([reduce(Syms,Cond,Rule)|Actions], Prefer, ExcludedSyms,
+	       [reduce(Syms,Cond,Rule)|NewActions]) :-
     (Prefer = shift, \+ member(Syms, ExcludedSyms) ;
      Prefer = reduce), !,
     filter_actions(Actions, Prefer, ExcludedSyms, NewActions).
@@ -374,14 +425,16 @@ print_action(goto(Symbol,N)) :-
 	write('   goto on \''), write(Symbol), write('\' '),
 	write(' to state '), write(N), nl.
 
-print_action(reduce(LA,Rule)) :-
-    print_reduce(LA,Rule).
+print_action(reduce(LAs,Cond,Rule)) :-
+    print_reduce(LAs,Cond,Rule).
 
-print_reduce([LA|LAs],Rule) :-
-    write('   reduce on \''), write(LA), write('\' with rule '), write(Rule),
+print_reduce([LA|LAs],Cond,Rule) :-
+    write('   reduce on \''), write(LA), write('\''),
+    (Cond \= [] -> write(' if '), write(Cond) ; true),
+    write(' with rule '), write(Rule),
     nl,
-    print_reduce(LAs,Rule).
-print_reduce([],_).
+    print_reduce(LAs,Cond,Rule).
+print_reduce([],_,_).
 
 print_check_actions(Actions) :-
     action_syms(Actions, ShiftSyms, GotoSyms, ReduceSyms),
@@ -392,7 +445,9 @@ print_check_actions(Actions) :-
 action_syms(Actions, ShiftSyms, GotoSyms, ReduceSyms) :-
 	findall(Sym, member(shift(Sym,_), Actions), ShiftSyms),
 	findall(Sym, member(goto(Sym,_), Actions), GotoSyms),
-	findall(SymsList, member(reduce(SymsList,_), Actions), ReduceSymsList),
+	findall(SymsList,
+	        member(reduce(SymsList,[],_), Actions),
+	        ReduceSymsList),
 	flatten(ReduceSymsList, ReduceSyms).
 
 print_check_syms([]).
@@ -412,7 +467,7 @@ states(Grammar, InitState, StatesOut) :-
     item_move_to_end(KernelItem, AcceptingItem),
     member(state(N, [AcceptingItem], _), StatesOut1),
     item_to_rule(AcceptingItem, AcceptingRule),
-    NewAcceptingActions = [reduce([empty], AcceptingRule)],
+    NewAcceptingActions = [reduce([empty], [], AcceptingRule)],
     AcceptingState = state(N, [AcceptingItem], NewAcceptingActions),
     replace_state(StatesOut1, AcceptingState, StatesOut).
 
@@ -461,7 +516,8 @@ items_get_reductions([Item|Items],Reductions) :-
     !,
     lookahead(_, Item, LA),
     item_to_rule(Item, Rule),
-    Reductions = [reduce(LA, Rule)|Reductions0],
+    (find_reduce_cond(Item, Cond), ! ; Cond = []),
+    Reductions = [reduce(LA, Cond, Rule)|Reductions0],
     items_get_reductions(Items, Reductions0).
 items_get_reductions([_|Items],Reductions) :-
     items_get_reductions(Items, Reductions).
@@ -469,10 +525,25 @@ items_get_reductions([_|Items],Reductions) :-
 item_to_rule((Head :- Body), (Head :- NewBody)) :-
     item_to_rule_body(Body, NewBody).
 
-item_to_rule_body((A, ('DOT', _)), A) :- !.
+item_to_rule_body((A, 'DOT', _), A) :- !.
 item_to_rule_body((A, 'DOT'), A) :- !.
 item_to_rule_body((A, B), (A, NewB)) :-
     item_to_rule_body(B, NewB).
+
+item_extra((_Head :- Body), Extra) :-
+	item_extra_body(Body, Tail),
+	(Extra,_LA) = Tail,
+	functor(Extra, {}, _).
+
+item_extra_body('DOT', []) :- !.
+item_extra_body(('DOT', A), A) :- !.
+item_extra_body((_, B), B1) :- item_extra_body(B, B1).
+
+find_reduce_cond(Item, Cond) :-
+	item_extra(Item, Extra),
+	Extra =.. [{}, ExtraBody],
+	body_to_list(ExtraBody, ExtraList),
+	member(reduce_cond(Cond), ExtraList).
 
 has_state([state(_,KernelItems,_)|_], KernelItems) :- !.
 has_state([_|States], KernelItems) :- has_state(States, KernelItems).
@@ -566,7 +637,6 @@ closure_kernel([KernelItem|KernelItems],Grammar,ClosureIn,ClosureOut) :-
     closure_kernel(KernelItems,Grammar,ClosureIn1,ClosureOut).
 
 closure(Grammar,Item,ClosureIn,ClosureOut) :-
-%    write('Check Item '), write(Item), nl,
     \+ member(Item, ClosureIn), % We have not seen this before
     !, % Do not backtrack.
     copy_term(Item, ItemCopy),
@@ -653,6 +723,8 @@ item_at_end((_ :- Body)) :-
 item_at_end_body(('DOT', [_|_])) :- !.
 item_at_end_body(('DOT', [])) :- !.
 item_at_end_body('DOT') :- !.
+item_at_end_body(('DOT', A)) :- functor(A, {}, _), !.
+item_at_end_body(('DOT', A, _)) :- functor(A, {}, _), !.
 item_at_end_body((_,B)) :-
     item_at_end_body(B).
 
@@ -673,8 +745,9 @@ item_move_to_end(Item, NewItem) :-
 item_move_next((Head :- Body), (Head :- NewBody)) :-
     item_move_next_body(Body, NewBody).
 
-item_move_next_body(('DOT', (A, B)), (A, ('DOT', B))) :- !.
-item_move_next_body(('DOT', A), (A, 'DOT')) :- !.
+item_move_next_body(('DOT', A, B), (A, 'DOT', B)) :-
+	!, functor(A, F,_), F \= {}.
+item_move_next_body(('DOT', A), (A, 'DOT')) :- !, functor(A, F, _), F \= {}.
 item_move_next_body((A, B), (A, NewB)) :-
     item_move_next_body(B, NewB).
 
@@ -721,13 +794,16 @@ match(_, _, []).
 
 item_next_symbol((_ :- Body), Symbol) :-
     item_next_symbol_body(Body, Symbol).
+
 item_next_symbol_body(('DOT', X), Symbol) :-
-    !, item_next_symbol_found(X, Symbol).
+    !, functor(X, F, _), F \= {}, item_next_symbol_found(X, Symbol).
 item_next_symbol_body((_,B), Symbol) :-
     item_next_symbol_body(B, Symbol).
 
-item_next_symbol_found((Symbol, _), Symbol) :- !, \+ is_list(Symbol).
-item_next_symbol_found(Symbol, Symbol) :- \+ is_list(Symbol).
+item_next_symbol_found((Symbol, _), Symbol) :-
+	!, functor(Symbol,F,_), F \= {}, \+ is_list(Symbol).
+item_next_symbol_found(Symbol, Symbol) :-
+	functor(Symbol,F,_), F \= {}, \+ is_list(Symbol).
 
 match_symbol([], _, []).
 match_symbol([C | Cs], Symbol, [Match | Matched]) :-
@@ -737,7 +813,7 @@ match_symbol([C | Cs], Symbol, [Match | Matched]) :-
 	copy_term(C, (HeadCopy :- BodyCopy)),
 	copy_term(Symbol, CopySymbol),
 	unify_heads(HeadCopy, CopySymbol),
-	Match1 = (HeadCopy :- ('DOT', BodyCopy)),
+	Match1 = (HeadCopy :- 'DOT', BodyCopy),
 	process_arithmetics(Match1, Match),
 	match_symbol(Cs, Symbol, Matched).
 match_symbol([_ | Cs], Symbol, Matched) :-

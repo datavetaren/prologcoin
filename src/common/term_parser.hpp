@@ -22,6 +22,20 @@ private:
     token_position pos_;
 };
 
+class term_parse_error_exception : public ::std::runtime_error
+{
+public:
+    term_parse_error_exception(const term_tokenizer::token &token,
+			       const std::string &msg)
+	: ::std::runtime_error(msg), token_(token) { }
+
+    const term_tokenizer::token &  token() const { return token_; }
+
+private:
+    term_tokenizer::token token_;
+};
+
+
 //
 // term_parser
 //

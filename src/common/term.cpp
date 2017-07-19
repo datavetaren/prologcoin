@@ -21,7 +21,8 @@ con_cell::con_cell(const std::string &name, size_t arity) : cell(tag_t::CON)
     size_t n = name.length();
     value_t v = static_cast<value_t>(1) << 60;
     for (size_t i = 0; i < n; i++) {
-	v |= static_cast<value_t>((name[i] & 0x7f)) << (53-i*8);
+        value_t ch = (name[i] & 0x7f) | 0x80;
+	v |= static_cast<value_t>(ch << (53-i*8));
     }
     v |= arity;
     set_value(v);
@@ -35,7 +36,8 @@ size_t con_cell::name_length() const
 
     for (size_t i = 0; i < 7; i++) {
 	uint8_t b = (v >> (53-i*8)) & 0xff;
-	if (b == 0) {
+	bool is_last = (b & 0x80) == 0;
+	if (is_last) {
 	    return i;
 	}
     }
@@ -56,6 +58,7 @@ std::string con_cell::name() const
     assert(is_direct());
 
     size_t n = name_length();
+
     std::string s(n, ' ');
     for (size_t i = 0; i < n; i++) {
 	s[i] = static_cast<char>(get_name_byte(i) & 0x7f);

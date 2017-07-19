@@ -1,31 +1,23 @@
 property('namespace', ['prologcoin', 'common']).
 property('classname', 'term_parser_gen').
 property('filename', '../src/common/term_parser_gen.hpp').
-property(prefer, reduce).
+% property(prefer, reduce).
 
 start :- subterm_1200, full_stop.
 
-subterm_1200 :- term_1200.
-subterm_1200 :- term_1000.
-subterm_1200 :- term_999.
-subterm_1200 :- term_0.
-subterm_1000 :- term_1000.
-subterm_1000 :- term_999.
-subterm_1000 :- term_0.
-subterm_999 :- term_999.
-subterm_999 :- term_0.
-subterm_0 :- term_0.
+subterm_1200 :- subterm_n.
+subterm_999 :- subterm_n.
 
-term_1200 :- op_1200, subterm_1200.
-term_1200 :- subterm_1200, op_1200, subterm_1200.
+subterm_n :- term_n.
 
-term_1000 :- op_1000, subterm_1000.
-term_1000 :- subterm_1000, op_1000, subterm_1000.
-
-term_1000 :- subterm_999, comma, subterm_1000.
-
-term_999 :- op_999, subterm_999.
-term_999 :- subterm_999, op_999, subterm_999.
+term_n :- op_fx, subterm_n, { reduce_cond(check_op_fx) }.
+term_n :- op_fy, subterm_n, { reduce_cond(check_op_fy) }.
+term_n :- subterm_n, op_xfx, subterm_n, { reduce_cond(check_op_xfx) }.
+term_n :- subterm_n, op_xfy, subterm_n, { reduce_cond(check_op_xfy) }.
+term_n :- subterm_n, op_yfx, subterm_n, { reduce_cond(check_op_yfx) }.
+term_n :- subterm_n, op_xf, { reduce_cond(check_op_xf) }.
+term_n :- subterm_n, op_yf, { reduce_cond(check_op_yf) }.
+term_n :- term_0.
 
 term_0 :- functor_lparen, arguments, rparen.
 term_0 :- lparen, subterm_1200, rparen.
@@ -56,4 +48,6 @@ unsigned_number :- natural_number.
 unsigned_number :- unsigned_float.
 
 atom :- name.
+atom :- empty_list.
+atom :- empty_brace.
 

@@ -2,6 +2,7 @@
 #include <iomanip>
 #include <assert.h>
 #include <common/term_env.hpp>
+#include <common/term_ops.hpp>
 
 using namespace prologcoin::common;
 
@@ -14,7 +15,7 @@ static void header( const std::string &str )
 
 static void test_simple_env()
 {
-    header( "test_simple_parse()" );
+    header( "test_simple_env()" );
 
     term_env env;
     std::string sin = "foo(1,2*3+4+5+ +6-(-7),8).";

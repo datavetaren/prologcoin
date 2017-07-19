@@ -552,6 +552,11 @@ public:
 	return ext<cell>(*this, *p);
     }
 
+    inline ext<cell> empty_list()
+    {
+	return ext<cell>(*this, empty_list_);
+    }
+
     inline size_t external_ptr_count() const
     {
 	return external_ptrs_.size();

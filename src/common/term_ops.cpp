@@ -80,16 +80,21 @@ term_ops::term_ops()
     }
 }
 
+std::string term_ops::op_entry::str() const
+{
+    std::stringstream ss;
+    ss << "op(" << name << "," << precedence << "," << typestr() << ")";
+    return ss.str();
+}
+
 void term_ops::put(const std::string &name, size_t arity, size_t precedence, term_ops::type_t type, term_ops::space_t space)
 {
     con_cell c = con_cell( name, arity );
     op_entry newE = {name, arity, precedence, type, space};
     op_prec_[c] = newE;
 
-    const op_entry &e = name_prec_[name];
-    if (e.precedence < precedence) {
-      name_prec_[name] = newE;
-    }
+    auto &ops = name_prec_[name];
+    ops.insert( std::upper_bound( ops.begin(), ops.end(), newE), newE );
 }
 
 const term_ops::op_entry & term_ops::prec(cell c) const
@@ -102,14 +107,13 @@ const term_ops::op_entry & term_ops::prec(cell c) const
     }
 }
 
-const term_ops::op_entry & term_ops::prec(const std::string &name) const
+const std::vector<term_ops::op_entry> & term_ops::prec(const std::string &name) const
 {
     auto it = name_prec_.find(name);
     if (it == name_prec_.end()) {
-	return op_none_;
-    } else {
-	return it->second;
+	return op_empty_list_;
     }
+    return it->second;
 }
 
 void term_ops::print( std::ostream &out )

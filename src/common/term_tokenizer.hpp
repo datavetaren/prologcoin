@@ -170,6 +170,8 @@ public:
 
 	const std::string & lexeme() const { return lexeme_; }
 
+	void set_lexeme(const std::string &str) { lexeme_ = str; }
+
 	bool is_quoted() const { return quoted_; }
 
         // Pretty print token
@@ -190,7 +192,7 @@ public:
 	bool quoted_;
         token_position position_;
 
-	inline void reset() { lexeme_.clear(); quoted_ = false; }
+	inline void reset() { lexeme_.resize(0); quoted_ = false; }
         inline void set_position(const token_position &pos) { position_ = pos; }
 	inline void set_quoted(bool q) { quoted_ = q; }
     };
