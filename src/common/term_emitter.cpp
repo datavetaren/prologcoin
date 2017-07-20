@@ -109,7 +109,7 @@ void term_emitter::mark_indent_column()
     if (indent_level_ >= indent_table_.size()) {
 	indent_table_.resize(indent_level_+1, 0);
     }
-    int col = column_;
+    auto col = column_;
     if (col > max_column_ / 2) {
 	// Panic mode. Set column to 8
 	col = 8;
