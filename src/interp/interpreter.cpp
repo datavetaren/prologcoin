@@ -4,6 +4,7 @@
 namespace prologcoin { namespace interp {
 
 using namespace prologcoin::common;
+
 interpreter::interpreter()
 {
     term_env_ = new term_env();
@@ -108,8 +109,41 @@ void interpreter::syntax_check_head(const term &t)
 
 void interpreter::syntax_check_body(const term &t)
 {
-    // No syntax check can be done on the body.
-    // Every term is potentially legal.
+    static con_cell imply("->", 2);
+    static con_cell semi(";", 2);
+    static con_cell comma(",", 2);
+    static con_cell cannot_prove("\\+", 1);
+
+    if (term_env_->is_functor(t)) {
+	auto f = term_env_->functor(t);
+	if (f == imply || f == semi || f == comma || f == cannot_prove) {
+	    auto num_args = f.arity();
+	    for (size_t i = 0; i < num_args; i++) {
+		auto arg = term_env_->arg(t, i);
+		syntax_check_stack_.push_back(
+		      std::bind(&interpreter::syntax_check_body, this, arg));
+	    }
+	    return;
+	}
+    }
+
+    syntax_check_stack_.push_back(
+		  std::bind(&interpreter::syntax_check_goal, this, t));
+}
+
+void interpreter::syntax_check_goal(const term &t)
+{
+    // Each goal must be a functor (e.g. a plain integer is not allowed)
+
+    if (!term_env_->is_functor(t)) {
+	auto tg = t->tag();
+	// We don't know what variables will be bound to, so we need
+	// to conservatively skip the syntax check.
+	if (tg == tag_t::REF || tg == tag_t::GBL) {
+	    return;
+	}
+	throw syntax_exception_bad_goal(t, "Goal is not callable.");
+    }
 }
 
 }}

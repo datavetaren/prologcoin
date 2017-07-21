@@ -43,6 +43,13 @@ public:
 
 };
 
+class syntax_exception_bad_goal : public syntax_exception
+{
+public:
+    syntax_exception_bad_goal(const common::term &t, const std::string &msg)
+	: syntax_exception(t, msg) { }
+};
+
 class interpreter {
 public:
     typedef common::term term;
@@ -83,8 +90,7 @@ private:
     void syntax_check_clause(const term &term);
     void syntax_check_head(const term &head);
     void syntax_check_body(const term &body);
-    void syntax_check_goals(term &goals);
-    void syntax_check_goal(term &goal);
+    void syntax_check_goal(const term &goal);
 
     bool owns_term_env_;
     common::term_env *term_env_;

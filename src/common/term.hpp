@@ -434,6 +434,8 @@ public:
     inline operator const T & () const;
     inline T operator * () const;
     inline T deref() const;
+    inline const T * operator -> () const;
+    inline T * operator -> ();
 
     inline bool operator == (const ext<T> &other) const {
 	return ptr_ == other.ptr_;
@@ -737,6 +739,18 @@ template<typename T> T ext<T>::deref() const
 template<typename T> T ext<T>::operator * () const
 {
     return deref();
+}
+
+template<typename T> const T * ext<T>::operator -> () const
+{
+    deref();
+    return &ptr_;
+}
+
+template<typename T> T * ext<T>::operator -> ()
+{
+    deref();
+    return &ptr_;
 }
 
 template<typename T> ext<T>::operator T ()
