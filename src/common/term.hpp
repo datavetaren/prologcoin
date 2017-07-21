@@ -431,6 +431,7 @@ public:
     inline ~ext() { if (heap_ != nullptr) ext_unregister(*heap_, &ptr_); }
 
     inline operator T ();
+    inline operator const T & () const;
     inline T operator * () const;
     inline T deref() const;
 
@@ -438,12 +439,16 @@ public:
 	return ptr_ == other.ptr_;
     }
 
+    inline bool is_void() const {
+	return heap_ == nullptr;
+    }
+
 private:
     inline void ext_register(const heap &h, cell *p);
     inline void ext_unregister(const heap &h, cell *p);
 
     const heap *heap_;
-    cell ptr_;
+    mutable cell ptr_;
 };
 
 //
@@ -508,12 +513,37 @@ public:
     inline con_cell functor(const str_cell &s) const
     {
 	size_t index = s.index();
+	check_index(index);
 	cell c = get(index);
 	if (c.tag() != tag_t::CON) {
 	    throw expected_con_cell_exception(index, c);
 	}
 	const con_cell &cc = static_cast<const con_cell &>(c);
 	return cc;
+    }
+    
+    bool is_list(const cell c) const;
+
+    inline bool is_empty_list(const cell c) const
+    {
+	if (c.tag() == tag_t::CON) {
+	    return c == empty_list_;
+	} else if (c.tag() == tag_t::STR) {
+   	    return functor(c) == empty_list_;
+        } else {
+	    return false;
+        }
+    }
+
+    inline bool is_dotted_pair(const cell c) const
+    {
+	if (c.tag() == tag_t::CON) {
+	    return c == dotted_pair_;
+	} else if (c.tag() == tag_t::STR) {
+	    return functor(c) == dotted_pair_;
+	} else {
+	    return false;
+	}
     }
 
     inline ext<cell> arg(const cell c, size_t index) const
@@ -552,7 +582,7 @@ public:
 	return ext<cell>(*this, *p);
     }
 
-    inline ext<cell> empty_list()
+    inline ext<cell> empty_list() const
     {
 	return ext<cell>(*this, empty_list_);
     }
@@ -700,6 +730,7 @@ template<typename T> void ext<T>::ext_unregister(const heap &h, cell *p)
 template<typename T> T ext<T>::deref() const
 {
     cell c = heap_->deref(ptr_);
+    ptr_ = c;
     return ext<T>(*heap_, c);
 }
 
@@ -712,6 +743,13 @@ template<typename T> ext<T>::operator T ()
 {
     return ptr_;
 }
+
+template<typename T> ext<T>::operator const T & () const
+{
+    return ptr_;
+}
+
+typedef ext<cell> term;
 
 } }
 

@@ -178,6 +178,23 @@ cell heap::deref(cell c) const
     return c;
 }
 
+bool heap::is_list(const cell c) const
+{
+    cell l = deref(c);
+    while (l != empty_list_) {
+	if (!check_functor(l)) {
+	    return false;
+	}
+	auto str = static_cast<const str_cell &>(l);
+	con_cell f = functor(l);
+	if (f != dotted_pair_) {
+	    return false;
+	}
+	l = arg(l, 1);
+    }
+    return true;
+}
+
 void heap::print(std::ostream &out) const
 {
     out << std::setw(8) << " " << std::setw(0) << "  ." << std::string(27, '-') << "." << "\n";

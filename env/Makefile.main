@@ -64,6 +64,8 @@ TEST_OK_FILES := $(addprefix $(BIN)/test/$(SUBDIR)/, $(TEST_CPP_FILES:$(SRC)/$(S
 TEST_OK_VALGRIND_FILES := $(addprefix $(BIN)/test/$(SUBDIR)/, $(TEST_CPP_FILES:$(SRC)/$(SUBDIR)/test/%.cpp=%$(EXE_EXT).val.ok))
 TEST_LOG_FILES := $(addprefix $(BIN)/test/$(SUBDIR)/, $(TEST_CPP_FILES:$(SRC)/$(SUBDIR)/test/%.cpp=%$(EXE_EXT).log))
 
+LINK_DEP_FILES := $(addsuffix $(LIB_EXT), $(addprefix $(BIN)/lib,$(DEPENDS)))
+
 GOAL := $(BIN)/lib$(LIB)$(LIB_EXT)
 
 all : $(GOAL)
@@ -83,7 +85,7 @@ $(BIN)/test/$(SUBDIR)/%$(EXE_EXT) : $(OUT)/$(SUBDIR)/test/%$(OBJ_EXT) $(OBJ_FILE
 	@mkdir -p $(BIN)
 	@mkdir -p $(BIN)/test/$(SUBDIR)
 	@rm -f  /tmp/err.log
-	@($(LINK) $(LINKFLAGS) $(LINKOUT)$@ $< $(OBJ_FILES0) 2>/tmp/err.log 1>&2) || $(printerr)
+	@($(LINK) $(LINKFLAGS) $(LINKOUT)$@ $< $(OBJ_FILES0) $(LINK_DEP_FILES) 2>/tmp/err.log 1>&2) || $(printerr)
 	@rm -f /tmp/err.log
 
 $(BIN)/test/$(SUBDIR)/%$(EXE_EXT).ok : $(BIN)/test/$(SUBDIR)/%$(EXE_EXT)

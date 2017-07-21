@@ -35,21 +35,29 @@ public:
   std::string to_string(const cell &c) const;
   std::string status() const;
 
+  term empty_list() const { return term(*heap_, heap_->empty_list()); }
+
   inline size_t heap_size() const { return register_h_; }
   inline cell deref(cell c) const { return heap_->deref(c); }
-      
+
+  bool is_list(cell t) const;
+  bool is_dotted_pair(cell t) const;
+  bool is_empty_list(cell t) const;
+  bool equal(cell a, cell b) const;
   bool unify(cell a, cell b);
   bool unify_helper(cell a, cell b);
   void bind(cell a, cell b);
   bool direction();
 
   inline con_cell functor(cell c) const { return heap_->functor(c); }
+  inline bool is_functor(cell c) const { return deref(c).tag() == tag_t::STR; }
   inline cell arg(cell c, size_t index) const { return heap_->arg0(c, index); }
+  inline term arg(term t, size_t index) const { return heap_->arg(t, index); }
 
-  inline void push(cell c) { stack_.push_back(c); }
-  inline cell pop() { cell c = stack_.back(); stack_.pop_back(); return c; }
+  inline void push(cell c) const { stack_.push_back(c); }
+  inline cell pop() const { cell c = stack_.back(); stack_.pop_back(); return c; }
   inline size_t stack_depth() const { return stack_.size(); }
-  inline void trim_stack(size_t depth) { stack_.resize(depth); }
+  inline void trim_stack(size_t depth) const { stack_.resize(depth); }
 
   inline void trail(size_t index) {
     if (index < register_hb_) {
@@ -75,7 +83,7 @@ private:
   size_t register_hb_; // Heap size at last choice point
   size_t register_h_;  // Current heap size
 
-  std::vector<cell> stack_;
+  mutable std::vector<cell> stack_;
   std::vector<size_t> trail_;
   std::vector<cell> registers_;
   std::unordered_map<ext<cell>, std::string> var_naming_;
@@ -119,6 +127,69 @@ std::string term_env_impl::status() const
 //
 // This is the basic unification algorithm for two terms.
 //
+
+bool term_env_impl::is_list(cell t) const
+{
+    return heap_->is_list(t);
+}
+
+bool term_env_impl::is_dotted_pair(cell t) const
+{
+    return heap_->is_dotted_pair(t);
+}
+
+bool term_env_impl::is_empty_list(cell t) const
+{
+    return heap_->is_empty_list(t);
+}
+
+bool term_env_impl::equal(cell a, cell b) const
+{
+    size_t d = stack_depth();
+
+    push(b);
+    push(a);
+
+    while (stack_depth() > d) {
+	a = deref(pop());
+	b = deref(pop());
+
+	if (a == b) {
+	    continue;
+	}
+	
+	if (a.tag() != b.tag()) {
+	    trim_stack(d);
+	    return false;
+	}
+
+	if (a.tag() != tag_t::STR) {
+	    trim_stack(d);
+	    return false;
+	}
+
+	con_cell fa = functor(a);
+	con_cell fb = functor(b);
+
+	if (fa != fb) {
+	    trim_stack(d);
+	    return false;
+	}
+
+	str_cell &astr = static_cast<str_cell &>(a);
+	str_cell &bstr = static_cast<str_cell &>(b);
+
+	size_t num_args = fa.arity();
+	for (size_t i = 0; i < num_args; i++) {
+	    auto ai = arg(astr, num_args-i-1);
+	    auto bi = arg(bstr, num_args-i-1);
+	    push(bi);
+	    push(ai);
+	}
+    }
+
+    return true;
+}
 
 bool term_env_impl::unify(cell a, cell b)
 {
@@ -168,8 +239,8 @@ bool term_env_impl::unify_helper(cell a, cell b)
 {
     size_t d = stack_depth();
 
-    push(a);
     push(b);
+    push(a);
 
     while (stack_depth() > d) {
         a = deref(pop());
@@ -258,9 +329,9 @@ ext<cell> term_env::parse(const std::string &term_expr)
     return impl_->parse(term_expr);
 }
 
-std::string term_env::to_string(ext<cell> &cell) const
+std::string term_env::to_string(const term  &term) const
 {
-    return impl_->to_string(cell);
+    return impl_->to_string(term);
 }
 
 std::string term_env::status() const
@@ -283,10 +354,56 @@ size_t term_env::heap_size() const
     return impl_->heap_size();
 }
 
-bool term_env::unify(ext<cell> &a, ext<cell> &b)
+bool term_env::is_list(const term &t) const
+{
+    return impl_->is_list(*t);
+}
+
+bool term_env::is_dotted_pair(const term &t) const
+{
+    return impl_->is_dotted_pair(*t);
+}
+
+bool term_env::is_empty_list(const term &t) const
+{
+    return impl_->is_empty_list(t);
+}
+
+term term_env::empty_list() const
+{
+    return impl_->empty_list();
+}
+
+con_cell term_env::functor(const term &t)
+{
+    return impl_->functor(*t);
+}
+
+bool term_env::is_functor(const term &t, con_cell f)
+{
+    return functor(t) == f;
+}
+
+bool term_env::is_functor(const term &t)
+{
+    return impl_->is_functor(t);
+}
+
+term term_env::arg(const term &t, size_t index)
+{
+    return impl_->arg(t, index);
+}
+
+bool term_env::unify(term &a, term &b)
 {
     return impl_->unify(a,b);
 }
+
+bool term_env::equal(const term &a, const term &b)
+{
+    return impl_->equal(a,b);
+}
+
 
 }}
 
