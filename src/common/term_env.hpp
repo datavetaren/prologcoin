@@ -61,6 +61,48 @@ private:
     term elem_;
 };
 
+class term_dfs_iterator : public std::iterator<std::forward_iterator_tag,
+					       term,
+					       term,
+					       const term *,
+					       const term &> {
+public:
+    inline term_dfs_iterator(term_env &env, const term &t)
+           : env_(env) { elem_ = first_of(t); }
+
+    inline term_dfs_iterator(term_env &env)
+	   : env_(env) { }
+
+    inline bool operator == (const term_dfs_iterator &other) const;
+    inline bool operator != (const term_dfs_iterator &other) const
+        { return ! operator == (other); }
+
+    inline term_dfs_iterator & operator ++ () { term_dfs_iterator &it = *this;
+	                                        it.advance(); return it; }
+    inline reference operator * () const { return elem_; }
+    inline pointer operator -> () const { return &elem_; }
+
+    inline term_env & env() { return env_; }
+
+private:
+    inline term first_of(const term &t);
+    void advance();
+
+    term_env &env_;
+    term elem_;
+
+    struct dfs_pos {
+	dfs_pos(const term &p, size_t i, size_t n) :
+	    parent(p), index(i), arity(n) { }
+
+	term parent;
+	size_t index;
+	size_t arity;
+    };
+
+    std::vector<dfs_pos> stack_;
+};
+
 class term_env {
 public:
   // Create a complete new blank term environment
@@ -104,6 +146,23 @@ public:
 
   void trim_heap(size_t new_size);
 
+  term_dfs_iterator begin(const term &t);
+  term_dfs_iterator end(const term &t);
+
+  class term_range {
+  public:
+      term_range(term_env &env, const term &t) : env_(env), term_(t) { }
+
+      term_dfs_iterator begin() { return env_.begin(term_); }
+      term_dfs_iterator end() { return env_.end(term_); }
+  private:
+      term_env &env_;
+      term term_;
+  };
+
+  term_range iterate_over(const term &t)
+      { return term_range(*this, t); }
+
   std::string status() const;
 
 private:
@@ -137,6 +196,45 @@ inline void term_iterator::advance()
     elem_ = first_of(current_);
 }
 
+inline bool term_dfs_iterator::operator == (const term_dfs_iterator &other) const
+{
+    if (elem_.is_void() && other.elem_.is_void()) {
+	return true;
+    }
+    return elem_ == other.elem_;
+}
+
+inline term term_dfs_iterator::first_of(const term &t)
+{
+    term p = t;
+    while (p->tag() == tag_t::STR) {
+	con_cell f = env_.functor(p);
+	size_t arity = f.arity();
+	if (arity > 0) {
+	    stack_.push_back(dfs_pos(p, 0, arity));
+	    p = env_.arg(p, 0);
+	} else {
+	    return p;
+	}
+    }
+    return p;
+}
+
+inline void term_dfs_iterator::advance()
+{
+    if (stack_.empty()) {
+	elem_ = term();
+	return;
+    }
+
+    size_t new_index = ++stack_.back().index;
+    if (new_index == stack_.back().arity) {
+	elem_ = stack_.back().parent;
+	stack_.pop_back();
+	return;
+    }
+    elem_ = first_of(env_.arg(stack_.back().parent, new_index));
+}
 
 }}
 

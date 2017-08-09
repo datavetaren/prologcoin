@@ -540,5 +540,15 @@ void term_env::trim_heap(size_t new_size)
     impl_->trim_heap(new_size);
 }
 
+term_dfs_iterator term_env::begin(const term &t)
+{
+    return term_dfs_iterator(*this, t);
+}
+
+term_dfs_iterator term_env::end(const term &t)
+{
+    return term_dfs_iterator(*this);
+}
+
 }}
 

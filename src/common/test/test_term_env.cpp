@@ -196,6 +196,34 @@ static void test_copy_term()
     assert( s1 == s2 );
 }
 
+static void test_dfs_iterator()
+{
+    header( "test_dfs_iterator()" );
+
+    term_env env;
+
+    std::string s = "foo(bar(1,baz(A,2),fun),[1,2,3],end).";
+    auto t = env.parse(s);
+
+    std::string expected [] =
+	{ "1", "A", "2", "baz(A, 2)", "fun", "bar(1, baz(A, 2), fun)",
+	  "1", "2", "3", "[]", "[3]", "[2,3]", "[1,2,3]", "end",
+	  "foo(bar(1, baz(A, 2), fun), [1,2,3], end)" };
+
+    auto it_expected = std::begin(expected);
+
+    for (auto tt : env.iterate_over(t)) {
+	std::string actual = env.to_string(tt);
+	std::string expect = *it_expected;
+	++it_expected;
+	std::cout << "Actual: " << actual << "\n";
+	std::cout << "Expect: " << expect << "\n";
+	assert(actual == expect);
+    }
+    std::cout << "Expect no more...\n";
+    assert(it_expected == std::end(expected));
+}
+
 int main( int argc, char *argv[] )
 {
     test_simple_env();
@@ -204,6 +232,7 @@ int main( int argc, char *argv[] )
     test_failed_unification();
     test_unify_append();
     test_copy_term();
+    test_dfs_iterator();
 
     return 0;
 }

@@ -495,7 +495,7 @@ public:
     inline T * operator -> ();
 
     inline bool operator == (const ext<T> &other) const {
-	return ptr_ == other.ptr_;
+	return heap_ == other.heap_ && ptr_ == other.ptr_;
     }
 
     inline bool is_void() const {

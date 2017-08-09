@@ -37,6 +37,7 @@ interpreter::~interpreter()
 {
     register_cp_ = term();
     register_qr_ = term();
+    query_vars_.clear();
     syntax_check_stack_.clear();
     program_db_.clear();
     program_predicates_.clear();
@@ -272,12 +273,33 @@ void interpreter::abort(const interpreter_exception &ex)
 
 void interpreter::execute(const term &query)
 {
+    // Record all vars for this query
+    std::for_each( term_env_->begin(query),
+		   term_env_->end(query),
+		   [=](const term &t) {
+		       if (t->tag() == tag_t::REF) {
+			   query_vars_.push_back(t);
+		       }
+		   } );
+
     register_cp_ = query;
     register_qr_ = query;
 
     do {
       execute_once();
     } while (register_e_ != 0);
+}
+
+const std::vector<term> & interpreter::query_vars() const
+{
+    return query_vars_;
+}
+
+void interpreter::print_result(std::ostream &out) const
+{
+    // Iterate over query_vars_ and print them one by one, but
+    // record all variables we see. Don't include a LHS var that has
+    // already been printed.
 }
 
 void interpreter::execute_once()

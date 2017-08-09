@@ -113,6 +113,9 @@ public:
 
     void execute(const term &query);
 
+    const std::vector<term> & query_vars() const;
+    void print_result(std::ostream &out) const;
+
     class list_iterator : public common::term_iterator {
     public:
 	list_iterator(common::term_env &env, const common::term &t)
@@ -189,6 +192,8 @@ private:
     std::vector< std::vector<common::term> * > predicate_clauses_;
     std::unordered_map<functor_index, indexed_clauses> indexed_clauses_;
     std::vector<std::vector<common::term> *> id_indexed_clauses_;
+
+    std::vector<common::term> query_vars_;
 
     size_t stack_start_;
 
