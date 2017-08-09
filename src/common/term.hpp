@@ -13,6 +13,8 @@
 #include <boost/lexical_cast.hpp>
 #include <boost/noncopyable.hpp>
 
+// #define DEBUG_TERM
+
 //
 // term
 //
@@ -425,10 +427,57 @@ class heap; // Forward
 
 template<typename T> class ext {
 public:
-    inline ext() : heap_(nullptr), ptr_() { }
+    inline ext() : heap_(nullptr), ptr_()
+    {
+#ifdef DEBUG_TERM
+	id_ = 0;
+#endif
+    }
     inline ext(const heap &h, cell ptr) : heap_(&h), ptr_(ptr)
-        { ext_register(h, &ptr_); }
+    {
+#ifdef DEBUG_TERM
+	id_ = ext_register(h, &ptr_); 
+#else
+	ext_register(h, &ptr_);
+#endif
+    }
     inline ~ext() { if (heap_ != nullptr) ext_unregister(*heap_, &ptr_); }
+
+    inline ext(const ext<T> &other)
+    {
+	if (other.heap_ != nullptr) {
+	    heap_ = other.heap_;
+	    ptr_ = other.ptr_;
+#ifdef DEBUG_TERM
+            id_ = ext_register(*heap_, &ptr_);
+#else
+            ext_register(*heap_, &ptr_);
+#endif
+	} else {
+	    heap_ = nullptr;
+	}
+    }
+
+    inline void operator = (const ext<T> &other)
+    {
+	if (other.heap_ != nullptr) {
+	    bool was_null = heap_ == nullptr;
+	    heap_ = other.heap_;
+	    ptr_ = other.ptr_;
+	    if (was_null) {
+#ifdef DEBUG_TERM
+   	        id_ = ext_register(*heap_, &ptr_);
+#else
+	        ext_register(*heap_, &ptr_);
+#endif
+            }
+	} else {
+	    if (heap_ != nullptr) {
+		ext_unregister(*heap_, &ptr_);
+		heap_ = nullptr;
+	    }
+	}
+    }
 
     inline operator T ();
     inline operator const T & () const;
@@ -446,11 +495,18 @@ public:
     }
 
 private:
+#ifdef DEBUG_TERM
+    inline size_t ext_register(const heap &h, cell *p);
+#else
     inline void ext_register(const heap &h, cell *p);
+#endif
     inline void ext_unregister(const heap &h, cell *p);
 
     const heap *heap_;
     mutable cell ptr_;
+#ifdef DEBUG_TERM
+    mutable size_t id_;
+#endif
 };
 
 //
@@ -462,6 +518,7 @@ private:
 class heap {
 public:
     heap();
+    ~heap();
 
     inline size_t size() const { return size_; }
 
@@ -543,6 +600,17 @@ public:
 	    return c == dotted_pair_;
 	} else if (c.tag() == tag_t::STR) {
 	    return functor(c) == dotted_pair_;
+	} else {
+	    return false;
+	}
+    }
+
+    inline bool is_comma(const cell c) const
+    {
+	if (c.tag() == tag_t::CON) {
+	    return c == comma_;
+	} else if (c.tag() == tag_t::STR) {
+	    return functor(c) == comma_;
 	} else {
 	    return false;
 	}
@@ -676,17 +744,31 @@ private:
 	return get(s.index() + index + 1);
     }
 
+#ifdef DEBUG_TERM
+    inline size_t register_ext(cell *p) const
+#else
     inline void register_ext(cell *p) const
+#endif
     {
 	if (external_ptrs_.size() > external_ptrs_max_) {
 	    external_ptrs_max_ = external_ptrs_.size();
 	}
+#ifdef DEBUG_TERM
+	size_t id = id_counter_++;
+        external_ptrs_.insert(std::make_pair(p, id));
+	return id;
+#else
         external_ptrs_.insert(p);
+#endif
     }
 
     inline void unregister_ext(cell *p) const
     {
+#ifdef DEBUG_TERM
+	assert(external_ptrs_.erase(p) == 1);
+#else
         external_ptrs_.erase(p);
+#endif
     }
 
     cell deref(cell c) const;
@@ -697,7 +779,12 @@ private:
 
     size_t size_;
     std::vector<std::unique_ptr<heap_block> > blocks_;
+#ifdef DEBUG_TERM
+    mutable std::unordered_map<cell *, size_t> external_ptrs_;
+    static size_t id_counter_;
+#else
     mutable std::unordered_set<cell *> external_ptrs_;
+#endif
     mutable size_t external_ptrs_max_;
 
     mutable std::vector<std::string> atom_index_to_name_table_;
@@ -705,6 +792,7 @@ private:
 
     con_cell empty_list_;
     con_cell dotted_pair_;
+    con_cell comma_;
 
     template<typename T> friend class ext;
 
@@ -719,10 +807,17 @@ private:
 //  register and unregister for ref.
 //
 
+#ifdef DEBUG_TERM
+template<typename T> size_t ext<T>::ext_register(const heap &h, cell *p)
+{
+    return h.register_ext(p);
+}
+#else
 template<typename T> void ext<T>::ext_register(const heap &h, cell *p)
 {
     h.register_ext(p);
 }
+#endif
 
 template<typename T> void ext<T>::ext_unregister(const heap &h, cell *p)
 {
@@ -768,19 +863,21 @@ typedef ext<cell> term;
 } }
 
 namespace std {
-
-    typedef prologcoin::common::cell cell;
-    typedef prologcoin::common::ext<cell> ext_cell;
-
-    template<> struct hash<cell> {
-        size_t operator()(const cell& k) const {
+    template<> struct hash<prologcoin::common::cell> {
+        size_t operator()(const prologcoin::common::cell& k) const {
 	    return hash<uint64_t>()(k.value());
 	}
     };
 
-    template<> struct hash<ext_cell> {
-        size_t operator()(const ext_cell& k) const {
-	    const cell &c = static_cast<const cell &>(*k);
+    template<> struct hash<prologcoin::common::con_cell> {
+	size_t operator()(const prologcoin::common::con_cell& k) const {
+	    return hash<uint64_t>()(k.value());
+	}
+    };
+
+    template<> struct hash<prologcoin::common::term> {
+        size_t operator()(const prologcoin::common::term& k) const {
+	    auto &c = static_cast<const prologcoin::common::cell &>(*k);
 	    return hash<uint64_t>()(c.value());
 	}
     };

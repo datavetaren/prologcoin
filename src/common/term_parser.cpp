@@ -699,6 +699,14 @@ public:
     predefined_symbols_["|"] = SYMBOL_VBAR;
   }
 
+  ~term_parser_interim() {
+      stack_.clear();
+      args_.clear();
+      var_name_map_.clear();
+      name_var_map_.clear();
+      result_ = term();
+  }
+
   void set_debug(bool dbg) { is_debug_ = dbg; }
 
   bool is_accept() const { return accept_; }

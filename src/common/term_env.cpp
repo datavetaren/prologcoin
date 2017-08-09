@@ -32,7 +32,7 @@ public:
   }
 
   ext<cell> parse(const std::string &term_expr);
-  std::string to_string(const cell &c) const;
+  std::string to_string(const cell &c, term_emitter::style style = term_emitter::STYLE_TERM) const;
   std::string status() const;
 
   term empty_list() const { return term(*heap_, heap_->empty_list()); }
@@ -43,19 +43,27 @@ public:
   bool is_list(cell t) const;
   bool is_dotted_pair(cell t) const;
   bool is_empty_list(cell t) const;
+  bool is_comma(cell t) const;
   bool equal(cell a, cell b) const;
   bool unify(cell a, cell b);
   bool unify_helper(cell a, cell b);
   void bind(cell a, cell b);
   bool direction();
+  cell copy(cell c);
+
+  inline std::string atom_name(con_cell f)  const { return heap_->atom_name(f); }
 
   inline con_cell functor(cell c) const { return heap_->functor(c); }
   inline bool is_functor(cell c) const { return deref(c).tag() == tag_t::STR; }
   inline cell arg(cell c, size_t index) const { return heap_->arg0(c, index); }
   inline term arg(term t, size_t index) const { return heap_->arg(t, index); }
 
+  inline size_t allocate_stack(size_t num_cells) { size_t at_index = stack_.size(); stack_.resize(at_index+num_cells); return at_index; }
+  inline void ensure_stack(size_t at_index, size_t num_cells) { if (at_index + num_cells > stack_.size()) allocate_stack(at_index+num_cells-stack_.size()); }
+  inline cell * stack_ref(size_t at_index) { return &stack_[at_index]; }
   inline void push(cell c) const { stack_.push_back(c); }
   inline cell pop() const { cell c = stack_.back(); stack_.pop_back(); return c; }
+
   inline size_t stack_depth() const { return stack_.size(); }
   inline void trim_stack(size_t depth) const { stack_.resize(depth); }
 
@@ -73,6 +81,8 @@ public:
   inline size_t trail_depth() const { return trail_.size(); }
   void unwind_trail(size_t from, size_t to);
   void trim_trail(size_t to) { trail_.resize(to); }
+
+  inline term to_term(cell c) { return term(*heap_, c); }
   
 private:
   heap *heap_;
@@ -104,16 +114,16 @@ ext<cell> term_env_impl::parse(const std::string &term_expr)
     return r;
 }
 
-std::string term_env_impl::to_string(const cell &c) const
+std::string term_env_impl::to_string(const cell &c, term_emitter::style style) const
 {
     cell dc = deref(c);
     std::stringstream ss;
     term_emitter emitter(ss, *heap_, *ops_);
+    emitter.set_style(style);
     emitter.set_var_naming(var_naming_);
     emitter.print(dc);
     return ss.str();
 }
-
 
 std::string term_env_impl::status() const
 {
@@ -141,6 +151,11 @@ bool term_env_impl::is_dotted_pair(cell t) const
 bool term_env_impl::is_empty_list(cell t) const
 {
     return heap_->is_empty_list(t);
+}
+
+bool term_env_impl::is_comma(cell t) const
+{
+    return heap_->is_comma(t);
 }
 
 bool term_env_impl::equal(cell a, cell b) const
@@ -213,6 +228,12 @@ bool term_env_impl::unify(cell a, cell b)
 
     register_hb_ = old_register_hb;
     return true;
+}
+
+cell term_env_impl::copy(cell c)
+{
+    // TODO: Copy term with preserved variable semantics...
+    return c;
 }
 
 // Bind 'a' to 'b'.
@@ -329,14 +350,19 @@ ext<cell> term_env::parse(const std::string &term_expr)
     return impl_->parse(term_expr);
 }
 
-std::string term_env::to_string(const term  &term) const
+std::string term_env::to_string(const term  &term, term_emitter::style style) const
 {
-    return impl_->to_string(term);
+    return impl_->to_string(term, style);
 }
 
 std::string term_env::status() const
 {
     return impl_->status();
+}
+
+std::string term_env::atom_name(con_cell f) const
+{
+    return impl_->atom_name(f);
 }
 
 size_t term_env::stack_size() const
@@ -369,6 +395,11 @@ bool term_env::is_empty_list(const term &t) const
     return impl_->is_empty_list(t);
 }
 
+bool term_env::is_comma(const term &t) const
+{
+    return impl_->is_comma(t);
+}
+
 term term_env::empty_list() const
 {
     return impl_->empty_list();
@@ -399,11 +430,45 @@ bool term_env::unify(term &a, term &b)
     return impl_->unify(a,b);
 }
 
+term term_env::copy(const term &t)
+{
+    return impl_->to_term(impl_->copy(t));
+}
+
 bool term_env::equal(const term &a, const term &b)
 {
     return impl_->equal(a,b);
 }
 
+void term_env::push(const term &t)
+{
+    impl_->push(t);
+}
+
+size_t term_env::allocate_stack(size_t num_cells)
+{
+    return impl_->allocate_stack(num_cells);
+}
+
+void term_env::ensure_stack(size_t at_index, size_t num_cells)
+{
+    impl_->ensure_stack(at_index, num_cells);
+}
+
+cell * term_env::stack_ref(size_t at_index)
+{
+    return impl_->stack_ref(at_index);
+}
+
+term term_env::pop()
+{
+    return impl_->to_term(impl_->pop());
+}
+
+term term_env::to_term(cell c) const
+{
+    return impl_->to_term(c);
+}
 
 }}
 

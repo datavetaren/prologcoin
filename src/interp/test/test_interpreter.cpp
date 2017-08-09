@@ -19,9 +19,19 @@ static void test_simple_interpreter()
     //    term clause1 = interp.env().parse("append([X|Xs],Y,[Z|Zs]) :- append(Xs,Y,Zs).");
     //    term clause2 = interp.env().parse("append([],Zs,Zs).");
 
+    {
     term program = interp.env().parse("[(append([X|Xs],Ys,[Z|Zs]) :- append(Xs,Ys,Zs)), append([], Zs, Zs)].");
 
     interp.load_program(program);
+
+    interp.print_db(std::cout);
+
+    // Construct query
+
+    term query = interp.env().parse("append([1,2,3],[4,5,6],Q).");
+
+    interp.execute(query);
+    }
 }
 
 int main( int argc, char *argv[] )

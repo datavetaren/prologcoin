@@ -5,6 +5,7 @@
 
 #include <iterator>
 #include "term.hpp"
+#include "term_emitter.hpp"
 
 namespace prologcoin { namespace common {
 
@@ -70,9 +71,11 @@ public:
   ~term_env();
 
   term parse(const std::string &str);
-  std::string to_string(const term &t) const;
+  std::string to_string(const term &t, term_emitter::style style = term_emitter::STYLE_TERM) const;
 
   term empty_list() const;
+
+  std::string atom_name(con_cell functor) const;
 
   con_cell functor(const term &t);
   bool is_functor(const term &t, con_cell f);
@@ -80,10 +83,20 @@ public:
   bool is_dotted_pair(const term &t) const;
   bool is_empty_list(const term &t) const;
   bool is_list(const term &t) const;
+  bool is_comma(const term &t) const;
   term arg(const term &t, size_t index);
 
   bool unify(term &a, term &b);
+  term copy(const term &t);
   bool equal(const term &a, const term &b);
+
+  size_t allocate_stack(size_t num_cells);
+  void ensure_stack(size_t at_index, size_t num_cells);
+  cell * stack_ref(size_t at_index);
+  void push(const term &t);
+  term pop();
+
+  term to_term(cell cell) const;
 
   size_t stack_size() const;
   size_t heap_size() const;

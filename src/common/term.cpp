@@ -4,6 +4,10 @@
 
 namespace prologcoin { namespace common {
 
+#ifdef DEBUG_TERM
+size_t heap::id_counter_ = 0;
+#endif
+
 std::string cell::str() const
 {
     switch (tag()) {
@@ -85,12 +89,24 @@ heap::heap()
   : size_(0),
     external_ptrs_max_(0),
     empty_list_("[]", 0),
-    dotted_pair_(".", 2)
+    dotted_pair_(".", 2),
+    comma_(",", 2)
 {
     new_block(0);
 }
 
-
+heap::~heap()
+{
+#ifdef DEBUG_TERM
+    if (external_ptrs_.size() > 0) {
+	std::cerr << "Warning: Heap destroyed while external pointers exist.\n";
+	for (auto p : external_ptrs_) {
+	    std::cout << "  " << p.first << " id=" << p.second << "\n";
+	}
+	assert(external_ptrs_.size() == 0);
+    }
+#endif
+}
 
 size_t heap::list_length(const cell lst0) const
 {
