@@ -33,7 +33,7 @@ static void eval_check(const std::string &program,
 
     std::cout << "Result: " << result << "\n";
 
-    std::cout << "Expect: " << expected << "\n";
+    std::cout << "Expect: " << expected << "\n\n";
 
     assert(result == expected);
 }
@@ -46,6 +46,14 @@ static void test_simple_interpreter()
 	          "  append([], Zs, Zs)].", 
 	       "append([1,2,3],[4,5,6],Q).",
 	       "append([1,2,3], [4,5,6], [1,2,3,4,5,6])");
+
+    eval_check("[(append([X|Xs],Ys,[X|Zs]) :- append(Xs,Ys,Zs)), "
+	         "   append([], Zs, Zs),"
+	         "(nrev([X|Xs],Ys) :- nrev(Xs,Rs), append(Rs,[X],Ys)),"
+	         "   nrev([],[])"
+	          "].",
+	       "nrev([1,2,3],Q).",
+	       "nrev([1,2,3], [3,2,1])");
 }
 
 int main( int argc, char *argv[] )
