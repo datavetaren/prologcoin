@@ -303,7 +303,6 @@ REM
         set R=0
         call :FCMP !CPPFILE! !BINOKFILE! !R!
         IF "!R!"=="1" (
-	    echo "REBUILD!"
             del /Q /F !OBJFILE!
             del /Q /F !BINOKFILE!
             del /Q /F !BINEXEFILE!

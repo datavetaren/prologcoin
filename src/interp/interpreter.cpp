@@ -427,8 +427,6 @@ void interpreter::dispatch(const term &instruction)
     }
 
     // Let's go through clause by clause and see if we can find a match.
-    
-    
 }
 
 }}

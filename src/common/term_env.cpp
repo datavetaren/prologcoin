@@ -63,6 +63,10 @@ public:
   inline cell * stack_ref(size_t at_index) { return &stack_[at_index]; }
   inline void push(cell c) const { stack_.push_back(c); }
   inline cell pop() const { cell c = stack_.back(); stack_.pop_back(); return c; }
+  inline void temp_push(cell c) { temp_.push_back(c); }
+  inline cell temp_pop() { cell c = temp_.back(); temp_.pop_back(); return c; }
+  inline size_t temp_depth() { return temp_.size(); }
+  inline void temp_reset() { temp_.clear(); }
 
   inline size_t stack_depth() const { return stack_.size(); }
   inline void trim_stack(size_t depth) const { stack_.resize(depth); }
@@ -94,6 +98,7 @@ private:
   size_t register_h_;  // Current heap size
 
   mutable std::vector<cell> stack_;
+  std::vector<cell> temp_;
   std::vector<size_t> trail_;
   std::vector<cell> registers_;
   std::unordered_map<ext<cell>, std::string> var_naming_;
@@ -232,8 +237,66 @@ bool term_env_impl::unify(cell a, cell b)
 
 cell term_env_impl::copy(cell c)
 {
-    // TODO: Copy term with preserved variable semantics...
-    return c;
+    std::unordered_map<cell, cell> var_map;
+
+    size_t current_stack = stack_depth();
+
+    push(c);
+    push(int_cell(0));
+
+    while (stack_depth() > current_stack) {
+        bool processed = pop() == int_cell(1);
+        c = pop();
+        switch (c.tag()) {
+	case tag_t::REF:
+	  {
+	    cell v;
+	    auto search = var_map.find(c);
+	    if (search == var_map.end()) {
+	        v = heap_->new_ref();
+		var_map[c] = v;
+	    } else {
+  	        v = search->second;
+	    }
+	    temp_push(v);
+	    break;
+	  }
+	case tag_t::CON:
+	case tag_t::INT:
+	  temp_push(c);
+	  break;
+
+	case tag_t::STR:
+	  { con_cell f = heap_->functor(c);
+	    size_t num_args = f.arity();
+	    if (processed) {
+	      // Arguments on temp are the new arguments of STR cell
+	      cell newstr = heap_->new_str(f);
+	      for (size_t i = 0; i < num_args; i++) {
+		heap_->set_arg(newstr, num_args-i-1, temp_pop());
+	      }
+	      temp_push(newstr);
+	    } else {
+	      // First push STR cell as processed
+	      push(c);
+	      push(int_cell(1));
+	      // Then the arguments to be processed (argN-1 ... arg0)
+	      // We want to process arg0 first (that's why it is pushed last.)
+	      for (size_t i = 0; i < num_args; i++) {
+		push(heap_->arg(c, num_args-i-1));
+		push(int_cell(0));
+	      }
+	    }
+	  }
+	  break;
+
+	// TODO: Implement hese later...
+	case tag_t::BIG:
+	case tag_t::GBL: assert(false); break;
+	}
+    }
+
+    return temp_pop();
 }
 
 // Bind 'a' to 'b'.

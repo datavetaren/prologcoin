@@ -129,12 +129,52 @@ static void test_failed_unification()
     assert(env.trail_size() == 0);
 }
 
+static void test_copy_term()
+{
+    header( "test_copy_term()" );
+
+    term_env env;
+
+    std::string s = "foo(X, 42, X, bar(Y)).";
+    auto t1 = env.parse(s);
+
+    std::string s1 = env.to_string(t1);
+
+    std::cout << "Copy term: " << s1 << "\n";
+
+    assert(s1 == s.substr(0, s.length()-1));
+
+    auto t2 = env.copy(t1);
+
+    auto s2 = env.to_string(t2);
+
+    std::cout << "Result   : " << s2 << "\n";
+
+    assert(s2 != s1);
+
+    bool r = false;
+    assert( r = env.unify(t1, t2) );
+
+    std::cout << "Unified " << r << "\n";
+
+    s2 = env.to_string(t2);
+
+    std::cout << "Unified : " << s2 << "\n";
+
+    std::cout << "Expected: " << s1 << "\n";
+    assert( s1 == s2 );
+}
+
 int main( int argc, char *argv[] )
 {
     test_simple_env();
     test_named_vars();
     test_unification();
     test_failed_unification();
+    test_copy_term();
 
     return 0;
 }
+
+
+
