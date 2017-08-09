@@ -186,6 +186,25 @@ public class make_vcproj
        }
    }
 
+   public static string [] GetDependingLibs(string subdir)
+   {
+       string srcDir = theSrcDir;
+       string makeEnvFile = srcDir + @"\" + subdir + @"\Makefile.env";
+       StreamReader fs = new StreamReader(makeEnvFile);
+       string line = null;
+       string [] deps = null;
+       while((line = fs.ReadLine()) != null) {
+          if (line.StartsWith("DEPENDS :=")) {
+	      deps = line.Substring(11).Trim().Split(' ');
+	  }
+       }
+       fs.Close();
+       if (deps == null) {
+           deps = new string[0];
+       }
+       return deps;
+   }
+
    public static void CreateUnittestProject(Project project,
 					    string subdir,
                                             string [] srcFiles,
@@ -196,6 +215,9 @@ public class make_vcproj
        string name = subdir.Replace(@"\", "_");
 
        string mandatoryImportLib = @"$(OutDir)" + libName + ".lib";
+
+       // Get depending libs from parent Makefile.env
+       string [] importLibs = GetDependingLibs(subdir + @"\..\");
 
        string unittestMainPre = "";
        string unittestMainBody = "";
@@ -232,6 +254,10 @@ public class make_vcproj
        project.AddItem("ClCompile", unittestMainPath1);
 
        project.AddItem("Link", mandatoryImportLib);
+       foreach (var lib in importLibs) {
+           string libFile = @"$(OutDir)" + lib + ".lib";
+           project.AddItem("Link", libFile);
+       }
 
        var itemDefGroup = project.Xml.AddItemDefinitionGroup();
        var clDef = itemDefGroup.AddItemDefinition("ClCompile");

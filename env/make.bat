@@ -501,7 +501,7 @@ mkdir %BIN%
 echo Compiling make_vssln.cs
 csc.exe /nologo /reference:Microsoft.Build.dll /reference:Microsoft.Build.Framework.dll /out:%BIN%\make_vssln.exe %ENV%\make_vssln.cs
 IF ERRORLEVEL 1 GOTO :EOF
-%BIN%\make_vssln.exe bin=%BIN%
+%BIN%\make_vssln.exe bin=%BIN% src=%SRC%
 
 GOTO :EOF
 

@@ -12,6 +12,9 @@ public class make_vssln
    static private string PROJECT = "prologcoin";
    static private string theRootDir;
    static private string theBinDir;
+   static private string theSrcDir;
+   static private Dictionary<string, string []> theDeps
+   	  = new Dictionary<string, string []>();
 
    class FileComp : IComparer<string>
    {
@@ -27,18 +30,124 @@ public class make_vssln
        }
    }
 
+   public static string [] GetDependingLibs(string srcDir, string subdir)
+   {
+       string makeEnvFile = srcDir + @"\" + subdir + @"\Makefile.env";
+       StreamReader fs = new StreamReader(makeEnvFile);
+       string line = null;
+       string [] deps = null;
+       while((line = fs.ReadLine()) != null) {
+          if (line.StartsWith("DEPENDS :=")) {
+	      deps = line.Substring(11).Trim().Split(' ');
+	  }
+       }
+       fs.Close();
+       if (deps == null) {
+           deps = new string[0];
+       }
+       return deps;
+   }
+
+
+   internal static string MakeRelative(string filePath, string referencePath)
+   {
+       var filePathParts = filePath.Split('\\');
+       var referencePathParts = referencePath.Split('\\');
+
+       int i;       
+       for (i = 0; i < filePathParts.Length-1 &&
+       	           i < referencePathParts.Length &&
+		   filePathParts[i] == referencePathParts[i]; i++) { 
+       }
+
+       // Number of walk ups
+       string relPath = "";
+       for (var j = i; j < referencePathParts.Length; j++) {
+           relPath += @"..\";
+       }
+
+       for (var j = i; j < filePathParts.Length; j++) {
+           if (j > i) relPath += @"\";
+       	   relPath += filePathParts[j];
+       }
+
+       return relPath;
+   }
+
+   private static void ComputeDepsDir(string srcDir, string subdir, bool isTest)
+   {
+       string name = subdir.Replace(@"\", "_");
+
+       if (!isTest) {
+           string [] deps = GetDependingLibs(srcDir, subdir);
+	   theDeps[name] = deps;
+	   /*
+	   Console.WriteLine("Add dependency: " + name + " --> ");
+	   foreach (var n in deps) {
+	       Console.WriteLine("    " + n);
+	   }
+	   */
+       }
+   }
+
+   public static void ComputeDeps(string srcDir)
+   {	  
+       Stack<string> stack = new Stack<string>();
+       stack.Push(srcDir);
+       while (stack.Count() > 0) {
+       	     string dir = stack.Pop();
+             string [] cppFiles = Directory.GetFiles(dir, "*.cpp");
+	     bool isTestDir = false;
+	     if (cppFiles.Count() > 0) {
+	         if (dir.EndsWith(@"\test")) {
+		     isTestDir = true;
+		 }
+    	         string subdir = MakeRelative(dir, srcDir);
+	         ComputeDepsDir(srcDir, subdir, isTestDir);
+             }
+
+	     string [] subdirs = Directory.GetDirectories(dir);
+	     foreach (var subdir in subdirs) {
+	         stack.Push(subdir);
+	     }
+       }
+   }
+
+   private static void AddDep(Dictionary<string,string> names, string depLib, StreamWriter sw)
+   {
+   	if (names.ContainsKey(depLib)) {
+	    string depGuid = names[depLib];
+	    sw.WriteLine("\tProjectSection(ProjectDependencies) = postProject");
+            sw.WriteLine("\t\t" + depGuid + " = " + depGuid);
+            sw.WriteLine("\tEndProjectSection");
+       }
+   }
+
    public static void Main(string [] args)
    {
        string binDir = "";
+       string srcDir = "";
        foreach (string x in args) {
 	   if (x.StartsWith("bin=")) {
 	       binDir = x.Substring(4);
 	   }
+	   if (x.StartsWith("src=")) {
+	       srcDir = x.Substring(4);
+	   }
        }
+       Console.WriteLine("srcDir=" + srcDir);
        Console.WriteLine("binDir=" + binDir);
        string root = Path.GetFullPath(binDir);
        theRootDir = root;
        theBinDir = binDir;
+       theSrcDir = srcDir;
+
+
+       //
+       // Get all dependencies
+       //
+
+       ComputeDeps(srcDir);
 
        //
        // Solution file
@@ -76,15 +185,14 @@ public class make_vssln
 	   if (projFile.EndsWith("_test.vcxproj")) {
 	       // Extract the non-unittest lib project
 	        var depLib = projFile.Substring(0, projFile.Length - "_test.vcxproj".Length);
-		if (names.ContainsKey(depLib)) {
-		    string depGuid = names[depLib];
-		    sw.WriteLine("\tProjectSection(ProjectDependencies) = postProject");
+		AddDep(names, depLib, sw);
 
-                    sw.WriteLine("\t\t" + depGuid + " = " + depGuid);
-
-                    sw.WriteLine("\tEndProjectSection");
-	        }
-   	   }
+		// Add all dependent libs
+		var deps = theDeps[depLib];
+		foreach (var dep in deps) {
+		    AddDep(names, dep, sw);
+		}
+           }
 
            sw.WriteLine("EndProject");
        }
