@@ -102,6 +102,8 @@ public:
   size_t heap_size() const;
   size_t trail_size() const;
 
+  void trim_heap(size_t new_size);
+
   std::string status() const;
 
 private:

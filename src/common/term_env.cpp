@@ -71,6 +71,8 @@ public:
   inline size_t stack_depth() const { return stack_.size(); }
   inline void trim_stack(size_t depth) const { stack_.resize(depth); }
 
+  inline void trim_heap(size_t new_size) { heap_->trim(new_size); }
+
   inline void trail(size_t index) {
     if (index < register_hb_) {
       // Only record variable bindings that happen before
@@ -531,6 +533,11 @@ term term_env::pop()
 term term_env::to_term(cell c) const
 {
     return impl_->to_term(c);
+}
+
+void term_env::trim_heap(size_t new_size)
+{
+    impl_->trim_heap(new_size);
 }
 
 }}

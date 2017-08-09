@@ -108,6 +108,13 @@ heap::~heap()
 #endif
 }
 
+void heap::trim(size_t new_size)
+{
+    auto &block = find_block(new_size);
+    block.trim(new_size);
+    size_ = new_size;
+}
+
 size_t heap::list_length(const cell lst0) const
 {
     size_t n = 0;

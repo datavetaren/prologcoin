@@ -10,28 +10,42 @@ static void header( const std::string &str )
     std::cout << "\n";
 }
 
+static void eval_check(const std::string &program,
+	               const std::string &query,
+		       const std::string &expected)
+{
+    interpreter interp;
+
+    term prog = interp.env().parse(program);
+
+    interp.load_program(prog);
+
+    std::cout << "Program --------------------------------------\n";
+    interp.print_db(std::cout);
+    std::cout << "----------------------------------------------\n";
+    
+    term qr = interp.env().parse(query);
+    std::cout << "Query : " << interp.env().to_string(qr) << "\n";
+
+    interp.execute(qr);
+
+    std::string result = interp.env().to_string(qr);
+
+    std::cout << "Result: " << result << "\n";
+
+    std::cout << "Expect: " << expected << "\n";
+
+    assert(result == expected);
+}
+
 static void test_simple_interpreter()
 {
     header("test_simple_interpreter()");
 
-    interpreter interp;
-
-    //    term clause1 = interp.env().parse("append([X|Xs],Y,[Z|Zs]) :- append(Xs,Y,Zs).");
-    //    term clause2 = interp.env().parse("append([],Zs,Zs).");
-
-    {
-    term program = interp.env().parse("[(append([X|Xs],Ys,[Z|Zs]) :- append(Xs,Ys,Zs)), append([], Zs, Zs)].");
-
-    interp.load_program(program);
-
-    interp.print_db(std::cout);
-
-    // Construct query
-
-    term query = interp.env().parse("append([1,2,3],[4,5,6],Q).");
-
-    interp.execute(query);
-    }
+    eval_check("[(append([X|Xs],Ys,[X|Zs]) :- append(Xs,Ys,Zs)), "
+	          "  append([], Zs, Zs)].", 
+	       "append([1,2,3],[4,5,6],Q).",
+	       "append([1,2,3], [4,5,6], [1,2,3,4,5,6])");
 }
 
 int main( int argc, char *argv[] )

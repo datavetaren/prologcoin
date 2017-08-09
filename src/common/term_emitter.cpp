@@ -689,7 +689,7 @@ void term_emitter::emit_list(const cell lst0)
     stack_.push_back(lbracket);
 
     while (lst != empty_list_ && lst.tag() == tag_t::STR) {
-	auto dotfirst = heap_.arg0(lst, 0);
+        auto dotfirst = heap_.deref(heap_.arg0(lst, 0));
 	auto elem(dotfirst);
 	size_t elem_index = stack_.size();
 	bool wrapped = check_wrap_paren(elem, 1000);

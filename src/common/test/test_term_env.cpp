@@ -129,6 +129,37 @@ static void test_failed_unification()
     assert(env.trail_size() == 0);
 }
 
+static void test_unify_append()
+{
+    header( "test_unify_append()" );
+
+    term_env env;
+
+    std::string s1 = "append([1,2,3], [4,5,6], Z).";
+    std::string s2 = "append([X|Xs], Ys, [X|Zs]).";
+
+    auto t1 = env.parse(s1);
+    auto t2 = env.parse(s2);
+
+    std::cout << "Parsed1: " << env.to_string(t1) << "\n";
+    std::cout << "Parsed2: " << env.to_string(t2) << "\n";
+
+    assert( env.unify(t1, t2) );
+
+    auto rs1 = env.to_string(t1);
+    auto rs2 = env.to_string(t2);
+
+    std::cout << "Unify1   : " << rs1 << "\n";
+    std::cout << "Unify2   : " << rs2 << "\n";
+
+    assert(rs1 == rs2);
+
+    std::string expected = "append([1,2,3], [4,5,6], [1|Zs])";
+    std::cout << "Expected : " << expected << "\n";
+
+    assert(rs1 == expected);
+}
+
 static void test_copy_term()
 {
     header( "test_copy_term()" );
@@ -171,6 +202,7 @@ int main( int argc, char *argv[] )
     test_named_vars();
     test_unification();
     test_failed_unification();
+    test_unify_append();
     test_copy_term();
 
     return 0;

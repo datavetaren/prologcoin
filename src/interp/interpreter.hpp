@@ -95,6 +95,9 @@ public:
     interpreter(common::term_env &env);
     ~interpreter();
 
+    inline bool is_debug() const { return debug_; }
+    inline void set_debug(bool dbg) { debug_ = dbg; }
+
     inline common::term_env & env() { return *term_env_; }
 
     void load_clause(const std::string &str);
@@ -131,6 +134,7 @@ private:
     struct environment_t {
 	int_cell ce; // Continuation environment
 	cell cp;     // Continuation point
+        cell qr;     // Current query
     };
 
     static const int environment_num_cells = sizeof(environment_t) / sizeof(cell);
@@ -161,7 +165,7 @@ private:
     indexed_clauses & matched_clauses(con_cell functor, const term &first_arg);
     std::vector<common::term> & matched_clauses(size_t id);
     void execute_once();
-    void dispatch(const term &instruction);
+    void dispatch(term &instruction);
 
     void syntax_check();
 
@@ -172,9 +176,11 @@ private:
     void syntax_check_goal(const term &goal);
 
     term clause_head(const term &clause);
+    term clause_body(const term &clause);
 
     bool owns_term_env_;
     common::term_env *term_env_;
+    bool debug_;
 
     std::vector<std::function<void ()> > syntax_check_stack_;
 
@@ -193,6 +199,7 @@ private:
     size_t register_h_;  // Heap pointer
     size_t register_hb_; // Heap pointer for current choice point
     size_t register_b0_; // Record choice point (for neck cuts)
+    term register_qr_;   // Current query 
 
     con_cell comma_;
     con_cell empty_list_;

@@ -409,6 +409,14 @@ public:
 	cells_.resize(top + n);
     }
 
+    inline void trim(size_t new_size) {
+        size_t end = offset_ + cells_.size();
+	if (offset_ <= new_size && new_size < end) {
+	    size_t sz = new_size - offset_;
+	    cells_.resize(sz);
+	}
+    }
+
 private:
     size_t index_;
     size_t offset_;
@@ -522,6 +530,8 @@ public:
 
     inline size_t size() const { return size_; }
 
+    void trim(size_t new_size);
+
     inline void check_index(size_t index) const
     {
 	if (index >= size()) {
@@ -563,8 +573,11 @@ public:
 
     inline con_cell functor(const cell &s) const
     {
+        if (s.tag() == tag_t::CON) {
+	    return static_cast<const con_cell &>(s);
+        }
         if (s.tag() != tag_t::STR) {
-	  throw expected_str_cell_exception(s);
+	    throw expected_str_cell_exception(s);
         }
 	return functor(static_cast<const str_cell &>(s));
     }

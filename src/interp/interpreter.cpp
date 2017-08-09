@@ -24,6 +24,7 @@ interpreter::interpreter(term_env &env) : comma_(",",2), empty_list_("[]",0), im
 
 void interpreter::init()
 {
+    debug_ = false;
     register_b_ = 0;
     register_e_ = 0;
     register_tr_ = 0;
@@ -35,6 +36,7 @@ void interpreter::init()
 interpreter::~interpreter()
 {
     register_cp_ = term();
+    register_qr_ = term();
     syntax_check_stack_.clear();
     program_db_.clear();
     program_predicates_.clear();
@@ -223,6 +225,7 @@ void interpreter::allocate_environment()
     environment_t *e = get_environment(at_index);
     e->ce.set_value(register_e_);
     e->cp = register_cp_;
+    e->qr = register_qr_;
     register_e_ = at_index;
 }
 
@@ -235,6 +238,7 @@ void interpreter::deallocate_environment()
     environment_t *e = get_environment(register_e_);
     register_e_ = e->ce.value();
     register_cp_ = term_env_->to_term(e->cp);
+    register_qr_ = term_env_->to_term(e->qr);
 }
 
 inline interpreter::choice_point_t * interpreter::get_choice_point(size_t at_index)
@@ -269,23 +273,18 @@ void interpreter::abort(const interpreter_exception &ex)
 void interpreter::execute(const term &query)
 {
     register_cp_ = query;
+    register_qr_ = query;
 
     do {
-        while (!term_env_->is_empty_list(register_cp_)) {
-	    execute_once();
-        }
+      execute_once();
     } while (register_e_ != 0);
 }
 
 void interpreter::execute_once()
 {
     con_cell f = term_env_->functor(register_cp_);
-    term instruction = register_cp_;
 
-    if (f == empty_list_) {
-	deallocate_environment();
-	return;
-    }
+    term instruction = register_cp_;
 
     if (f == comma_) {
 	instruction = term_env_->arg(register_cp_, 0);
@@ -347,6 +346,16 @@ term interpreter::clause_head(const term &clause)
     }
 }
 
+term interpreter::clause_body(const term &clause)
+{
+    auto f = term_env_->functor(clause);
+    if (f == implied_by_) {
+        return term_env_->arg(clause, 1);
+    } else {
+        return term_env_->empty_list();
+    }
+}
+
 void interpreter::compute_matched_clauses(con_cell functor,
 					  const term &first_arg,
 					  std::vector<common::term> &matched)
@@ -400,13 +409,23 @@ common::term interpreter::get_first_arg(const term &t)
     }
 }
 
-void interpreter::dispatch(const term &instruction)
+void interpreter::dispatch(term &instruction)
 {
     con_cell f = term_env_->functor(instruction);
 
     if (f == comma_) {
 	allocate_environment();
 	register_cp_ = instruction;
+	return;
+    }
+
+    if (f == empty_list_) {
+        // Return
+        if (is_debug()) {
+   	    environment_t *e = get_environment(register_e_);
+            std::cout << "interpreter::dispatch(): exit " << term_env_->to_string(term_env_->to_term(e->qr)) << "\n";
+        }
+        deallocate_environment();
 	return;
     }
 
@@ -421,12 +440,44 @@ void interpreter::dispatch(const term &instruction)
 	abort(interpreter_exception_undefined_predicate(msg.str()));
     }
 
+    if (is_debug()) {
+        // Print call
+      std::cout << "interpreter::dispatch(): call " << term_env_->to_string(instruction) << "\n";
+    }
+
+    size_t num_clauses = clauses.size();
+    bool has_choices = num_clauses > 1;
+    size_t index_id = indexed_clauses.second;
+
     // More than one clause that matches? We need a choice point.
-    if (clauses.size() > 1) {
-	allocate_choice_point(indexed_clauses.second);
+    if (has_choices) {
+	allocate_choice_point(index_id);
     }
 
     // Let's go through clause by clause and see if we can find a match.
+    for (size_t i = 0; i < num_clauses; i++) {
+        auto &clause = clauses[i];
+	auto copy_clause = term_env_->copy(clause); // Instantiate it
+	term copy_head = clause_head(copy_clause);
+	size_t current_heap = term_env_->heap_size();
+	term copy_body = clause_body(copy_clause);
+	if (term_env_->unify(copy_head, instruction)) { // Heads match?
+	    // Update choice point (to where to continue on fail...)
+	    if (has_choices) {
+	        auto choice_point = get_choice_point(register_b_);
+   	        choice_point->bp.set_value((index_id << 8) + (i+1));
+	    }
+	    allocate_environment();
+	    register_cp_ = copy_body;
+	    register_qr_ = copy_head;
+	    return;
+	} else {
+    	    // Discard garbage created on heap (due to copying clause)
+	    term_env_->trim_heap(current_heap);
+	}
+    }
+
+    // Add fail logic here...
 }
 
 }}
