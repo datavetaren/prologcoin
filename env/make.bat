@@ -151,6 +151,10 @@ IF "%1"=="clean" (
 GOTO :CLEAN
 )
 
+IF "%1"=="cleanall" (
+GOTO :CLEANALL
+)
+
 IF "%1"=="testclean" (
 GOTO :TESTCLEAN
 )
@@ -271,6 +275,9 @@ mkdir %OUT%\%SUBDIR%\test
 IF NOT EXIST %BIN%\test (
 mkdir %BIN%\test
 )
+IF NOT EXIST %BIN%\test\!SUBDIR!\ (
+mkdir %BIN%\test\!SUBDIR!
+)
 
 REM
 REM Compile and run tests
@@ -287,15 +294,16 @@ REM Check if CPP file is newer than OBJ file.
 REM Delete OBJ file if it is.
 REM
 
-    for %%i in (!CPPFILE!) do set BINOKFILE=%BIN%\test\%%~ni.ok
-    for %%i in (!CPPFILE!) do set BINEXEFILE=%BIN%\test\%%~ni.exe
-    for %%i in (!CPPFILE!) do set BINLOGFILE=%BIN%\test\%%~ni.log
+    for %%i in (!CPPFILE!) do set BINOKFILE=%BIN%\test\!SUBDIR!\%%~ni.ok
+    for %%i in (!CPPFILE!) do set BINEXEFILE=%BIN%\test\!SUBDIR!\%%~ni.exe
+    for %%i in (!CPPFILE!) do set BINLOGFILE=%BIN%\test\!SUBDIR!\%%~ni.log
 
 
     IF EXIST !BINOKFILE! (
         set R=0
         call :FCMP !CPPFILE! !BINOKFILE! !R!
         IF "!R!"=="1" (
+	    echo "REBUILD!"
             del /Q /F !OBJFILE!
             del /Q /F !BINOKFILE!
             del /Q /F !BINEXEFILE!
@@ -333,7 +341,10 @@ REM ----------------------------------------------------
 :CLEAN
 del /S /F /Q %OUT%\!SUBDIR!
 del /S /F /Q %BIN%\!SUBDIR!.*
+del /S /F /Q %BIN%\test\!SUBDIR!.*
+del /S /F /Q %BIN%\test\!SUBDIR!\*
 rmdir /S /Q %OUT%\!SUBDIR!
+rmdir /S /Q %BIN%\test\!SUBDIR!
 
 GOTO :EOF
 
@@ -355,9 +366,9 @@ REM ----------------------------------------------------
 
 :TESTCLEAN
 del /S /F /Q %OUT%\!SUBDIR!\test
-del /S /F /Q %BIN%\test
+del /S /F /Q %BIN%\test\!SUBDIR!
 rmdir /S /Q %OUT%\!SUBDIR!\test
-rmdir /S /Q %BIN%\test
+rmdir /S /Q %BIN%\test\!SUBDIR!
 
 GOTO :EOF
 
@@ -367,8 +378,10 @@ REM ----------------------------------------------------
 
 :FCMP
 set r=0
-for /f "delims=" %%k in ('xcopy /D /Y /f /e "%1" "%2*"') do (
-    if "%%k" EQU "1 File(s) copied" set r=1
+for /f "delims=" %%k in ('xcopy /D /Y /f /e "%1" "%2"') do (
+    if "%%k" EQU "1 File(s) copied" (
+        set r=1
+    )
 )
 set %3=!r!
 
