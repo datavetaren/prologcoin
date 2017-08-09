@@ -26,7 +26,7 @@ SRC := $(ROOT)/src
 OUT := $(ROOT)/out
 BIN := $(ROOT)/bin
 
-.PHONY: clean run all test test_valgrind
+.PHONY: clean run all test test_valgrind count
 
 #
 # To fool GNU-Make that something has been done.
@@ -127,3 +127,7 @@ clean :
 #
 #run : $(GOAL)
 #	$(GOAL)
+
+count :
+	@find $(SRC) \( -name "*.hpp" -o -name "*.cpp" -o -name "*.pl" \) -a ! -name "*_gen.hpp" |xargs wc -l
+
