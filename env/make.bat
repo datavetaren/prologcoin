@@ -186,6 +186,15 @@ mkdir %OUT%\%SUBDIR%
 )
 
 REM
+REM Compute all dependent .lib files
+REM
+set LIB_FILES=!BIN!\!DOLIB!.lib
+for %%i in (!DEPENDS!) DO (
+    set LIBFILE=!BIN!\%%i.lib
+    set LIB_FILES=!LIB_FILES! "!LIBFILE!"
+)
+
+REM
 REM Compile all .cpp files into .obj
 REM
 set OBJ_FILES=
@@ -243,7 +252,7 @@ ECHO %GOAL%
 
 set PDBFILE=
 IF "!DEBUGMODE!"=="1" IF "!DOLIB!"=="" set PDBFILE=/pdb:"!GOAL:.exe=.pdb!"
-%LINKCMD% %LINKFLAGS% /out:"!GOAL!" !PDBFILE! !OBJ_FILES!
+%LINKCMD% %LINKFLAGS% /out:"!GOAL!" !PDBFILE! !OBJ_FILES! !DEPEND_LIBS!
 
 GOTO :EOF
 
@@ -266,12 +275,6 @@ mkdir %BIN%\test
 REM
 REM Compile and run tests
 REM
-set OBJ_FILES0=
-for %%i in (!OBJ_FILES!) DO (
-    IF NOT "%%~ni"=="main" (
-        set OBJ_FILES0=!OBJ_FILES0! %%i
-    )
-)
 for %%S in (%SRC%\%SUBDIR%\test\*.cpp) DO (
     set CPPFILE=%%S
     set OBJFILE=!CPPFILE:.cpp=.obj!
@@ -307,7 +310,7 @@ REM
 
 	set PDBFILE=
 	IF "!DEBUGMODE!"=="1" set PDBFILE=/debug /pdb:"!BINEXEFILE:.exe=.pdb!"
-	link !LINKFLAGS! /out:!BINEXEFILE! !PDBFILE! !OBJ_FILES0! !OBJFILE!
+	link !LINKFLAGS! /out:!BINEXEFILE! !PDBFILE! !LIB_FILES! !OBJFILE!
         IF ERRORLEVEL 1 GOTO :EOF
 	ECHO Running !BINEXEFILE!
 	ECHO   [output to !BINLOGFILE!]
@@ -328,6 +331,17 @@ REM  CLEAN
 REM ----------------------------------------------------
 
 :CLEAN
+del /S /F /Q %OUT%\!SUBDIR!
+del /S /F /Q %BIN%\!SUBDIR!.*
+rmdir /S /Q %OUT%\!SUBDIR!
+
+GOTO :EOF
+
+REM ----------------------------------------------------
+REM  CLEANALL
+REM ----------------------------------------------------
+
+:CLEANALL
 del /S /F /Q %OUT%
 del /S /F /Q %BIN%
 rmdir /S /Q %OUT%
