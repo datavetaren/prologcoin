@@ -129,6 +129,8 @@ public:
 
     inline const std::vector<binding> & query_vars() const
         { return query_vars_; }
+
+    std::vector<std::string> get_result() const;
     void print_result(std::ostream &out) const;
 
     class list_iterator : public common::term_iterator {

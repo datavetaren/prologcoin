@@ -293,10 +293,33 @@ bool interpreter::execute(const term &query)
     return true;
 }
 
-void interpreter::print_result(std::ostream &out) const
+std::vector<std::string> interpreter::get_result() const
 {
-    // Iterate over query_vars_ and print them one by one, unless
-    // it would have printed: V = V.
+    std::unordered_map<term, size_t> count_occurrences;
+    std::for_each(term_env_->begin(register_qr_),
+		  term_env_->end(register_qr_),
+		  [&] (const term &t) {
+		    if (t->tag() == tag_t::REF) {
+		      ++count_occurrences[t];
+		    }
+		  }
+		  );
+
+    // Those vars with a singleton occurrence will be named
+    // '_'.
+    size_t named_var_count = 0;
+    for (auto v : count_occurrences) {
+        if (v.second == 1) {
+            term_env_->set_name(v.first, "_");
+	} else { // v.second > 1
+  	    std::string name = "G_" + boost::lexical_cast<std::string>(
+		       named_var_count);
+	    named_var_count++;
+	    term_env_->set_name(v.first, name);
+	}
+    }
+
+    std::vector<std::string> result;
 
     bool first = true;
     for (auto v : query_vars_) {
@@ -304,12 +327,24 @@ void interpreter::print_result(std::ostream &out) const
 	auto &value = v.value();
 	auto value_str = term_env_->to_string(value);
 	if (name != value_str) {
-	    if (!first) {
-		out << "," << std::endl;
-	    }
-	    out << name << " = " << value_str;
-	    first = false;
+	    result.push_back(name + " = " + value_str);
 	}
+    }
+
+    for (auto v : count_occurrences) {
+        term_env_->clear_name(v.first);
+    }
+
+    return result;
+}
+
+void interpreter::print_result(std::ostream &out) const
+{
+    bool first = true;
+    for (auto &line : get_result()) {
+      if (!first) out << "," << std::endl;
+      out << line;
+      first = false;
     }
     out << std::endl;
 }

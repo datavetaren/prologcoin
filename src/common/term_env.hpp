@@ -137,6 +137,9 @@ public:
   cell * stack_ref(size_t at_index);
   void push(const term &t);
   term pop();
+  
+  void clear_name(const term &ref);
+  void set_name(const term &ref, const std::string &name);
 
   term to_term(cell cell) const;
 
