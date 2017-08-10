@@ -111,9 +111,24 @@ public:
     void print_db() const;
     void print_db(std::ostream &out) const;
 
-    void execute(const term &query);
+    bool execute(const term &query);
 
-    const std::vector<term> & query_vars() const;
+    class binding {
+    public:
+	binding() { }
+	binding(const std::string &name, const term &value) 
+	    : name_(name), value_(value) { }
+
+	inline const std::string & name() const { return name_; }
+	inline const term & value() const { return value_; }
+
+    private:
+	std::string name_;
+	term value_;
+    };
+
+    inline const std::vector<binding> & query_vars() const
+        { return query_vars_; }
     void print_result(std::ostream &out) const;
 
     class list_iterator : public common::term_iterator {
@@ -193,7 +208,7 @@ private:
     std::unordered_map<functor_index, indexed_clauses> indexed_clauses_;
     std::vector<std::vector<common::term> *> id_indexed_clauses_;
 
-    std::vector<common::term> query_vars_;
+    std::vector<binding> query_vars_;
 
     size_t stack_start_;
 

@@ -31,11 +31,16 @@ static void eval_check(const std::string &program,
 
     std::string result = interp.env().to_string(qr);
 
+    std::cout << "==============================================" << std::endl;
+    interp.print_result(std::cout);
+    std::cout << "==============================================" << std::endl;
+
     std::cout << "Result: " << result << "\n";
 
     std::cout << "Expect: " << expected << "\n\n";
 
     assert(result == expected);
+
 }
 
 static void test_simple_interpreter()
@@ -54,6 +59,11 @@ static void test_simple_interpreter()
 	          "].",
 	       "nrev([1,2,3],Q).",
 	       "nrev([1,2,3], [3,2,1])");
+
+    eval_check("[member(X,[X|_]), (member(X,[_|Xs]) :- member(X,Xs))].",
+	       "member(A,Xs).",
+	       "member(A, [A|CE])");
+
 }
 
 int main( int argc, char *argv[] )

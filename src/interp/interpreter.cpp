@@ -271,14 +271,15 @@ void interpreter::abort(const interpreter_exception &ex)
     throw ex;
 }
 
-void interpreter::execute(const term &query)
+bool interpreter::execute(const term &query)
 {
     // Record all vars for this query
     std::for_each( term_env_->begin(query),
 		   term_env_->end(query),
 		   [=](const term &t) {
 		       if (t->tag() == tag_t::REF) {
-			   query_vars_.push_back(t);
+			   const std::string name = term_env_->to_string(t);
+			   query_vars_.push_back(binding(name,t));
 		       }
 		   } );
 
@@ -288,18 +289,29 @@ void interpreter::execute(const term &query)
     do {
       execute_once();
     } while (register_e_ != 0);
-}
 
-const std::vector<term> & interpreter::query_vars() const
-{
-    return query_vars_;
+    return true;
 }
 
 void interpreter::print_result(std::ostream &out) const
 {
-    // Iterate over query_vars_ and print them one by one, but
-    // record all variables we see. Don't include a LHS var that has
-    // already been printed.
+    // Iterate over query_vars_ and print them one by one, unless
+    // it would have printed: V = V.
+
+    bool first = true;
+    for (auto v : query_vars_) {
+	auto &name = v.name();
+	auto &value = v.value();
+	auto value_str = term_env_->to_string(value);
+	if (name != value_str) {
+	    if (!first) {
+		out << "," << std::endl;
+	    }
+	    out << name << " = " << value_str;
+	    first = false;
+	}
+    }
+    out << std::endl;
 }
 
 void interpreter::execute_once()
