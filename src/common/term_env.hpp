@@ -147,7 +147,10 @@ public:
   size_t heap_size() const;
   size_t trail_size() const;
 
+  void unwind_trail(size_t from_addr, size_t to_addr);
+
   void trim_heap(size_t new_size);
+  void trim_trail(size_t new_size);
 
   term_dfs_iterator begin(const term &t);
   term_dfs_iterator end(const term &t);

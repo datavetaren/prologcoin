@@ -113,6 +113,8 @@ public:
 
     bool execute(const term &query);
 
+    bool next();
+
     class binding {
     public:
 	binding() { }
@@ -150,11 +152,16 @@ public:
 private:
     void init();
     void abort(const interpreter_exception &ex);
+    void fail();
+    bool select_clause(term &instruction,
+		       size_t index_id, std::vector<term> &clauses,
+		       size_t from_clause);
 
     struct environment_t {
 	int_cell ce; // Continuation environment
+        int_cell b0; // Choice point when encountering a cut operation.
 	cell cp;     // Continuation point
-        cell qr;     // Current query
+        cell qr;     // Current query (good for debugging/tracing)
     };
 
     static const int environment_num_cells = sizeof(environment_t) / sizeof(cell);
@@ -167,6 +174,7 @@ private:
 	int_cell tr; // Trail pointer
 	int_cell h;  // Heap pointer
 	int_cell b0; // Cut pointer
+        cell qr;     // Current query
     };
 
     static const int choice_point_num_cells = sizeof(choice_point_t) / sizeof(cell);
@@ -213,6 +221,8 @@ private:
     std::vector<binding> query_vars_;
 
     size_t stack_start_;
+
+    bool top_fail_;
 
     term register_cp_;   // Continuation point
     size_t register_b_;  // Points to current choice point (0 means none)

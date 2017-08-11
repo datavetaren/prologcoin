@@ -443,6 +443,11 @@ size_t term_env::trail_size() const
     return impl_->trail_depth();
 }
 
+void term_env::unwind_trail(size_t from_addr, size_t to_addr)
+{
+    impl_->unwind_trail(from_addr, to_addr);
+}
+
 size_t term_env::heap_size() const
 {
     return impl_->heap_size();
@@ -551,6 +556,11 @@ term term_env::to_term(cell c) const
 void term_env::trim_heap(size_t new_size)
 {
     impl_->trim_heap(new_size);
+}
+
+void term_env::trim_trail(size_t new_size)
+{
+    impl_->trim_trail(new_size);
 }
 
 term_dfs_iterator term_env::begin(const term &t)

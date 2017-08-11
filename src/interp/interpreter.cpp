@@ -25,6 +25,7 @@ interpreter::interpreter(term_env &env) : comma_(",",2), empty_list_("[]",0), im
 void interpreter::init()
 {
     debug_ = false;
+    top_fail_ = false;
     register_b_ = 0;
     register_e_ = 0;
     register_tr_ = 0;
@@ -225,6 +226,7 @@ void interpreter::allocate_environment()
     term_env_->ensure_stack(at_index, environment_num_cells);
     environment_t *e = get_environment(at_index);
     e->ce.set_value(register_e_);
+    e->b0.set_value(register_b0_);
     e->cp = register_cp_;
     e->qr = register_qr_;
     register_e_ = at_index;
@@ -238,6 +240,7 @@ void interpreter::deallocate_environment()
 
     environment_t *e = get_environment(register_e_);
     register_e_ = e->ce.value();
+    register_b0_ = e->b0.value();
     register_cp_ = term_env_->to_term(e->cp);
     register_qr_ = term_env_->to_term(e->qr);
 }
@@ -253,15 +256,16 @@ void interpreter::allocate_choice_point(size_t index_id)
     size_t at_index = (register_e_ > register_b_) ?
 	register_e_ + environment_num_cells : register_b_ + choice_point_num_cells;
     term_env_->ensure_stack(at_index, choice_point_num_cells);
-    choice_point_t *cp = get_choice_point(at_index);
-    cp->ce.set_value(register_e_);
-    cp->cp = register_cp_;
-    cp->b.set_value(register_b_);
-    cp->bp.set_value((index_id << 8) | 0); // 8 bits shifted = index_id
+    choice_point_t *ch = get_choice_point(at_index);
+    ch->ce.set_value(register_e_);
+    ch->cp = register_cp_;
+    ch->b.set_value(register_b_);
+    ch->bp.set_value((index_id << 8) | 0); // 8 bits shifted = index_id
                                            // lower 8 bits = clause no
-    cp->tr.set_value(register_tr_);
-    cp->h.set_value(register_h_);
-    cp->b0.set_value(register_b0_);
+    ch->tr.set_value(register_tr_);
+    ch->h.set_value(register_h_);
+    ch->b0.set_value(register_b0_);
+    ch->qr = register_qr_;
     register_b_ = at_index;
     register_hb_ = register_h_;
 }
@@ -273,6 +277,8 @@ void interpreter::abort(const interpreter_exception &ex)
 
 bool interpreter::execute(const term &query)
 {
+    top_fail_ = false;
+
     // Record all vars for this query
     std::for_each( term_env_->begin(query),
 		   term_env_->end(query),
@@ -523,8 +529,23 @@ void interpreter::dispatch(term &instruction)
 	allocate_choice_point(index_id);
     }
 
+    // Before making the actual call we'll remember the current choice
+    // point. This is the one we backtrack to if we encounter a cut operation.
+    register_b0_ = register_b_;
+
+    select_clause(instruction, index_id, clauses, 0);
+}
+
+    bool interpreter::select_clause(term &instruction,
+				    size_t index_id,
+				    std::vector<term> &clauses,
+				    size_t from_clause)
+{
+    size_t num_clauses = clauses.size();
+    bool has_choices = num_clauses > 1;
+
     // Let's go through clause by clause and see if we can find a match.
-    for (size_t i = 0; i < num_clauses; i++) {
+    for (size_t i = from_clause; i < num_clauses; i++) {
         auto &clause = clauses[i];
 	auto copy_clause = term_env_->copy(clause); // Instantiate it
 	term copy_head = clause_head(copy_clause);
@@ -534,19 +555,62 @@ void interpreter::dispatch(term &instruction)
 	    // Update choice point (to where to continue on fail...)
 	    if (has_choices) {
 	        auto choice_point = get_choice_point(register_b_);
-   	        choice_point->bp.set_value((index_id << 8) + (i+1));
+		if (i == num_clauses) {
+		    choice_point->bp.set_value(0);
+		} else {
+		    choice_point->bp.set_value((index_id << 8) + (i+1));
+		}
 	    }
 	    allocate_environment();
 	    register_cp_ = copy_body;
 	    register_qr_ = copy_head;
-	    return;
+	    return true;
 	} else {
     	    // Discard garbage created on heap (due to copying clause)
 	    term_env_->trim_heap(current_heap);
 	}
     }
 
-    // Add fail logic here...
+    // None found.
+    return false;
+}
+
+void interpreter::fail()
+{
+    bool failed = true;
+
+    size_t current_tr = register_tr_;
+
+    do {
+        if (register_b_ == 0) {
+	    top_fail_ = true;
+	    return;
+        }
+	auto ch = get_choice_point(register_b_);
+
+	// Is there another clause to backtrack to?
+	if (ch->bp.value() != 0) {
+	    auto qr = term_env_->to_term(ch->qr);
+      	    size_t index_id = ch->bp.value() >> 8;
+	    auto &clauses = *id_indexed_clauses_[index_id];
+	    size_t from_clause = ch->bp.value() & 0xff;
+  	    failed = select_clause(qr, index_id, clauses, from_clause);
+	} else {
+	    register_e_ = ch->ce.value();
+	    register_cp_ = term_env_->to_term(ch->cp);
+	    register_b_ = ch->b.value();
+	    register_tr_ = ch->tr.value();
+	    register_h_ = ch->h.value();
+	    register_b0_ = ch->b0.value();
+	}
+    } while (failed);
+
+    // Unbind variables
+    term_env_->unwind_trail(register_tr_, current_tr);
+
+    term_env_->trim_trail(register_tr_);
+    term_env_->trim_heap(register_h_);
+    
 }
 
 }}
