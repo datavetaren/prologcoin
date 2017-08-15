@@ -141,6 +141,14 @@ static void test_backtracking_interpreter()
 		 "member(A,B).", 5,
 		 "blaha");
 
+    eval_check_n("[append([], Zs, Zs),"
+                 "   (append([X|Xs],Ys,[X|Zs]) :- append(Xs,Ys,Zs)),"
+	         "nrev([],[]),"
+		 "   (nrev([X|Xs],Ys) :- nrev(Xs,Rs), append(Rs,[X],Ys))"
+	         "].",
+	       "nrev(A,B).", 5,
+	       "blaha" );
+
 }
 
 int main( int argc, char *argv[] )

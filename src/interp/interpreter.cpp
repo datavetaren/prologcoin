@@ -567,11 +567,6 @@ void interpreter::dispatch(term &instruction)
     if (!select_clause(instruction, index_id, clauses, 0)) {
 	fail();
     }
-
-    if (is_debug()) {
-        // Print call
-      std::cout << "interpreter::dispatch(): call done " << term_env_->to_string(instruction) << "\n";
-    }
 }
 
 bool interpreter::select_clause(term &instruction,
