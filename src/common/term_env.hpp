@@ -24,6 +24,7 @@ class term_exception_not_list : public std::runtime_error {
 public:
     term_exception_not_list(term t)
        : std::runtime_error("term is not a list"), term_(t) { }
+    ~term_exception_not_list() noexcept(true) { }
 
     term get_term() { return term_; }
 

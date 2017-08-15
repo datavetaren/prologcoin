@@ -32,6 +32,7 @@ class syntax_exception : public std::runtime_error
 public:
     syntax_exception(const common::term &t, const std::string &msg)
 	: std::runtime_error(msg), term_(t) { }
+    ~syntax_exception() noexcept(true) { }
 
     const common::term & get_term() const { return term_; }
 
