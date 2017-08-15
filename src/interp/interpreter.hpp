@@ -132,7 +132,7 @@ public:
     inline const std::vector<binding> & query_vars() const
         { return query_vars_; }
 
-    std::vector<std::string> get_result() const;
+    std::string get_result(bool newlines = true) const;
     void print_result(std::ostream &out) const;
 
     class list_iterator : public common::term_iterator {
@@ -193,6 +193,7 @@ private:
     indexed_clauses & matched_clauses(con_cell functor, const term &first_arg);
     std::vector<common::term> & matched_clauses(size_t id);
     void execute_once();
+    bool cont();
     void dispatch(term &instruction);
 
     void syntax_check();

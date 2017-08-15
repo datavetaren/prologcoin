@@ -50,6 +50,7 @@ public:
   void bind(cell a, cell b);
   bool direction();
   cell copy(cell c);
+  void set_last_choice_heap(size_t at_index);
 
   inline std::string atom_name(con_cell f)  const { return heap_->atom_name(f); }
 
@@ -240,6 +241,11 @@ bool term_env_impl::unify(cell a, cell b)
     return true;
 }
 
+void term_env_impl::set_last_choice_heap(size_t at_index)
+{
+    register_hb_ = at_index;
+}
+
 cell term_env_impl::copy(cell c)
 {
     std::unordered_map<cell, cell> var_map;
@@ -300,6 +306,8 @@ cell term_env_impl::copy(cell c)
 	case tag_t::GBL: assert(false); break;
 	}
     }
+
+    register_h_ = heap_->size();
 
     return temp_pop();
 }
@@ -373,6 +381,7 @@ bool term_env_impl::unify_helper(cell a, cell b)
 	  if (a != b) {
 	    return false;
 	  }
+	  break;
 	case tag_t::STR: {
 	  str_cell &astr = static_cast<str_cell &>(a);
 	  str_cell &bstr = static_cast<str_cell &>(b);
@@ -506,6 +515,11 @@ bool term_env::unify(term &a, term &b)
 term term_env::copy(const term &t)
 {
     return impl_->to_term(impl_->copy(t));
+}
+
+void term_env::set_last_choice_heap(size_t at_index)
+{
+    impl_->set_last_choice_heap(at_index);
 }
 
 bool term_env::equal(const term &a, const term &b)

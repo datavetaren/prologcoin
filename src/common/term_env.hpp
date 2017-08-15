@@ -131,6 +131,7 @@ public:
   bool unify(term &a, term &b);
   term copy(const term &t);
   bool equal(const term &a, const term &b);
+  void set_last_choice_heap(size_t at_index);
 
   size_t allocate_stack(size_t num_cells);
   void ensure_stack(size_t at_index, size_t num_cells);

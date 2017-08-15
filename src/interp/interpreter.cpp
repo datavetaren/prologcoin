@@ -223,6 +223,9 @@ void interpreter::allocate_environment()
     // allocate after choice point.
     size_t at_index = (register_b_ > register_e_) ?
 	register_b_ + choice_point_num_cells : register_e_ + environment_num_cells;
+    if (at_index == 0) {
+	at_index = 1;
+    }
     term_env_->ensure_stack(at_index, environment_num_cells);
     environment_t *e = get_environment(at_index);
     e->ce.set_value(register_e_);
@@ -255,6 +258,9 @@ void interpreter::allocate_choice_point(size_t index_id)
 {
     size_t at_index = (register_e_ > register_b_) ?
 	register_e_ + environment_num_cells : register_b_ + choice_point_num_cells;
+    if (at_index == 0) {
+	at_index = 1;
+    }
     term_env_->ensure_stack(at_index, choice_point_num_cells);
     choice_point_t *ch = get_choice_point(at_index);
     ch->ce.set_value(register_e_);
@@ -268,6 +274,7 @@ void interpreter::allocate_choice_point(size_t index_id)
     ch->qr = register_qr_;
     register_b_ = at_index;
     register_hb_ = register_h_;
+    term_env_->set_last_choice_heap(register_hb_);
 }
 
 void interpreter::abort(const interpreter_exception &ex)
@@ -292,14 +299,27 @@ bool interpreter::execute(const term &query)
     register_cp_ = query;
     register_qr_ = query;
 
+    return cont();
+}
+
+bool interpreter::cont()
+{
     do {
       execute_once();
     } while (register_e_ != 0);
-
-    return true;
+    return !top_fail_;
 }
 
-std::vector<std::string> interpreter::get_result() const
+bool interpreter::next()
+{
+    fail();
+    if (!top_fail_) {
+	cont();
+    }
+    return !top_fail_;
+}
+
+std::string interpreter::get_result(bool newlines) const
 {
     std::unordered_map<term, size_t> count_occurrences;
     std::for_each(term_env_->begin(register_qr_),
@@ -328,12 +348,22 @@ std::vector<std::string> interpreter::get_result() const
     std::vector<std::string> result;
 
     bool first = true;
+
+    std::stringstream ss;
     for (auto v : query_vars_) {
 	auto &name = v.name();
 	auto &value = v.value();
 	auto value_str = term_env_->to_string(value);
 	if (name != value_str) {
-	    result.push_back(name + " = " + value_str);
+	    if (!first) {
+		if (newlines) {
+		    ss << "," << std::endl;
+		} else {
+		    ss << ", ";
+		}
+	    }
+	    ss << name <<  " = " << value_str;
+	    first = false;
 	}
     }
 
@@ -341,18 +371,16 @@ std::vector<std::string> interpreter::get_result() const
         term_env_->clear_name(v.first);
     }
 
-    return result;
+    if (newlines) {
+	ss << std::endl;
+    }
+
+    return ss.str();
 }
 
 void interpreter::print_result(std::ostream &out) const
 {
-    bool first = true;
-    for (auto &line : get_result()) {
-      if (!first) out << "," << std::endl;
-      out << line;
-      first = false;
-    }
-    out << std::endl;
+    out << get_result();
 }
 
 void interpreter::execute_once()
@@ -486,6 +514,9 @@ common::term interpreter::get_first_arg(const term &t)
 
 void interpreter::dispatch(term &instruction)
 {
+    register_qr_ = instruction;
+    register_h_ = term_env_->heap_size();
+
     con_cell f = term_env_->functor(instruction);
 
     if (f == comma_) {
@@ -533,13 +564,20 @@ void interpreter::dispatch(term &instruction)
     // point. This is the one we backtrack to if we encounter a cut operation.
     register_b0_ = register_b_;
 
-    select_clause(instruction, index_id, clauses, 0);
+    if (!select_clause(instruction, index_id, clauses, 0)) {
+	fail();
+    }
+
+    if (is_debug()) {
+        // Print call
+      std::cout << "interpreter::dispatch(): call done " << term_env_->to_string(instruction) << "\n";
+    }
 }
 
-    bool interpreter::select_clause(term &instruction,
-				    size_t index_id,
-				    std::vector<term> &clauses,
-				    size_t from_clause)
+bool interpreter::select_clause(term &instruction,
+				size_t index_id,
+				std::vector<term> &clauses,
+				size_t from_clause)
 {
     size_t num_clauses = clauses.size();
     bool has_choices = num_clauses > 1;
@@ -547,15 +585,18 @@ void interpreter::dispatch(term &instruction)
     // Let's go through clause by clause and see if we can find a match.
     for (size_t i = from_clause; i < num_clauses; i++) {
         auto &clause = clauses[i];
+	size_t current_heap = term_env_->heap_size();
 	auto copy_clause = term_env_->copy(clause); // Instantiate it
 	term copy_head = clause_head(copy_clause);
-	size_t current_heap = term_env_->heap_size();
 	term copy_body = clause_body(copy_clause);
+
 	if (term_env_->unify(copy_head, instruction)) { // Heads match?
-	    // Update choice point (to where to continue on fail...)
+	    register_h_ = term_env_->heap_size();
+	    register_tr_ = term_env_->trail_size();
+	    // Update choice point (where to continue on fail...)
 	    if (has_choices) {
 	        auto choice_point = get_choice_point(register_b_);
-		if (i == num_clauses) {
+		if (i == num_clauses - 1) {
 		    choice_point->bp.set_value(0);
 		} else {
 		    choice_point->bp.set_value((index_id << 8) + (i+1));
@@ -564,10 +605,12 @@ void interpreter::dispatch(term &instruction)
 	    allocate_environment();
 	    register_cp_ = copy_body;
 	    register_qr_ = copy_head;
+
 	    return true;
 	} else {
     	    // Discard garbage created on heap (due to copying clause)
 	    term_env_->trim_heap(current_heap);
+	    register_h_ = current_heap;
 	}
     }
 
@@ -577,9 +620,10 @@ void interpreter::dispatch(term &instruction)
 
 void interpreter::fail()
 {
-    bool failed = true;
+    bool ok = false;
 
     size_t current_tr = register_tr_;
+    bool unbound = false;
 
     do {
         if (register_b_ == 0) {
@@ -588,29 +632,45 @@ void interpreter::fail()
         }
 	auto ch = get_choice_point(register_b_);
 
+	register_e_ = ch->ce.value();
+	register_cp_ = term_env_->to_term(ch->cp);
+	register_tr_ = ch->tr.value();
+	register_h_ = ch->h.value();
+	register_b0_ = ch->b0.value();
+	register_hb_ = register_h_;
+	register_qr_ = term_env_->to_term(ch->qr);
+	term_env_->set_last_choice_heap(register_hb_);
+
 	// Is there another clause to backtrack to?
 	if (ch->bp.value() != 0) {
-	    auto qr = term_env_->to_term(ch->qr);
+
+	    // Unbind variables
+	    term_env_->unwind_trail(register_tr_, current_tr);
+	    term_env_->trim_trail(register_tr_);
+	    term_env_->trim_heap(register_h_);
+	    unbound = true;
+	    current_tr = register_tr_;
+
+	    if (is_debug()) {
+		std::cout << "interpreter::fail(): redo " << term_env_->to_string(register_qr_) << "\n";
+	    }
       	    size_t index_id = ch->bp.value() >> 8;
 	    auto &clauses = *id_indexed_clauses_[index_id];
 	    size_t from_clause = ch->bp.value() & 0xff;
-  	    failed = select_clause(qr, index_id, clauses, from_clause);
-	} else {
-	    register_e_ = ch->ce.value();
-	    register_cp_ = term_env_->to_term(ch->cp);
-	    register_b_ = ch->b.value();
-	    register_tr_ = ch->tr.value();
-	    register_h_ = ch->h.value();
-	    register_b0_ = ch->b0.value();
+
+  	    ok = select_clause(register_qr_, index_id, clauses, from_clause);
 	}
-    } while (failed);
+	if (!ok) {
+	    unbound = false;
+	    register_b_ = ch->b.value();
+	}
+    } while (!ok);
 
-    // Unbind variables
-    term_env_->unwind_trail(register_tr_, current_tr);
-
-    term_env_->trim_trail(register_tr_);
-    term_env_->trim_heap(register_h_);
-    
+    if (!unbound) {
+	term_env_->unwind_trail(register_tr_, current_tr);
+	term_env_->trim_trail(register_tr_);
+	term_env_->trim_heap(register_h_);
+    }
 }
 
 }}
