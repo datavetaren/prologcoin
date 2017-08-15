@@ -208,7 +208,6 @@ bool heap::is_list(const cell c) const
 	if (!check_functor(l)) {
 	    return false;
 	}
-	auto str = static_cast<const str_cell &>(l);
 	con_cell f = functor(l);
 	if (f != dotted_pair_) {
 	    return false;
