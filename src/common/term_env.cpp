@@ -31,7 +31,10 @@ public:
     }
   }
 
-  ext<cell> parse(const std::string &term_expr);
+  heap & get_heap() { return *heap_; }
+  term_ops & get_ops() { return *ops_; }
+
+  term parse(const std::string &term_expr);
   std::string to_string(const cell &c, term_emitter::style style = term_emitter::STYLE_TERM) const;
   std::string status() const;
 
@@ -110,15 +113,16 @@ private:
   std::unordered_map<ext<cell>, std::string> var_naming_;
 };
 
-ext<cell> term_env_impl::parse(const std::string &term_expr)
+term term_env_impl::parse(const std::string &term_expr)
 {
     std::stringstream ss(term_expr);
     term_tokenizer tokenizer(ss);
     term_parser parser(tokenizer, *heap_, *ops_);
-    ext<cell> r = parser.parse();
+    term r = parser.parse();
+
     // Once parsing is done we'll copy over the var-name bindings
     // so we can pretty print the variable names.
-    parser.for_each_var_name( [&](const ext<cell> &ref,
+    parser.for_each_var_name( [&](const term  &ref,
 				  const std::string &name)
 			      { var_naming_[ref] = name; } );
     register_h_ = heap_->size();
@@ -422,7 +426,17 @@ term_env::~term_env()
     delete impl_;
 }
 
-ext<cell> term_env::parse(const std::string &term_expr)
+heap & term_env::get_heap()
+{
+    return impl_->get_heap();
+}
+
+term_ops & term_env::get_ops()
+{
+    return impl_->get_ops();
+}
+
+term term_env::parse(const std::string &term_expr)
 {
     return impl_->parse(term_expr);
 }

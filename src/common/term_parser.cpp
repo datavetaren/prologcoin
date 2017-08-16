@@ -85,6 +85,8 @@ protected:
   sym lookahead_;
   sym old_lookahead_;
 
+  std::vector<term_tokenizer::token> comments_;
+
   ext<cell> result_;
   bool accept_;
   bool error_;
@@ -177,6 +179,8 @@ protected:
   {
     while (tokenizer().peek_token().type()
 	   == term_tokenizer::TOKEN_LAYOUT_TEXT) {
+      auto &tok = tokenizer().peek_token();
+      comments_.push_back(tok);
       tokenizer().consume_token();
     }
   }
@@ -713,6 +717,7 @@ public:
   bool is_error() const { return error_; }
   ext<cell> get_result() const { return result_; }
   void init() {
+      comments_.clear();
       current_state_ = 0;
       accept_ = false;
       error_ = false;
@@ -724,6 +729,11 @@ public:
       return lookahead().ordinal() == SYMBOL_EOF;
   }
 
+  const std::vector<term_tokenizer::token> & get_comments() const
+  {
+      return comments_;
+  }
+
   const std::string & get_var_name(ext<cell> &cell);
 
   void for_each_var_name(std::function<void (const ext<cell> &ref, const std::string &name)> f) const {
@@ -732,6 +742,12 @@ public:
 	  const std::string &name = e.second;
 	  f(ref,name);
       }
+  }
+
+  void clear_var_names()
+  {
+      var_name_map_.clear();
+      name_var_map_.clear();
   }
 };
 
@@ -788,6 +804,11 @@ public:
       } else {
 	  return false;
       }
+  }
+
+  const sym & lookahead() const
+  {
+      return lookahead_;
   }
 
   const sym next_symbol()
@@ -981,6 +1002,25 @@ ext<cell> term_parser::parse()
   return impl_->get_result();
 }
 
+const term_tokenizer::token & term_parser::lookahead() const
+{
+    return impl_->lookahead().token();
+}
+
+const std::vector<term_tokenizer::token> & term_parser::get_comments() const
+{
+    return impl_->get_comments();
+}
+
+std::string term_parser::get_comments_string() const
+{
+    std::string str;
+    for (auto &tok : get_comments()) {
+	str += tok.lexeme();
+    }
+    return str;
+}
+
 bool term_parser::is_eof()
 {
     return impl_->is_eof();
@@ -993,6 +1033,11 @@ bool term_parser::is_error()
 
 void term_parser::for_each_var_name(std::function<void (const ext<cell> &ref, const std::string &name)> f) const {
     impl_->for_each_var_name(f);
+}
+
+void term_parser::clear_var_names()
+{
+    impl_->clear_var_names();
 }
 
 }}

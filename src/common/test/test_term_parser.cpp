@@ -6,16 +6,9 @@
 #include <common/token_chars.hpp>
 #include <common/term_parser.hpp>
 #include <common/term_emitter.hpp>
+#include "test_home_dir.hpp"
 
 using namespace prologcoin::common;
-
-static std::string home_dir;
-
-static void do_parent(std::string &path)
-{
-    size_t slashIndex = path.find_last_of("/\\");
-    path = path.substr(0, slashIndex);
-}
 
 static void header( const std::string &str )
 {
@@ -79,6 +72,8 @@ static void skip_whitespace(term_tokenizer &tokenizer)
 static void test_complicated_parse()
 {
     header( "test_complicated_parse()" );
+
+    const std::string &home_dir = find_home_dir();
 
     std::ifstream infile(home_dir + "/src/common/test/test_parser_sample.pl");
 
@@ -163,23 +158,6 @@ static void test_complicated_parse()
 	       cmp_tokens.has_more_tokens());
 
     }
-}
-
-static void find_home_dir(const char *selfpath)
-{
-    // Current path
-    home_dir = selfpath;
-    std::replace( home_dir.begin(), home_dir.end(), '\\', '/');
-
-    bool found = false;
-    do {
-      do_parent(home_dir);
-      std::string checkfile = home_dir + "/env/Makefile.main";
-      if (auto f = fopen(checkfile.c_str(), "r")) {
-   	  fclose(f);
-          found = true;
-      }
-    } while (!found);
 }
 
 int main( int argc, char *argv[] )

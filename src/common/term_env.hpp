@@ -113,7 +113,11 @@ public:
   // aren't owned.)
   ~term_env();
 
+  heap & get_heap();
+  term_ops & get_ops();
+
   term parse(const std::string &str);
+
   std::string to_string(const term &t, term_emitter::style style = term_emitter::STYLE_TERM) const;
 
   term empty_list() const;

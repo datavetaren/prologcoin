@@ -11,15 +11,10 @@
 
 namespace prologcoin { namespace common {
 
-class token_exception_unrecognized_operator : public ::std::runtime_error
+class token_exception_unrecognized_operator : public token_exception
 {
 public:
-    token_exception_unrecognized_operator(const token_position &pos, const std::string &msg) : ::std::runtime_error(msg), pos_(pos) { }
-
-    const token_position & pos() const { return pos_; }
-
-private:
-    token_position pos_;
+    token_exception_unrecognized_operator(const token_position &pos, const std::string &msg) : token_exception(pos, msg) { }
 };
 
 class term_parse_error_exception : public ::std::runtime_error
@@ -53,6 +48,10 @@ public:
 
     ext<cell> parse();
 
+    const term_tokenizer::token & lookahead() const;
+    const std::vector<term_tokenizer::token> & get_comments() const;
+    std::string get_comments_string() const;
+
     bool is_eof();
     bool is_error();
 
@@ -60,6 +59,8 @@ public:
 
     void for_each_var_name(std::function<void (const ext<cell> &ref,
 				       const std::string &name)> f) const;
+
+    void clear_var_names();
 
 private:
     term_parser_impl *impl_;
