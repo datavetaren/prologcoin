@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <string>
+#include <algorithm>
 
 static void do_parent(std::string &path)
 {

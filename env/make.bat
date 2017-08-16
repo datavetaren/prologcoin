@@ -5,6 +5,9 @@ REM -- Change settings here -------------------------------------------
 REM To set a specific VC: SET CHOOSEVC=VS110 (VS120, VS130, ...)
 SET CHOOSEVC=
 
+REM Set 32-bit or 64-bit version
+SET BIT=32
+
 REM To set debug mode, set DEBUGMODE=1
 SET DEBUGMODE=1
 
@@ -29,7 +32,7 @@ REM Check if cl.exe is present on path
 REM
 WHERE /q cl.exe
 IF NOT ERRORLEVEL 1 (
-GOTO :MAIN
+REM GOTO :MAIN
 )
 
 SETLOCAL ENABLEDELAYEDEXPANSION
@@ -44,7 +47,12 @@ FOR /f "delims=" %%A IN (%TEMP%\vcname.txt) DO SET VCNAME=%%A
 CALL :trim VCHOME %VCHOME%
 CALL :trim VCNAME %VCNAME%
 
-CALL "%VCHOME%..\..\vc\bin\vcvars32.bat"
+IF %BIT%==32 (
+    CALL "%VCHOME%..\..\vc\bin\vcvars32.bat"
+)
+IF %BIT%==64 (
+    CALL "%VCHOME%..\..\vc\bin\x86_amd64\vcvarsx86_amd64.bat"
+)
 
 GOTO:MAIN
 
@@ -131,6 +139,7 @@ IF NOT "%DOLIB%"=="" (
 )
 
 SET CCFLAGS=!CCFLAGS! /I"!BOOST!"
+SET LINKFLAGS=!LINKFLAGS! /LIBPATH:"!BOOST!\lib!BIT!-msvc-!VCVER!.0"
 
 set ABSROOT=%~dp0
 
@@ -471,7 +480,7 @@ mkdir %BIN%
 echo Compiling make_vcxproj.cs
 csc.exe /nologo /reference:Microsoft.Build.dll /reference:Microsoft.Build.Framework.dll /out:%BIN%\make_vcxproj.exe %ENV%\make_vcxproj.cs
 IF ERRORLEVEL 1 GOTO :EOF
-%BIN%\make_vcxproj.exe env=%VCNAME% src=%SRC% out=%OUT% bin=%BIN% boost="!BOOST!"
+%BIN%\make_vcxproj.exe env=%VCNAME% bit=%BIT% src=%SRC% out=%OUT% bin=%BIN% boost="!BOOST!"
 
 GOTO :EOF
 

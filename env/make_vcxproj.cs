@@ -14,6 +14,7 @@ public class make_vcproj
    static private string theBinDir;
    static private string theBoostDir = "";
    static private string thePlatformToolset;
+   static private string theBit = "32";
 
    static private string MAIN_GUID = "7c9e667a-7425-30de-944b-f07fc1f90ae8";
 
@@ -270,6 +271,16 @@ public class make_vcproj
        linkDef.AddMetadata("GenerateDebugInformation", "true");
        linkDef.AddMetadata("SubSystem", "Console");
 
+       // Extract numbers from thePlatformToolset
+       string vcVer = "";
+       foreach (char c in thePlatformToolset) {
+           if (c >= '0' && c <= '9') vcVer += c;
+       }
+       vcVer = vcVer.Substring(0, vcVer.Length-1) + "." + vcVer[vcVer.Length-1];
+       string boostLibDir = theBoostDir + @"\" + "lib" + theBit + "-msvc-" + vcVer;
+       // Console.WriteLine("BoostLibDir: " + boostLibDir);
+       linkDef.AddMetadata("AdditionalLibraryDirectories", boostLibDir);
+
        var propDebug = project.Xml.AddPropertyGroup();
        propDebug.Condition = "'$(Configuration)|$(Platform)'=='Debug|Win32'";
        propDebug.SetProperty("BuildLinkTargets", "");
@@ -325,6 +336,7 @@ public class make_vcproj
        string binDir = "";
        string env = "";
        string boost = "";
+       string bit = "";
        Console.WriteLine("make_vcproj");
        foreach (string x in args) {
            if (x.StartsWith("src=")) {
@@ -339,6 +351,9 @@ public class make_vcproj
 	   if (x.StartsWith("env=")) {
 	      env = x.Substring(4);
 	   }
+	   if (x.StartsWith("bit=")) {
+	      bit = x.Substring(4);
+	   }
 	   if (x.StartsWith("boost=")) {
 	      boost = x.Substring(6);
 	   }
@@ -347,6 +362,7 @@ public class make_vcproj
        Console.WriteLine("outDir=" + outDir);
        Console.WriteLine("binDir=" + binDir);
        Console.WriteLine("   env=" + env);
+       Console.WriteLine("   bit=" + bit);
        Console.WriteLine("boost =" + boost);
 
        Directory.CreateDirectory(binDir);
@@ -364,6 +380,7 @@ public class make_vcproj
        theOutDir = outDir;
        theBinDir = binDir;
        theBoostDir = boost;
+       theBit = bit;
 
        // Iterate through directories from src
 

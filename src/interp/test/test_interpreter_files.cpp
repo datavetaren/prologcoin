@@ -3,8 +3,9 @@
 #include "../../common/term_parser.hpp"
 #include "../interpreter.hpp"
 #include <fstream>
-#include <dirent.h>
+
 #include <boost/algorithm/string.hpp>
+#include <boost/filesystem.hpp>
 
 using namespace prologcoin::common;
 using namespace prologcoin::interp;
@@ -151,16 +152,13 @@ static void test_interpreter_files()
 
     std::string files_dir = home_dir + "/src/interp/test/pl_files";
 
-    DIR *dir = opendir(files_dir.c_str());
-    struct dirent *ent;
-    while ((ent = readdir(dir)) != nullptr) {
-	std::string filepath = files_dir + "/" + ent->d_name;
+    for (auto path : boost::filesystem::directory_iterator(files_dir)) {
+        std::string filepath = path.path().string();
 	if (boost::ends_with(filepath, ".pl")) {
 	    bool r = test_interpreter_file(filepath);
 	    assert(r);
 	}
     }
-    closedir (dir);    
 }
 
 int main( int argc, char *argv[] )
@@ -168,5 +166,7 @@ int main( int argc, char *argv[] )
     find_home_dir(argv[0]);
 
     test_interpreter_files();
+
+    return 0;
 }
 
