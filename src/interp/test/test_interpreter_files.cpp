@@ -125,6 +125,19 @@ static bool test_interpreter_file(const std::string &filepath)
 		std::cout << "Actual: " << result << std::endl;
 		std::cout << "Expect: " << expected[0] << std::endl;
 		match_strings(result, expected[0]);
+
+		for (size_t i = 1; i < expected.size(); i++) {
+	  	    auto next_expect = expected[i];
+		    bool r = interp.next();
+		    if (r) {
+  		        result = interp.get_result(false);
+		    } else {
+	  	        result = "end";
+		    }
+		    std::cout << "Actual: " << result << std::endl;
+		    std::cout << "Expect: " << next_expect << std::endl;
+		    match_strings(result, next_expect);
+		}
 	    }
 	}
 

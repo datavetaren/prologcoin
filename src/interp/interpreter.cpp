@@ -286,6 +286,8 @@ bool interpreter::execute(const term &query)
 {
     top_fail_ = false;
 
+    query_vars_.clear();
+
     // Record all vars for this query
     std::for_each( term_env_->begin(query),
 		   term_env_->end(query),
