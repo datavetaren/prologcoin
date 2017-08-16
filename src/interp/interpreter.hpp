@@ -101,6 +101,8 @@ public:
 
     inline common::term_env & env() { return *term_env_; }
 
+    void sync_with_heap() { env().sync_with_heap(); }
+
     void load_clause(const std::string &str);
     void load_clause(std::istream &is);
     void load_clause(const term &t);

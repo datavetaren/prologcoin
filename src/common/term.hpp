@@ -678,6 +678,7 @@ public:
     void print_status(std::ostream &out) const;
 
     void print(std::ostream &out) const;
+    void print(std::ostream &out, size_t from, size_t to) const;
 
 private:
     friend class term_emitter;

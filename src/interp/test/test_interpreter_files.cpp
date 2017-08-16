@@ -33,8 +33,8 @@ static std::vector<std::string> parse_expected(std::string &comments)
 	} else {
 	    exp = comments.substr(i1+7,(i2-i1));
 	}
-	// Remove trailing %
-	exp = exp.substr(0, exp.find_last_of("%"));
+	// Remove anything from %
+	exp = exp.substr(0, exp.find_first_of("%"));
 	// Remove trailing whitespace
 	boost::trim(exp);
 	expected.push_back(exp);
@@ -76,6 +76,8 @@ static bool test_interpreter_file(const std::string &filepath)
     try {
 	while (!infile.eof()) {
 	    term t = parser.parse();
+
+	    interp.sync_with_heap();
 
 	    bool is_query = interp.env().is_functor(t, query_op);
 
@@ -124,7 +126,7 @@ static bool test_interpreter_file(const std::string &filepath)
 		std::string result = interp.get_result(false);
 		std::cout << "Actual: " << result << std::endl;
 		std::cout << "Expect: " << expected[0] << std::endl;
-		match_strings(result, expected[0]);
+		assert(match_strings(result, expected[0]));
 
 		for (size_t i = 1; i < expected.size(); i++) {
 	  	    auto next_expect = expected[i];
@@ -136,7 +138,7 @@ static bool test_interpreter_file(const std::string &filepath)
 		    }
 		    std::cout << "Actual: " << result << std::endl;
 		    std::cout << "Expect: " << next_expect << std::endl;
-		    match_strings(result, next_expect);
+		    assert(match_strings(result, next_expect));
 		}
 	    }
 	}
@@ -167,8 +169,10 @@ static void test_interpreter_files()
 
     std::string files_dir = home_dir + "/src/interp/test/pl_files";
 
-    for (auto path : boost::filesystem::directory_iterator(files_dir)) {
-        std::string filepath = path.path().string();
+    boost::filesystem::directory_iterator it_end;
+
+    for (boost::filesystem::directory_iterator it(files_dir); it != it_end; ++it) {
+        std::string filepath = it->path().string();
 	if (boost::ends_with(filepath, ".pl")) {
 	    bool r = test_interpreter_file(filepath);
 	    assert(r);

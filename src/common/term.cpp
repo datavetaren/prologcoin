@@ -219,8 +219,13 @@ bool heap::is_list(const cell c) const
 
 void heap::print(std::ostream &out) const
 {
+    print(out, 0, size_);
+}
+
+void heap::print(std::ostream &out, size_t from, size_t to) const
+{
     out << std::setw(8) << " " << std::setw(0) << "  ." << std::string(27, '-') << "." << "\n";
-    for (size_t i = 0; i < size_; i++) {
+    for (size_t i = from; i < to; i++) {
 	out << std::setw(8) << i << std::setw(0) << ": " << get(i).str() << "\n";
     }
     out << std::setw(8) << " " << std::setw(0) << "  `" << std::string(27, '-') << "´" << "\n";

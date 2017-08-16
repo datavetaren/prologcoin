@@ -31,6 +31,8 @@ public:
     }
   }
 
+  void sync_with_heap() { register_h_ = heap_->size(); }
+
   heap & get_heap() { return *heap_; }
   term_ops & get_ops() { return *ops_; }
 
@@ -75,7 +77,7 @@ public:
   inline size_t stack_depth() const { return stack_.size(); }
   inline void trim_stack(size_t depth) const { stack_.resize(depth); }
 
-  inline void trim_heap(size_t new_size) { heap_->trim(new_size); }
+  inline void trim_heap(size_t new_size) { heap_->trim(new_size); register_h_ = new_size; }
 
   inline void trail(size_t index) {
     if (index < register_hb_) {
@@ -288,7 +290,7 @@ cell term_env_impl::copy(cell c)
 	      // Arguments on temp are the new arguments of STR cell
 	      cell newstr = heap_->new_str(f);
 	      for (size_t i = 0; i < num_args; i++) {
-		heap_->set_arg(newstr, num_args-i-1, temp_pop());
+		  heap_->set_arg(newstr, num_args-i-1, temp_pop());
 	      }
 	      temp_push(newstr);
 	    } else {
@@ -424,6 +426,11 @@ term_env::term_env()
 term_env::~term_env()
 {
     delete impl_;
+}
+
+void term_env::sync_with_heap()
+{
+    impl_->sync_with_heap();
 }
 
 heap & term_env::get_heap()

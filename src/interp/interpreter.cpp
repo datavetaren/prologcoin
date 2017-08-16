@@ -313,6 +313,9 @@ bool interpreter::cont()
     do {
       execute_once();
     } while (register_e_ != 0);
+
+    register_h_ = term_env_->heap_size();
+
     return !top_fail_;
 }
 
@@ -586,8 +589,11 @@ bool interpreter::select_clause(term &instruction,
     // Let's go through clause by clause and see if we can find a match.
     for (size_t i = from_clause; i < num_clauses; i++) {
         auto &clause = clauses[i];
+
 	size_t current_heap = term_env_->heap_size();
 	auto copy_clause = term_env_->copy(clause); // Instantiate it
+	register_h_ = term_env_->heap_size();
+
 	term copy_head = clause_head(copy_clause);
 	term copy_body = clause_body(copy_clause);
 

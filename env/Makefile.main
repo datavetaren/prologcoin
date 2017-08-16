@@ -65,6 +65,7 @@ TEST_OK_VALGRIND_FILES := $(addprefix $(BIN)/test/$(SUBDIR)/, $(TEST_CPP_FILES:$
 TEST_LOG_FILES := $(addprefix $(BIN)/test/$(SUBDIR)/, $(TEST_CPP_FILES:$(SRC)/$(SUBDIR)/test/%.cpp=%$(EXE_EXT).log))
 
 LINK_DEP_FILES := $(addsuffix $(LIB_EXT), $(addprefix $(BIN)/lib,$(DEPENDS)))
+LINK_DEP_FILES := $(LINK_DEP_FILES) $(addprefix -l, $(EXT))
 
 GOAL := $(BIN)/lib$(LIB)$(LIB_EXT)
 
