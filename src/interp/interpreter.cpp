@@ -490,7 +490,19 @@ void interpreter::compute_matched_clauses(con_cell functor,
 indexed_clauses & interpreter::matched_clauses(con_cell functor,
 					       const term &first_arg)
 {
-    functor_index findex(functor, first_arg);
+    term index_arg = first_arg;
+    switch (first_arg->tag()) {
+    case tag_t::STR:
+	index_arg = term_env_->to_term(term_env_->functor(first_arg)); break;
+    case tag_t::CON:
+    case tag_t::INT:
+	break;
+    case tag_t::REF:
+	index_arg = term();
+	break;
+    }
+
+    functor_index findex(functor, index_arg);
     auto it = indexed_clauses_.find(findex);
     if (it == indexed_clauses_.end()) {
 	auto &indexed_clauses = indexed_clauses_[findex];
@@ -550,9 +562,16 @@ void interpreter::dispatch(term &instruction)
     auto &clauses = indexed_clauses.first;
 
     if (clauses.empty()) {
-	std::stringstream msg;
-	msg << "Undefined predicate " << term_env_->atom_name(f) << "/" << f.arity();
-	abort(interpreter_exception_undefined_predicate(msg.str()));
+
+	if (program_db_.find(f) == program_db_.end()) {
+	    std::stringstream msg;
+	    msg << "Undefined predicate " << term_env_->atom_name(f) << "/" << f.arity();
+	    abort(interpreter_exception_undefined_predicate(msg.str()));
+	    return;
+	}
+
+	fail();
+	return;
     }
 
     if (is_debug()) {
@@ -650,7 +669,6 @@ void interpreter::fail()
 
 	// Is there another clause to backtrack to?
 	if (ch->bp.value() != 0) {
-
 	    // Unbind variables
 	    term_env_->unwind_trail(register_tr_, current_tr);
 	    term_env_->trim_trail(register_tr_);
@@ -666,6 +684,7 @@ void interpreter::fail()
 	    size_t from_clause = ch->bp.value() & 0xff;
 
   	    ok = select_clause(register_qr_, index_id, clauses, from_clause);
+
 	}
 	if (!ok) {
 	    unbound = false;

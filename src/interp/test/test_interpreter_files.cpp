@@ -74,6 +74,9 @@ static bool test_interpreter_file(const std::string &filepath)
 
 
     try {
+	bool first_clause = true;
+	bool new_block = false;
+
 	while (!infile.eof()) {
 	    term t = parser.parse();
 
@@ -88,7 +91,12 @@ static bool test_interpreter_file(const std::string &filepath)
 				      { interp.env().set_name(ref,name); } );
 	    parser.clear_var_names();
 
-	    if (is_query) {
+	    if (!is_query && new_block) {
+		std::cout << std::endl;
+		new_block = false;
+	    }
+
+	    if (is_query || first_clause) {
 		std::cout << std::string(67, '-') << std::endl;
 	    }
 
@@ -111,6 +119,8 @@ static bool test_interpreter_file(const std::string &filepath)
 
 	    if (!is_query) {
 		interp.load_clause(t);
+
+		first_clause = false;
 	    }
 
 	    if (is_query) {
@@ -140,6 +150,9 @@ static bool test_interpreter_file(const std::string &filepath)
 		    std::cout << "Expect: " << next_expect << std::endl;
 		    assert(match_strings(result, next_expect));
 		}
+
+		first_clause = true;
+		new_block = true;
 	    }
 	}
 
