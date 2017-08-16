@@ -28,9 +28,9 @@ void interpreter::init()
     top_fail_ = false;
     register_b_ = 0;
     register_e_ = 0;
-    register_tr_ = 0;
-    register_h_ = 0;
-    register_hb_ = 0;
+    register_tr_ = term_env_->trail_size();
+    register_h_ = term_env_->heap_size();
+    register_hb_ = register_h_;
     register_b0_ = 0;
 }
 
@@ -285,6 +285,10 @@ void interpreter::abort(const interpreter_exception &ex)
 bool interpreter::execute(const term &query)
 {
     top_fail_ = false;
+
+    term_env_->trim_trail(0);
+
+    init();
 
     query_vars_.clear();
 
