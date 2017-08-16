@@ -86,6 +86,10 @@ static bool test_interpreter_file(const std::string &filepath)
 				      { interp.env().set_name(ref,name); } );
 	    parser.clear_var_names();
 
+	    if (is_query) {
+		std::cout << std::string(67, '-') << std::endl;
+	    }
+
 	    std::cout << interp.env().to_string(t,
 		is_query ? term_emitter::STYLE_TERM : term_emitter::STYLE_PROGRAM)
 		      << "\n";
@@ -93,8 +97,6 @@ static bool test_interpreter_file(const std::string &filepath)
 	    std::vector<std::string> expected;
 
 	    if (is_query) {
-		std::cout << std::string(67, '-') << std::endl;
-
 		std::string comments = parser.get_comments_string();
 		expected = parse_expected(comments);
 		if (expected.size() == 0) {
