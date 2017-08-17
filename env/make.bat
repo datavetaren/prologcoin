@@ -32,7 +32,7 @@ REM Check if cl.exe is present on path
 REM
 WHERE /q cl.exe
 IF NOT ERRORLEVEL 1 (
-REM GOTO :MAIN
+GOTO :MAIN
 )
 
 SETLOCAL ENABLEDELAYEDEXPANSION
