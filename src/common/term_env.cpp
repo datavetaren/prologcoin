@@ -50,6 +50,8 @@ public:
   bool is_empty_list(cell t) const;
   bool is_comma(cell t) const;
   bool equal(cell a, cell b) const;
+  int  functor_standard_order(con_cell a, con_cell b) const;
+  int  standard_order(cell a, cell b) const;
   bool unify(cell a, cell b);
   bool unify_helper(cell a, cell b);
   void bind(cell a, cell b);
@@ -223,6 +225,98 @@ bool term_env_impl::equal(cell a, cell b) const
     return true;
 }
 
+int term_env_impl::functor_standard_order(con_cell a, con_cell b) const
+{
+    if (a == b) {
+        return 0;
+    }
+    size_t arity_a = a.arity();
+    size_t arity_b = b.arity();
+    if (arity_a < arity_b) {
+        return -1;
+    } else if (arity_a > arity_b) {
+        return 1;
+    }
+    auto name_a = atom_name(a);
+    auto name_b = atom_name(b);
+    return name_a.compare(name_b);
+}
+
+int term_env_impl::standard_order(cell a, cell b) const
+{
+    size_t d = stack_depth();
+
+    push(b);
+    push(a);
+
+    while (stack_depth() > d) {
+	a = deref(pop());
+	b = deref(pop());
+
+	if (a == b) {
+  	    continue;
+	}
+	
+	if (a.tag() != b.tag()) {
+	    trim_stack(d);
+	    if (a.tag() < b.tag()) {
+	        return -1;
+	    } else {
+	        return 1;
+	    }
+	    return false;
+	}
+
+	switch (a.tag()) {
+ 	case tag_t::CON:
+	  {
+	    trim_stack(d);
+	    const con_cell &fa = static_cast<const con_cell &>(a);
+	    const con_cell &fb = static_cast<const con_cell &>(b);
+	    return functor_standard_order(fa, fb);
+     	    break;
+	  }
+	case tag_t::REF:
+	case tag_t::INT:
+	  {
+	    trim_stack(d);
+	    if (a.value() < b.value()) {
+	        return -1;
+	    } else {
+  	        return 1;
+	    }
+	  }
+	  break;
+	default:
+	  assert(a.tag() == tag_t::STR);
+	  break;
+	}
+
+	// a and b tags are both STR
+
+	con_cell fa = functor(a);
+	con_cell fb = functor(b);
+
+	if (fa != fb) {
+	    trim_stack(d);
+	    return functor_standard_order(fa, fb);
+	}
+
+	str_cell &astr = static_cast<str_cell &>(a);
+	str_cell &bstr = static_cast<str_cell &>(b);
+
+	size_t num_args = fa.arity();
+	for (size_t i = 0; i < num_args; i++) {
+	    auto ai = arg(astr, num_args-i-1);
+	    auto bi = arg(bstr, num_args-i-1);
+	    push(bi);
+	    push(ai);
+	}
+    }
+
+    return 0;
+}
+
 bool term_env_impl::unify(cell a, cell b)
 {
     size_t start_trail = trail_depth();
@@ -308,8 +402,7 @@ cell term_env_impl::copy(cell c)
 	  break;
 
 	// TODO: Implement hese later...
-	case tag_t::BIG:
-	case tag_t::GBL: assert(false); break;
+	case tag_t::BIG: assert(false); break;
 	}
     }
 
@@ -406,8 +499,7 @@ bool term_env_impl::unify_helper(cell a, cell b)
 	  break;
 	}
         // TODO: Implement these two later...
-	case tag_t::BIG:
-	case tag_t::GBL: assert(false); break;
+	case tag_t::BIG:assert(false); break;
 	}
     }
 
@@ -546,6 +638,11 @@ void term_env::set_last_choice_heap(size_t at_index)
 bool term_env::equal(const term &a, const term &b)
 {
     return impl_->equal(a,b);
+}
+
+int term_env::standard_order(const term &a, const term &b)
+{
+    return impl_->standard_order(a,b);
 }
 
 void term_env::push(const term &t)

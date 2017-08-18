@@ -140,6 +140,9 @@ public:
   bool equal(const term &a, const term &b);
   void set_last_choice_heap(size_t at_index);
 
+  // Return -1, 0 or 1 when comparing standard order for 'a' and 'b'
+  int standard_order(const term &a, const term &b);
+
   size_t allocate_stack(size_t num_cells);
   void ensure_stack(size_t at_index, size_t num_cells);
   cell * stack_ref(size_t at_index);

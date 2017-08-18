@@ -6,6 +6,7 @@
 #include <istream>
 #include <vector>
 #include "../common/term_env.hpp"
+#include "builtins.hpp"
 
 namespace prologcoin { namespace interp {
 // This pair represents functor with first argument. If first argument
@@ -153,6 +154,9 @@ public:
     };
 
 private:
+    void load_builtin(con_cell f, builtin b);
+    void load_builtins();
+
     void init();
     void abort(const interpreter_exception &ex);
     void fail();
@@ -216,7 +220,7 @@ private:
 
     std::vector<std::function<void ()> > syntax_check_stack_;
 
-    std::unordered_map<common::con_cell, std::vector<common::term> > program_db_;
+    std::unordered_map<common::con_cell, std::pair<std::vector<common::term>, builtin > > program_db_;
     std::vector<common::con_cell> program_predicates_;
     std::vector< std::vector<common::term> * > predicate_clauses_;
     std::unordered_map<functor_index, indexed_clauses> indexed_clauses_;

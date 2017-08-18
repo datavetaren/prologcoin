@@ -74,10 +74,28 @@ void interpreter::load_clause(const term &t)
     
     auto found = program_db_.find(predicate);
     if (found == program_db_.end()) {
-	program_db_[predicate] = std::vector<term>();
+        program_db_[predicate] = std::make_pair(std::vector<term>(), nullptr);
 	program_predicates_.push_back(predicate);
     }
-    program_db_[predicate].push_back(t);
+    program_db_[predicate].first.push_back(t);
+    program_db_[predicate].second = nullptr; // Builtin function set to null
+}
+
+void interpreter::load_builtin(con_cell f, builtin b)
+{
+    auto found = program_db_.find(f);
+    if (found == program_db_.end()) {
+        program_db_[f] = std::make_pair(std::vector<term>(), nullptr);
+	program_predicates_.push_back(f);
+    }
+    program_db_[f].first.clear();
+    program_db_[f].second = b;
+}
+
+void interpreter::load_builtins()
+{
+    load_builtin(con_cell("@<",2), &builtins::operator_at_less_than);
+    load_builtin(con_cell("==",2), &builtins::operator_equals);
 }
 
 void interpreter::load_program(const term &t)
@@ -179,7 +197,7 @@ void interpreter::syntax_check_goal(const term &t)
 	auto tg = t->tag();
 	// We don't know what variables will be bound to, so we need
 	// to conservatively skip the syntax check.
-	if (tg == tag_t::REF || tg == tag_t::GBL) {
+	if (tg == tag_t::REF) {
 	    return;
 	}
 	throw syntax_exception_bad_goal(t, "Goal is not callable.");
@@ -195,7 +213,11 @@ void interpreter::print_db(std::ostream &out) const
 {
     bool do_nl_p = false;
     for (auto p : program_predicates_) {
-	const std::vector<term> &clauses = program_db_.find(p)->second;
+        auto &def = program_db_.find(p)->second;
+	if (def.second != nullptr) {
+	    continue; // Builtin
+	}
+	const std::vector<term> &clauses = def.first;
 	if (do_nl_p) {
 	    out << "\n";
 	}
@@ -436,7 +458,6 @@ common::cell interpreter::first_arg_index(const term &t)
 {
     switch (t->tag()) {
     case tag_t::REF: return t;
-    case tag_t::GBL: return t;
     case tag_t::CON: return t;
     case tag_t::STR: {
 	con_cell f = term_env_->functor(t);
@@ -472,7 +493,7 @@ void interpreter::compute_matched_clauses(con_cell functor,
 					  const term &first_arg,
 					  std::vector<common::term> &matched)
 {
-    auto &clauses = program_db_[functor];
+    auto &clauses = program_db_[functor].first;
     for (auto &clause : clauses) {
 	// Extract head
 	auto head = clause_head(clause);

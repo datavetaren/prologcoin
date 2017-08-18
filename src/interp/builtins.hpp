@@ -3,17 +3,20 @@
 #ifndef _interp_builtins_hpp
 #define _interp_builtins_hpp
 
-#include <istream>
-#include <vector>
-#include "../common/term_env.hpp"
+#include "../common/term.hpp"
 
 namespace prologcoin { namespace interp {
+    class interpreter;
 
-class builtin {
+    typedef std::function<bool (interpreter &interp, common::term &caller)> builtin;
 
-private:
-    term_env_ &env_;
-};
+    class builtins {
+    public:
+        // operator @<
+        static bool operator_at_less_than(interpreter &interp, common::term &caller);
+        // operator ==
+        static bool operator_equals(interpreter &interp, common::term &caller);
+    };
 
 }}
 
