@@ -256,7 +256,7 @@ int term_env_impl::standard_order(cell a, cell b) const
 	if (a == b) {
   	    continue;
 	}
-	
+
 	if (a.tag() != b.tag()) {
 	    trim_stack(d);
 	    if (a.tag() < b.tag()) {

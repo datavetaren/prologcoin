@@ -94,7 +94,7 @@ class heap;
 //
 class tag_t {
 public:
-    enum kind_t { REF = 0, CON = 2, INT = 3, BIG = 4, STR = 5 };
+    enum kind_t { REF = 0, INT = 1, BIG = 2, CON = 3, STR = 4 };
 
     inline tag_t( kind_t k ) : kind_(k) { }
 

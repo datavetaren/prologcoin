@@ -11,6 +11,8 @@ interpreter::interpreter() : comma_(",",2), empty_list_("[]", 0), implied_by_(":
     owns_term_env_ = true;
 
     init();
+
+    load_builtins();
 }
 
 interpreter::interpreter(term_env &env) : comma_(",",2), empty_list_("[]",0), implied_by_(":-", 2)
@@ -42,9 +44,8 @@ interpreter::~interpreter()
     syntax_check_stack_.clear();
     program_db_.clear();
     program_predicates_.clear();
-    predicate_clauses_.clear();
-    indexed_clauses_.clear();
-    id_indexed_clauses_.clear();
+    executable_id_.clear();
+    id_to_executable_.clear();
     if (owns_term_env_) {
 	delete term_env_;
     }
@@ -95,7 +96,11 @@ void interpreter::load_builtin(con_cell f, builtin b)
 void interpreter::load_builtins()
 {
     load_builtin(con_cell("@<",2), &builtins::operator_at_less_than);
+    load_builtin(con_cell("@=<",2), &builtins::operator_at_equals_less_than);
+    load_builtin(con_cell("@>",2), &builtins::operator_at_greater_than);
+    load_builtin(con_cell("@>=",2), &builtins::operator_at_greater_than_equals);
     load_builtin(con_cell("==",2), &builtins::operator_equals);
+    load_builtin(con_cell("=",2), &builtins::operator_unification);
 }
 
 void interpreter::load_program(const term &t)
@@ -489,11 +494,16 @@ term interpreter::clause_body(const term &clause)
     }
 }
 
-void interpreter::compute_matched_clauses(con_cell functor,
-					  const term &first_arg,
-					  std::vector<common::term> &matched)
+void interpreter::compute_matched_executable(con_cell functor,
+					     const term &first_arg,
+					     executable &matched)
 {
-    auto &clauses = program_db_[functor].first;
+    auto &executable = program_db_[functor];
+    if (executable.second != nullptr) {
+	matched = executable;
+	return;
+    }
+    auto &clauses = executable.first;
     for (auto &clause : clauses) {
 	// Extract head
 	auto head = clause_head(clause);
@@ -504,12 +514,11 @@ void interpreter::compute_matched_clauses(con_cell functor,
 		continue;
 	    }
 	}
-	matched.push_back(clause);
+	matched.first.push_back(clause);
     }
 }
 
-indexed_clauses & interpreter::matched_clauses(con_cell functor,
-					       const term &first_arg)
+size_t interpreter::matched_executable_id(con_cell functor, const term &first_arg)
 {
     term index_arg = first_arg;
     switch (first_arg->tag()) {
@@ -524,21 +533,18 @@ indexed_clauses & interpreter::matched_clauses(con_cell functor,
     }
 
     functor_index findex(functor, index_arg);
-    auto it = indexed_clauses_.find(findex);
-    if (it == indexed_clauses_.end()) {
-	auto &indexed_clauses = indexed_clauses_[findex];
-	compute_matched_clauses(functor, first_arg, indexed_clauses.first);
-	it = indexed_clauses_.find(findex);
-	size_t id = id_indexed_clauses_.size();
-	id_indexed_clauses_.push_back(&indexed_clauses.first);
-	it->second.second = id;
+    auto it = executable_id_.find(findex);
+    size_t id;
+    if (it == executable_id_.end()) {
+	id = id_to_executable_.size();
+	id_to_executable_.push_back( executable() );
+	executable_id_[findex] = id;
+	auto &executable = id_to_executable_[id];
+	compute_matched_executable(functor, first_arg, executable);
+    } else {
+	id = it->second;
     }
-    return it->second;
-}
-
-std::vector<common::term> & interpreter::matched_clauses(size_t id)
-{
-    return *id_indexed_clauses_[id];
+    return id;
 }
 
 common::term interpreter::get_first_arg(const term &t)
@@ -579,11 +585,22 @@ void interpreter::dispatch(term &instruction)
 
     auto first_arg = get_first_arg(instruction);
 
-    auto &indexed_clauses = matched_clauses(f, first_arg);
-    auto &clauses = indexed_clauses.first;
+    size_t executable_id = matched_executable_id(f, first_arg);
+    executable &e = get_executable(executable_id);
+
+    // Is this a built-in?
+    auto bf = e.second;
+    if (bf != nullptr) {
+	if (!bf(*this, instruction)) {
+	    fail();
+	}
+	return;
+    }
+
+    // Otherwise a vector of clauses
+    auto &clauses = e.first;
 
     if (clauses.empty()) {
-
 	if (program_db_.find(f) == program_db_.end()) {
 	    std::stringstream msg;
 	    msg << "Undefined predicate " << term_env_->atom_name(f) << "/" << f.arity();
@@ -602,7 +619,7 @@ void interpreter::dispatch(term &instruction)
 
     size_t num_clauses = clauses.size();
     bool has_choices = num_clauses > 1;
-    size_t index_id = indexed_clauses.second;
+    size_t index_id = executable_id;
 
     // More than one clause that matches? We need a choice point.
     if (has_choices) {
@@ -701,7 +718,7 @@ void interpreter::fail()
 		std::cout << "interpreter::fail(): redo " << term_env_->to_string(register_qr_) << "\n";
 	    }
       	    size_t index_id = ch->bp.value() >> 8;
-	    auto &clauses = *id_indexed_clauses_[index_id];
+	    auto &clauses = id_to_executable_[index_id].first;
 	    size_t from_clause = ch->bp.value() & 0xff;
 
   	    ok = select_clause(register_qr_, index_id, clauses, from_clause);

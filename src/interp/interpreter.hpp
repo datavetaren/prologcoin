@@ -12,7 +12,9 @@ namespace prologcoin { namespace interp {
 // This pair represents functor with first argument. If first argument
 // is a STR tag, then we dereference it to a CON cell.
 typedef std::pair<common::con_cell, common::cell> functor_index;
-typedef std::pair<std::vector<common::term>, size_t> indexed_clauses;
+typedef std::vector<common::term> clauses;
+typedef std::pair<clauses, builtin> executable;
+typedef std::pair<executable, size_t> indexed_executable;
 }}
 
 namespace std {
@@ -196,9 +198,15 @@ private:
     bool definitely_inequal(const term &a, const term &b);
     common::cell first_arg_index(const term &first_arg);
     term get_first_arg(const term &t);
-    void compute_matched_clauses(con_cell functor, const term &first_arg, std::vector<term> &matched);
-    indexed_clauses & matched_clauses(con_cell functor, const term &first_arg);
-    std::vector<common::term> & matched_clauses(size_t id);
+
+    void compute_matched_executable(con_cell functor, const term &first_arg, executable &matched);
+    size_t matched_executable_id(con_cell functor, const term &first_arg);
+
+    inline executable & get_executable(size_t id)
+    {
+	return id_to_executable_[id];
+    }
+
     void execute_once();
     bool cont();
     void dispatch(term &instruction);
@@ -220,11 +228,10 @@ private:
 
     std::vector<std::function<void ()> > syntax_check_stack_;
 
-    std::unordered_map<common::con_cell, std::pair<std::vector<common::term>, builtin > > program_db_;
+    std::unordered_map<common::con_cell, executable> program_db_;
     std::vector<common::con_cell> program_predicates_;
-    std::vector< std::vector<common::term> * > predicate_clauses_;
-    std::unordered_map<functor_index, indexed_clauses> indexed_clauses_;
-    std::vector<std::vector<common::term> *> id_indexed_clauses_;
+    std::unordered_map<functor_index, size_t> executable_id_;
+    std::vector<executable> id_to_executable_;
 
     std::vector<binding> query_vars_;
 
