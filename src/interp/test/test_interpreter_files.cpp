@@ -128,11 +128,20 @@ static bool test_interpreter_file(const std::string &filepath)
 	    if (is_query) {
 		std::cout << std::string(67, '-') << std::endl;
 
+		first_clause = true;
+		new_block = true;
+
 		term q = interp.env().arg(t, 0);
 
 		if (!interp.execute(q)) {
-		    std::cout << "  Failed!\n";
-		    return false;
+		    if (expected.size() > 0 && expected[0] != "fail") {
+			std::cout << "  Failed!" << std::endl;
+			return false;
+		    } else {
+			std::cout << "Actual: fail" << std::endl;
+			std::cout << "Expect: fail" << std::endl;
+			continue;
+		    }
 		}
 
 		std::string result = interp.get_result(false);
@@ -152,9 +161,6 @@ static bool test_interpreter_file(const std::string &filepath)
 		    std::cout << "Expect: " << next_expect << std::endl;
 		    assert(match_strings(result, next_expect));
 		}
-
-		first_clause = true;
-		new_block = true;
 	    }
 	}
 

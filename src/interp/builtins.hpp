@@ -12,6 +12,11 @@ namespace prologcoin { namespace interp {
 
     class builtins {
     public:
+
+	//
+	// Standard order, equality and unification
+	//
+
         // operator @<
         static bool operator_at_less_than(interpreter &interp, common::term &caller);
         // operator @=<
@@ -30,6 +35,43 @@ namespace prologcoin { namespace interp {
 
 	// operator =
 	static bool operator_unification(interpreter &interp, common::term &caller);
+
+	//
+	// Type checks
+	//
+
+	// var/1
+	static bool var_1(interpreter &interp, common::term &caller);
+
+	// nonvar/1
+	static bool nonvar_1(interpreter &interp, common::term &caller);
+
+	// integer/1
+	static bool integer_1(interpreter &interp, common::term &caller);
+
+	// number/1
+	static bool number_1(interpreter &interp, common::term &caller);
+
+	// atom/1
+	static bool atom_1(interpreter &interp, common::term &caller);
+	
+	// compound/1
+	static bool compound_1(interpreter &interp, common::term &caller);
+	
+	// atomic/1
+	static bool atomic_1(interpreter &interp, common::term &caller);
+
+	// callable/1
+	static bool callable_1(interpreter &interp, common::term &caller);
+
+	// ground/1
+	static bool ground_1(interpreter &interp, common::term &caller);
+
+	// cyclic_term/1
+	static bool cyclic_term(interpreter &interp, common::term &caller);
+
+	// acyclic_term/1
+	static bool acyclic_term(interpreter &interp, common::term &caller);
     };
 
 }}

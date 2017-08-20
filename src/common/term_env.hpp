@@ -126,6 +126,7 @@ public:
 
   std::string atom_name(con_cell functor) const;
 
+  con_cell functor(const std::string &name, size_t arity);
   con_cell functor(const term &t);
   bool is_functor(const term &t, con_cell f);
   bool is_functor(const term &t);

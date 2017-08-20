@@ -61,6 +61,7 @@ public:
 
   inline std::string atom_name(con_cell f)  const { return heap_->atom_name(f); }
 
+  inline con_cell functor(const std::string &name, size_t arity) { return heap_->functor(name, arity); }
   inline con_cell functor(cell c) const { return heap_->functor(c); }
   inline bool is_functor(cell c) const { return deref(c).tag() == tag_t::STR; }
   inline cell arg(cell c, size_t index) const { return heap_->arg0(c, index); }
@@ -598,6 +599,11 @@ bool term_env::is_comma(const term &t) const
 term term_env::empty_list() const
 {
     return impl_->empty_list();
+}
+
+con_cell term_env::functor(const std::string &name, size_t arity)
+{
+    return impl_->functor(name, arity);
 }
 
 con_cell term_env::functor(const term &t)

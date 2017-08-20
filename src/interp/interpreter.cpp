@@ -88,6 +88,8 @@ void interpreter::load_builtin(con_cell f, builtin b)
 
 void interpreter::load_builtins()
 {
+    // Standard order, equality and unification
+
     load_builtin(con_cell("@<",2), &builtins::operator_at_less_than);
     load_builtin(con_cell("@=<",2), &builtins::operator_at_equals_less_than);
     load_builtin(con_cell("@>",2), &builtins::operator_at_greater_than);
@@ -96,6 +98,18 @@ void interpreter::load_builtins()
     load_builtin(con_cell("\\==",2), &builtins::operator_not_equals);
     load_builtin(con_cell("compare",3), &builtins::compare_3);
     load_builtin(con_cell("=",2), &builtins::operator_unification);
+
+    // Type tests
+
+    load_builtin(con_cell("var",1), &builtins::var_1);
+    load_builtin(con_cell("nonvar",1), &builtins::nonvar_1);
+    load_builtin(con_cell("integer",1), &builtins::integer_1);
+    load_builtin(con_cell("number",1), &builtins::number_1);
+    load_builtin(con_cell("atom",1), &builtins::atom_1);
+    load_builtin(con_cell("atomic",1), &builtins::atomic_1);
+    load_builtin(env().functor("compound",1), &builtins::compound_1);
+    load_builtin(env().functor("callable",1), &builtins::callable_1);
+    load_builtin(con_cell("ground", 1), &builtins::ground_1);
 }
 
 void interpreter::load_program(const term &t)
@@ -416,6 +430,10 @@ std::string interpreter::get_result(bool newlines) const
 
     for (auto v : count_occurrences) {
         term_env_->clear_name(v.first);
+    }
+
+    if (first) {
+	ss << "true";
     }
 
     if (newlines) {
