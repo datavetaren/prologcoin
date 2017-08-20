@@ -160,6 +160,7 @@ private:
     void load_builtins();
 
     void init();
+    void prepare_execution();
     void abort(const interpreter_exception &ex);
     void fail();
     bool select_clause(term &instruction,

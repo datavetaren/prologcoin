@@ -23,17 +23,10 @@ interpreter::interpreter(term_env &env) : comma_(",",2), empty_list_("[]",0), im
     init();
 }
 
-
 void interpreter::init()
 {
     debug_ = false;
-    top_fail_ = false;
-    register_b_ = 0;
-    register_e_ = 0;
-    register_tr_ = term_env_->trail_size();
-    register_h_ = term_env_->heap_size();
-    register_hb_ = register_h_;
-    register_b0_ = 0;
+    prepare_execution();
 }
 
 interpreter::~interpreter()
@@ -309,13 +302,24 @@ void interpreter::abort(const interpreter_exception &ex)
     throw ex;
 }
 
+void interpreter::prepare_execution()
+{
+    top_fail_ = false;
+    register_b_ = 0;
+    register_e_ = 0;
+    register_tr_ = term_env_->trail_size();
+    register_h_ = term_env_->heap_size();
+    register_hb_ = register_h_;
+    register_b0_ = 0;
+}
+
 bool interpreter::execute(const term &query)
 {
     top_fail_ = false;
 
     term_env_->trim_trail(0);
 
-    init();
+    prepare_execution();
 
     query_vars_.clear();
 
@@ -339,7 +343,7 @@ bool interpreter::cont()
 {
     do {
       execute_once();
-    } while (register_e_ != 0);
+    } while (register_e_ != 0 && !top_fail_);
 
     register_h_ = term_env_->heap_size();
 
@@ -583,6 +587,11 @@ void interpreter::dispatch(term &instruction)
 	return;
     }
 
+    if (is_debug()) {
+        // Print call
+      std::cout << "interpreter::dispatch(): call " << term_env_->to_string(instruction) << "\n";
+    }
+
     auto first_arg = get_first_arg(instruction);
 
     size_t executable_id = matched_executable_id(f, first_arg);
@@ -610,11 +619,6 @@ void interpreter::dispatch(term &instruction)
 
 	fail();
 	return;
-    }
-
-    if (is_debug()) {
-        // Print call
-      std::cout << "interpreter::dispatch(): call " << term_env_->to_string(instruction) << "\n";
     }
 
     size_t num_clauses = clauses.size();
@@ -690,6 +694,10 @@ void interpreter::fail()
     bool unbound = false;
 
     do {
+	if (is_debug()) {
+	    std::cout << "interpreter::fail(): fail " << term_env_->to_string(register_qr_) << "\n";
+	}
+
         if (register_b_ == 0) {
 	    top_fail_ = true;
 	    return;

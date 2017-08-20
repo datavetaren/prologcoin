@@ -65,6 +65,8 @@ static bool test_interpreter_file(const std::string &filepath)
 
     interpreter interp;
 
+    // interp.set_debug(true);
+
     std::ifstream infile(filepath);
 
     term_tokenizer tokenizer(infile);
