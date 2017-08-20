@@ -22,6 +22,12 @@ namespace prologcoin { namespace interp {
         static bool operator_at_greater_than_equals(interpreter &interp, common::term &caller);
         // operator ==
         static bool operator_equals(interpreter &interp, common::term &caller);
+        // operator \==
+        static bool operator_not_equals(interpreter &interp, common::term &caller);
+
+	// compare/3
+	static bool compare_3(interpreter &interp, common::term &caller);
+
 	// operator =
 	static bool operator_unification(interpreter &interp, common::term &caller);
     };

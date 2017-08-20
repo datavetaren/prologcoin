@@ -93,6 +93,8 @@ void interpreter::load_builtins()
     load_builtin(con_cell("@>",2), &builtins::operator_at_greater_than);
     load_builtin(con_cell("@>=",2), &builtins::operator_at_greater_than_equals);
     load_builtin(con_cell("==",2), &builtins::operator_equals);
+    load_builtin(con_cell("\\==",2), &builtins::operator_not_equals);
+    load_builtin(con_cell("compare",3), &builtins::compare_3);
     load_builtin(con_cell("=",2), &builtins::operator_unification);
 }
 
@@ -323,13 +325,18 @@ bool interpreter::execute(const term &query)
 
     query_vars_.clear();
 
+    std::unordered_set<std::string> seen;
+
     // Record all vars for this query
     std::for_each( term_env_->begin(query),
 		   term_env_->end(query),
-		   [=](const term &t) {
+		   [&](const term &t) {
 		       if (t->tag() == tag_t::REF) {
 			   const std::string name = term_env_->to_string(t);
-			   query_vars_.push_back(binding(name,t));
+			   if (!seen.count(name)) {
+			       query_vars_.push_back(binding(name,t));
+			       seen.insert(name);
+			   }
 		       }
 		   } );
 
