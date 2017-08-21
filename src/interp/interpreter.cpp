@@ -458,12 +458,8 @@ void interpreter::print_result(std::ostream &out) const
 
 void interpreter::execute_once()
 {
-    con_cell f = term_env_->functor(register_cp_);
-
     term instruction = register_cp_;
-
     register_cp_ = term_env_->empty_list();
-
     dispatch(instruction);
 }
 
@@ -757,7 +753,7 @@ void interpreter::fail()
 
 	// Is there another clause to backtrack to?
 	if (bpval != 0) {
-	    size_t bpindex = bpval >> 8;
+	    size_t index_id = bpval >> 8;
 
 	    // Unbind variables
 	    term_env_->unwind_trail(register_tr_, current_tr);
@@ -769,9 +765,8 @@ void interpreter::fail()
 	    if (is_debug()) {
 		std::cout << "interpreter::fail(): redo " << term_env_->to_string(register_qr_) << "\n";
 	    }
-      	    size_t index_id = ch->bp.value() >> 8;
 	    auto &clauses = id_to_executable_[index_id].first;
-	    size_t from_clause = ch->bp.value() & 0xff;
+	    size_t from_clause = bpval & 0xff;
 
   	    ok = select_clause(register_qr_, index_id, clauses, from_clause);
 
