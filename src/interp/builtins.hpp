@@ -13,6 +13,14 @@ namespace prologcoin { namespace interp {
     class builtins {
     public:
 
+        //
+        // Control flow
+        //
+
+        static bool operator_comma(interpreter &interp, common::term &caller);
+        static bool operator_cut(interpreter &interp, common::term &caller);
+        static bool operator_disjunction(interpreter &interp, common::term &caller);
+
 	//
 	// Standard order, equality and unification
 	//

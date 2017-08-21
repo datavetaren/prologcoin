@@ -63,7 +63,11 @@ public:
 
   inline con_cell functor(const std::string &name, size_t arity) { return heap_->functor(name, arity); }
   inline con_cell functor(cell c) const { return heap_->functor(c); }
-  inline bool is_functor(cell c) const { return deref(c).tag() == tag_t::STR; }
+  inline bool is_functor(cell c) const
+  {
+      c = deref(c);
+      return c.tag() == tag_t::CON || c.tag() == tag_t::STR;
+  }
   inline cell arg(cell c, size_t index) const { return heap_->arg0(c, index); }
   inline term arg(term t, size_t index) const { return heap_->arg(t, index); }
 
@@ -96,6 +100,7 @@ public:
   inline size_t trail_depth() const { return trail_.size(); }
   void unwind_trail(size_t from, size_t to);
   void trim_trail(size_t to) { trail_.resize(to); }
+  void tidy_trail(size_t from, size_t to);
 
   inline void clear_name(const term &ref) { var_naming_.erase(ref); }
   inline void set_name(const term &ref, const std::string &name) { var_naming_[ref] = name; }
@@ -432,6 +437,25 @@ void term_env_impl::unwind_trail(size_t from, size_t to)
     }
 }
 
+void term_env_impl::tidy_trail(size_t from, size_t to)
+{
+    size_t i = from;
+    while (i < to) {
+      if (trail_[i] < register_hb_) {
+	  // This variable recording happened before the choice point.
+	  // We can't touch it.
+	  i++;
+      } else {
+	  // Remove this trail point, move one trail point we haven't
+	  // visited to this location.
+	  trail_[i] = trail_[to-1];
+	  to--;
+      }
+    }
+    // We're done. Trim the trail to the new end
+    trail_.resize(to);
+}
+
 bool term_env_impl::unify_helper(cell a, cell b)
 {
     size_t d = stack_depth();
@@ -699,6 +723,11 @@ void term_env::trim_heap(size_t new_size)
 void term_env::trim_trail(size_t new_size)
 {
     impl_->trim_trail(new_size);
+}
+
+void term_env::tidy_trail(size_t from, size_t to)
+{
+    impl_->tidy_trail(from, to);
 }
 
 term_dfs_iterator term_env::begin(const term &t)

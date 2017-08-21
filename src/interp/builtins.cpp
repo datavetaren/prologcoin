@@ -5,6 +5,37 @@ namespace prologcoin { namespace interp {
 
     using namespace prologcoin::common;
 
+    //
+    // Control flow
+    //
+
+    bool builtins::operator_comma(interpreter &interp, term &caller)
+    {
+        term arg0 = interp.env().arg(caller, 0);
+	term arg1 = interp.env().arg(caller, 1);
+	interp.set_continuation_point(arg1);
+        interp.allocate_environment();
+	interp.set_continuation_point(arg0);
+	return true;
+    }
+
+    bool builtins::operator_cut(interpreter &interp, term &caller)
+    {
+        if (interp.has_late_choice_point()) {
+	    interp.reset_choice_point();
+	    interp.tidy_trail();
+	}
+        return true;
+    }
+
+    bool builtins::operator_disjunction(interpreter &interp, term &caller)
+    {
+        auto *ch = interp.allocate_choice_point(0);
+        ch->bp = 1; // Index 0 and clause 1 (use query to get clause 1)
+	term arg0 = interp.env().arg(caller, 0);
+	interp.set_continuation_point(arg0);
+	return true;
+    }
 
     //
     // Standard order, eqaulity and unification
@@ -68,7 +99,10 @@ namespace prologcoin { namespace interp {
     {
 	term arg0 = interp.env().arg(caller, 0);
 	term arg1 = interp.env().arg(caller, 1);
-	return interp.env().unify(arg0, arg1);
+	bool r = interp.env().unify(arg0, arg1);
+	interp.set_heap_pointer(interp.env().heap_size());
+	interp.set_trail_pointer(interp.env().trail_size());
+	return r;
     }
 
     //

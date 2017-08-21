@@ -26,6 +26,7 @@ interpreter::interpreter(term_env &env) : comma_(",",2), empty_list_("[]",0), im
 void interpreter::init()
 {
     debug_ = false;
+    id_to_executable_.push_back(executable()); // Reserve executable index 0
     prepare_execution();
 }
 
@@ -88,6 +89,11 @@ void interpreter::load_builtin(con_cell f, builtin b)
 
 void interpreter::load_builtins()
 {
+    // Control flow
+    load_builtin(con_cell(",",2), &builtins::operator_comma);
+    load_builtin(con_cell("!",0), &builtins::operator_cut);
+    load_builtin(con_cell(";",2), &builtins::operator_disjunction);
+
     // Standard order, equality and unification
 
     load_builtin(con_cell("@<",2), &builtins::operator_at_less_than);
@@ -290,7 +296,7 @@ inline interpreter::choice_point_t * interpreter::get_choice_point(size_t at_ind
     return cp;
 }
 
-void interpreter::allocate_choice_point(size_t index_id)
+interpreter::choice_point_t * interpreter::allocate_choice_point(size_t index_id)
 {
     size_t at_index = (register_e_ > register_b_) ?
 	register_e_ + environment_num_cells : register_b_ + choice_point_num_cells;
@@ -311,6 +317,8 @@ void interpreter::allocate_choice_point(size_t index_id)
     register_b_ = at_index;
     register_hb_ = register_h_;
     term_env_->set_last_choice_heap(register_hb_);
+
+    return ch;
 }
 
 void interpreter::abort(const interpreter_exception &ex)
@@ -454,14 +462,17 @@ void interpreter::execute_once()
 
     term instruction = register_cp_;
 
-    if (f == comma_) {
-	instruction = term_env_->arg(register_cp_, 0);
-	register_cp_ = term_env_->arg(register_cp_, 1);
-    } else {
-	register_cp_ = term_env_->empty_list();
-    }
+    register_cp_ = term_env_->empty_list();
 
     dispatch(instruction);
+}
+
+void interpreter::tidy_trail()
+{
+    size_t from = get_choice_point(register_b_)->tr;
+    size_t to = register_tr_;
+    term_env_->tidy_trail(from, to);
+    register_tr_ = term_env_->trail_size();
 }
 
 bool interpreter::definitely_inequal(const term &a, const term &b)
@@ -596,12 +607,6 @@ void interpreter::dispatch(term &instruction)
 
     con_cell f = term_env_->functor(instruction);
 
-    if (f == comma_) {
-	allocate_environment();
-	register_cp_ = instruction;
-	return;
-    }
-
     if (f == empty_list_) {
         // Return
         if (is_debug()) {
@@ -652,12 +657,12 @@ void interpreter::dispatch(term &instruction)
 
     // More than one clause that matches? We need a choice point.
     if (has_choices) {
+        // Before making the actual call we'll remember the current choice
+        // point. This is the one we backtrack to if we encounter a cut operation.
+        register_b0_ = register_b_;
+
 	allocate_choice_point(index_id);
     }
-
-    // Before making the actual call we'll remember the current choice
-    // point. This is the one we backtrack to if we encounter a cut operation.
-    register_b0_ = register_b_;
 
     if (!select_clause(instruction, index_id, clauses, 0)) {
 	fail();
@@ -669,6 +674,16 @@ bool interpreter::select_clause(term &instruction,
 				std::vector<term> &clauses,
 				size_t from_clause)
 {
+    if (index_id == 0) {
+        if (from_clause > 1) {
+	    return false;
+	}
+        register_cp_ = term_env_->arg(register_qr_, from_clause);
+	auto choice_point = get_choice_point(register_b_);
+	choice_point->bp.set_value(from_clause+1);
+	return true;
+    }
+
     size_t num_clauses = clauses.size();
     bool has_choices = num_clauses > 1;
 
@@ -738,8 +753,12 @@ void interpreter::fail()
 	register_qr_ = term_env_->to_term(ch->qr);
 	term_env_->set_last_choice_heap(register_hb_);
 
+	size_t bpval = ch->bp.value();
+
 	// Is there another clause to backtrack to?
-	if (ch->bp.value() != 0) {
+	if (bpval != 0) {
+	    size_t bpindex = bpval >> 8;
+
 	    // Unbind variables
 	    term_env_->unwind_trail(register_tr_, current_tr);
 	    term_env_->trim_trail(register_tr_);

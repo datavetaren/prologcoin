@@ -160,6 +160,7 @@ public:
   size_t trail_size() const;
 
   void unwind_trail(size_t from_addr, size_t to_addr);
+  void tidy_trail(size_t from_addr, size_t to_addr);
 
   void trim_heap(size_t new_size);
   void trim_trail(size_t new_size);

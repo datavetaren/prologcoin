@@ -89,6 +89,8 @@ public:
 };
 
 class interpreter {
+    friend class builtins;
+
 public:
     typedef common::term term;
     typedef common::cell cell;
@@ -189,12 +191,39 @@ private:
 
     static const int choice_point_num_cells = sizeof(choice_point_t) / sizeof(cell);
 
+    inline void set_trail_pointer(size_t tr)
+    {
+        register_tr_ = tr;
+    }
+
+    inline void set_heap_pointer(size_t h)
+    {
+        register_h_ = h;
+    }
+
+    inline void set_continuation_point(const term &cont)
+    {
+        register_cp_ = cont;
+    }
+
+    inline bool has_late_choice_point() 
+    {
+        return register_b_ > register_b0_;
+    }
+
+    inline void reset_choice_point()
+    {
+        register_b_ = register_b0_;
+    }
+
+    void tidy_trail();
+
     environment_t * get_environment(size_t at_index);
     void allocate_environment();
     void deallocate_environment();
 
     choice_point_t * get_choice_point(size_t at_index);
-    void allocate_choice_point(size_t index_id);
+    choice_point_t * allocate_choice_point(size_t index_id);
 
     bool definitely_inequal(const term &a, const term &b);
     common::cell first_arg_index(const term &first_arg);

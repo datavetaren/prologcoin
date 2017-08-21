@@ -17,30 +17,53 @@ static void header( const std::string &str )
     std::cout << "\n";
 }
 
-static std::vector<std::string> parse_expected(std::string &comments)
+static std::vector<std::string> parse_x(const std::string &key, std::string &comments)
 {
-    std::vector<std::string> expected;
+    std::vector<std::string> matched;
     size_t i = 0;
     while (i != std::string::npos) {
-	size_t i1 = comments.find("Expect:", i);
+	size_t i1 = comments.find(key, i);
 	if (i1 == std::string::npos) {
 	    break;
 	}
-	size_t i2 = comments.find("Expect:", i1+7);
+	size_t i2 = comments.find(key, i1+key.size());
 	std::string exp;
 	if (i2 == std::string::npos) {
-	    exp = comments.substr(i1+7);
+  	    exp = comments.substr(i1+key.size());
 	} else {
-	    exp = comments.substr(i1+7,(i2-i1));
+	    exp = comments.substr(i1+key.size(),(i2-i1));
 	}
 	// Remove anything from %
 	exp = exp.substr(0, exp.find_first_of("%"));
 	// Remove trailing whitespace
 	boost::trim(exp);
-	expected.push_back(exp);
+	matched.push_back(exp);
 	i = i2;
     }
-    return expected;
+    return matched;
+}
+
+static std::vector<std::string> parse_expected(std::string &comments)
+{
+    return parse_x("Expect:", comments);
+}
+
+static std::vector<std::string> parse_meta(std::string &comments)
+{
+    return parse_x("Meta:", comments);
+}
+
+static void process_meta(interpreter &interp, std::string &comments)
+{
+    auto meta = parse_meta(comments);
+    for (auto cmd : meta) {
+        if (cmd == "debug on") {
+  	  interp.set_debug(true);
+        }
+	if (cmd == "debug off") {
+	  interp.set_debug(false);
+	}
+    }
 }
 
 static bool match_strings(const std::string &actual,
@@ -61,6 +84,7 @@ static bool match_strings(const std::string &actual,
 
 static bool test_interpreter_file(const std::string &filepath)
 {
+
     std::cout << "Process file: " << filepath << std::endl << std::endl;
 
     interpreter interp;
@@ -82,7 +106,11 @@ static bool test_interpreter_file(const std::string &filepath)
 	while (!infile.eof()) {
 	    term t = parser.parse();
 
+	    std::string comments = parser.get_comments_string();
+
 	    interp.sync_with_heap();
+
+	    process_meta(interp, comments);
 
 	    bool is_query = interp.env().is_functor(t, query_op);
 
@@ -109,7 +137,6 @@ static bool test_interpreter_file(const std::string &filepath)
 	    std::vector<std::string> expected;
 
 	    if (is_query) {
-		std::string comments = parser.get_comments_string();
 		expected = parse_expected(comments);
 		if (expected.size() == 0) {
 		    std::cout << "Error. Found no expected results for this query. "
@@ -120,7 +147,15 @@ static bool test_interpreter_file(const std::string &filepath)
 	    }
 
 	    if (!is_query) {
-		interp.load_clause(t);
+  	        try {
+		    interp.load_clause(t);
+		} catch (syntax_exception &ex) {
+  		    std::cout << "Syntax error: " << ex.what()
+			      << ": "
+			      << interp.env().to_string(ex.get_term())
+			      << std::endl;
+	  	    throw ex;
+		}
 
 		first_clause = false;
 	    }
