@@ -37,6 +37,18 @@ namespace prologcoin { namespace interp {
 	return true;
     }
 
+    bool builtins::operator_if_then(interpreter &interp, term &caller)
+    {
+        std::cout << "TODO: operator_if_then" << std::endl;
+        return true;
+    }
+
+    bool builtins::operator_if_then_else(interpreter &interp, term &caller)
+    {
+        std::cout << "TODO: operator_if_then_else" << std::endl;
+        return true;
+    }
+
     //
     // Standard order, eqaulity and unification
     //
