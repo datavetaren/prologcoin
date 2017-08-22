@@ -1,5 +1,6 @@
 #include "../common/term_env.hpp"
 #include "interpreter.hpp"
+#include "builtins_fileio.hpp"
 
 namespace prologcoin { namespace interp {
 
@@ -121,6 +122,16 @@ void interpreter::load_builtins()
     load_builtin(env().functor("compound",1), &builtins::compound_1);
     load_builtin(env().functor("callable",1), &builtins::callable_1);
     load_builtin(con_cell("ground", 1), &builtins::ground_1);
+}
+
+void interpreter::enable_file_io()
+{
+    load_builtins_file_io();
+}
+
+void interpreter::load_builtins_file_io()
+{
+    load_builtin(con_cell("open", 3), &builtins_fileio::open_3);
 }
 
 void interpreter::load_program(const term &t)
@@ -641,7 +652,9 @@ void interpreter::dispatch(term &instruction)
     auto &clauses = e.first;
 
     if (clauses.empty()) {
-	if (program_db_.find(f) == program_db_.end()) {
+        e = program_db_[f];
+	clauses = e.first;
+	if (clauses.empty()) {
 	    std::stringstream msg;
 	    msg << "Undefined predicate " << term_env_->atom_name(f) << "/" << f.arity();
 	    abort(interpreter_exception_undefined_predicate(msg.str()));

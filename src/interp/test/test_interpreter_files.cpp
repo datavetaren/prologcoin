@@ -63,6 +63,9 @@ static void process_meta(interpreter &interp, std::string &comments)
 	if (cmd == "debug off") {
 	  interp.set_debug(false);
 	}
+	if (cmd == "fileio on") {
+	  interp.enable_file_io();
+	}
     }
 }
 
@@ -167,19 +170,28 @@ static bool test_interpreter_file(const std::string &filepath)
 		new_block = true;
 
 		term q = interp.env().arg(t, 0);
+		bool r = false;
 
-		if (!interp.execute(q)) {
-		    if (expected.size() > 0 && expected[0] != "fail") {
-			std::cout << "  Failed!" << std::endl;
-			return false;
-		    } else {
-			std::cout << "Actual: fail" << std::endl;
-			std::cout << "Expect: fail" << std::endl;
-			continue;
+		std::string result;
+		try {
+		    r = interp.execute(q);
+		    if (!r) {
+		        if (expected.size() > 0 && expected[0] != "fail") {
+			    std::cout << "  Failed!" << std::endl;
+			    return false;
+	   	        } else {
+		    	    std::cout << "Actual: fail" << std::endl;
+			    std::cout << "Expect: fail" << std::endl;
+			    continue;
+			}
 		    }
+		} catch (interpreter_exception &ex) {
+		    result = ex.what();
 		}
 
-		std::string result = interp.get_result(false);
+		if (r) {
+		    result = interp.get_result(false);
+		}
 		std::cout << "Actual: " << result << std::endl;
 		std::cout << "Expect: " << expected[0] << std::endl;
 		assert(match_strings(result, expected[0]));

@@ -104,6 +104,8 @@ public:
     inline bool is_debug() const { return debug_; }
     inline void set_debug(bool dbg) { debug_ = dbg; }
 
+    void enable_file_io();
+
     inline common::term_env & env() { return *term_env_; }
 
     void sync_with_heap() { env().sync_with_heap(); }
@@ -160,6 +162,7 @@ public:
 private:
     void load_builtin(con_cell f, builtin b);
     void load_builtins();
+    void load_builtins_file_io();
 
     void init();
     void prepare_execution();
