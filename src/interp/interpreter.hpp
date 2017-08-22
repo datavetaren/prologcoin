@@ -169,6 +169,11 @@ private:
 		       size_t index_id, std::vector<term> &clauses,
 		       size_t from_clause);
 
+    inline term & current_query()
+    {
+	return register_qr_;
+    }
+
     struct environment_t {
 	int_cell ce; // Continuation environment
         int_cell b0; // Choice point when encountering a cut operation.
@@ -196,6 +201,11 @@ private:
         register_tr_ = tr;
     }
 
+    inline size_t get_trail_pointer() const
+    {
+	return register_tr_;
+    }
+
     inline void set_heap_pointer(size_t h)
     {
         register_h_ = h;
@@ -204,6 +214,11 @@ private:
     inline void set_continuation_point(const term &cont)
     {
         register_cp_ = cont;
+    }
+
+    inline term & get_continuation_point()
+    {
+	return register_cp_;
     }
 
     inline bool has_late_choice_point() 
@@ -222,8 +237,19 @@ private:
     void allocate_environment();
     void deallocate_environment();
 
+    inline choice_point_t * get_last_choice_point()
+    {
+	return get_choice_point(register_b_);
+    }
+
+    inline void move_cut_point_to_last_choice_point()
+    {
+	register_b0_ = register_b_;
+    }
+
     choice_point_t * get_choice_point(size_t at_index);
     choice_point_t * allocate_choice_point(size_t index_id);
+    void cut_last_choice_point();
 
     bool definitely_inequal(const term &a, const term &b);
     common::cell first_arg_index(const term &first_arg);

@@ -89,10 +89,15 @@ void interpreter::load_builtin(con_cell f, builtin b)
 
 void interpreter::load_builtins()
 {
+    // Simple
+    load_builtin(con_cell("true",0), &builtins::true_0);
+
     // Control flow
     load_builtin(con_cell(",",2), &builtins::operator_comma);
     load_builtin(con_cell("!",0), &builtins::operator_cut);
+    load_builtin(con_cell("_!",0), &builtins::operator_cut_if);
     load_builtin(con_cell(";",2), &builtins::operator_disjunction);
+    load_builtin(con_cell("->",2), &builtins::operator_if_then);
 
     // Standard order, equality and unification
 

@@ -6,6 +6,15 @@ namespace prologcoin { namespace interp {
     using namespace prologcoin::common;
 
     //
+    // Simple
+    //
+
+    bool builtins::true_0(interpreter &interp, term &caller)
+    {
+	return true;
+    }
+
+    //
     // Control flow
     //
 
@@ -28,24 +37,69 @@ namespace prologcoin { namespace interp {
         return true;
     }
 
+    bool builtins::operator_cut_if(interpreter &interp, term &caller)
+    {
+        if (interp.has_late_choice_point()) {
+	    interp.reset_choice_point();
+	    interp.tidy_trail();
+	    auto *ch = interp.get_last_choice_point();
+	    ch->bp = 2; // Don't back track to false clause
+	}
+        return true;
+    }
+
     bool builtins::operator_disjunction(interpreter &interp, term &caller)
     {
+	static con_cell arrow("->", 2);
+
+	// Check if this is an if-then-else
+	term arg0 = interp.env().arg(caller, 0);
+	if (interp.env().functor(arg0) == arrow) {
+	    return operator_if_then_else(interp, caller);
+	}
+
         auto *ch = interp.allocate_choice_point(0);
         ch->bp = 1; // Index 0 and clause 1 (use query to get clause 1)
-	term arg0 = interp.env().arg(caller, 0);
 	interp.set_continuation_point(arg0);
 	return true;
     }
 
     bool builtins::operator_if_then(interpreter &interp, term &caller)
     {
-        std::cout << "TODO: operator_if_then" << std::endl;
+	static con_cell cut_op("!",0);
+
+	auto *ch = interp.allocate_choice_point(0);
+	ch->bp = 2;
+	interp.move_cut_point_to_last_choice_point();
+	term cut = interp.env().to_term(cut_op);
+	term arg0 = interp.env().arg(caller, 0);
+	term arg1 = interp.env().arg(caller, 1);
+	interp.set_continuation_point(arg1);
+	interp.allocate_environment();
+	interp.set_continuation_point(cut);
+	interp.allocate_environment();
+	interp.set_continuation_point(arg0);
         return true;
     }
 
     bool builtins::operator_if_then_else(interpreter &interp, term &caller)
     {
-        std::cout << "TODO: operator_if_then_else" << std::endl;
+	static con_cell cut_op_if("_!",0);
+
+	term lhs = interp.env().arg(caller, 0);
+
+	term cond = interp.env().arg(lhs, 0);
+	term iftrue = interp.env().arg(lhs, 1);
+	term cut_if = interp.env().to_term(cut_op_if);
+
+	auto *ch = interp.allocate_choice_point(0);
+	ch->bp = 1; // Go to 'C' the false clause if ((A->B) ; C) fails
+	interp.move_cut_point_to_last_choice_point();
+	interp.set_continuation_point(iftrue);
+	interp.allocate_environment();
+	interp.set_continuation_point(cut_if);
+	interp.allocate_environment();
+	interp.set_continuation_point(cond);
         return true;
     }
 

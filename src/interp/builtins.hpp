@@ -12,6 +12,11 @@ namespace prologcoin { namespace interp {
 
     class builtins {
     public:
+	//
+	// Simple
+	//
+
+	static bool true_0(interpreter &interp, common::term &caller);
 
         //
         // Control flow
@@ -19,7 +24,9 @@ namespace prologcoin { namespace interp {
 
         static bool operator_comma(interpreter &interp, common::term &caller);
         static bool operator_cut(interpreter &interp, common::term &caller);
+        static bool operator_cut_if(interpreter &interp, common::term &caller);
         static bool operator_disjunction(interpreter &interp, common::term &caller);
+	static bool operator_arrow(interpreter &interp, common::term &caller);
         static bool operator_if_then(interpreter &interp, common::term &caller);
         static bool operator_if_then_else(interpreter &interp, common::term &caller);
 
