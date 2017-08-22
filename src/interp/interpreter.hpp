@@ -88,8 +88,23 @@ public:
 	: interpreter_exception(msg) { }
 };
 
+class interpreter_exception_wrong_arg_type : public interpreter_exception
+{
+public:
+      interpreter_exception_wrong_arg_type(const std::string &msg)
+	  : interpreter_exception(msg) { }
+};
+
+class interpreter_exception_file_not_found : public interpreter_exception
+{
+public:
+      interpreter_exception_file_not_found(const std::string &msg)
+	: interpreter_exception(msg) { }
+};
+
 class interpreter {
     friend class builtins;
+    friend class builtins_fileio;
 
 public:
     typedef common::term term;
@@ -105,6 +120,10 @@ public:
     inline void set_debug(bool dbg) { debug_ = dbg; }
 
     void enable_file_io();
+    void set_current_directory(const std::string &dir);
+    std::string get_full_path(const std::string &path) const;
+    void close_all_files();
+    bool is_file_id(size_t id) const;
 
     inline common::term_env & env() { return *term_env_; }
 
@@ -163,6 +182,7 @@ private:
     void load_builtin(con_cell f, builtin b);
     void load_builtins();
     void load_builtins_file_io();
+    size_t register_file(std::ios_base *ios);
 
     void init();
     void prepare_execution();
@@ -310,6 +330,11 @@ private:
     con_cell comma_;
     con_cell empty_list_;
     con_cell implied_by_;
+
+    std::string current_dir_; // Current directory
+
+    std::unordered_map<size_t, std::ios_base *> open_files_;
+    size_t file_id_count_;
 };
 
 }}

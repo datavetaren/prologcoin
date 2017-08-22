@@ -327,6 +327,7 @@ private:
     }
 
 public:
+    inline int_cell(size_t val) : cell(tag_t::INT, val) { }
     inline int_cell(int64_t val) : cell(tag_t::INT, val) { }
     inline int_cell(int val) : cell(tag_t::INT, val) { }
 

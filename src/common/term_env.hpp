@@ -124,7 +124,9 @@ public:
 
   term empty_list() const;
 
+  bool is_atom(const term &t) const;
   std::string atom_name(con_cell functor) const;
+  std::string atom_name(const term &t) const;
 
   con_cell functor(const std::string &name, size_t arity);
   con_cell functor(const term &t);
@@ -135,6 +137,7 @@ public:
   bool is_list(const term &t) const;
   bool is_comma(const term &t) const;
   term arg(const term &t, size_t index);
+  term new_term(con_cell functor, const std::initializer_list<term> &args);
 
   bool unify(term &a, term &b);
   term copy(const term &t);

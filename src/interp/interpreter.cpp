@@ -1,6 +1,7 @@
 #include "../common/term_env.hpp"
 #include "interpreter.hpp"
 #include "builtins_fileio.hpp"
+#include <boost/filesystem.hpp>
 
 namespace prologcoin { namespace interp {
 
@@ -27,12 +28,14 @@ interpreter::interpreter(term_env &env) : comma_(",",2), empty_list_("[]",0), im
 void interpreter::init()
 {
     debug_ = false;
+    file_id_count_ = 1;
     id_to_executable_.push_back(executable()); // Reserve executable index 0
     prepare_execution();
 }
 
 interpreter::~interpreter()
 {
+    close_all_files();
     register_cp_ = term();
     register_qr_ = term();
     query_vars_.clear();
@@ -44,6 +47,27 @@ interpreter::~interpreter()
     if (owns_term_env_) {
 	delete term_env_;
     }
+}
+
+void interpreter::close_all_files()
+{
+    for (auto f : open_files_) {
+	delete f.second;
+    }
+    open_files_.clear();
+}
+
+bool interpreter::is_file_id(size_t id) const
+{
+    return open_files_.find(id) != open_files_.end();
+}
+
+size_t interpreter::register_file(std::ios_base *ios)
+{
+    size_t new_id = file_id_count_;
+    file_id_count_++;
+    open_files_[new_id] = ios;
+    return new_id;
 }
 
 void interpreter::syntax_check()
@@ -129,9 +153,22 @@ void interpreter::enable_file_io()
     load_builtins_file_io();
 }
 
+void interpreter::set_current_directory(const std::string &dir)
+{
+    current_dir_ = dir;
+}
+
+std::string interpreter::get_full_path(const std::string &path) const
+{
+    boost::filesystem::path p(current_dir_);
+    p /= path;
+    return p.string();
+}
+
 void interpreter::load_builtins_file_io()
 {
     load_builtin(con_cell("open", 3), &builtins_fileio::open_3);
+    load_builtin(con_cell("close", 1), &builtins_fileio::close_1);
 }
 
 void interpreter::load_program(const term &t)

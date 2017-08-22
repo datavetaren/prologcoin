@@ -91,6 +91,9 @@ static bool test_interpreter_file(const std::string &filepath)
     std::cout << "Process file: " << filepath << std::endl << std::endl;
 
     interpreter interp;
+    const std::string dir = boost::filesystem::path(filepath).parent_path().string();
+    
+    interp.set_current_directory(dir);
 
     // interp.set_debug(true);
 
@@ -234,7 +237,6 @@ static void test_interpreter_files()
     header( "test_interpreter_files" );
 
     const std::string &home_dir = find_home_dir();
-
     std::string files_dir = home_dir + "/src/interp/test/pl_files";
 
     boost::filesystem::directory_iterator it_end;

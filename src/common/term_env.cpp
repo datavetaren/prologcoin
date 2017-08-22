@@ -49,6 +49,9 @@ public:
   bool is_dotted_pair(cell t) const;
   bool is_empty_list(cell t) const;
   bool is_comma(cell t) const;
+  bool is_string(cell t) const;
+  std::string get_string(cell t) const;
+
   bool equal(cell a, cell b) const;
   int  functor_standard_order(con_cell a, con_cell b) const;
   int  standard_order(cell a, cell b) const;
@@ -60,6 +63,8 @@ public:
   void set_last_choice_heap(size_t at_index);
 
   inline std::string atom_name(con_cell f)  const { return heap_->atom_name(f); }
+  inline std::string atom_name(cell c)  const { return atom_name(functor(c)); }
+  inline bool is_atom(cell c) const { return is_functor(c) && functor(c).arity() == 0; }
 
   inline con_cell functor(const std::string &name, size_t arity) { return heap_->functor(name, arity); }
   inline con_cell functor(cell c) const { return heap_->functor(c); }
@@ -68,6 +73,7 @@ public:
       c = deref(c);
       return c.tag() == tag_t::CON || c.tag() == tag_t::STR;
   }
+  term new_term(con_cell functor, const std::initializer_list<term> &args);
   inline cell arg(cell c, size_t index) const { return heap_->arg0(c, index); }
   inline term arg(term t, size_t index) const { return heap_->arg(t, index); }
 
@@ -181,6 +187,17 @@ bool term_env_impl::is_empty_list(cell t) const
 bool term_env_impl::is_comma(cell t) const
 {
     return heap_->is_comma(t);
+}
+
+term term_env_impl::new_term(con_cell f, const std::initializer_list<term> &args)
+{
+    size_t i = 0;
+    auto r = heap_->new_str(f);
+    for (auto arg : args) {
+	heap_->set_arg(r, i, arg);
+	i++;
+    }
+    return r;
 }
 
 bool term_env_impl::equal(cell a, cell b) const
@@ -580,6 +597,11 @@ std::string term_env::atom_name(con_cell f) const
     return impl_->atom_name(f);
 }
 
+std::string term_env::atom_name(const term &t) const
+{
+    return impl_->atom_name(t);
+}
+
 size_t term_env::stack_size() const
 {
     return impl_->stack_depth();
@@ -625,6 +647,11 @@ term term_env::empty_list() const
     return impl_->empty_list();
 }
 
+bool term_env::is_atom(const term &t) const
+{
+    return impl_->is_atom(t);
+}
+
 con_cell term_env::functor(const std::string &name, size_t arity)
 {
     return impl_->functor(name, arity);
@@ -637,7 +664,7 @@ con_cell term_env::functor(const term &t)
 
 bool term_env::is_functor(const term &t, con_cell f)
 {
-    return functor(t) == f;
+    return impl_->is_functor(t) && impl_->functor(t) == f;
 }
 
 bool term_env::is_functor(const term &t)
@@ -648,6 +675,11 @@ bool term_env::is_functor(const term &t)
 term term_env::arg(const term &t, size_t index)
 {
     return impl_->arg(t, index);
+}
+
+term term_env::new_term(con_cell f, const std::initializer_list<term> &args)
+{
+    return impl_->new_term(f, args);
 }
 
 bool term_env::unify(term &a, term &b)
@@ -739,6 +771,9 @@ term_dfs_iterator term_env::end(const term &t)
 {
     return term_dfs_iterator(*this);
 }
+
+
+
 
 }}
 
