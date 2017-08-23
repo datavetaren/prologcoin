@@ -120,7 +120,7 @@
 % Expect: fail
 
 ?- compound([A|A]).
-% Expect: A = G_0
+% Expect: true
 
 %
 % Testing callable/1

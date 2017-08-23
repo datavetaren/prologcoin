@@ -38,9 +38,11 @@ private:
 // a term on the provided heap (or errors.)
 //
 class term_parser_impl;
+class term_env;
 
 class term_parser {
 public:
+    term_parser(term_tokenizer &tokenizer, term_env &env);
     term_parser(term_tokenizer &tokenizer, heap &h, term_ops &ops);
     ~term_parser();
 

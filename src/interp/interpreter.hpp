@@ -7,6 +7,7 @@
 #include <vector>
 #include "../common/term_env.hpp"
 #include "builtins.hpp"
+#include "file_stream.hpp"
 
 namespace prologcoin { namespace interp {
 // This pair represents functor with first argument. If first argument
@@ -182,7 +183,9 @@ private:
     void load_builtin(con_cell f, builtin b);
     void load_builtins();
     void load_builtins_file_io();
-    size_t register_file(std::ios_base *ios);
+    file_stream & new_file_stream(const std::string &path);
+    void close_file_stream(size_t id);
+    file_stream & get_file_stream(size_t id);
 
     void init();
     void prepare_execution();
@@ -333,7 +336,7 @@ private:
 
     std::string current_dir_; // Current directory
 
-    std::unordered_map<size_t, std::ios_base *> open_files_;
+    std::unordered_map<size_t, file_stream *> open_files_;
     size_t file_id_count_;
 };
 

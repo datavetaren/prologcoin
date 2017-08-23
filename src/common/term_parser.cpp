@@ -1,5 +1,5 @@
+#include "term_env.hpp"
 #include "term_parser.hpp"
-
 #include "term_parser_gen.hpp"
 #include "term_emitter.hpp"
 
@@ -977,6 +977,10 @@ public:
   }
 };
 
+term_parser::term_parser(term_tokenizer &tok, term_env &env)
+{
+  impl_ = new term_parser_impl(tok, env.get_heap(), env.get_ops());
+}
 
 term_parser::term_parser(term_tokenizer &tok, heap &h, term_ops &ops)
 {

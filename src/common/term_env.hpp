@@ -154,6 +154,7 @@ public:
   term pop();
   
   void clear_name(const term &ref);
+  bool has_name(const term &ref) const;
   void set_name(const term &ref, const std::string &name);
 
   term to_term(cell cell) const;

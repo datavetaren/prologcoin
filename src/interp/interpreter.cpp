@@ -62,12 +62,28 @@ bool interpreter::is_file_id(size_t id) const
     return open_files_.find(id) != open_files_.end();
 }
 
-size_t interpreter::register_file(std::ios_base *ios)
+file_stream & interpreter::new_file_stream(const std::string &path)
 {
     size_t new_id = file_id_count_;
+    file_stream *fs = new file_stream(env(), file_id_count_, path);
     file_id_count_++;
-    open_files_[new_id] = ios;
-    return new_id;
+    open_files_[new_id] = fs;
+    return *fs;
+}
+
+void interpreter::close_file_stream(size_t id)
+{
+    if (open_files_.find(id) == open_files_.end()) {
+        return;
+    }
+    file_stream *fs = open_files_[id];
+    open_files_.erase(id);
+    delete fs;
+}
+
+file_stream & interpreter::get_file_stream(size_t id)
+{
+    return *open_files_[id];
 }
 
 void interpreter::syntax_check()
@@ -169,6 +185,7 @@ void interpreter::load_builtins_file_io()
 {
     load_builtin(con_cell("open", 3), &builtins_fileio::open_3);
     load_builtin(con_cell("close", 1), &builtins_fileio::close_1);
+    load_builtin(con_cell("read", 2), &builtins_fileio::read_2);
 }
 
 void interpreter::load_program(const term &t)
@@ -457,6 +474,9 @@ std::string interpreter::get_result(bool newlines) const
     // '_'.
     size_t named_var_count = 0;
     for (auto v : count_occurrences) {
+        if (term_env_->has_name(v.first)) {
+    	    continue;
+	}
         if (v.second == 1) {
             term_env_->set_name(v.first, "_");
 	} else { // v.second > 1

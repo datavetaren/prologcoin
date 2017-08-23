@@ -17,7 +17,7 @@ lt(A, B, C) :- A @< B, C = 1.
 % Expect: Q4 = 1
 
 ?- lt(X, Y, Q5).
-% Expect: X = _, Y = _, Q5 = 1
+% Expect: Q5 = 1
 
 ?- lt(foo, foo(2), Q6).
 % Expect: Q6 = 1
@@ -68,7 +68,7 @@ le(A, B, C) :- A @=< B, C = 1.
 % Expect: Q17 = 1
 
 ?- le(X, Y, Q18).
-% Expect: X = _, Y = _, Q18 = 1
+% Expect: Q18 = 1
 
 ?- le(foo, foo(2), Q19).
 % Expect: Q19 = 1
@@ -119,7 +119,7 @@ eq(A, B, C) :- A == B, C = 1.
 % Expect: Q30 = 1
 
 ?- eq(A, A, Q31).
-% Expect: A = G_0, Q31 = 1
+% Expect: Q31 = 1
 
 % ----------------------------------------------------
 %  Standard term order \== (not equals)
@@ -130,14 +130,14 @@ ne(A, B, C) :- A \== B, C = 1.
 ?- ne(foo(2,3,baz(4711)),foo(2,3,baz(4712)),Q32).
 % Expect: Q32 = 1
 
-?- ne(A, B, Q31).
-% Expect: A = _, B = _, Q31 = 1
-
-?- ne(10, foo, Q32).
-% Expect: Q32 = 1
-
-?- ne(10, 20, Q33).
+?- ne(A, B, Q33).
 % Expect: Q33 = 1
+
+?- ne(10, foo, Q34).
+% Expect: Q34 = 1
+
+?- ne(10, 20, Q35).
+% Expect: Q35 = 1
 
 % ----------------------------------------------------
 %  Standard term order compare/3
@@ -145,11 +145,11 @@ ne(A, B, C) :- A \== B, C = 1.
 
 cmp(A, B, C) :- compare(A, B, C).
 
-?- cmp(Q34, 10, 20).
-% Expect: Q34 = <
+?- cmp(Q36, 10, 20).
+% Expect: Q36 = <
 
-?- cmp(Q35, 20, 10).
-% Expect: Q35 = >
+?- cmp(Q37, 20, 10).
+% Expect: Q37 = >
 
-?- cmp(Q36, foo, foo).
-% Expect: Q36 = =
+?- cmp(Q38, foo, foo).
+% Expect: Q38 = =

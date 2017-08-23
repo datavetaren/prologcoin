@@ -109,6 +109,7 @@ public:
   void tidy_trail(size_t from, size_t to);
 
   inline void clear_name(const term &ref) { var_naming_.erase(ref); }
+  inline bool has_name(const term &ref) const { return var_naming_.count(ref) > 0; }
   inline void set_name(const term &ref, const std::string &name) { var_naming_[ref] = name; }
 
   inline term to_term(cell c) { return term(*heap_, c); }
@@ -735,6 +736,11 @@ term term_env::pop()
 void term_env::clear_name(const term &ref)
 {
     impl_->clear_name(ref);
+}
+
+bool term_env::has_name(const term &ref) const
+{
+    return impl_->has_name(ref);
 }
 
 void term_env::set_name(const term &ref, const std::string &name)
