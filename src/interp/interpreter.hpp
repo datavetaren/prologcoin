@@ -8,6 +8,7 @@
 #include "../common/term_env.hpp"
 #include "builtins.hpp"
 #include "file_stream.hpp"
+#include "arithmetics.hpp"
 
 namespace prologcoin { namespace interp {
 // This pair represents functor with first argument. If first argument
@@ -103,9 +104,38 @@ public:
 	: interpreter_exception(msg) { }
 };
 
+class interpreter_exception_argument_not_number : public interpreter_exception
+{
+public:
+    interpreter_exception_argument_not_number(const std::string &msg)
+	: interpreter_exception(msg) { }
+};
+
+class interpreter_exception_not_sufficiently_instantiated : public interpreter_exception
+{
+public:
+    interpreter_exception_not_sufficiently_instantiated(const std::string &msg)
+	: interpreter_exception(msg) { }
+};
+
+class interpreter_exception_unsupported : public interpreter_exception
+{
+public:
+    interpreter_exception_unsupported(const std::string &msg)
+	: interpreter_exception(msg) { }
+};
+
+class interpreter_exception_undefined_function : public interpreter_exception
+{
+public:
+    interpreter_exception_undefined_function(const std::string &msg)
+	: interpreter_exception(msg) { }
+};
+
 class interpreter {
     friend class builtins;
     friend class builtins_fileio;
+    friend class arithmetics;
 
 public:
     typedef common::term term;
@@ -118,7 +148,7 @@ public:
     ~interpreter();
 
     inline bool is_debug() const { return debug_; }
-    inline void set_debug(bool dbg) { debug_ = dbg; }
+    inline void set_debug(bool dbg) { debug_ = dbg; arith_.set_debug(dbg); }
 
     void enable_file_io();
     void set_current_directory(const std::string &dir);
@@ -127,6 +157,7 @@ public:
     bool is_file_id(size_t id) const;
 
     inline common::term_env & env() { return *term_env_; }
+    inline arithmetics & arith() { return arith_; }
 
     void sync_with_heap() { env().sync_with_heap(); }
 
@@ -338,6 +369,8 @@ private:
 
     std::unordered_map<size_t, file_stream *> open_files_;
     size_t file_id_count_;
+
+    arithmetics arith_;
 };
 
 }}

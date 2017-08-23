@@ -121,6 +121,7 @@ public:
   term parse(const std::string &str);
 
   std::string to_string(const term &t, term_emitter::style style = term_emitter::STYLE_TERM) const;
+  std::string safe_to_string(const term &t, term_emitter::style = term_emitter::STYLE_TERM) const;
 
   term empty_list() const;
 

@@ -89,6 +89,12 @@ namespace prologcoin { namespace interp {
 
 	// acyclic_term/1
 	static bool acyclic_term(interpreter &interp, common::term &caller);
+
+	//
+	// Arithmetics
+	//
+
+	static bool is_2(interpreter &interp, common::term &caller);
     };
 
 }}

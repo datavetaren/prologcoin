@@ -38,6 +38,7 @@ public:
 
   term parse(const std::string &term_expr);
   std::string to_string(const cell &c, term_emitter::style style = term_emitter::STYLE_TERM) const;
+  std::string safe_to_string(const cell &c, term_emitter::style style = term_emitter::STYLE_TERM) const;
   std::string status() const;
 
   term empty_list() const { return term(*heap_, heap_->empty_list()); }
@@ -155,6 +156,11 @@ std::string term_env_impl::to_string(const cell &c, term_emitter::style style) c
     emitter.set_var_naming(var_naming_);
     emitter.print(dc);
     return ss.str();
+}
+
+std::string term_env_impl::safe_to_string(const cell &c, term_emitter::style style) const
+{
+    return to_string(c, style); // TODO: Change this to handle cyclic structures, etc.
 }
 
 std::string term_env_impl::status() const
@@ -586,6 +592,11 @@ term term_env::parse(const std::string &term_expr)
 std::string term_env::to_string(const term  &term, term_emitter::style style) const
 {
     return impl_->to_string(term, style);
+}
+
+std::string term_env::safe_to_string(const term  &term, term_emitter::style style) const
+{
+    return impl_->safe_to_string(term, style);
 }
 
 std::string term_env::status() const

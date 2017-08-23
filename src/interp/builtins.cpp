@@ -242,4 +242,16 @@ namespace prologcoin { namespace interp {
 
     // TODO: cyclic_term/1 and acyclic_term/1
 
+    //
+    // Arithmetics
+    //
+
+    bool builtins::is_2(interpreter &interp, term &caller)
+    {
+	term lhs = interp.env().arg(caller, 0);
+	term rhs = interp.env().arg(caller, 1);
+	term result = interp.arith().eval(rhs, "is/2");
+	return interp.env().unify(lhs, result);
+    }	
+
 }}

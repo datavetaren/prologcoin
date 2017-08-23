@@ -7,7 +7,7 @@ namespace prologcoin { namespace interp {
 
 using namespace prologcoin::common;
 
-interpreter::interpreter() : comma_(",",2), empty_list_("[]", 0), implied_by_(":-", 2)
+interpreter::interpreter() : comma_(",",2), empty_list_("[]", 0), implied_by_(":-", 2), arith_(*this)
 {
     term_env_ = new term_env();
     owns_term_env_ = true;
@@ -17,7 +17,7 @@ interpreter::interpreter() : comma_(",",2), empty_list_("[]", 0), implied_by_(":
     load_builtins();
 }
 
-interpreter::interpreter(term_env &env) : comma_(",",2), empty_list_("[]",0), implied_by_(":-", 2)
+interpreter::interpreter(term_env &env) : comma_(",",2), empty_list_("[]",0), implied_by_(":-", 2), arith_(*this)
 {
     term_env_ = &env;
     owns_term_env_ = false;
@@ -35,6 +35,7 @@ void interpreter::init()
 
 interpreter::~interpreter()
 {
+    arith_.unload();
     close_all_files();
     register_cp_ = term();
     register_qr_ = term();
@@ -162,6 +163,10 @@ void interpreter::load_builtins()
     load_builtin(env().functor("compound",1), &builtins::compound_1);
     load_builtin(env().functor("callable",1), &builtins::callable_1);
     load_builtin(con_cell("ground", 1), &builtins::ground_1);
+
+    // Arithmetics
+
+    load_builtin(con_cell("is",2), &builtins::is_2);
 }
 
 void interpreter::enable_file_io()
