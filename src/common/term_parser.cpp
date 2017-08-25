@@ -108,8 +108,6 @@ protected:
 
   inline const sym & lookahead() const { return lookahead_; }
 
-  inline term_tokenizer & tokenizer() { return tokenizer_; }
-
   args_t & args(int numArgs) {
     args_.clear();
     if (check_mode_) {
@@ -711,6 +709,8 @@ public:
       result_ = term();
   }
 
+  inline term_tokenizer & tokenizer() { return tokenizer_; }
+
   void set_debug(bool dbg) { is_debug_ = dbg; }
 
   bool is_accept() const { return accept_; }
@@ -1004,6 +1004,11 @@ ext<cell> term_parser::parse()
     impl_->process_next();
   }
   return impl_->get_result();
+}
+
+term_tokenizer & term_parser::tokenizer()
+{
+    return impl_->tokenizer();
 }
 
 const term_tokenizer::token & term_parser::lookahead() const

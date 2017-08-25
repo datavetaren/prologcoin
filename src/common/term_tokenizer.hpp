@@ -210,6 +210,8 @@ public:
 
     void clear_token();
 
+    std::istream & in() { return in_; }
+
 private:
     const token & next_token_helper();
 

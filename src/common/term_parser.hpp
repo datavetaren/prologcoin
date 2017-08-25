@@ -50,6 +50,7 @@ public:
 
     ext<cell> parse();
 
+    term_tokenizer & tokenizer();
     const term_tokenizer::token & lookahead() const;
     const std::vector<term_tokenizer::token> & get_comments() const;
     std::string get_comments_string() const;
