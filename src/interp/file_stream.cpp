@@ -25,6 +25,12 @@ size_t file_stream::get_id() const
     return id_;
 }
 
+bool file_stream::is_eof()
+{
+    ensure_parser();
+    return parser_->is_eof();
+}
+
 void file_stream::open(mode_t mode)
 {
     if (mode_ != NONE) {

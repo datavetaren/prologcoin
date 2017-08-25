@@ -23,7 +23,7 @@ namespace prologcoin { namespace interp {
 				            common::term *args)> fn;
 
     public:
-	arithmetics(interpreter &interp) : interp_(interp) 
+        arithmetics(interpreter &interp) : interp_(interp), debug_(false)
  	   { }
 
 	inline void set_debug(bool dbg) { debug_ = dbg; }

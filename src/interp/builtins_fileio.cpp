@@ -94,7 +94,13 @@ namespace prologcoin { namespace interp {
 	term stream = interp.env().arg(caller, 0);
 	size_t id = get_stream_id(interp, stream, "read/2");
 	file_stream &fs = interp.get_file_stream(id);
-	term t = fs.read_term();
+	term t;
+	if (fs.is_eof()) {
+	    t = interp.env().to_term(
+		  interp.env().functor("end_of_file",0));
+	} else {
+	    t = fs.read_term();
+	}
 	term result = interp.env().arg(caller, 1);
 	bool r = interp.env().unify(t, result);
 

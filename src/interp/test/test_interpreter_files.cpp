@@ -87,8 +87,10 @@ static bool match_strings(const std::string &actual,
 
 static bool test_interpreter_file(const std::string &filepath)
 {
-
-    std::cout << "Process file: " << filepath << std::endl << std::endl;
+    std::cout << std::endl;
+    std::cout << std::string(60, '=') << std::endl;
+    std::cout << "Process file: " << filepath << std::endl;
+    std::cout << std::string(60, '=') << std::endl;
 
     interpreter interp;
     const std::string dir = boost::filesystem::path(filepath).parent_path().string();
@@ -201,11 +203,16 @@ static bool test_interpreter_file(const std::string &filepath)
 
 		for (size_t i = 1; i < expected.size(); i++) {
 	  	    auto next_expect = expected[i];
-		    bool r = interp.next();
-		    if (r) {
-  		        result = interp.get_result(false);
-		    } else {
-	  	        result = "end";
+		    bool r = false;
+		    try {
+	  	        r = interp.next();
+			if (r) {
+			  result = interp.get_result(false);
+			} else {
+			  result = "end";
+			}
+		    } catch (interpreter_exception &ex) {
+		        result = ex.what();
 		    }
 		    std::cout << "Actual: " << result << std::endl;
 		    std::cout << "Expect: " << next_expect << std::endl;
@@ -243,7 +250,8 @@ static void test_interpreter_files()
 
     for (boost::filesystem::directory_iterator it(files_dir); it != it_end; ++it) {
         std::string filepath = it->path().string();
-	if (boost::ends_with(filepath, ".pl")) {
+	if (boost::starts_with(it->path().filename().string(), "ex_") &&
+	    boost::ends_with(filepath, ".pl")) {
 	    bool r = test_interpreter_file(filepath);
 	    assert(r);
 	}
