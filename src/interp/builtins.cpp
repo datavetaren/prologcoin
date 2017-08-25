@@ -151,13 +151,13 @@ namespace prologcoin { namespace interp {
 					    interp.env().arg(caller, 2));
 	if (c < 0) {
 	    term lt = interp.env().to_term(con_cell("<",0));
-	    return interp.env().unify(order, lt);
+	    return interp.unify(order, lt);
 	} else if (c > 0) {
 	    term gt = interp.env().to_term(con_cell(">",0));
-	    return interp.env().unify(order, gt);
+	    return interp.unify(order, gt);
 	} else {
 	    term eq = interp.env().to_term(con_cell("=",0));
-	    return interp.env().unify(order, eq);
+	    return interp.unify(order, eq);
 	}
     }
 
@@ -165,7 +165,7 @@ namespace prologcoin { namespace interp {
     {
 	term arg0 = interp.env().arg(caller, 0);
 	term arg1 = interp.env().arg(caller, 1);
-	bool r = interp.env().unify(arg0, arg1);
+	bool r = interp.unify(arg0, arg1);
 	interp.set_heap_pointer(interp.env().heap_size());
 	interp.set_trail_pointer(interp.env().trail_size());
 	return r;
@@ -251,7 +251,7 @@ namespace prologcoin { namespace interp {
 	term lhs = interp.env().arg(caller, 0);
 	term rhs = interp.env().arg(caller, 1);
 	term result = interp.arith().eval(rhs, "is/2");
-	return interp.env().unify(lhs, result);
+	return interp.unify(lhs, result);
     }	
 
 }}

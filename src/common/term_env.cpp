@@ -204,6 +204,7 @@ term term_env_impl::new_term(con_cell f, const std::initializer_list<term> &args
 	heap_->set_arg(r, i, arg);
 	i++;
     }
+    register_h_ = heap_->size();
     return r;
 }
 

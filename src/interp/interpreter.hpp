@@ -159,7 +159,11 @@ public:
     inline common::term_env & env() { return *term_env_; }
     inline arithmetics & arith() { return arith_; }
 
-    void sync_with_heap() { env().sync_with_heap(); }
+    void sync_with_heap()
+    {
+        env().sync_with_heap();
+	register_h_ = env().heap_size();
+    }
 
     void load_clause(const std::string &str);
     void load_clause(std::istream &is);
@@ -219,6 +223,7 @@ private:
     file_stream & get_file_stream(size_t id);
 
     void init();
+    bool unify(term &a, term &b);
     void prepare_execution();
     void abort(const interpreter_exception &ex);
     void fail();

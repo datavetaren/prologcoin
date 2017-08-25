@@ -190,7 +190,7 @@ public:
   std::string status() const;
 
 private:
-  friend class term_env_impl;
+  friend class term_env_impl; 
   term_env_impl *impl_;
 };
 

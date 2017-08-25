@@ -24,7 +24,7 @@ namespace prologcoin { namespace interp {
         void open(mode_t mode = READ);
         void close();
         size_t get_id() const;
-      bool is_eof();
+        bool is_eof();
 
         common::term read_term();
 

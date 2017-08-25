@@ -33,6 +33,15 @@ void interpreter::init()
     prepare_execution();
 }
 
+bool interpreter::unify(term &a, term &b)
+{
+    bool r = term_env_->unify(a, b);
+    if (r) {
+        register_tr_ = term_env_->trail_size();
+    }
+    return r;
+}
+
 interpreter::~interpreter()
 {
     arith_.unload();
@@ -191,6 +200,7 @@ void interpreter::load_builtins_file_io()
     load_builtin(con_cell("open", 3), &builtins_fileio::open_3);
     load_builtin(con_cell("close", 1), &builtins_fileio::close_1);
     load_builtin(con_cell("read", 2), &builtins_fileio::read_2);
+    load_builtin(term_env_->functor("at_end_of_stream", 1), &builtins_fileio::at_end_of_stream_1);
 }
 
 void interpreter::load_program(const term &t)
@@ -707,6 +717,7 @@ void interpreter::dispatch(term &instruction)
 	if (!bf(*this, instruction)) {
 	    fail();
 	}
+	register_h_ = term_env_->heap_size();
 	return;
     }
 
@@ -774,9 +785,8 @@ bool interpreter::select_clause(term &instruction,
 	term copy_head = clause_head(copy_clause);
 	term copy_body = clause_body(copy_clause);
 
-	if (term_env_->unify(copy_head, instruction)) { // Heads match?
+	if (unify(copy_head, instruction)) { // Heads match?
 	    register_h_ = term_env_->heap_size();
-	    register_tr_ = term_env_->trail_size();
 	    // Update choice point (where to continue on fail...)
 	    if (has_choices) {
 	        auto choice_point = get_choice_point(register_b_);
@@ -818,6 +828,7 @@ void interpreter::fail()
 	    top_fail_ = true;
 	    return;
         }
+
 	auto ch = get_choice_point(register_b_);
 
 	register_e_ = ch->ce.value();
@@ -843,7 +854,8 @@ void interpreter::fail()
 	    current_tr = register_tr_;
 
 	    if (is_debug()) {
-		std::cout << "interpreter::fail(): redo " << term_env_->to_string(register_qr_) << "\n";
+	        std::string redo_str = term_env_->to_string(register_qr_);
+		std::cout << "interpreter::fail(): redo " << redo_str << std::endl;
 	    }
 	    auto &clauses = id_to_executable_[index_id].first;
 	    size_t from_clause = bpval & 0xff;

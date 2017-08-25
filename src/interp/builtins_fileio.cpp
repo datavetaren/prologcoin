@@ -46,7 +46,7 @@ namespace prologcoin { namespace interp {
 	    size_t id = fs.get_id();
 	    con_cell f = interp.env().functor("$stream", 1);
 	    term newstream = interp.env().new_term(f, {interp.env().to_term(int_cell(id))} );
-	    return interp.env().unify(stream, newstream);
+	    return interp.unify(stream, newstream);
 	}
 
 	// TODO: Mode write...
@@ -102,9 +102,17 @@ namespace prologcoin { namespace interp {
 	    t = fs.read_term();
 	}
 	term result = interp.env().arg(caller, 1);
-	bool r = interp.env().unify(t, result);
+	bool r = interp.unify(t, result);
 
 	return r;
+    }
+
+    bool builtins_fileio::at_end_of_stream_1(interpreter &interp, term &caller)
+    {
+	term stream = interp.env().arg(caller, 0);
+	size_t id = get_stream_id(interp, stream, "at_end_of_stream/1");
+	file_stream &fs = interp.get_file_stream(id);
+	return fs.is_eof();
     }
 
 }}
