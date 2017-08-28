@@ -176,6 +176,9 @@ void interpreter::load_builtins()
     // Arithmetics
 
     load_builtin(con_cell("is",2), &builtins::is_2);
+
+    // Meta
+    load_builtin(con_cell("\\+", 1), &builtins::operator_disprove);
 }
 
 void interpreter::enable_file_io()
@@ -420,6 +423,7 @@ void interpreter::prepare_execution()
     register_h_ = term_env_->heap_size();
     register_hb_ = register_h_;
     register_b0_ = 0;
+    register_top_b_ = 0;
 }
 
 bool interpreter::execute(const term &query)
@@ -456,10 +460,19 @@ bool interpreter::execute(const term &query)
 bool interpreter::cont()
 {
     do {
-      execute_once();
-    } while (register_e_ != 0 && !top_fail_);
+	do {
+	    execute_once();
+	} while (register_e_ != 0 && !top_fail_);
+	
+	register_h_ = term_env_->heap_size();
 
-    register_h_ = term_env_->heap_size();
+	if (!meta_.empty()) {
+	    meta_entry &e = meta_.back();
+	    meta_context *mc = e.first;
+	    meta_fn fn = e.second;
+	    fn(*this, mc);
+	}
+    } while (register_e_ != 0 && !top_fail_);
 
     return !top_fail_;
 }
@@ -812,6 +825,30 @@ bool interpreter::select_clause(term &instruction,
     return false;
 }
 
+interpreter::choice_point_t * interpreter::reset_to_choice_point(size_t b)
+{
+    auto ch = get_choice_point(register_b_);
+
+    register_e_ = ch->ce.value();
+    register_cp_ = term_env_->to_term(ch->cp);
+    register_tr_ = ch->tr.value();
+    register_h_ = ch->h.value();
+    register_b0_ = ch->b0.value();
+    register_hb_ = register_h_;
+    register_qr_ = term_env_->to_term(ch->qr);
+    term_env_->set_last_choice_heap(register_hb_);
+
+    return ch;
+}
+
+void interpreter::unwind(size_t current_tr)
+{
+    // Unbind variables
+    term_env_->unwind_trail(register_tr_, current_tr);
+    term_env_->trim_trail(register_tr_);
+    term_env_->trim_heap(register_h_);
+}
+
 void interpreter::fail()
 {
     bool ok = false;
@@ -824,21 +861,12 @@ void interpreter::fail()
 	    std::cout << "interpreter::fail(): fail " << term_env_->to_string(register_qr_) << "\n";
 	}
 
-        if (register_b_ == 0) {
+        if (register_b_ == register_top_b_) {
 	    top_fail_ = true;
 	    return;
         }
 
-	auto ch = get_choice_point(register_b_);
-
-	register_e_ = ch->ce.value();
-	register_cp_ = term_env_->to_term(ch->cp);
-	register_tr_ = ch->tr.value();
-	register_h_ = ch->h.value();
-	register_b0_ = ch->b0.value();
-	register_hb_ = register_h_;
-	register_qr_ = term_env_->to_term(ch->qr);
-	term_env_->set_last_choice_heap(register_hb_);
+	auto ch = reset_to_choice_point(register_b_);
 
 	size_t bpval = ch->bp.value();
 
@@ -847,11 +875,10 @@ void interpreter::fail()
 	    size_t index_id = bpval >> 8;
 
 	    // Unbind variables
-	    term_env_->unwind_trail(register_tr_, current_tr);
-	    term_env_->trim_trail(register_tr_);
-	    term_env_->trim_heap(register_h_);
-	    unbound = true;
+	    unwind(current_tr);
 	    current_tr = register_tr_;
+
+	    unbound = true;
 
 	    if (is_debug()) {
 	        std::string redo_str = term_env_->to_string(register_qr_);
@@ -870,9 +897,7 @@ void interpreter::fail()
     } while (!ok);
 
     if (!unbound) {
-	term_env_->unwind_trail(register_tr_, current_tr);
-	term_env_->trim_trail(register_tr_);
-	term_env_->trim_heap(register_h_);
+	unwind(current_tr);
     }
 }
 

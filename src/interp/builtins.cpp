@@ -254,4 +254,37 @@ namespace prologcoin { namespace interp {
 	return interp.unify(lhs, result);
     }	
 
+    //
+    // Meta
+    //
+
+    bool builtins::operator_disprove(interpreter &interp, term &caller)
+    {
+	term arg = interp.env().arg(caller, 0);
+	meta_context *context = new meta_context();
+	context->old_top_b = interp.register_b_;
+	interp.meta_.push_back(std::make_pair(context, &operator_disprove_post));
+	auto *ch = interp.allocate_choice_point(0);
+	ch->b = 1;
+	interp.register_top_b_ = interp.register_b_;
+	interp.set_continuation_point(arg);
+	return true;
+    }
+
+    void builtins::operator_disprove_post(interpreter &interp,
+					  meta_context *context)
+    {
+	bool was_failed = interp.top_fail_;
+	if (!was_failed) {
+	    size_t current_tr = interp.register_tr_;
+	    auto ch = interp.reset_to_choice_point(interp.register_top_b_);
+	    interp.unwind(current_tr);
+	    interp.register_b_ = ch->b;
+	}
+	interp.register_top_b_ = context->old_top_b;
+	delete context;
+	interp.meta_.pop_back();
+	interp.top_fail_ = !was_failed;
+    }
+
 }}

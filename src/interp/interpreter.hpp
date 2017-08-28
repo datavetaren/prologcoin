@@ -132,6 +132,13 @@ public:
 	: interpreter_exception(msg) { }
 };
 
+struct meta_context {
+    size_t old_top_b;
+};
+
+typedef std::function<void (interpreter &, meta_context *)> meta_fn;
+typedef std::pair<meta_context *, meta_fn> meta_entry;
+
 class interpreter {
     friend class builtins;
     friend class builtins_fileio;
@@ -312,6 +319,8 @@ private:
     choice_point_t * get_choice_point(size_t at_index);
     choice_point_t * allocate_choice_point(size_t index_id);
     void cut_last_choice_point();
+    choice_point_t * reset_to_choice_point(size_t b);
+    void unwind(size_t current_tr);
 
     bool definitely_inequal(const term &a, const term &b);
     common::cell first_arg_index(const term &first_arg);
@@ -376,6 +385,9 @@ private:
     size_t file_id_count_;
 
     arithmetics arith_;
+
+    size_t register_top_b_; // Fail if this register_b_ reaches this value.
+    std::vector<meta_entry> meta_;
 };
 
 }}

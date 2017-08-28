@@ -7,6 +7,7 @@
 
 namespace prologcoin { namespace interp {
     class interpreter;
+    struct meta_context;
 
     typedef std::function<bool (interpreter &interp, common::term &caller)> builtin;
 
@@ -95,6 +96,13 @@ namespace prologcoin { namespace interp {
 	//
 
 	static bool is_2(interpreter &interp, common::term &caller);
+
+	//
+	// Meta
+	//
+	
+	static bool operator_disprove(interpreter &interp, common::term &caller);
+	static void operator_disprove_post(interpreter &interp, meta_context *context);
     };
 
 }}
