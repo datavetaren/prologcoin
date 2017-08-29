@@ -265,6 +265,21 @@ private:
 
     static const int choice_point_num_cells = sizeof(choice_point_t) / sizeof(cell);
 
+    template<typename T> inline T * new_meta_context(meta_fn fn) {
+        T *context = new T();
+	context->old_top_b = register_top_b_;
+	meta_.push_back(std::make_pair(context, fn));
+	return context;
+    }
+
+    void release_last_meta_context()
+    {
+        auto *context = meta_.back().first;
+        register_top_b_ = context->old_top_b;
+	delete context;
+	meta_.pop_back();
+    }
+
     inline void set_trail_pointer(size_t tr)
     {
         register_tr_ = tr;
@@ -298,6 +313,29 @@ private:
     inline void reset_choice_point()
     {
         register_b_ = register_b0_;
+    }
+
+    inline void unwind_to_top_choice_point()
+    {
+        size_t current_tr = register_tr_;
+	auto ch = reset_to_choice_point(register_top_b_);
+	unwind(current_tr);
+	register_b_ = ch->b;
+    }
+
+    inline void set_top_b()
+    {
+        register_top_b_ = register_b_;
+    }
+
+    inline void set_top_fail(bool b)
+    {
+        top_fail_ = b;
+    }
+  
+    inline bool is_top_fail() const
+    {
+        return top_fail_;
     }
 
     void tidy_trail();
