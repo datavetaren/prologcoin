@@ -261,7 +261,7 @@ namespace prologcoin { namespace interp {
     bool builtins::operator_disprove(interpreter &interp, term &caller)
     {
 	term arg = interp.env().arg(caller, 0);
-	auto *context = interp.new_meta_context<meta_context>(&operator_disprove_post);
+	interp.new_meta_context<meta_context>(&operator_disprove_post);
 	auto *ch = interp.allocate_choice_point(0);
 	ch->b = 1;
 	interp.set_top_b();
