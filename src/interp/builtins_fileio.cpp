@@ -115,4 +115,18 @@ namespace prologcoin { namespace interp {
 	return fs.is_eof();
     }
 
+    bool builtins_fileio::write_1(interpreter &interp, term &caller)
+    {
+	term arg = interp.env().arg(caller, 0);
+	std::string str = interp.env().to_string(arg);
+	std::cout << str << std::flush;
+	return true;
+    }
+
+    bool builtins_fileio::nl_0(interpreter &interp, term &caller)
+    {
+	std::cout << std::endl << std::flush;
+	return true;
+    }
+
 }}

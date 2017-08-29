@@ -171,6 +171,16 @@ namespace prologcoin { namespace interp {
 	return r;
     }
 
+    bool builtins::operator_cannot_unify(interpreter &interp, term &caller)
+    {
+	term lhs = interp.env().arg(caller, 0);
+	term rhs = interp.env().arg(caller, 1);
+	size_t current_tr = interp.env().trail_size();
+	bool r = interp.env().unify(lhs, rhs);
+	interp.env().unwind_trail(current_tr, interp.env().trail_size());
+	return !r;
+    }
+
     //
     // Type tests
     //
@@ -253,6 +263,55 @@ namespace prologcoin { namespace interp {
 	term result = interp.arith().eval(rhs, "is/2");
 	return interp.unify(lhs, result);
     }	
+
+    //
+    // Analyzing & constructing terms
+    //
+
+    bool builtins::copy_term_2(interpreter &interp, term &caller)
+    {
+	term arg1 = interp.env().arg(caller, 0);
+	term arg2 = interp.env().arg(caller, 1);
+	term copy_arg1 = interp.env().copy(arg1);
+	return interp.unify(arg2, copy_arg1);
+    }
+
+    bool builtins::functor_3(interpreter &interp, term &caller)
+    {
+	term t = interp.env().arg(caller, 0);
+	term f = interp.env().arg(caller, 1);
+	term a = interp.env().arg(caller, 2);
+
+	switch (t->tag()) {
+  	  case tag_t::REF:
+            interp.abort(interpreter_exception_not_sufficiently_instantiated("funtor/3: Arguments are not sufficiently instantiated"));
+	    return false;
+	  case tag_t::INT:
+ 	  case tag_t::BIG: {
+	    term zero = interp.env().to_term(int_cell(0));
+	    return interp.unify(f, t) && interp.unify(a, zero);
+	    }
+	  case tag_t::STR:
+  	  case tag_t::CON: {
+	      con_cell tf = interp.env().functor(t);
+	      term fun = interp.env().to_term(tf);
+	      term arity = interp.env().to_term(int_cell(tf.arity()));
+	      return interp.unify(f, fun) && interp.unify(a, arity);
+	    }
+	}
+
+        return false;
+    }
+
+    bool builtins::operator_deconstruct(interpreter &interp, term &caller)
+    {
+	auto lhs = interp.env().arg(caller, 0);
+	auto rhs = interp.env().arg(caller, 1);
+
+	// TODO: Working on this...
+	
+	return true;
+    }
 
     //
     // Meta

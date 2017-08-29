@@ -491,10 +491,14 @@ protected:
       term_tokenizer::token var_token = args[0].token();
       const std::string &var_name = var_token.lexeme();
 
-      // Check if we have seen this name before
-      auto found = name_var_map_.find(var_name);
-      if (found != name_var_map_.end()) {
-	  return found->second;
+      bool is_new = var_name[0] == '_';
+
+      if (!is_new) {
+          // Check if we have seen this name before
+          auto found = name_var_map_.find(var_name);
+          if (found != name_var_map_.end()) {
+	      return found->second;
+          }
       }
 
       // We didn't find this variable, so we create a new one.

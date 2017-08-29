@@ -53,6 +53,8 @@ namespace prologcoin { namespace interp {
 
 	// operator =
 	static bool operator_unification(interpreter &interp, common::term &caller);
+	// operator \=
+	static bool operator_cannot_unify(interpreter &interp, common::term &caller);
 
 	//
 	// Type checks
@@ -96,6 +98,14 @@ namespace prologcoin { namespace interp {
 	//
 
 	static bool is_2(interpreter &interp, common::term &caller);
+
+	//
+	// Analyzing & constructing terms
+	//
+
+	static bool copy_term_2(interpreter &interp, common::term &caller);
+	static bool functor_3(interpreter &interp, common::term &caller);
+	static bool operator_deconstruct(interpreter &interp, common::term &caller);
 
 	//
 	// Meta

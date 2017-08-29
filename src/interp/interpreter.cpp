@@ -160,9 +160,9 @@ void interpreter::load_builtins()
     load_builtin(con_cell("\\==",2), &builtins::operator_not_equals);
     load_builtin(con_cell("compare",3), &builtins::compare_3);
     load_builtin(con_cell("=",2), &builtins::operator_unification);
+    load_builtin(con_cell("\\=",2), &builtins::operator_cannot_unify);
 
     // Type tests
-
     load_builtin(con_cell("var",1), &builtins::var_1);
     load_builtin(con_cell("nonvar",1), &builtins::nonvar_1);
     load_builtin(con_cell("integer",1), &builtins::integer_1);
@@ -174,8 +174,11 @@ void interpreter::load_builtins()
     load_builtin(con_cell("ground", 1), &builtins::ground_1);
 
     // Arithmetics
-
     load_builtin(con_cell("is",2), &builtins::is_2);
+
+    // Analyzing & constructing terms
+    load_builtin(env().functor("functor",3), &builtins::functor_3);
+    load_builtin(env().functor("copy_term",2), &builtins::copy_term_2);
 
     // Meta
     load_builtin(con_cell("\\+", 1), &builtins::operator_disprove);
@@ -204,6 +207,8 @@ void interpreter::load_builtins_file_io()
     load_builtin(con_cell("close", 1), &builtins_fileio::close_1);
     load_builtin(con_cell("read", 2), &builtins_fileio::read_2);
     load_builtin(term_env_->functor("at_end_of_stream", 1), &builtins_fileio::at_end_of_stream_1);
+    load_builtin(con_cell("write", 1), &builtins_fileio::write_1);
+    load_builtin(con_cell("nl", 0), &builtins_fileio::nl_0);
 }
 
 void interpreter::load_program(const term &t)

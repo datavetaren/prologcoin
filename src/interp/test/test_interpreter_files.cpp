@@ -289,7 +289,7 @@ static bool test_interpreter_file(const std::string &filepath)
     }
 }
 
-static void test_interpreter_files()
+static void test_interpreter_files(const char *filter = nullptr)
 {
     header( "test_interpreter_files" );
 
@@ -300,8 +300,12 @@ static void test_interpreter_files()
 
     for (boost::filesystem::directory_iterator it(files_dir); it != it_end; ++it) {
         std::string filepath = it->path().string();
+	if (filter != nullptr && filepath.find(filter) == std::string::npos) {
+	    continue;
+	}
 
-	if (it->path().filename().string() == "ex_99_bigone.pl") {
+	if (filter == nullptr &&
+	    it->path().filename().string() == "ex_99_bigone.pl") {
 	    continue; // Skip it for now...
 	}
 
@@ -317,7 +321,11 @@ int main( int argc, char *argv[] )
 {
     find_home_dir(argv[0]);
 
-    test_interpreter_files();
+    if (argc == 2) {
+	test_interpreter_files(argv[1]);
+    } else {
+	test_interpreter_files();
+    }
 
     return 0;
 }

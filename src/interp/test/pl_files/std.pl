@@ -30,6 +30,13 @@ append([X|Xs], Ys, [X|Zs]) :-
     append(Xs, Ys, Zs).
 
 %
+% is_list
+%
+is_list([]).
+is_list([_|Xs]) :- is_list(Xs).
+
+
+%
 % sort/2 (merge sort)
 %
 
