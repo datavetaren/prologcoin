@@ -303,14 +303,113 @@ namespace prologcoin { namespace interp {
         return false;
     }
 
+   term builtins::deconstruct_write_list(interpreter &interp,
+					 term &t, size_t index)
+    {
+	term empty_lst = interp.env().empty_list();
+	term lst = empty_lst;
+	con_cell f = interp.env().functor(t);
+	size_t n = f.arity();
+	term tail = lst;
+	while (index < n) {
+	    term arg = interp.env().arg(t, index);
+	    term elem = interp.new_dotted_pair(arg, empty_lst);
+	    if (interp.env().is_empty_list(tail)) {
+		lst = elem;
+		tail = elem;
+	    } else {
+		interp.env().set_arg(tail, 1, elem);
+		tail = elem;
+	    }
+	    index++;
+	}
+	return lst;
+    }
+
+    bool builtins::deconstruct_read_list(interpreter &interp,
+					 term lst,
+					 term &t, size_t index)
+    {
+	con_cell f = interp.env().functor(t);
+	size_t n = f.arity();
+	while (index < n) {
+	    if (lst->tag() == tag_t::REF) {
+		term tail = deconstruct_write_list(interp, t, index);
+		return interp.unify(lst, tail);
+	    }
+	    if (!interp.env().is_dotted_pair(lst)) {
+		return false;
+	    }
+	    term elem = interp.env().arg(lst, 0);
+	    term arg = interp.env().arg(t, index);
+	    if (!interp.unify(elem, arg)) {
+		return false;
+	    }
+	    lst = interp.env().arg(lst, 1);
+	    index++;
+	}
+	return true;
+    }
+
     bool builtins::operator_deconstruct(interpreter &interp, term &caller)
     {
 	auto lhs = interp.env().arg(caller, 0);
 	auto rhs = interp.env().arg(caller, 1);
 
-	// TODO: Working on this...
-	
-	return true;
+	// To make deconstruction more efficient, let's handle the
+	// common scenarios first.
+
+	if (lhs->tag() == tag_t::REF && rhs->tag() == tag_t::REF) {
+		interp.abort(interpreter_exception_not_sufficiently_instantiated("=../2: Arguments are not sufficiently instantiated"));
+	}
+
+	if (lhs->tag() == tag_t::REF) {
+	    if (!interp.env().is_list(rhs)) {
+		interp.abort(interpreter_exception_not_list("=../2: Second argument is not a list; found " + interp.env().to_string(rhs)));
+	    }
+	    size_t lst_len = interp.env().list_length(rhs);
+	    if (lst_len == 0) {
+		interp.abort(interpreter_exception_not_list("=../2: Second argument must be non-empty; found " + interp.env().to_string(rhs)));
+	    }
+	    term first_elem = interp.env().arg(rhs,0);
+	    if (first_elem->tag() == tag_t::REF) {
+		interp.abort(interpreter_exception_not_sufficiently_instantiated("=../2: Arguments are not sufficiently instantiated"));
+	    }
+	    if (first_elem->tag() == tag_t::INT && lst_len == 1) {
+		return interp.unify(lhs, first_elem);
+	    }
+	    if (!interp.env().is_functor(first_elem)) {
+		return false;
+	    }
+	    con_cell f = interp.env().functor(first_elem);
+	    size_t num_args = lst_len - 1;
+	    term t = interp.env().new_term(interp.env().to_functor(f, num_args));
+	    term lst = interp.env().arg(rhs, 1);
+	    for (size_t i = 0; i < num_args; i++) {
+		if (lst->tag() == tag_t::REF) {
+		    term tail = deconstruct_write_list(interp, lhs, i);
+		    return interp.unify(lst, tail);
+		}
+		term arg = interp.env().arg(lst, 0);
+		interp.env().set_arg(t, i, arg);
+
+		lst = interp.env().arg(lst, 1);
+	    }
+	    return interp.unify(lhs, t);
+	}
+	if (lhs->tag() == tag_t::INT) {
+	    term empty = interp.env().empty_list();
+	    term lst = interp.new_dotted_pair(lhs,empty);
+	    return interp.unify(rhs, lst);
+	}
+	if (lhs->tag() != tag_t::STR && lhs->tag() != tag_t::CON) {
+	    return false;
+	}
+	con_cell f = interp.env().to_atom(interp.env().functor(lhs));
+	term elem = interp.env().to_term(f);
+	term lst = deconstruct_write_list(interp, lhs, 0);
+	lst = interp.new_dotted_pair(elem, lst);
+	return interp.unify(rhs, lst);
     }
 
     //

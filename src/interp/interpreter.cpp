@@ -42,6 +42,13 @@ bool interpreter::unify(term &a, term &b)
     return r;
 }
 
+term interpreter::new_dotted_pair(term &a, term &b)
+{
+    term t = term_env_->new_dotted_pair(a,b);
+    register_h_ = term_env_->heap_size();
+    return t;
+}
+
 interpreter::~interpreter()
 {
     arith_.unload();
@@ -179,6 +186,7 @@ void interpreter::load_builtins()
     // Analyzing & constructing terms
     load_builtin(env().functor("functor",3), &builtins::functor_3);
     load_builtin(env().functor("copy_term",2), &builtins::copy_term_2);
+    load_builtin(con_cell("=..", 2), &builtins::operator_deconstruct);
 
     // Meta
     load_builtin(con_cell("\\+", 1), &builtins::operator_disprove);

@@ -75,9 +75,14 @@ public:
       return c.tag() == tag_t::CON || c.tag() == tag_t::STR;
   }
   term new_term(con_cell functor, const std::initializer_list<term> &args);
+  term new_term(con_cell functor);
+  term new_dotted_pair(term &a, term &b);
+  con_cell to_atom(con_cell functor);
+  con_cell to_functor(con_cell atom, size_t arity);
+  size_t list_length(const term &lst) const;
   inline cell arg(cell c, size_t index) const { return heap_->arg0(c, index); }
   inline term arg(term t, size_t index) const { return heap_->arg(t, index); }
-
+  inline void set_arg(term &t, size_t index, term &arg) { heap_->set_arg(t, index, arg); }
   inline size_t allocate_stack(size_t num_cells) { size_t at_index = stack_.size(); stack_.resize(at_index+num_cells); return at_index; }
   inline void ensure_stack(size_t at_index, size_t num_cells) { if (at_index + num_cells > stack_.size()) allocate_stack(at_index+num_cells-stack_.size()); }
   inline cell * stack_ref(size_t at_index) { return &stack_[at_index]; }
@@ -206,6 +211,38 @@ term term_env_impl::new_term(con_cell f, const std::initializer_list<term> &args
     }
     register_h_ = heap_->size();
     return r;
+}
+
+term term_env_impl::new_term(con_cell f)
+{
+    auto r = heap_->new_str(f);
+    register_h_ = heap_->size();
+    return r;
+}
+
+term term_env_impl::new_dotted_pair(term &a, term &b)
+{
+    static const con_cell dotted_pair(".", 2);
+
+    term pair = heap_->new_str(dotted_pair);
+    heap_->set_arg(pair, 0, a);
+    heap_->set_arg(pair, 1, b);
+    return pair;
+}
+
+con_cell term_env_impl::to_atom(con_cell functor)
+{
+    return heap_->to_atom(functor);
+}
+
+con_cell term_env_impl::to_functor(con_cell atom, size_t arity)
+{
+    return heap_->to_functor(atom, arity);
+}
+
+size_t term_env_impl::list_length(const term &lst) const
+{
+    return heap_->list_length(lst);
 }
 
 bool term_env_impl::equal(cell a, cell b) const
@@ -690,9 +727,39 @@ term term_env::arg(const term &t, size_t index)
     return impl_->arg(t, index);
 }
 
+void term_env::set_arg(term &t, size_t index, term &arg)
+{
+    return impl_->set_arg(t, index, arg);
+}
+
 term term_env::new_term(con_cell f, const std::initializer_list<term> &args)
 {
     return impl_->new_term(f, args);
+}
+
+term term_env::new_term(con_cell f)
+{
+    return impl_->new_term(f);
+}
+
+term term_env::new_dotted_pair(term &a, term &b)
+{
+    return impl_->new_dotted_pair(a, b);
+}
+
+con_cell term_env::to_atom(con_cell functor)
+{
+    return impl_->to_atom(functor);
+}
+
+con_cell term_env::to_functor(con_cell atom, size_t arity)
+{
+    return impl_->to_functor(atom, arity);
+}
+
+size_t term_env::list_length(const term &lst) const
+{
+    return impl_->list_length(lst);
 }
 
 bool term_env::unify(term &a, term &b)

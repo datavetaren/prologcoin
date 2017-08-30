@@ -285,6 +285,13 @@ public:
         }
     }
 
+    con_cell to_atom() const
+    {
+	con_cell c = *this;
+	c.set_value(value() & ~(0x1f));
+	return c;
+    }
+
     inline size_t atom_index() const
     {
         assert(!is_direct());
@@ -557,6 +564,33 @@ public:
 	}
 	
         return con_cell(name, arity);
+    }
+
+    inline con_cell to_atom(con_cell c)
+    {
+	if (c.is_direct()) {
+	    con_cell c2 = c;
+	    c2.set_value(c.value() & ~(0x1f));
+	    return c2;
+	} else {
+	    std::string name = atom_name(c);
+	    return functor(name, 0);
+	}
+    }
+
+    inline con_cell to_functor(con_cell atom, size_t arity)
+    {
+	if (arity >= 32) {
+	    return functor(atom_name(atom), arity);
+	} else {
+	    if (atom.is_direct()) {
+		con_cell f = atom;
+		f.set_value(f.value() | arity);
+		return f;
+	    } else {
+		return functor(atom_name(atom), arity);
+	    }
+	}
     }
 
     size_t resolve_atom_index(const std::string &name) const;

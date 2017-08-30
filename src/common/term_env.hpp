@@ -138,8 +138,14 @@ public:
   bool is_list(const term &t) const;
   bool is_comma(const term &t) const;
   term arg(const term &t, size_t index);
+  void set_arg(term &t, size_t index, term &arg);
+  term new_term(con_cell functor);
   term new_term(con_cell functor, const std::initializer_list<term> &args);
+  term new_dotted_pair(term &a, term &b);
+  con_cell to_atom(con_cell functor);
+  con_cell to_functor(con_cell atom, size_t arity);
 
+  size_t list_length(const term &lst) const;
   bool unify(term &a, term &b);
   term copy(const term &t);
   bool equal(const term &a, const term &b);

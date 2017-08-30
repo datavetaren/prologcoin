@@ -118,6 +118,13 @@ public:
 	: interpreter_exception(msg) { }
 };
 
+class interpreter_exception_not_list : public interpreter_exception
+{
+public:
+    interpreter_exception_not_list(const std::string &msg)
+	: interpreter_exception(msg) { }
+};
+
 class interpreter_exception_unsupported : public interpreter_exception
 {
 public:
@@ -231,6 +238,7 @@ private:
 
     void init();
     bool unify(term &a, term &b);
+    term new_dotted_pair(term &a, term &b);
     void prepare_execution();
     void abort(const interpreter_exception &ex);
     void fail();

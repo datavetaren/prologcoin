@@ -40,13 +40,13 @@ is_list([_|Xs]) :- is_list(Xs).
 % sort/2 (merge sort)
 %
 
-msort([],[]).
-msort([A],[A]).
-msort([A,B|Xs0], Ys) :-
+sort([],[]).
+sort([A],[A]).
+sort([A,B|Xs0], Ys) :-
     Xs = [A,B|Xs0],
     split(Xs, As, Bs),
-    msort(As, As1),
-    msort(Bs, Bs1),
+    sort(As, As1),
+    sort(Bs, Bs1),
     merge(As1, Bs1, Ys).
 
 split([], [], []).
