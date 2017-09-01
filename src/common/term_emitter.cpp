@@ -208,26 +208,33 @@ void term_emitter::emit_error(const std::string &msg)
     emit_token(err);
 }
 
-void term_emitter::push_functor_args(size_t index, size_t arity)
+void term_emitter::push_functor_args(size_t index, size_t arity, bool with_paren)
 {
     for (size_t i = 0; i < arity; i++) {
 	// Push last argument first
 	auto arg = deref(heap_[arity+index-i]);
 	auto e = elem(arg);
-	if (i == 0) {
+	if (i == 0 && with_paren) {
 	    auto rparen = elem(con_cell(")",0));
 	    rparen.set_as_token(true);
 	    rparen.set_at_end(true);
 	    stack_.push_back(rparen);
 	} 
 
-	check_wrap_paren(e, 1000);
+	size_t prec = 1000;
+	if (arity == 1 && !with_paren) {
+	    prec = 99999;
+	}
+
+	check_wrap_paren(e, prec);
 
 	if (i == arity - 1) {
-	    auto lparen = elem(con_cell("(",0));
-	    lparen.set_as_token(true);
-	    lparen.set_at_begin(true);
-	    stack_.push_back(lparen);
+	    if (with_paren) {
+	        auto lparen = elem(con_cell("(",0));
+	        lparen.set_as_token(true);
+	        lparen.set_at_begin(true);
+	        stack_.push_back(lparen);
+	    }
 	} else {
 	    auto space = elem(con_cell(" ",0));
 	    space.set_as_token(true);
@@ -323,6 +330,25 @@ void term_emitter::wrap_paren(const term_emitter::elem &e)
 }
 
 
+void term_emitter::wrap_curly(const term_emitter::elem &e)
+{
+    auto rbrace = elem(con_cell("}",0));
+    rbrace.set_as_token(true);
+    rbrace.set_at_end(true);
+    stack_.push_back(rbrace);
+
+    elem e1 = e;
+    e1.set_has_paren(true);
+    e1.set_check_paren(false);
+    e1.set_skip_functor(true);
+    stack_.push_back(e1);
+
+    auto lbrace = elem(con_cell("{",0));
+    lbrace.set_as_token(true);
+    lbrace.set_at_begin(true);
+    stack_.push_back(lbrace);
+}
+
 
 bool term_emitter::atom_name_needs_quotes(const std::string &name) const
 {
@@ -364,11 +390,23 @@ void term_emitter::emit_atom_name(const std::string &name)
     }
 }
 
-void term_emitter::emit_functor(const con_cell &f, size_t index)
+void term_emitter::emit_functor_name(const con_cell &f)
 {
     std::string name = heap_.atom_name(f);
     emit_atom_name(name);
-    push_functor_args(index, f.arity());
+}
+
+void term_emitter::emit_functor_args(const con_cell &f, size_t index, bool with_paren)
+{
+    push_functor_args(index, f.arity(), with_paren);
+}
+
+void term_emitter::emit_functor(const term_emitter::elem &e, const con_cell &f, size_t index)
+{
+    if (!e.is_skip_functor()) {
+        emit_functor_name(f);
+    }
+    emit_functor_args(f, index, !e.is_skip_functor());
 }
 
 std::tuple<bool, cell, size_t> term_emitter::check_functor(cell c)
@@ -595,6 +633,7 @@ void term_emitter::emit_functor_elem(const term_emitter::elem &e)
 	    return;
 	}
     }
+
     emit_functor_elem_helper(e1);
 }
 
@@ -632,7 +671,7 @@ void term_emitter::emit_functor_elem_helper(const term_emitter::elem &e)
 	if (is_def) {
 	    emit_dot();
 	}
-	emit_functor(f, index);
+	emit_functor(e, f, index);
 	return;
     }
 
@@ -649,7 +688,7 @@ void term_emitter::emit_functor_elem_helper(const term_emitter::elem &e)
 	case term_ops::YF: emit_xf(is_def, x, f, x_prec <= f_prec); return;
 	case term_ops::FX: emit_fx(is_def, f, x, x_prec < f_prec); return;
 	case term_ops::FY: emit_fx(is_def, f, x, x_prec <= f_prec); return;
-	default: emit_functor(f, index); return;
+	default: emit_functor(e, f, index); return;
 	}
     }
 
@@ -662,7 +701,7 @@ void term_emitter::emit_functor_elem_helper(const term_emitter::elem &e)
     case term_ops::XFX: emit_xfy(is_def,x,f,y,x_prec<f_prec,y_prec<f_prec);return;
     case term_ops::XFY: emit_xfy(is_def,x,f,y,x_prec<f_prec,y_prec<=f_prec);return;
     case term_ops::YFX: emit_xfy(is_def,x,f,y,x_prec<=f_prec,y_prec<f_prec);return;
-    default: emit_functor(f, index); return;
+    default: emit_functor(e, f, index); return;
     }
 }
 
@@ -745,6 +784,11 @@ void term_emitter::emit_int(const term_emitter::elem &e)
 
 void term_emitter::print_from_stack(size_t top)
 {
+    static const con_cell comma(",", 2);
+    static const con_cell curly("{}", 1);
+
+    bool is_top_level = true;
+
     while (!stack_.empty() && stack_.size() > top) {
 
 	if (scan_mode_ && column_ >= max_column_) {
@@ -754,6 +798,20 @@ void term_emitter::print_from_stack(size_t top)
 	auto e = *(stack_.end() - 1);
 
 	stack_.pop_back();
+
+	if (e.cell_.tag() == tag_t::STR) {
+	    if (is_top_level && heap_.functor(e.cell_) == comma) {
+	        wrap_paren(e);
+	        continue;
+	    }
+	    if (!e.as_token() && heap_.functor(e.cell_) == curly &&
+		!e.has_paren()) {
+	        wrap_curly(e);
+	        continue;
+	    }
+	}
+
+	is_top_level = false;
 	
         if (e.is_indent_inc()) {
 	    increment_indent_level();

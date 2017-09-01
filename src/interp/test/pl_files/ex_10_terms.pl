@@ -70,6 +70,30 @@ ex11(A) :-
 % Expect: Q18 = foo(bar)
 % Expect: end
 
+ex12(A, B) :-
+   T = (1,2,3,4),
+   sub12(T, A, B).
+sub12((A,B), A, B).
+   
+?- ex12(A, B).
+% Expect: A = 1, B = (2, 3, 4)
+% Expect: end
+
+ex13(T, A, B) :-
+   T = {1,2,3,4},
+   sub13(T, A, B).
+sub13({A,B}, A, B).
+?- ex13(T, A, B).
+% Expect: T = {1,2,3,4}, A = 1, B = (2, 3, 4).
+% Expect: end
+
+ex14(T) :-
+   T = {1,{2,3},4}.
+?- ex14(T).
+% Expect: T = {1, {2, 3}, 4}
+% Expect: end
+
+
 
 
 

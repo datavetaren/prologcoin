@@ -51,6 +51,7 @@ private:
     static const flags_t IS_DEF = 1 << 6;
     static const flags_t HAS_PAREN = 1 << 7;
     static const flags_t CHECK_PAREN = 1 << 8;
+    static const flags_t SKIP_FUNCTOR = 1 << 9;
 
     struct elem {
 	cell cell_;
@@ -70,6 +71,7 @@ private:
 	inline bool is_def() const { return (flags & IS_DEF) != 0; }
 	inline bool has_paren() const { return (flags & HAS_PAREN) != 0; }
 	inline bool check_paren() const { return (flags & CHECK_PAREN) != 0; }
+        inline bool is_skip_functor() const { return (flags & SKIP_FUNCTOR) != 0; }
 
 	void set_flag(flags_t flag, bool b) {
 	    flags = ((flags &~flag) | flag*(int)b); }
@@ -83,6 +85,7 @@ private:
 	void set_is_def(bool b) { set_flag(IS_DEF,b); }
 	void set_has_paren(bool b) { set_flag(HAS_PAREN,b); }
 	void set_check_paren(bool b) { set_flag(CHECK_PAREN,b); }
+        void set_skip_functor(bool b) { set_flag(SKIP_FUNCTOR,b); }
     };
 
     void emit_error(const std::string &msg);
@@ -110,13 +113,16 @@ private:
     void emit_list(const cell lst);
     bool atom_name_needs_quotes(const std::string &name) const;
     void emit_atom_name(const std::string &name);
-    void emit_functor(const con_cell &f, size_t index);
-    void push_functor_args(size_t index, size_t arity);
+    void emit_functor(const term_emitter::elem &e, const con_cell &f, size_t index);
+    void emit_functor_name(const con_cell &f);
+    void emit_functor_args(const con_cell &f, size_t index, bool with_paren = true);
+    void push_functor_args(size_t index, size_t arity, bool with_paren);
     void emit_ref(const elem &a);
     void emit_int(const elem &a);
     void increment_indent_level();
     void decrement_indent_level();
     void wrap_paren(const term_emitter::elem &e);
+    void wrap_curly(const term_emitter::elem &e);
     bool check_wrap_paren(const term_emitter::elem &e, size_t prec_low, size_t prec_high = 1201);
 
     void mark_indent_column();
