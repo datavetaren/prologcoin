@@ -420,10 +420,13 @@ namespace prologcoin { namespace interp {
     {
 	term arg = interp.env().arg(caller, 0);
 	interp.new_meta_context<meta_context>(&operator_disprove_post);
-	auto *ch = interp.allocate_choice_point(0);
-	ch->b = 1;
+
+	interp.set_top_e();
+	interp.allocate_environment();
 	interp.set_top_b();
+	interp.set_current_query(arg);
 	interp.set_continuation_point(arg);
+
 	return true;
     }
 

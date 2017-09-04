@@ -141,6 +141,7 @@ public:
 
 struct meta_context {
     size_t old_top_b;
+    size_t old_top_e;
 };
 
 typedef std::function<void (interpreter &, meta_context *)> meta_fn;
@@ -251,6 +252,11 @@ private:
 	return register_qr_;
     }
 
+    inline void set_current_query(term &qr) 
+    {
+        register_qr_ = qr;
+    }
+
     struct environment_t {
 	int_cell ce; // Continuation environment
         int_cell b0; // Choice point when encountering a cut operation.
@@ -276,6 +282,7 @@ private:
     template<typename T> inline T * new_meta_context(meta_fn fn) {
         T *context = new T();
 	context->old_top_b = register_top_b_;
+	context->old_top_e = register_top_e_;
 	meta_.push_back(std::make_pair(context, fn));
 	return context;
     }
@@ -284,6 +291,7 @@ private:
     {
         auto *context = meta_.back().first;
         register_top_b_ = context->old_top_b;
+	register_top_e_ = context->old_top_e;
 	delete context;
 	meta_.pop_back();
     }
@@ -323,12 +331,31 @@ private:
         register_b_ = register_b0_;
     }
 
-    inline void unwind_to_top_choice_point()
+    void unwind_to_top_choice_point();
+
+    inline void set_top_e()
     {
-        size_t current_tr = register_tr_;
-	auto ch = reset_to_choice_point(register_top_b_);
-	unwind(current_tr);
-	register_b_ = ch->b;
+        register_top_e_ = register_e_;
+    }
+
+    inline size_t get_register_e()
+    {
+        return register_e_;
+    }
+
+    inline size_t get_top_e()
+    {
+        return register_top_e_;
+    }
+
+    inline size_t get_register_b()
+    {
+        return register_b_;
+    }
+
+    inline size_t get_top_b()
+    {
+        return register_top_b_;
     }
 
     inline void set_top_b()
@@ -433,6 +460,7 @@ private:
     arithmetics arith_;
 
     size_t register_top_b_; // Fail if this register_b_ reaches this value.
+    size_t register_top_e_; // Check meta if 'e' reaches this value.
     std::vector<meta_entry> meta_;
 };
 

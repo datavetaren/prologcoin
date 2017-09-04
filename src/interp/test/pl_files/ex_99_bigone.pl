@@ -1,5 +1,5 @@
 % Meta: fileio on
-% Meta: debug on
+% Meta: debug off
 
 % Read in standard library
 :- [std].
@@ -31,6 +31,9 @@ main :-
 %    assert(log_cnt(0)),
     !,
     read_grammar_and_properties('term_grammar.pl', G),
+    write('------------------------------------------------'),
+    write(G), nl,
+    write('------------------------------------------------'),
     extract_properties(G, Properties, Grammar),
     StartItem = [(start :- 'DOT', subterm_1200, full_stop)],
     Start = state(0, StartItem, []),
@@ -632,7 +635,9 @@ all_next_symbols([_|Items], SymbolsIn, SymbolsOut) :-
 %
 
 closure(Grammar,KernelItems,Closure) :-
+    write('-------- closure '), nl,
     closure_kernel(KernelItems,Grammar,[],Closure1),
+    write('-------- closure done'), nl,
     sort(Closure1, Closure2),
     closure_compact(Closure2, Closure3),
     reverse(Closure3, Closure).
@@ -647,7 +652,9 @@ closure(Grammar,Item,ClosureIn,ClosureOut) :-
     !, % Do not backtrack.
     copy_term(Item, ItemCopy),
     (item_move_next(ItemCopy, ItemCopyNext),
-     lookahead(Grammar, ItemCopyNext, LA), ! ; LA = []),
+     lookahead(Grammar, ItemCopyNext, LA),
+     ! ; LA = []),
+    length(ClosureIn, N), write('ClosureIn '), write(N), nl,
     match(Grammar, ItemCopy, MatchedItems),
     ClosureIn1 = [Item | ClosureIn],
     add_lookaheads(MatchedItems, LA, NewItems),

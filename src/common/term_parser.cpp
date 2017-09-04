@@ -631,14 +631,14 @@ protected:
   {
     if (check_mode_) return sym();
 
-    return sym();
+    return args[0];
   }
 
   sym reduce_number__nan(args_t &args)
   {
     if (check_mode_) return sym();
 
-    return sym();
+    return args[0];
   }
 
   // unsigned_number :- ...
@@ -694,11 +694,9 @@ public:
     current_state_ = 0;
     predefined_symbols_[","] = SYMBOL_COMMA;
     predefined_symbols_["."] = SYMBOL_FULL_STOP;
-    predefined_symbols_["inf"] = SYMBOL_INF;
     predefined_symbols_["{"] = SYMBOL_LBRACE;
     predefined_symbols_["["] = SYMBOL_LBRACKET;
     predefined_symbols_["("] = SYMBOL_LPAREN;
-    predefined_symbols_["nan"] = SYMBOL_NAN;
     predefined_symbols_["}"] = SYMBOL_RBRACE;
     predefined_symbols_["]"] = SYMBOL_RBRACKET;
     predefined_symbols_[")"] = SYMBOL_RPAREN;

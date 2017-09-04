@@ -35,6 +35,12 @@ append([X|Xs], Ys, [X|Zs]) :-
 is_list([]).
 is_list([_|Xs]) :- is_list(Xs).
 
+%
+% length/2
+%
+
+length([], 0).
+length([_|Xs], N) :- length(Xs, N0), N is N0 + 1.
 
 %
 % sort/2 (merge sort)
@@ -56,6 +62,8 @@ split([A,B|Xs], [A|As], [B|Bs]) :-
 
 merge([], Ys, Ys).
 merge(Xs, [], Xs).
+merge([X|Xs], [X|Ys], [X|Zs]) :-
+    merge(Xs, Ys, Zs).
 merge([X|Xs], [Y|Ys], [X|Zs]) :-
     X @=< Y, merge(Xs, [Y|Ys], Zs).
 merge([X|Xs], [Y|Ys], [Y|Zs]) :-

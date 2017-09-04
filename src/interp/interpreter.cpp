@@ -404,6 +404,7 @@ interpreter::choice_point_t * interpreter::allocate_choice_point(size_t index_id
     if (at_index == 0) {
 	at_index = 1;
     }
+
     term_env_->ensure_stack(at_index, choice_point_num_cells);
     choice_point_t *ch = get_choice_point(at_index);
     ch->ce.set_value(register_e_);
@@ -437,6 +438,7 @@ void interpreter::prepare_execution()
     register_hb_ = register_h_;
     register_b0_ = 0;
     register_top_b_ = 0;
+    register_top_e_ = 0;
 }
 
 bool interpreter::execute(const term &query)
@@ -475,16 +477,21 @@ bool interpreter::cont()
     do {
 	do {
 	    execute_once();
-	} while (register_e_ != 0 && !top_fail_);
+	} while (register_e_ != register_top_e_ && !top_fail_);
 	
 	register_h_ = term_env_->heap_size();
 
-	if (!meta_.empty()) {
+        if (!meta_.empty()) {
 	    meta_entry &e = meta_.back();
 	    meta_context *mc = e.first;
 	    meta_fn fn = e.second;
 	    fn(*this, mc);
-	}
+	    if (top_fail_) {
+	        top_fail_ = false;
+	        fail();
+	    }
+        }
+	
     } while (register_e_ != 0 && !top_fail_);
 
     return !top_fail_;
@@ -573,6 +580,7 @@ void interpreter::print_result(std::ostream &out) const
 void interpreter::execute_once()
 {
     term instruction = register_cp_;
+
     register_cp_ = term_env_->empty_list();
     dispatch(instruction);
 }
@@ -838,9 +846,20 @@ bool interpreter::select_clause(term &instruction,
     return false;
 }
 
+void interpreter::unwind_to_top_choice_point()
+{
+    if (register_top_b_ == 0) {
+        return;
+    }
+    size_t current_tr = register_tr_;
+    auto ch = reset_to_choice_point(register_top_b_);
+    unwind(current_tr);
+    register_b_ = register_top_b_;
+}
+
 interpreter::choice_point_t * interpreter::reset_to_choice_point(size_t b)
 {
-    auto ch = get_choice_point(register_b_);
+    auto ch = get_choice_point(b);
 
     register_e_ = ch->ce.value();
     register_cp_ = term_env_->to_term(ch->cp);

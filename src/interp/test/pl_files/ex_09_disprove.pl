@@ -1,9 +1,18 @@
 %
 % Testing disprove operator
 %
+% Meta: debug off
 
 member(X, [X|_]).
 member(X, [_|Xs]) :- member(X, Xs).
+
+dp5(A) :-
+    \+ member(3, [1,2,3,4,5]).
+dp5(A) :-
+    A = 100.
+?- dp5(Q7).
+% Expect: Q7 = 100
+% Expect: end
 
 %
 % Check that something is not true
@@ -39,7 +48,7 @@ dp3(X, Y) :-
 dp4(X, Y) :-
     \+ member0([1,2,3,4,5], X), Y = 42.
 
-?- dp2(3, Q6).
+?- dp4(3, Q6).
 % Expect: fail
 
 
