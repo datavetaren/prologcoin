@@ -58,7 +58,7 @@ static size_t my_rand(size_t bound)
     return state % bound;
 }
 
-static ext<cell> new_term(heap &heap, size_t max_depth, size_t depth = 0)
+static term new_term(heap &heap, size_t max_depth, size_t depth = 0)
 {
     size_t arity = (depth >= max_depth) ? 0 : my_rand(6);
     char functorName[2];

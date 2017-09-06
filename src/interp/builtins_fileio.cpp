@@ -63,13 +63,13 @@ namespace prologcoin { namespace interp {
 		      + interp.env().to_string(stream)));
 	}
 	term stream_id = interp.env().arg(stream, 0);
-	if (stream_id->tag() != tag_t::INT) {
+	if (stream_id.tag() != tag_t::INT) {
 	    interp.abort(interpreter_exception_wrong_arg_type(
 		      from_fun + ": Unrecognized stream identifier: "
 		      + interp.env().to_string(stream_id)));
 	}
 
-	cell sid = *stream_id;
+	cell sid = stream_id;
 	int_cell &intid = static_cast<int_cell &>(sid);
 	size_t id = intid.value();
 	if (!interp.is_file_id(id)) {

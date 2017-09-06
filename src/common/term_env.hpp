@@ -116,6 +116,8 @@ public:
   heap & get_heap();
   term_ops & get_ops();
 
+  term deref(term t) { return get_heap().deref(t); }
+
   void sync_with_heap();
 
   term parse(const std::string &str);
@@ -144,6 +146,8 @@ public:
   term new_dotted_pair(term &a, term &b);
   con_cell to_atom(con_cell functor);
   con_cell to_functor(con_cell atom, size_t arity);
+
+  bool is_ground(const term &t) const;
 
   size_t list_length(const term &lst) const;
   bool unify(term &a, term &b);
@@ -207,7 +211,7 @@ inline bool term_iterator::operator == (const term_iterator &other) const
 
 inline term term_iterator::first_of(const term &t)
 {
-    if (t.is_void() || env_.is_empty_list(t)) {
+    if (env_.is_empty_list(t)) {
 	return t;
     } else {
 	if (!env_.is_dotted_pair(t)) {
@@ -219,7 +223,8 @@ inline term term_iterator::first_of(const term &t)
 
 inline void term_iterator::advance()
 {
-    if ((*current_).tag() != common::tag_t::STR) {
+    term t = env_.deref(current_);
+    if (t.tag() != common::tag_t::STR) {
 	throw term_exception_not_list(current_);
     }
     current_ = env_.arg(current_, 1);
@@ -228,16 +233,13 @@ inline void term_iterator::advance()
 
 inline bool term_dfs_iterator::operator == (const term_dfs_iterator &other) const
 {
-    if (elem_.is_void() && other.elem_.is_void()) {
-	return true;
-    }
-    return elem_ == other.elem_;
+    return elem_ == other.elem_ && stack_.size() == other.stack_.size();
 }
 
 inline term term_dfs_iterator::first_of(const term &t)
 {
-    term p = t;
-    while (p->tag() == tag_t::STR) {
+    term p = env_.deref(t);
+    while (p.tag() == tag_t::STR) {
 	con_cell f = env_.functor(p);
 	size_t arity = f.arity();
 	if (arity > 0) {

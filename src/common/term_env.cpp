@@ -80,7 +80,7 @@ public:
   con_cell to_atom(con_cell functor);
   con_cell to_functor(con_cell atom, size_t arity);
   size_t list_length(const term &lst) const;
-  inline cell arg(cell c, size_t index) const { return heap_->arg0(c, index); }
+   //  inline cell arg(cell c, size_t index) const { return heap_->arg0(c, index); }
   inline term arg(term t, size_t index) const { return heap_->arg(t, index); }
   inline void set_arg(term &t, size_t index, term &arg) { heap_->set_arg(t, index, arg); }
   inline size_t allocate_stack(size_t num_cells) { size_t at_index = stack_.size(); stack_.resize(at_index+num_cells); return at_index; }
@@ -132,8 +132,7 @@ private:
   mutable std::vector<cell> stack_;
   std::vector<cell> temp_;
   std::vector<size_t> trail_;
-  std::vector<cell> registers_;
-  std::unordered_map<ext<cell>, std::string> var_naming_;
+  std::unordered_map<term, std::string> var_naming_;
 };
 
 term term_env_impl::parse(const std::string &term_expr)
@@ -227,6 +226,7 @@ term term_env_impl::new_dotted_pair(term &a, term &b)
     term pair = heap_->new_str(dotted_pair);
     heap_->set_arg(pair, 0, a);
     heap_->set_arg(pair, 1, b);
+    register_h_ = heap_->size();
     return pair;
 }
 
@@ -674,12 +674,12 @@ size_t term_env::heap_size() const
 
 bool term_env::is_list(const term &t) const
 {
-    return impl_->is_list(*t);
+    return impl_->is_list(t);
 }
 
 bool term_env::is_dotted_pair(const term &t) const
 {
-    return impl_->is_dotted_pair(*t);
+    return impl_->is_dotted_pair(t);
 }
 
 bool term_env::is_empty_list(const term &t) const
@@ -709,7 +709,7 @@ con_cell term_env::functor(const std::string &name, size_t arity)
 
 con_cell term_env::functor(const term &t)
 {
-    return impl_->functor(*t);
+    return impl_->functor(t);
 }
 
 bool term_env::is_functor(const term &t, con_cell f)
@@ -760,6 +760,17 @@ con_cell term_env::to_functor(con_cell atom, size_t arity)
 size_t term_env::list_length(const term &lst) const
 {
     return impl_->list_length(lst);
+}
+
+bool term_env::is_ground(const term &tt) const
+{
+    auto range = const_cast<term_env &>(*this).iterate_over(tt);
+    for (auto t : range) {
+	if (t.tag() == tag_t::REF) {
+	    return false;
+	}
+    }
+    return true;    
 }
 
 bool term_env::unify(term &a, term &b)
@@ -856,9 +867,6 @@ term_dfs_iterator term_env::end(const term &t)
 {
     return term_dfs_iterator(*this);
 }
-
-
-
 
 }}
 

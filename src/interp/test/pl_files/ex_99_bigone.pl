@@ -343,7 +343,7 @@ resolve_conflicts_state(state(N, KernelItems, Actions),
 			state(N, KernelItems, NewActions)) :-
     resolve_conflicts_actions(Actions, Properties, NewActions).
 
-resolve_conflicts_actions(Actions, Properties, NewActions) :-
+eresolve_conflicts_actions(Actions, Properties, NewActions) :-
     action_syms(Actions, ShiftSyms, _GotoSyms, ReduceSyms),
     get_property(Properties, prefer, Prefer),
     (Prefer = shift ->
@@ -637,6 +637,8 @@ all_next_symbols([_|Items], SymbolsIn, SymbolsOut) :-
 closure(Grammar,KernelItems,Closure) :-
     write('-------- closure '), nl,
     closure_kernel(KernelItems,Grammar,[],Closure1),
+    blablabla,
+    % profile,
     write('-------- closure done'), nl,
     sort(Closure1, Closure2),
     closure_compact(Closure2, Closure3),
@@ -654,7 +656,7 @@ closure(Grammar,Item,ClosureIn,ClosureOut) :-
     (item_move_next(ItemCopy, ItemCopyNext),
      lookahead(Grammar, ItemCopyNext, LA),
      ! ; LA = []),
-    length(ClosureIn, N), write('ClosureIn '), write(N), nl,
+    % length(ClosureIn, N), write('ClosureIn '), write(N), nl,
     match(Grammar, ItemCopy, MatchedItems),
     ClosureIn1 = [Item | ClosureIn],
     add_lookaheads(MatchedItems, LA, NewItems),

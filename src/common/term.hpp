@@ -138,6 +138,8 @@ class cell {
 public:
     typedef uint64_t value_t;
 
+    inline cell(const heap &, const cell other) : raw_value_(other.raw_value_) { }
+
     inline cell() : raw_value_(0) { }
 
     inline cell(value_t raw_value) : raw_value_(raw_value) { }
@@ -166,6 +168,8 @@ public:
 private:
     value_t raw_value_;
 };
+
+typedef cell term;
 
 //
 // Exceptions
@@ -262,6 +266,7 @@ public:
 
 class con_cell : public cell {
 public:
+    inline con_cell(const con_cell &other) : cell(other) { }
     inline con_cell( size_t atom_index, size_t arity ) : cell(tag_t::CON)
     {
         set_value((atom_index << 13) | arity);
@@ -378,6 +383,8 @@ public:
    }
 };
 
+void blaha();
+
 //
 // heap_block
 //
@@ -386,38 +393,49 @@ public:
 //
 class heap_block : private boost::noncopyable {
 public:
-    inline heap_block() : index_(0), offset_(0) { }
+    static const size_t MAX_SIZE = 1024*1024/sizeof(cell);
+
+    inline heap_block() : index_(0), offset_(0),
+			  size_(0), cells_(new cell[MAX_SIZE]) { }
     inline heap_block(size_t index, size_t offset)
-        : index_(index), offset_(offset) { }
+        : index_(index), offset_(offset),
+	  size_(0), cells_(new cell[MAX_SIZE]) { }
+    inline ~heap_block() { delete [] cells_; }
 
     inline size_t index() const { return index_; }
     inline size_t offset() const { return offset_; }
 
-    inline cell & operator [] (size_t offset) {
-	return cells_[offset - offset_];
+    inline cell & operator [] (size_t addr) {
+	return cells_[addr - offset_];
     }
 
-    inline const cell & operator [] (size_t offset) const {
-	return cells_[offset - offset_];
+    inline const cell & operator [] (size_t addr) const {
+	return cells_[addr - offset_];
     }
 
-    inline void allocate(size_t n) {
-	size_t top = cells_.size();
-	cells_.resize(top + n);
+    inline bool can_allocate(size_t n) const {
+	return size_ + n < MAX_SIZE;
     }
 
-    inline void trim(size_t new_size) {
-        size_t end = offset_ + cells_.size();
-	if (offset_ <= new_size && new_size < end) {
-	    size_t sz = new_size - offset_;
-	    cells_.resize(sz);
-	}
+    inline size_t allocate(size_t n) {
+	size_t addr = offset_ + size_;
+	size_ += n;
+	return addr;
+    }
+
+    inline void trim(size_t n) {
+	size_ = n;
+    }
+
+    inline void fill() {
+	size_ = MAX_SIZE;
     }
 
 private:
     size_t index_;
     size_t offset_;
-    std::vector<cell> cells_;
+    size_t size_;
+    cell *cells_;
 };
 
 class heap; // Forward
@@ -430,6 +448,7 @@ class heap; // Forward
 // updated.
 // 
 
+#if 0
 template<typename T> class ext {
 public:
     inline ext() : heap_(nullptr), ptr_()
@@ -513,6 +532,7 @@ private:
     mutable size_t id_;
 #endif
 };
+#endif
 
 //
 // heap
@@ -653,11 +673,13 @@ public:
 	}
     }
 
-    inline ext<cell> arg(const cell c, size_t index) const
+    cell deref(cell c) const;
+
+    inline term arg(const cell c, size_t index) const
     {
 	auto dc = deref(c);
         const str_cell &s = static_cast<const str_cell &>(dc);
-	return ext<cell>(*this, deref(get(s.index() + index + 1)));
+	return term(*this, deref(get(s.index() + index + 1)));
     }
 
     void set_arg(cell str, size_t index, cell c)
@@ -668,30 +690,32 @@ public:
 	(*this)[i] = c;
     }
 
-    inline ext<cell> new_str(con_cell con)
+    inline term new_str(con_cell con)
     {
-	size_t index = size_;
 	size_t arity = con.arity();
-	cell *p = allocate(tag_t::STR, arity + 2);
+	cell *p;
+	size_t index;
+	std::tie(p, index) = allocate(tag_t::STR, arity + 2);
 	static_cast<ptr_cell &>(*p).set_index(index+1);
 	p[1] = con;
 	for (size_t i = 0; i < arity; i++) {
 	    p[i+2] = ref_cell(index+i+2);
 	}
-	return ext<cell>(*this, *p);
+	return term(*this, *p);
     }
 
-    inline ext<cell> new_ref()
+    inline term new_ref()
     {
-	size_t index = size_;
-	cell *p = allocate(tag_t::REF, 1);
+	size_t index;
+	cell *p;
+	std::tie(p, index) = allocate(tag_t::REF, 1);
 	static_cast<ref_cell &>(*p).set_index(index);
-	return ext<cell>(*this, *p);
+	return term(*this, *p);
     }
 
-    inline ext<cell> empty_list() const
+    inline term empty_list() const
     {
-	return ext<cell>(*this, empty_list_);
+	return term(*this, empty_list_);
     }
 
     inline size_t external_ptr_count() const
@@ -707,73 +731,72 @@ public:
 private:
     friend class term_emitter;
 
-    struct _block_compare
+    inline size_t new_block()
     {
-	bool operator () (const std::unique_ptr<heap_block> &left,
-			  size_t right) {
-	    return left->offset() < right;
-	}
-    };
+	heap_block *last_block = blocks_.back();
+	size_t last_offset = last_block->offset();
+	size_t new_offset = last_offset + heap_block::MAX_SIZE;
+	new_block(new_offset);
+	last_block->fill();
+	size_ = new_offset;
+	return new_offset;
+    }
 
     inline void new_block(size_t offset)
     {
-	std::unique_ptr<heap_block> p(new heap_block(blocks_.size(), offset));
-	blocks_.push_back(std::move(p));
+	heap_block *block = new heap_block(blocks_.size(), offset);
+	head_block_ = block;
+	blocks_.push_back(block);
     }
 
-    inline size_t find_block_index(size_t index) const
+    inline size_t find_block_index(size_t addr) const
     {
-	auto found =
-	    std::lower_bound(blocks_.begin(),
-			     blocks_.end(),
-			     index,
-			     _block_compare());
-	if (found != blocks_.begin()) {
-	    --found;
+	return addr / heap_block::MAX_SIZE;
+    }
+
+    inline heap_block & find_block(size_t addr)
+    {
+	return *blocks_[find_block_index(addr)];
+    }
+
+    inline const heap_block & find_block(size_t addr) const
+    {
+	return *blocks_[find_block_index(addr)];
+    }
+
+    inline const bool in_range(size_t addr) const
+    {
+	return addr < size();
+    }
+
+    inline std::pair<cell *, size_t> allocate(tag_t::kind_t tag, size_t n) {
+	if (head_block_->can_allocate(n)) {
+	    heap_block *block = head_block_;
+	    size_t addr = block->allocate(n);
+	    ptr_cell new_cell(tag, addr);
+	    cell *p = &(*block)[addr];
+	    *p = new_cell;
+	    size_ = addr + n;
+	    return std::make_pair(p, addr);
 	}
-	auto block_index = (*found)->index();
-	return block_index;
+	new_block();
+	return allocate(tag, n);
     }
 
-    inline heap_block & find_block(size_t index)
+    inline cell & operator [] (size_t addr)
     {
-	return *blocks_[find_block_index(index)];
+	return find_block(addr)[addr];
     }
 
-    inline const heap_block & find_block(size_t index) const
+    inline const cell & operator [] (size_t addr) const
     {
-	return *blocks_[find_block_index(index)];
+	return get(addr);
     }
 
-    inline const bool in_range(size_t index) const
+    inline const cell & get(size_t addr) const
     {
-	return index < size();
-    }
-
-    inline cell * allocate(tag_t::kind_t tag, size_t n) {
-	std::unique_ptr<heap_block> &block = blocks_.back();
-	block->allocate(n);
-	ptr_cell new_cell(tag, size_);
-	cell *p = &(*block)[size_];
-	*p = new_cell;
-	size_ += n;
-	return p;
-    }
-
-    inline cell & operator [] (size_t index)
-    {
-	return find_block(index)[index];
-    }
-
-    inline const cell & operator [] (size_t index) const
-    {
-	return get(index);
-    }
-
-    inline const cell & get(size_t index) const
-    {
-	check_index(index);
-	return find_block(index)[index];
+	check_index(addr);
+	return find_block(addr)[addr];
     }
 
     inline cell arg0(const cell &c, size_t index) const
@@ -809,14 +832,12 @@ private:
 #endif
     }
 
-    cell deref(cell c) const;
-
     bool check_functor(const cell c) const;
 
-    typedef std::vector<std::unique_ptr<heap_block> >::iterator block_iterator;
-
     size_t size_;
-    std::vector<std::unique_ptr<heap_block> > blocks_;
+    std::vector<heap_block *> blocks_;
+    heap_block * head_block_;
+
 #ifdef DEBUG_TERM
     mutable std::unordered_map<cell *, size_t> external_ptrs_;
     static size_t id_counter_;
@@ -844,6 +865,8 @@ private:
 //
 //  register and unregister for ref.
 //
+
+#if 0
 
 #ifdef DEBUG_TERM
 template<typename T> size_t ext<T>::ext_register(const heap &h, cell *p)
@@ -896,7 +919,7 @@ template<typename T> ext<T>::operator const T & () const
     return ptr_;
 }
 
-typedef ext<cell> term;
+#endif
 
 } }
 
@@ -913,12 +936,15 @@ namespace std {
 	}
     };
 
+#if 0
     template<> struct hash<prologcoin::common::term> {
         size_t operator()(const prologcoin::common::term& k) const {
 	    auto &c = static_cast<const prologcoin::common::cell &>(*k);
 	    return hash<uint64_t>()(c.value());
 	}
     };
+#endif
+
 }
 
 

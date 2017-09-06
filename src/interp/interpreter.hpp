@@ -7,6 +7,7 @@
 #include <vector>
 #include "../common/term_env.hpp"
 #include "builtins.hpp"
+#include "builtins_opt.hpp"
 #include "file_stream.hpp"
 #include "arithmetics.hpp"
 
@@ -15,8 +16,8 @@ namespace prologcoin { namespace interp {
 // is a STR tag, then we dereference it to a CON cell.
 typedef std::pair<common::con_cell, common::cell> functor_index;
 typedef std::vector<common::term> clauses;
-typedef std::pair<clauses, builtin> executable;
-typedef std::pair<executable, size_t> indexed_executable;
+typedef clauses predicate;
+typedef std::pair<predicate, size_t> indexed_predicate;
 }}
 
 namespace std {
@@ -149,6 +150,7 @@ typedef std::pair<meta_context *, meta_fn> meta_entry;
 
 class interpreter {
     friend class builtins;
+    friend class builtins_opt;
     friend class builtins_fileio;
     friend class arithmetics;
 
@@ -190,6 +192,8 @@ public:
 
     void print_db() const;
     void print_db(std::ostream &out) const;
+    void print_profile() const;
+    void print_profile(std::ostream &out) const;
 
     bool execute(const term &query);
 
@@ -231,15 +235,20 @@ public:
 
 private:
     void load_builtin(con_cell f, builtin b);
+    void load_builtin_opt(con_cell f, builtin_opt b);
     void load_builtins();
     void load_builtins_file_io();
+    void load_builtins_opt();
     file_stream & new_file_stream(const std::string &path);
     void close_file_stream(size_t id);
     file_stream & get_file_stream(size_t id);
 
     void init();
     bool unify(term &a, term &b);
+    term copy(term &c);
     term new_dotted_pair(term &a, term &b);
+    term new_term(con_cell functor);
+    term new_term(con_cell functor, const std::initializer_list<term> &args);
     void prepare_execution();
     void abort(const interpreter_exception &ex);
     void fail();
@@ -262,6 +271,7 @@ private:
         int_cell b0; // Choice point when encountering a cut operation.
 	cell cp;     // Continuation point
         cell qr;     // Current query (good for debugging/tracing)
+	con_cell pr; // Current predicate
     };
 
     static const int environment_num_cells = sizeof(environment_t) / sizeof(cell);
@@ -275,6 +285,7 @@ private:
 	int_cell h;  // Heap pointer
 	int_cell b0; // Cut pointer
         cell qr;     // Current query
+	con_cell pr; // Current predicate
     };
 
     static const int choice_point_num_cells = sizeof(choice_point_t) / sizeof(cell);
@@ -379,6 +390,12 @@ private:
     void allocate_environment();
     void deallocate_environment();
 
+    choice_point_t * get_choice_point(size_t at_index);
+    choice_point_t * allocate_choice_point(size_t index_id);
+    void cut_last_choice_point();
+    choice_point_t * reset_to_choice_point(size_t b);
+    void unwind(size_t current_tr);
+
     inline choice_point_t * get_last_choice_point()
     {
 	return get_choice_point(register_b_);
@@ -389,22 +406,17 @@ private:
 	register_b0_ = register_b_;
     }
 
-    choice_point_t * get_choice_point(size_t at_index);
-    choice_point_t * allocate_choice_point(size_t index_id);
-    void cut_last_choice_point();
-    choice_point_t * reset_to_choice_point(size_t b);
-    void unwind(size_t current_tr);
-
     bool definitely_inequal(const term &a, const term &b);
     common::cell first_arg_index(const term &first_arg);
     term get_first_arg(const term &t);
 
-    void compute_matched_executable(con_cell functor, const term &first_arg, executable &matched);
-    size_t matched_executable_id(con_cell functor, const term &first_arg);
+    void compute_matched_predicate(con_cell functor, const term &first_arg,
+				   predicate &matched);
+    size_t matched_predicate_id(con_cell functor, const term &first_arg);
 
-    inline executable & get_executable(size_t id)
+    inline predicate & get_predicate(size_t id)
     {
-	return id_to_executable_[id];
+	return id_to_predicate_[id];
     }
 
     void execute_once();
@@ -428,10 +440,12 @@ private:
 
     std::vector<std::function<void ()> > syntax_check_stack_;
 
-    std::unordered_map<common::con_cell, executable> program_db_;
+    std::unordered_map<common::con_cell, builtin> builtins_;
+    std::unordered_map<common::con_cell, builtin_opt> builtins_opt_;
+    std::unordered_map<common::con_cell, predicate> program_db_;
     std::vector<common::con_cell> program_predicates_;
-    std::unordered_map<functor_index, size_t> executable_id_;
-    std::vector<executable> id_to_executable_;
+    std::unordered_map<functor_index, size_t> predicate_id_;
+    std::vector<predicate> id_to_predicate_;
 
     std::vector<binding> query_vars_;
 
@@ -447,6 +461,7 @@ private:
     size_t register_hb_; // Heap pointer for current choice point
     size_t register_b0_; // Record choice point (for neck cuts)
     term register_qr_;   // Current query 
+    con_cell register_pr_; // Current predicate (for profiling)
 
     con_cell comma_;
     con_cell empty_list_;
@@ -462,6 +477,8 @@ private:
     size_t register_top_b_; // Fail if this register_b_ reaches this value.
     size_t register_top_e_; // Check meta if 'e' reaches this value.
     std::vector<meta_entry> meta_;
+
+    std::unordered_map<common::con_cell, uint64_t> profiling_;
 };
 
 }}

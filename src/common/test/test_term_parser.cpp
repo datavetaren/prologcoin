@@ -28,7 +28,7 @@ static void test_simple_parse()
     term_tokenizer tokenizer(sin);
     term_parser parser(tokenizer, h, ops);
 
-    ext<cell> result = parser.parse();
+    term result = parser.parse();
 
     std::stringstream sout;
     term_emitter emitter(sout, h, ops);
@@ -46,7 +46,7 @@ static void test_simple_parse()
     std::stringstream sin2(expected+ ".");
     term_tokenizer tokenizer2(sin2);
     term_parser parser2(tokenizer2, h, ops);
-    ext<cell> result2 = parser2.parse();
+    term result2 = parser2.parse();
     term_emitter emitter2(sout2, h, ops);
     emitter2.print(result2);
 
@@ -84,11 +84,11 @@ static void test_complicated_parse()
 
     // parser.set_debug(true);
 
-    std::vector<ext<cell> > clauses;
+    std::vector<term> clauses;
 
     int clause_no = 0;
     while (!parser.is_eof()) {
-	ext<cell> result;
+	term result;
 	try {
 	    result = parser.parse();
 	} catch (std::runtime_error &ex) {
@@ -108,7 +108,7 @@ static void test_complicated_parse()
 
     term_emitter emitter(reemit, h, ops);
 
-    parser.for_each_var_name( [&](const ext<cell> &ref,
+    parser.for_each_var_name( [&](const term &ref,
 				  const std::string &name)
 			      { emitter.set_var_name(ref, name); } );
 

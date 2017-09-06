@@ -48,7 +48,7 @@ public:
 
     void set_debug(bool dbg);
 
-    ext<cell> parse();
+    term parse();
 
     term_tokenizer & tokenizer();
     const term_tokenizer::token & lookahead() const;
@@ -58,9 +58,9 @@ public:
     bool is_eof();
     bool is_error();
 
-    const std::string & get_variable_name( ext<cell> cell );
+    const std::string & get_variable_name( term t );
 
-    void for_each_var_name(std::function<void (const ext<cell> &ref,
+    void for_each_var_name(std::function<void (const term &ref,
 				       const std::string &name)> f) const;
 
     void clear_var_names();

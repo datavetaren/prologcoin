@@ -8,7 +8,7 @@ namespace prologcoin { namespace interp {
 
     int_cell arithmetics_fn::get_int(const term &t)
     {
-	cell c = *t;
+	cell c = t;
 	const int_cell &ic = static_cast<const int_cell &>(c);
 	return ic;
     }
@@ -61,15 +61,15 @@ namespace prologcoin { namespace interp {
 	env.push(expr);
 	env.push(env.to_term(int_cell(0)));
 	while (stack_start < env.stack_size()) {
-	    cell visited0 = *env.pop();
+	    cell visited0 = env.pop();
 	    term t = env.pop();
 	    const int_cell &visited = static_cast<const int_cell &>(visited0);
-            if (t->tag() == tag_t::INT) {
+            if (t.tag() == tag_t::INT) {
 		args_.push_back(t);
 		continue;
 	    }
 	    if (visited.value() != 0) {
-		cell c = *t;
+		cell c = t;
 		const con_cell &f = static_cast<const con_cell &>(c);
 		size_t arity = f.arity();
 		auto fn_call = lookup(f);
@@ -100,7 +100,7 @@ namespace prologcoin { namespace interp {
 		env.push(env.to_term(int_cell(1)));
 		continue;
 	    }
-	    switch (t->tag()) {
+	    switch (t.tag()) {
 	    case tag_t::CON:
 	    case tag_t::STR: {
 		con_cell f = env.functor(t);
@@ -139,12 +139,12 @@ namespace prologcoin { namespace interp {
     int_cell arithmetics::get_int_arg_type(term &arg,
 					   const std::string &context)
     {
-	if (arg->tag() != tag_t::INT) {
+	if (arg.tag() != tag_t::INT) {
 	    interp_.abort(interpreter_exception_argument_not_number(
 			      context + ": argument is not a number: " +
 			      interp_.env().safe_to_string(arg)));
 	}
-	cell c = *arg;
+	cell c = arg;
 	int_cell &r = static_cast<int_cell &>(c);
 	return r;
     }

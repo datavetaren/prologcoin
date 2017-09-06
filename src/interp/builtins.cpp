@@ -6,6 +6,16 @@ namespace prologcoin { namespace interp {
     using namespace prologcoin::common;
 
     //
+    // Profiling
+    //
+
+    bool builtins::profile_0(interpreter &interp, term &caller)
+    {
+	interp.print_profile();
+	return true;
+    }
+
+    //
     // Simple
     //
 
@@ -166,8 +176,6 @@ namespace prologcoin { namespace interp {
 	term arg0 = interp.env().arg(caller, 0);
 	term arg1 = interp.env().arg(caller, 1);
 	bool r = interp.unify(arg0, arg1);
-	interp.set_heap_pointer(interp.env().heap_size());
-	interp.set_trail_pointer(interp.env().trail_size());
 	return r;
     }
 
@@ -175,9 +183,11 @@ namespace prologcoin { namespace interp {
     {
 	term lhs = interp.env().arg(caller, 0);
 	term rhs = interp.env().arg(caller, 1);
-	size_t current_tr = interp.env().trail_size();
-	bool r = interp.env().unify(lhs, rhs);
-	interp.env().unwind_trail(current_tr, interp.env().trail_size());
+	size_t current_tr = interp.get_trail_pointer();
+	bool r = interp.unify(lhs, rhs);
+	if (r) {
+	    interp.unwind(current_tr);
+	}
 	return !r;
     }
 
@@ -187,7 +197,7 @@ namespace prologcoin { namespace interp {
     
     bool builtins::var_1(interpreter &interp, term &caller)
     {
-	return interp.env().arg(caller, 0)->tag() == tag_t::REF;
+	return interp.env().arg(caller, 0).tag() == tag_t::REF;
     }
 
     bool builtins::nonvar_1(interpreter &interp, term &caller)
@@ -197,7 +207,7 @@ namespace prologcoin { namespace interp {
 
     bool builtins::integer_1(interpreter &interp, term &caller)
     {
-	return interp.env().arg(caller, 0)->tag() == tag_t::INT;
+	return interp.env().arg(caller, 0).tag() == tag_t::INT;
     }
 
     bool builtins::number_1(interpreter &interp, term &caller)
@@ -209,7 +219,7 @@ namespace prologcoin { namespace interp {
     {
 	term arg = interp.env().arg(caller, 0);
 	
-	switch (arg->tag()) {
+	switch (arg.tag()) {
 	case tag_t::CON: return true;
 	case tag_t::STR: {
 	    con_cell f = interp.env().functor(arg);
@@ -222,7 +232,7 @@ namespace prologcoin { namespace interp {
     bool builtins::compound_1(interpreter &interp, term &caller)
     {
 	term arg = interp.env().arg(caller, 0);
-	if (arg->tag() != tag_t::STR) {
+	if (arg.tag() != tag_t::STR) {
 	    return false;
 	}
 	return interp.env().functor(arg).arity() > 0;
@@ -241,13 +251,7 @@ namespace prologcoin { namespace interp {
     bool builtins::ground_1(interpreter &interp, term &caller)
     {
 	term arg = interp.env().arg(caller, 0);
-
-	for (auto t : interp.env().iterate_over(arg)) {
-	    if (t->tag() == tag_t::REF) {
-		return false;
-	    }
-	}
-	return true;
+	return interp.env().is_ground(arg);
     }
 
     // TODO: cyclic_term/1 and acyclic_term/1
@@ -272,7 +276,7 @@ namespace prologcoin { namespace interp {
     {
 	term arg1 = interp.env().arg(caller, 0);
 	term arg2 = interp.env().arg(caller, 1);
-	term copy_arg1 = interp.env().copy(arg1);
+	term copy_arg1 = interp.copy(arg1);
 	return interp.unify(arg2, copy_arg1);
     }
 
@@ -282,7 +286,7 @@ namespace prologcoin { namespace interp {
 	term f = interp.env().arg(caller, 1);
 	term a = interp.env().arg(caller, 2);
 
-	switch (t->tag()) {
+	switch (t.tag()) {
   	  case tag_t::REF:
             interp.abort(interpreter_exception_not_sufficiently_instantiated("funtor/3: Arguments are not sufficiently instantiated"));
 	    return false;
@@ -333,7 +337,7 @@ namespace prologcoin { namespace interp {
 	con_cell f = interp.env().functor(t);
 	size_t n = f.arity();
 	while (index < n) {
-	    if (lst->tag() == tag_t::REF) {
+	    if (lst.tag() == tag_t::REF) {
 		term tail = deconstruct_write_list(interp, t, index);
 		return interp.unify(lst, tail);
 	    }
@@ -359,11 +363,11 @@ namespace prologcoin { namespace interp {
 	// To make deconstruction more efficient, let's handle the
 	// common scenarios first.
 
-	if (lhs->tag() == tag_t::REF && rhs->tag() == tag_t::REF) {
+	if (lhs.tag() == tag_t::REF && rhs.tag() == tag_t::REF) {
 		interp.abort(interpreter_exception_not_sufficiently_instantiated("=../2: Arguments are not sufficiently instantiated"));
 	}
 
-	if (lhs->tag() == tag_t::REF) {
+	if (lhs.tag() == tag_t::REF) {
 	    if (!interp.env().is_list(rhs)) {
 		interp.abort(interpreter_exception_not_list("=../2: Second argument is not a list; found " + interp.env().to_string(rhs)));
 	    }
@@ -372,10 +376,10 @@ namespace prologcoin { namespace interp {
 		interp.abort(interpreter_exception_not_list("=../2: Second argument must be non-empty; found " + interp.env().to_string(rhs)));
 	    }
 	    term first_elem = interp.env().arg(rhs,0);
-	    if (first_elem->tag() == tag_t::REF) {
+	    if (first_elem.tag() == tag_t::REF) {
 		interp.abort(interpreter_exception_not_sufficiently_instantiated("=../2: Arguments are not sufficiently instantiated"));
 	    }
-	    if (first_elem->tag() == tag_t::INT && lst_len == 1) {
+	    if (first_elem.tag() == tag_t::INT && lst_len == 1) {
 		return interp.unify(lhs, first_elem);
 	    }
 	    if (!interp.env().is_functor(first_elem)) {
@@ -383,10 +387,10 @@ namespace prologcoin { namespace interp {
 	    }
 	    con_cell f = interp.env().functor(first_elem);
 	    size_t num_args = lst_len - 1;
-	    term t = interp.env().new_term(interp.env().to_functor(f, num_args));
+	    term t = interp.new_term(interp.env().to_functor(f, num_args));
 	    term lst = interp.env().arg(rhs, 1);
 	    for (size_t i = 0; i < num_args; i++) {
-		if (lst->tag() == tag_t::REF) {
+		if (lst.tag() == tag_t::REF) {
 		    term tail = deconstruct_write_list(interp, lhs, i);
 		    return interp.unify(lst, tail);
 		}
@@ -397,12 +401,12 @@ namespace prologcoin { namespace interp {
 	    }
 	    return interp.unify(lhs, t);
 	}
-	if (lhs->tag() == tag_t::INT) {
+	if (lhs.tag() == tag_t::INT) {
 	    term empty = interp.env().empty_list();
 	    term lst = interp.new_dotted_pair(lhs,empty);
 	    return interp.unify(rhs, lst);
 	}
-	if (lhs->tag() != tag_t::STR && lhs->tag() != tag_t::CON) {
+	if (lhs.tag() != tag_t::STR && lhs.tag() != tag_t::CON) {
 	    return false;
 	}
 	con_cell f = interp.env().to_atom(interp.env().functor(lhs));

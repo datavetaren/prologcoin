@@ -44,14 +44,14 @@ protected:
 	  precedence_(0)
           { }
 
-      sym( int old_state, symbol_t ord, const ext<cell> &result)
+      sym( int old_state, symbol_t ord, const term &result)
 	: ordinal_(ord),
 	  result_(result),
 	  token_(),
 	  old_state_(old_state),
           precedence_(0) { }
 
-      sym( const ext<cell> &result )
+      sym( const term &result )
 	  : ordinal_(SYMBOL_UNKNOWN),
 	    result_(result),
 	    token_(),
@@ -65,17 +65,17 @@ protected:
 
     inline symbol_t ordinal() const { return ordinal_; }
     inline const term_tokenizer::token & token() const { return token_; }
-    inline const ext<cell> & result() const { return result_; }
+    inline const term & result() const { return result_; }
     
     inline void set_ordinal(symbol_t ord) { ordinal_ = ord; }
     inline void set_token(const term_tokenizer::token &tok ) { token_ = tok; }
-    inline void set_result(const ext<cell> &result) { result_ = result; }
+    inline void set_result(const term &result) { result_ = result; }
     inline void set_old_state(int no) { old_state_ = no; }
     inline void set_precedence(int prec) { precedence_ = prec; }
 
     private:
       symbol_t ordinal_;
-      ext<cell> result_;
+      term result_;
       term_tokenizer::token token_;
       int old_state_;
       int precedence_;
@@ -87,7 +87,7 @@ protected:
 
   std::vector<term_tokenizer::token> comments_;
 
-  ext<cell> result_;
+  term result_;
   bool accept_;
   bool error_;
   bool check_mode_;
@@ -95,8 +95,8 @@ protected:
   typedef std::vector<sym> args_t;
   args_t args_;
 
-  typedef std::unordered_map<ext<cell>, std::string> var_name_map_type;
-  typedef std::unordered_map<std::string, ext<cell> > name_var_map_type;
+  typedef std::unordered_map<term, std::string> var_name_map_type;
+  typedef std::unordered_map<std::string, term> name_var_map_type;
 
   var_name_map_type var_name_map_;
   name_var_map_type name_var_map_;
@@ -324,7 +324,7 @@ protected:
   // term_n :- ...
 
   // Helper methods...
-  sym reduce_unary_op(const std::string &opname, ext<cell> operand)
+  sym reduce_unary_op(const std::string &opname, term operand)
   {   
     if (check_mode_) return sym();
 
@@ -337,7 +337,7 @@ protected:
   }
 
   sym reduce_binary_op(const std::string &opname,
-		       ext<cell> operand0, ext<cell> operand1)
+		       term operand0, term operand1)
   {   
     con_cell binop(opname, 2);
     auto newstr = heap_.new_str(binop);
@@ -440,7 +440,7 @@ protected:
 	index++;
     }
 
-    return sym(ext<cell>(heap_,fstr));
+    return sym(term(heap_,fstr));
   }
 
   inline sym remove_precedence(sym &s)
@@ -522,7 +522,7 @@ protected:
     // Construct list with single element
 
     con_cell empty_list("[]", 0);
-    ext<cell> ext_empty_list(heap_, empty_list);
+    term ext_empty_list(heap_, empty_list);
     return reduce_binary_op(".", args[0].result(), ext_empty_list);
   }
 
@@ -540,7 +540,7 @@ protected:
     if (check_mode_) return sym();
 
     con_cell empty_list("[]", 0);
-    return sym(ext<cell>(heap_, empty_list));
+    return sym(term(heap_, empty_list));
   }
 
   sym reduce_list__lbracket_listexpr_rbracket(args_t &args)
@@ -549,35 +549,6 @@ protected:
 
     return args[1];
   }
-
-    /*
-  ext<cell> build_list(cell c)
-  {
-      con_cell f_comma(",",2);
-      con_cell f_dot(".",2);
-      con_cell f_empty_list("[]",0);
-
-      auto lst = heap_.new_str(f_dot);
-      heap_.set_arg(lst, 0, f_empty_list);
-      heap_.set_arg(lst, 1, f_empty_list);
-      cell last = lst;
-
-      while (c.tag() == tag_t::STR && heap_.functor(c) == f_comma) {
-	  heap_.set_arg(last, 0, heap_.arg(c, 0));
-	  auto newlst = heap_.new_str(f_dot);
-	  heap_.set_arg(last, 1, newlst);
-	  heap_.set_arg(newlst, 0, f_empty_list);
-	  heap_.set_arg(newlst, 1, f_empty_list);
-	  last = newlst;
-
-	  c = heap_.arg(c, 1);
-      }
-
-      heap_.set_arg(last, 0, c);
-
-      return lst;
-  }
-    */
 
   // listexpr :- ...
 
@@ -649,7 +620,7 @@ protected:
 
     auto &tok = args[0].token();
     int_cell val(boost::lexical_cast<int>(tok.lexeme()));
-    return sym(ext<cell>(heap_, val));
+    return sym(term(heap_, val));
   }
 
   sym reduce_unsigned_number__unsigned_float(args_t &args)
@@ -666,7 +637,7 @@ protected:
     if (check_mode_) return sym();
 
     con_cell con = heap_.atom(args[0].token().lexeme());
-    return sym(ext<cell>(heap_, con));
+    return sym(term(heap_, con));
   }
 
   sym reduce_atom__empty_brace(args_t &args)
@@ -674,7 +645,7 @@ protected:
     if (check_mode_) return sym();
 
     con_cell con = heap_.atom(args[0].token().lexeme());
-    return sym(ext<cell>(heap_, con));
+    return sym(term(heap_, con));
   }
 
   sym reduce_atom__empty_list(args_t &args)
@@ -682,7 +653,7 @@ protected:
     if (check_mode_) return sym();
 
     con_cell con = heap_.atom(args[0].token().lexeme());
-    return sym(ext<cell>(heap_, con));
+    return sym(term(heap_, con));
   }
 
 public:
@@ -717,14 +688,14 @@ public:
 
   bool is_accept() const { return accept_; }
   bool is_error() const { return error_; }
-  ext<cell> get_result() const { return result_; }
+  term get_result() const { return result_; }
   void init() {
       comments_.clear();
       current_state_ = 0;
       accept_ = false;
       error_ = false;
       check_mode_ = false;
-      result_ = ext<cell>();
+      result_ = term();
   }
   bool is_eof() {
       skip_whitespace();
@@ -736,11 +707,11 @@ public:
       return comments_;
   }
 
-  const std::string & get_var_name(ext<cell> &cell);
+  const std::string & get_var_name(term &cell);
 
-  void for_each_var_name(std::function<void (const ext<cell> &ref, const std::string &name)> f) const {
+  void for_each_var_name(std::function<void (const term &ref, const std::string &name)> f) const {
       for (auto e : var_name_map_) {
-	  const ext<cell> &ref = e.first;
+	  const term &ref = e.first;
 	  const std::string &name = e.second;
 	  f(ref,name);
       }
@@ -999,7 +970,7 @@ void term_parser::set_debug(bool dbg)
     impl_->set_debug(dbg);
 }
 
-ext<cell> term_parser::parse()
+term term_parser::parse()
 {
   impl_->init();
   while (!impl_->is_accept() && !impl_->is_error()) {
@@ -1042,7 +1013,7 @@ bool term_parser::is_error()
     return impl_->is_error();
 }
 
-void term_parser::for_each_var_name(std::function<void (const ext<cell> &ref, const std::string &name)> f) const {
+void term_parser::for_each_var_name(std::function<void (const term &ref, const std::string &name)> f) const {
     impl_->for_each_var_name(f);
 }
 

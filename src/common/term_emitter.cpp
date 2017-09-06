@@ -43,16 +43,16 @@ void term_emitter::print(cell c)
     print_from_stack();
 }
 
-void term_emitter::set_var_naming(const std::unordered_map<ext<cell>, std::string> &var_naming)
+void term_emitter::set_var_naming(const std::unordered_map<term, std::string> &var_naming)
 {
-    var_naming_ = const_cast<std::unordered_map<ext<cell>, std::string> *>(&var_naming);
+    var_naming_ = const_cast<std::unordered_map<term, std::string> *>(&var_naming);
     var_naming_owned_ = false;
 }
 
-void term_emitter::set_var_name(const ext<cell> &c, const std::string &name)
+void term_emitter::set_var_name(const term &c, const std::string &name)
 {
     if (var_naming_ == nullptr) {
-        var_naming_ = new std::unordered_map<ext<cell>, std::string>;
+        var_naming_ = new std::unordered_map<term, std::string>;
 	var_naming_owned_ = true;
     }
     (*var_naming_)[c] = name;
@@ -764,7 +764,7 @@ void term_emitter::emit_ref(const term_emitter::elem &e)
     const ref_cell &ref = static_cast<const ref_cell &>(e.cell_);
 
     if (var_naming_ != nullptr) {
-	ext<cell> search(heap_, ref);
+	term search(heap_, ref);
 	auto it = var_naming_->find(search);
 	if (it != var_naming_->end()) {
 	    const std::string &name = it->second;

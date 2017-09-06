@@ -1,13 +1,17 @@
 #include "../common/term_env.hpp"
 #include "interpreter.hpp"
 #include "builtins_fileio.hpp"
+#include "builtins_opt.hpp"
 #include <boost/filesystem.hpp>
+#include <boost/timer/timer.hpp>
+
+#define PROFILER 0
 
 namespace prologcoin { namespace interp {
 
 using namespace prologcoin::common;
 
-interpreter::interpreter() : comma_(",",2), empty_list_("[]", 0), implied_by_(":-", 2), arith_(*this)
+interpreter::interpreter() : register_pr_("", 0), comma_(",",2), empty_list_("[]", 0), implied_by_(":-", 2), arith_(*this)
 {
     term_env_ = new term_env();
     owns_term_env_ = true;
@@ -15,9 +19,10 @@ interpreter::interpreter() : comma_(",",2), empty_list_("[]", 0), implied_by_(":
     init();
 
     load_builtins();
+    load_builtins_opt();
 }
 
-interpreter::interpreter(term_env &env) : comma_(",",2), empty_list_("[]",0), implied_by_(":-", 2), arith_(*this)
+interpreter::interpreter(term_env &env) : register_pr_("",0), comma_(",",2), empty_list_("[]",0), implied_by_(":-", 2), arith_(*this)
 {
     term_env_ = &env;
     owns_term_env_ = false;
@@ -29,7 +34,7 @@ void interpreter::init()
 {
     debug_ = false;
     file_id_count_ = 1;
-    id_to_executable_.push_back(executable()); // Reserve executable index 0
+    id_to_predicate_.push_back(predicate()); // Reserve index 0
     prepare_execution();
 }
 
@@ -42,9 +47,30 @@ bool interpreter::unify(term &a, term &b)
     return r;
 }
 
+term interpreter::copy(term &t)
+{
+    term tc = term_env_->copy(t);
+    register_h_ = term_env_->heap_size();
+    return tc;
+}
+
 term interpreter::new_dotted_pair(term &a, term &b)
 {
     term t = term_env_->new_dotted_pair(a,b);
+    register_h_ = term_env_->heap_size();
+    return t;
+}
+
+term interpreter::new_term(con_cell functor)
+{
+    term t = term_env_->new_term(functor);
+    register_h_ = term_env_->heap_size();
+    return t;
+}
+
+term interpreter::new_term(con_cell functor, const std::initializer_list<term> &args)
+{
+    term t = term_env_->new_term(functor, args);
     register_h_ = term_env_->heap_size();
     return t;
 }
@@ -57,10 +83,12 @@ interpreter::~interpreter()
     register_qr_ = term();
     query_vars_.clear();
     syntax_check_stack_.clear();
+    builtins_.clear();
+    builtins_opt_.clear();
     program_db_.clear();
     program_predicates_.clear();
-    executable_id_.clear();
-    id_to_executable_.clear();
+    predicate_id_.clear();
+    id_to_predicate_.clear();
     if (owns_term_env_) {
 	delete term_env_;
     }
@@ -127,26 +155,33 @@ void interpreter::load_clause(const term &t)
     
     auto found = program_db_.find(predicate);
     if (found == program_db_.end()) {
-        program_db_[predicate] = std::make_pair(std::vector<term>(), nullptr);
+        program_db_[predicate] = std::vector<term>();
 	program_predicates_.push_back(predicate);
     }
-    program_db_[predicate].first.push_back(t);
-    program_db_[predicate].second = nullptr; // Builtin function set to null
+    program_db_[predicate].push_back(t);
 }
 
 void interpreter::load_builtin(con_cell f, builtin b)
 {
-    auto found = program_db_.find(f);
-    if (found == program_db_.end()) {
-        program_db_[f] = std::make_pair(std::vector<term>(), nullptr);
-	program_predicates_.push_back(f);
+    auto found = builtins_.find(f);
+    if (found == builtins_.end()) {
+        builtins_[f] = b;
     }
-    program_db_[f].first.clear();
-    program_db_[f].second = b;
+}
+
+void interpreter::load_builtin_opt(con_cell f, builtin_opt b)
+{
+    auto found = builtins_opt_.find(f);
+    if (found == builtins_opt_.end()) {
+        builtins_opt_[f] = b;
+    }    
 }
 
 void interpreter::load_builtins()
 {
+    // Profiling
+    load_builtin(con_cell("profile", 0), &builtins::profile_0);
+
     // Simple
     load_builtin(con_cell("true",0), &builtins::true_0);
 
@@ -190,6 +225,13 @@ void interpreter::load_builtins()
 
     // Meta
     load_builtin(con_cell("\\+", 1), &builtins::operator_disprove);
+}
+
+void interpreter::load_builtins_opt()
+{
+    // Profiling
+    load_builtin_opt(con_cell("member", 2), &builtins_opt::member_2);
+    load_builtin_opt(con_cell("sort", 2), &builtins_opt::sort_2);
 }
 
 void interpreter::enable_file_io()
@@ -315,7 +357,7 @@ void interpreter::syntax_check_goal(const term &t)
     // Each goal must be a functor (e.g. a plain integer is not allowed)
 
     if (!term_env_->is_functor(t)) {
-	auto tg = t->tag();
+	auto tg = t.tag();
 	// We don't know what variables will be bound to, so we need
 	// to conservatively skip the syntax check.
 	if (tg == tag_t::REF) {
@@ -333,12 +375,12 @@ void interpreter::print_db() const
 void interpreter::print_db(std::ostream &out) const
 {
     bool do_nl_p = false;
-    for (auto p : program_predicates_) {
-        auto &def = program_db_.find(p)->second;
-	if (def.second != nullptr) {
-	    continue; // Builtin
+    for (const con_cell p : program_predicates_) {
+	auto it = program_db_.find(p);
+	if (it == program_db_.end()) {
+	    continue;
 	}
-	const std::vector<term> &clauses = def.first;
+	const predicate &clauses = it->second;
 	if (do_nl_p) {
 	    out << "\n";
 	}
@@ -352,6 +394,48 @@ void interpreter::print_db(std::ostream &out) const
 	do_nl_p = true;
     }
     out << "\n";
+}
+
+void interpreter::print_profile() const
+{
+    print_profile(std::cout);
+}
+
+void interpreter::print_profile(std::ostream &out) const
+{
+    struct entry {
+	con_cell f;
+	uint64_t t;
+
+	bool operator < (const entry &e) const {
+	    if (t < e.t) {
+		return true;
+	    } else if (t > e.t) {
+		return false;
+	    } else {
+		return f.value() < e.f.value();
+	    }
+	}
+
+	bool operator == (const entry &e) const {
+	    return t == e.t && f == e.f;
+	}
+    };
+
+    std::vector<entry> all;
+
+    for (auto prof : profiling_) {
+	auto f = prof.first;
+	auto t = prof.second;
+	all.push_back(entry{f,t});
+    }
+    std::sort(all.begin(), all.end());
+    for (auto p : all) {
+	auto f = p.f;
+	auto t = p.t;
+	std::cout << term_env_->to_string(term_env_->to_term(f)) << ": " << t << "\n";
+    }
+
 }
 
 inline interpreter::environment_t * interpreter::get_environment(size_t at_index)
@@ -375,6 +459,7 @@ void interpreter::allocate_environment()
     e->b0.set_value(register_b0_);
     e->cp = register_cp_;
     e->qr = register_qr_;
+    e->pr = register_pr_;
     register_e_ = at_index;
 }
 
@@ -389,9 +474,10 @@ void interpreter::deallocate_environment()
     register_b0_ = e->b0.value();
     register_cp_ = term_env_->to_term(e->cp);
     register_qr_ = term_env_->to_term(e->qr);
+    register_pr_ = e->pr;
 }
 
-inline interpreter::choice_point_t * interpreter::get_choice_point(size_t at_index)
+interpreter::choice_point_t * interpreter::get_choice_point(size_t at_index)
 {
     choice_point_t *cp = reinterpret_cast<choice_point_t *>(term_env_->stack_ref(at_index));
     return cp;
@@ -416,6 +502,7 @@ interpreter::choice_point_t * interpreter::allocate_choice_point(size_t index_id
     ch->h.set_value(register_h_);
     ch->b0.set_value(register_b0_);
     ch->qr = register_qr_;
+    ch->pr = register_pr_;
     register_b_ = at_index;
     register_hb_ = register_h_;
     term_env_->set_last_choice_heap(register_hb_);
@@ -436,6 +523,7 @@ void interpreter::prepare_execution()
     register_tr_ = term_env_->trail_size();
     register_h_ = term_env_->heap_size();
     register_hb_ = register_h_;
+    term_env_->set_last_choice_heap(register_hb_);
     register_b0_ = 0;
     register_top_b_ = 0;
     register_top_e_ = 0;
@@ -457,7 +545,7 @@ bool interpreter::execute(const term &query)
     std::for_each( term_env_->begin(query),
 		   term_env_->end(query),
 		   [&](const term &t) {
-		       if (t->tag() == tag_t::REF) {
+		       if (t.tag() == tag_t::REF) {
 			   const std::string name = term_env_->to_string(t);
 			   if (!seen.count(name)) {
 			       query_vars_.push_back(binding(name,t));
@@ -512,7 +600,7 @@ std::string interpreter::get_result(bool newlines) const
     std::for_each(term_env_->begin(register_qr_),
 		  term_env_->end(register_qr_),
 		  [&] (const term &t) {
-		    if (t->tag() == tag_t::REF) {
+		    if (t.tag() == tag_t::REF) {
 		      ++count_occurrences[t];
 		    }
 		  }
@@ -596,21 +684,21 @@ void interpreter::tidy_trail()
 bool interpreter::definitely_inequal(const term &a, const term &b)
 {
     using namespace common;
-    if (a->tag() == tag_t::REF || b->tag() == common::tag_t::REF) {
+    if (a.tag() == tag_t::REF || b.tag() == common::tag_t::REF) {
 	return false;
     }
-    if (a->tag() != b->tag()) {
+    if (a.tag() != b.tag()) {
 	return true;
     }
-    switch (a->tag()) {
+    switch (a.tag()) {
     case tag_t::REF: return false;
-    case tag_t::CON: return (*a) != (*b);
+    case tag_t::CON: return a != b;
     case tag_t::STR: {
 	con_cell fa = term_env_->functor(a);
 	con_cell fb = term_env_->functor(b);
         return fa != fb;
     }
-    case tag_t::INT: return (*a) != (*b);
+    case tag_t::INT: return a != b;
     case tag_t::BIG: return false;
     }
 
@@ -619,7 +707,7 @@ bool interpreter::definitely_inequal(const term &a, const term &b)
 
 common::cell interpreter::first_arg_index(const term &t)
 {
-    switch (t->tag()) {
+    switch (t.tag()) {
     case tag_t::REF: return t;
     case tag_t::CON: return t;
     case tag_t::STR: {
@@ -652,16 +740,11 @@ term interpreter::clause_body(const term &clause)
     }
 }
 
-void interpreter::compute_matched_executable(con_cell functor,
-					     const term &first_arg,
-					     executable &matched)
+void interpreter::compute_matched_predicate(con_cell functor,
+					    const term &first_arg,
+					    predicate &matched)
 {
-    auto &executable = program_db_[functor];
-    if (executable.second != nullptr) {
-	matched = executable;
-	return;
-    }
-    auto &clauses = executable.first;
+    auto &clauses = program_db_[functor];
     for (auto &clause : clauses) {
 	// Extract head
 	auto head = clause_head(clause);
@@ -672,14 +755,14 @@ void interpreter::compute_matched_executable(con_cell functor,
 		continue;
 	    }
 	}
-	matched.first.push_back(clause);
+	matched.push_back(clause);
     }
 }
 
-size_t interpreter::matched_executable_id(con_cell functor, const term &first_arg)
+size_t interpreter::matched_predicate_id(con_cell functor, const term &first_arg)
 {
     term index_arg = first_arg;
-    switch (first_arg->tag()) {
+    switch (first_arg.tag()) {
     case tag_t::STR:
 	index_arg = term_env_->to_term(term_env_->functor(first_arg)); break;
     case tag_t::CON:
@@ -691,14 +774,14 @@ size_t interpreter::matched_executable_id(con_cell functor, const term &first_ar
     }
 
     functor_index findex(functor, index_arg);
-    auto it = executable_id_.find(findex);
+    auto it = predicate_id_.find(findex);
     size_t id;
-    if (it == executable_id_.end()) {
-	id = id_to_executable_.size();
-	id_to_executable_.push_back( executable() );
-	executable_id_[findex] = id;
-	auto &executable = id_to_executable_[id];
-	compute_matched_executable(functor, first_arg, executable);
+    if (it == predicate_id_.end()) {
+	id = id_to_predicate_.size();
+	id_to_predicate_.push_back( predicate() );
+	predicate_id_[findex] = id;
+	auto &pred = id_to_predicate_[id];
+	compute_matched_predicate(functor, first_arg, pred);
     } else {
 	id = it->second;
     }
@@ -707,7 +790,7 @@ size_t interpreter::matched_executable_id(con_cell functor, const term &first_ar
 
 common::term interpreter::get_first_arg(const term &t)
 {
-    if (t->tag() == tag_t::STR) {
+    if (t.tag() == tag_t::STR) {
 	auto f = term_env_->functor(t);
 	if (f.arity() == 0) {
 	    return term_env_->empty_list();
@@ -735,18 +818,37 @@ void interpreter::dispatch(term &instruction)
 	return;
     }
 
+    /*
+    if (f == comma_) {
+        term arg0 = env().arg(instruction, 0);
+	term arg1 = env().arg(instruction, 1);
+	set_continuation_point(arg1);
+        allocate_environment();
+	set_continuation_point(arg0);
+	return;
+    }
+    */
+
     if (is_debug()) {
         // Print call
       std::cout << "interpreter::dispatch(): call " << term_env_->to_string(instruction) << "\n";
     }
 
-    auto first_arg = get_first_arg(instruction);
-
-    size_t executable_id = matched_executable_id(f, first_arg);
-    executable &e = get_executable(executable_id);
+#if PROFILER
+    struct scope_exit {
+	scope_exit(interpreter &interp, con_cell f) : interp_(interp), f_(f) { }
+	~scope_exit() {
+	    auto dt = cpu_.elapsed().system;
+	    interp_.profiling_[f_] += dt;
+	}
+	interpreter &interp_;
+	con_cell f_;
+	boost::timer::cpu_timer cpu_;
+    } sc(*this, f);
+#endif
 
     // Is this a built-in?
-    auto bf = e.second;
+    auto bf = builtins_[f];
     if (bf != nullptr) {
 	if (!bf(*this, instruction)) {
 	    fail();
@@ -755,12 +857,30 @@ void interpreter::dispatch(term &instruction)
 	return;
     }
 
+    // Is there a successful optimized built-in?
+    auto obf = builtins_opt_[f];
+    if (obf != nullptr) {
+	tribool r = obf(*this, instruction);
+	if (!indeterminate(r)) {
+	    if (!r) {
+		fail();
+	    }
+	    register_h_ = term_env_->heap_size();
+	    return;
+	}
+    }
+
+    auto first_arg = get_first_arg(instruction);
+    size_t predicate_id = matched_predicate_id(f, first_arg);
+    predicate  &p = get_predicate(predicate_id);
+
+    register_pr_ = f;
+
     // Otherwise a vector of clauses
-    auto &clauses = e.first;
+    auto &clauses = p;
 
     if (clauses.empty()) {
-        e = program_db_[f];
-	clauses = e.first;
+        clauses = program_db_[f];
 	if (clauses.empty()) {
 	    std::stringstream msg;
 	    msg << "Undefined predicate " << term_env_->atom_name(f) << "/" << f.arity();
@@ -774,7 +894,7 @@ void interpreter::dispatch(term &instruction)
 
     size_t num_clauses = clauses.size();
     bool has_choices = num_clauses > 1;
-    size_t index_id = executable_id;
+    size_t index_id = predicate_id;
 
     // More than one clause that matches? We need a choice point.
     if (has_choices) {
@@ -852,7 +972,7 @@ void interpreter::unwind_to_top_choice_point()
         return;
     }
     size_t current_tr = register_tr_;
-    auto ch = reset_to_choice_point(register_top_b_);
+    reset_to_choice_point(register_top_b_);
     unwind(current_tr);
     register_b_ = register_top_b_;
 }
@@ -868,6 +988,7 @@ interpreter::choice_point_t * interpreter::reset_to_choice_point(size_t b)
     register_b0_ = ch->b0.value();
     register_hb_ = register_h_;
     register_qr_ = term_env_->to_term(ch->qr);
+    register_pr_ = ch->pr;
     term_env_->set_last_choice_heap(register_hb_);
 
     return ch;
@@ -916,7 +1037,7 @@ void interpreter::fail()
 	        std::string redo_str = term_env_->to_string(register_qr_);
 		std::cout << "interpreter::fail(): redo " << redo_str << std::endl;
 	    }
-	    auto &clauses = id_to_executable_[index_id].first;
+	    auto &clauses = id_to_predicate_[index_id];
 	    size_t from_clause = bpval & 0xff;
 
   	    ok = select_clause(register_qr_, index_id, clauses, from_clause);

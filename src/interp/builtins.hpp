@@ -14,6 +14,12 @@ namespace prologcoin { namespace interp {
     class builtins {
     public:
 	//
+	// Profiling
+	//
+
+	static bool profile_0(interpreter &interp, common::term &caller);
+
+	//
 	// Simple
 	//
 

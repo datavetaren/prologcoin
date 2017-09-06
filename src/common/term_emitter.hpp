@@ -23,9 +23,9 @@ public:
 
     void set_style( style s );
 
-    void set_var_naming(const std::unordered_map<ext<cell>, std::string> &var_naming);
+    void set_var_naming(const std::unordered_map<term, std::string> &var_naming);
 
-    void set_var_name(const ext<cell> &cell, const std::string &name);
+    void set_var_name(const term &cell, const std::string &name);
 
     void print(cell c);
     void nl();
@@ -153,7 +153,7 @@ private:
     con_cell dotted_pair_;
     con_cell empty_list_;
 
-    std::unordered_map<ext<cell>, std::string> *var_naming_;
+    std::unordered_map<term, std::string> *var_naming_;
     bool var_naming_owned_;
 
     style style_;

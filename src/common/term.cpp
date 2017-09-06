@@ -110,9 +110,17 @@ heap::~heap()
 
 void heap::trim(size_t new_size)
 {
-    auto &block = find_block(new_size);
-    block.trim(new_size);
+    size_t block_index = find_block_index(new_size-1);
+    auto &block = find_block(new_size-1);
+    block.trim(new_size - block.offset());
     size_ = new_size;
+    if (block_index+1 < blocks_.size()) {
+	for (size_t i = block_index+1; i < blocks_.size(); i++) {
+	    delete blocks_[i];
+	}
+	blocks_.resize(block_index+1);
+	head_block_ = &block;
+    }
 }
 
 size_t heap::list_length(const cell lst0) const
@@ -235,7 +243,5 @@ void heap::print_status(std::ostream &out) const
 {
     out << "Heap status: Size: " << size_ << " External refs: " << external_ptr_count() << " (at most it was " << external_ptrs_max_ << ")\n";
 }
-
-
 
 }}
