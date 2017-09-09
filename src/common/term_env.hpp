@@ -50,7 +50,7 @@ public:
         { return ! operator == (other); }
 
     inline term_iterator_templ & operator ++ ()
-        { term_iterator &it = *this; it.advance(); return it; }
+        { term_iterator_templ &it = *this; it.advance(); return it; }
     inline reference operator * () const { return elem_; }
     inline pointer operator -> () const { return &elem_; }
 
@@ -124,13 +124,13 @@ public:
     // Term management
     inline term new_ref()
         { return T::get_heap().new_ref(); }
-    inline term deref(term t) const
+    inline term deref(const term t) const
         { return T::get_heap().deref(t); }
-    inline con_cell functor(term t)
+    inline con_cell functor(const term t)
         { return T::get_heap().functor(t); }
-    inline term arg(term t, size_t index)
+    inline term arg(const term t, size_t index)
         { return T::get_heap().arg(t, index); }
-    inline void set_arg(term t, size_t index, term arg)
+    inline void set_arg(term t, size_t index, const term arg)
         { return T::get_heap().set_arg(t, index, arg); }
     inline void trim_heap(size_t new_size)
         { return T::get_heap().trim_heap(new_size); }
@@ -214,13 +214,13 @@ public:
       { return T::get_stacks(); }
 
   inline size_t allocate_stack(size_t num_cells)
-      { size_t at_index = stack_.size();
+      { size_t at_index = T::get_stack().size();
 	T::get_stack().resize(at_index+num_cells);
 	return at_index;
       }
   inline void ensure_stack(size_t at_index, size_t num_cells)
-      { if (at_index + num_cells > stack_.size()) {
-	  allocate_stack(at_index+num_cells-stack_.size());
+      { if (at_index + num_cells > T::get_stack().size()) {
+	    allocate_stack(at_index+num_cells-T::get_stack().size());
 	}
       }
   inline term * stack_ref(size_t at_index)
@@ -229,7 +229,7 @@ public:
   inline void push(const term t)
       { T::get_stack().push_back(t); }
   inline term pop()
-      { term t = T::get_stack().back(); get_stack().pop_back(); return t; }
+      { term t = T::get_stack().back(); T::get_stack().pop_back(); return t; }
   inline size_t stack_size() const
       { return T::get_stack().size(); }
   inline void trim_stack(size_t new_size)
@@ -353,31 +353,25 @@ template<typename HT, typename ST, typename OT> class term_env_dock
   : public heap_dock<HT>, public stacks_dock<ST>, public ops_dock<OT>
 {
 public:
-  inline term_env_dock() { }
-
-  inline term_env_dock(HT &ht, ST &st, OT &ops)
-    : heap_dock_(ht), stacks_dock_(st), ops_dock_(ops), register_hb_(0)
-      heap_dock<HT>(heap_dock_),
-      stacks_dock<ST>(stacks_dock_),
-      ops_dock<OT>(ops_dock_) { }
+  inline term_env_dock() : register_hb_(0) { }
 
   inline bool is_atom(const term t) const
-      { return is_functor(t) && functor(t).arity() == 0; }
+      { return is_functor(t) && heap_dock<HT>::functor(t).arity() == 0; }
 
   inline std::string atom_name(const term t) const
-      { return atom_name(functor(t)); }
+      { return atom_name(heap_dock<HT>::functor(t)); }
 
   inline bool is_functor(const term t) const
-      { auto t = deref(t).tag(); return t == tag_t::CON || t == tag_t::STR; }
+      { auto tt = heap_dock<HT>::deref(t).tag(); return tt == tag_t::CON || tt == tag_t::STR; }
 	 
   inline bool is_functor(const term t, con_cell f)
-     { return is_functor(t) && functor(t) == f; }
+     { return is_functor(t) && heap_dock<HT>::functor(t) == f; }
 
   inline bool is_ground(const term t) const
      {
-        auto range = const_cast<term_env_dock<HT,ST> &>(*this).iterate_over(tt);
-        for (auto t : range) {
-   	    if (t.tag() == tag_t::REF) {
+        auto range = const_cast<term_env_dock<HT,ST,OT> &>(*this).iterate_over(t);
+        for (auto t1 : range) {
+   	    if (t1.tag() == tag_t::REF) {
 	        return false;
 	    }
         }
@@ -401,40 +395,40 @@ public:
   inline void unwind_trail(size_t from, size_t to)
   {
       for (size_t i = from; i < to; i++) {
-	  size_t index = trail_get(i);
-          heap_set(index, ref_cell(index));
+	  size_t index = stacks_dock<ST>::trail_get(i);
+          heap_dock<HT>::heap_set(index, ref_cell(index));
       }
   }
 
-  inline void tidy_trail(size_t from_addr, size_t to_addr)
+  inline void tidy_trail(size_t from, size_t to)
   {
       size_t i = from;
       while (i < to) {
-   	  if (trail_get(i) < register_hb_) {
+   	  if (stacks_dock<ST>::trail_get(i) < register_hb_) {
    	      // This variable recording happened before the choice point.
 	      // We can't touch it.
 	      i++;
           } else {
 	      // Remove this trail point, move one trail point we haven't
 	      // visited to this location.
-  	      trail_set(i, trail_get(to-1));
+  	      trail_set(i, stacks_dock<ST>::trail_get(to-1));
 	      to--;
           }
       }
 
       // We're done. Trim the trail to the new end
-      trim_trail(to);
+      stacks_dock<ST>::trim_trail(to);
   }
 
   inline bool unify(term a, term b)
   {
-      term_utils utils(get_heap(), get_stacks());
+      term_utils utils(heap_dock<HT>::get_heap(), stacks_dock<ST>::get_stacks());
       return utils.unify(a, b);
   }
 
   inline term copy(term t)
   {
-      term_utils utils(get_heap(), get_stacks());
+      term_utils utils(heap_dock<HT>::get_heap(), stacks_dock<ST>::get_stacks());
       return utils.copy(t);
   }
 
@@ -455,8 +449,9 @@ public:
   std::string status() const
   { 
     std::stringstream ss;
-    ss << "term_env::status() { heap_size=" << heap_size()
-       << ",stack_size=" << stack_size() << ",trail_size=" << trail_size() <<"}";
+    ss << "term_env::status() { heap_size=" << heap_dock<HT>::heap_size()
+       << ",stack_size=" << stacks_dock<ST>::stack_size() << ",trail_size="
+       << stacks_dock<ST>::trail_size() <<"}";
     return ss.str();
   }
 
@@ -464,7 +459,8 @@ public:
   {
       std::stringstream ss(str);
       term_tokenizer tokenizer(ss);
-      term_parser parser(tokenizer, get_heap(), get_ops());
+      term_parser parser(tokenizer, heap_dock<HT>::get_heap(),
+			 ops_dock<OT>::get_ops());
       term r = parser.parse();
 
       // Once parsing is done we'll copy over the var-name bindings
@@ -475,39 +471,36 @@ public:
       return r;
   }
 
-  std::string to_string(term t,
+  std::string to_string(const term t,
 			term_emitter::style style = term_emitter::STYLE_TERM) const
   {
-      t = deref(t);
+      term t1 = heap_dock<HT>::deref(t);
       std::stringstream ss;
-      term_emitter emitter(ss, get_heap(), get_ops());
+      term_emitter emitter(ss, heap_dock<HT>::get_heap(),
+			   ops_dock<OT>::get_ops());
       emitter.set_style(style);
       emitter.set_var_naming(var_naming_);
-      emitter.print(t);
+      emitter.print(t1);
       return ss.str();
   }
 
-  std::string safe_to_string(const term &t, term_emitter::style = term_emitter::STYLE_TERM) const
+  std::string safe_to_string(const term t, term_emitter::style style = term_emitter::STYLE_TERM) const
   {
       return to_string(t, style);
   }
 
-  term_dfs_iterator_templ<HT,ST,OT> begin(const term &t)
+  term_dfs_iterator_templ<HT,ST,OT> begin(const term t)
   {
       return term_dfs_iterator_templ<HT,ST,OT>(*this, t);
   }
   
-  term_dfs_iterator_templ<HT,ST,OT> end(const term &t)
+  term_dfs_iterator_templ<HT,ST,OT> end(const term t)
   {
       return term_dfs_iterator_templ<HT,ST,OT>(*this);
   }
 
 
 private:
-  heap_dock<HT> heap_dock_;
-  stacks_dock<ST> stacks_dock_;
-  ops_dock<OT> ops_dock_;
-
   size_t register_hb_;
   std::unordered_map<term, std::string> var_naming_;
 };
