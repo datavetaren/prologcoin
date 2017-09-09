@@ -18,7 +18,7 @@ class term_emitter {
 public:
   enum style { STYLE_TERM, STYLE_PROGRAM };
 
-    term_emitter(std::ostream &out, heap &h, term_ops &ops);
+    term_emitter(std::ostream &out, const heap &h, const term_ops &ops);
     ~term_emitter();
 
     void set_style( style s );
@@ -135,8 +135,8 @@ private:
     void print_from_stack(size_t top = 0);
 
     std::ostream &out_;
-    heap &heap_;
-    term_ops &ops_;
+    const heap &heap_;
+    const term_ops &ops_;
 
     size_t column_;
     size_t line_;

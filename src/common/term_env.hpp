@@ -6,6 +6,8 @@
 #include <iterator>
 #include "term.hpp"
 #include "term_emitter.hpp"
+#include "term_parser.hpp"
+#include "term_tokenizer.hpp"
 
 namespace prologcoin { namespace common {
 
@@ -18,8 +20,6 @@ namespace prologcoin { namespace common {
 // bound during the unification process and thus need to be recorded so
 // they can become unbound.
 //
-class term_env_impl; // Forward
-
 class term_exception_not_list : public std::runtime_error {
 public:
     term_exception_not_list(term t)
@@ -32,64 +32,71 @@ private:
     term term_;
 };
 
-class term_env;
+template<typename HT, typename ST, typename OT> class term_env_dock;
 
-class term_iterator : public std::iterator<std::forward_iterator_tag,
-					   term,
-					   term,
-					   const term *,
-					   const term &> {
+template<typename HT, typename ST, typename OT>
+class term_iterator_templ : public std::iterator<std::forward_iterator_tag,
+						 term,
+						 term,
+						 const term *,
+						 const term &> {
 public:
-    inline term_iterator(term_env &env, const term &t) : env_(env), current_(t) { elem_ = first_of(t); }
+    typedef term_env_dock<HT,ST,OT> E;
+    inline term_iterator_templ(E &env, const term &t)
+         : env_(env), current_(t) { elem_ = first_of(t); }
 
-    inline bool operator == (const term_iterator &other) const;
-    inline bool operator != (const term_iterator &other) const
+    inline bool operator == (const term_iterator_templ &other) const;
+    inline bool operator != (const term_iterator_templ &other) const
         { return ! operator == (other); }
 
-    inline term_iterator & operator ++ () { term_iterator &it = *this;
-	                                    it.advance(); return it; }
+    inline term_iterator_templ & operator ++ ()
+        { term_iterator &it = *this; it.advance(); return it; }
     inline reference operator * () const { return elem_; }
     inline pointer operator -> () const { return &elem_; }
 
-    inline term_env & env() { return env_; }
+    inline E & env() { return env_; }
 
 private:
     inline term first_of(const term &t);
     void advance();
 
-    term_env &env_;
+    E &env_;
     term current_;
     term elem_;
 };
 
-class term_dfs_iterator : public std::iterator<std::forward_iterator_tag,
-					       term,
-					       term,
-					       const term *,
-					       const term &> {
+template<typename HT, typename ST, typename OT>
+class term_dfs_iterator_templ : public std::iterator<std::forward_iterator_tag,
+						     term,
+						     term,
+						     const term *,
+						     const term &> {
 public:
-    inline term_dfs_iterator(term_env &env, const term &t)
+    typedef term_env_dock<HT,ST,OT> E;
+
+    inline term_dfs_iterator_templ(E &env, const term &t)
            : env_(env) { elem_ = first_of(t); }
 
-    inline term_dfs_iterator(term_env &env)
+    inline term_dfs_iterator_templ(E &env)
 	   : env_(env) { }
 
-    inline bool operator == (const term_dfs_iterator &other) const;
-    inline bool operator != (const term_dfs_iterator &other) const
+    inline bool operator == (const term_dfs_iterator_templ &other) const;
+    inline bool operator != (const term_dfs_iterator_templ &other) const
         { return ! operator == (other); }
 
-    inline term_dfs_iterator & operator ++ () { term_dfs_iterator &it = *this;
-	                                        it.advance(); return it; }
+    inline term_dfs_iterator_templ & operator ++ ()
+        { term_dfs_iterator_templ &it = *this;
+	  it.advance(); return it; }
     inline reference operator * () const { return elem_; }
     inline pointer operator -> () const { return &elem_; }
 
-    inline term_env & env() { return env_; }
+    inline E & env() { return env_; }
 
 private:
     inline term first_of(const term &t);
     void advance();
 
-    term_env &env_;
+    E &env_;
     term elem_;
 
     struct dfs_pos {
@@ -104,112 +111,415 @@ private:
     std::vector<dfs_pos> stack_;
 };
 
-class term_env {
+template<typename T> class heap_dock : public T {
 public:
-  // Create a complete new blank term environment
-  term_env();
+    inline heap_dock() { }
 
-  // Destroy term environment (don't free the heap/ops if they
-  // aren't owned.)
-  ~term_env();
+    // Heap management
+    inline void heap_set(size_t index, term t)
+        { T::get_heap()[index] = t; }
+    inline term heap_get(size_t index)
+        { return T::get_heap()[index]; }
 
-  heap & get_heap();
-  term_ops & get_ops();
+    // Term management
+    inline term new_ref()
+        { return T::get_heap().new_ref(); }
+    inline term deref(term t) const
+        { return T::get_heap().deref(t); }
+    inline con_cell functor(term t)
+        { return T::get_heap().functor(t); }
+    inline term arg(term t, size_t index)
+        { return T::get_heap().arg(t, index); }
+    inline void set_arg(term t, size_t index, term arg)
+        { return T::get_heap().set_arg(t, index, arg); }
+    inline void trim_heap(size_t new_size)
+        { return T::get_heap().trim_heap(new_size); }
+    inline size_t heap_size() const
+        { return T::get_heap().size(); }
 
-  term deref(term t) { return get_heap().deref(t); }
+    // Term creation
+    inline term empty_list()
+        { return T::get_heap().empty_list(); }
+    inline con_cell functor(const std::string &name, size_t arity)
+        { return T::get_heap().functor(name, arity); }
+    inline term new_term(con_cell functor)
+        { return T::get_heap().new_str(functor); }
+    inline term new_dotted_pair(term a, term b)
+        { return T::get_heap().new_dotted_pair(a,b); }
+    inline con_cell to_atom(con_cell functor)
+        { return T::get_heap().to_atom(functor); }
+    inline con_cell to_functor(con_cell atom, size_t arity)
+        { return T::get_heap().to_functor(atom, arity); }
 
-  void sync_with_heap();
+    // Term functions
+    inline size_t list_length(term lst)
+        { return T::get_heap().list_length(lst); }
+    inline std::string atom_name(con_cell f) const
+        { return T::get_heap().atom_name(f); }
 
-  term parse(const std::string &str);
+    // Term predicates
+    inline bool is_dotted_pair(term t) const
+       { return T::get_heap().is_dotted_pair(t); }
+    inline bool is_empty_list(term t) const
+       { return T::get_heap().is_empty_list(t); }
+    inline bool is_comma(term t) const
+       { return T::get_heap().is_comma(t); }
+    inline bool is_list(term t) const
+       { return T::get_heap().is_list(t); }
+};
 
-  std::string to_string(const term &t, term_emitter::style style = term_emitter::STYLE_TERM) const;
-  std::string safe_to_string(const term &t, term_emitter::style = term_emitter::STYLE_TERM) const;
+class heap_bridge
+{
+public:
+    inline heap_bridge() : heap_(nullptr) { }
 
-  term empty_list() const;
+    inline heap & get_heap() { return *heap_; }
+    inline const heap & get_heap() const { return *heap_; }
+    inline void set_heap(heap &h) { heap_ = &h; }
+private:
+    heap * heap_;
+};
 
-  bool is_atom(const term &t) const;
-  std::string atom_name(con_cell functor) const;
-  std::string atom_name(const term &t) const;
+class heap_proxy : public heap_dock<heap_bridge> 
+{
+public:
+    inline heap_proxy(heap &h) { set_heap(h); }
+};
 
-  con_cell functor(const std::string &name, size_t arity);
-  con_cell functor(const term &t);
-  bool is_functor(const term &t, con_cell f);
-  bool is_functor(const term &t);
-  bool is_dotted_pair(const term &t) const;
-  bool is_empty_list(const term &t) const;
-  bool is_list(const term &t) const;
-  bool is_comma(const term &t) const;
-  term arg(const term &t, size_t index);
-  void set_arg(term &t, size_t index, term &arg);
-  term new_term(con_cell functor);
-  term new_term(con_cell functor, const std::initializer_list<term> &args);
-  term new_dotted_pair(term &a, term &b);
-  con_cell to_atom(con_cell functor);
-  con_cell to_functor(con_cell atom, size_t arity);
+class stacks {
+public:
+    inline stacks & get_stacks() { return *this; }
+    inline const stacks & get_stacks() const { return *this; }
+    inline std::vector<term> & get_stack() { return stack_; }
+    inline const std::vector<term> & get_stack() const { return stack_; }
+    inline std::vector<size_t> & get_trail() { return trail_; }
+    inline const std::vector<size_t> & get_trail() const { return trail_; }
+    inline std::vector<term> & get_temp() { return temp_; }
+    inline const std::vector<term> & get_temp() const { return temp_; }
+    inline size_t get_register_hb() const { return register_hb_; }
+    inline void set_register_hb(size_t hb) { register_hb_ = hb; }
 
-  bool is_ground(const term &t) const;
+private:
+    std::vector<term> stack_;
+    std::vector<size_t> trail_;
+    std::vector<term> temp_;
+    size_t register_hb_;
+};
 
-  size_t list_length(const term &lst) const;
-  bool unify(term &a, term &b);
-  term copy(const term &t);
-  bool equal(const term &a, const term &b);
-  void set_last_choice_heap(size_t at_index);
+template<typename T> class stacks_dock : public T {
+public:
+  inline stacks_dock() { }
 
-  // Return -1, 0 or 1 when comparing standard order for 'a' and 'b'
-  int standard_order(const term &a, const term &b);
+  inline stacks & get_stacks()
+      { return T::get_stacks(); }
 
-  size_t allocate_stack(size_t num_cells);
-  void ensure_stack(size_t at_index, size_t num_cells);
-  cell * stack_ref(size_t at_index);
-  void push(const term &t);
-  term pop();
+  inline size_t allocate_stack(size_t num_cells)
+      { size_t at_index = stack_.size();
+	T::get_stack().resize(at_index+num_cells);
+	return at_index;
+      }
+  inline void ensure_stack(size_t at_index, size_t num_cells)
+      { if (at_index + num_cells > stack_.size()) {
+	  allocate_stack(at_index+num_cells-stack_.size());
+	}
+      }
+  inline term * stack_ref(size_t at_index)
+      { return &T::get_stack()[at_index]; }
+
+  inline void push(const term t)
+      { T::get_stack().push_back(t); }
+  inline term pop()
+      { term t = T::get_stack().back(); get_stack().pop_back(); return t; }
+  inline size_t stack_size() const
+      { return T::get_stack().size(); }
+  inline void trim_stack(size_t new_size)
+      { T::get_stack().resize(new_size); }
+
+  inline void push_trail(size_t i)
+      { T::get_trail().push_back(i); }
+  inline size_t pop_trail()
+      { auto p = T::get_trail().back(); T::get_trail().pop_back(); return p; }
+  inline size_t trail_size() const
+      { return T::get_trail().size(); }
+  inline void trim_trail(size_t to)
+      { T::get_trail().resize(to); }
+  inline size_t trail_get(size_t i) const
+      { return T::get_trail()[i]; }
+  inline void trail_set(size_t i, size_t val)
+      { T::get_trail()[i] = val; }
+  inline void trail(size_t index)
+      { if (index < T::get_register_hb()) {
+	    push_trail(index);
+	}
+      }
+
+  inline void temp_push(const term t)
+      { T::get_temp().push_back(t); }
+  inline term temp_pop()
+      { auto t = T::get_temp().back(); T::get_temp().pop_back(); return t; }
+};
+
+class stacks_bridge
+{
+public:
+    inline stacks_bridge() : stacks_(nullptr) { }
+
+    inline stacks & get_stacks() { return *stacks_; }
+    inline const stacks & get_stacks() const { return *stacks_; }
+    inline void set_stacks(stacks &s) { stacks_ = &s; }
+
+    inline std::vector<term> & get_stack() { return get_stacks().get_stack(); }
+    inline const std::vector<term> & get_stack() const { return get_stacks().get_stack(); }
+    inline std::vector<size_t> & get_trail() { return get_stacks().get_trail(); }
+    inline const std::vector<size_t> & get_trail() const { return get_stacks().get_trail(); }
+
+    inline std::vector<term> & get_temp() { return get_stacks().get_temp(); }
+    inline const std::vector<term> & get_temp() const { return get_stacks().get_temp(); }
+
+    inline size_t get_register_hb() { return get_stacks().get_register_hb(); }
+    inline void set_register_hb(size_t index) { get_stacks().set_register_hb(index); }
+
+private:
+    stacks *stacks_;
+};
+
+class stacks_proxy : public stacks_dock<stacks_bridge> 
+{
+public:
+    inline stacks_proxy(stacks &s) { set_stacks(s); }
+};
+
+class term_utils : public heap_proxy, stacks_proxy {
+public:
+    term_utils(heap &h, stacks &s) : heap_proxy(h), stacks_proxy(s) { }
+
+    bool unify(term a, term b);
+    term copy(const term t);
+    bool equal(const term a, const term b);
+
+    // Return -1, 0 or 1 when comparing standard order for 'a' and 'b'
+    int standard_order(const term a, const term b);
+
+private:
+    bool unify_helper(term a, term b);
+    int functor_standard_order(con_cell a, con_cell b);
+
+    inline void bind(const ref_cell &a, term b)
+    {
+        size_t index = a.index();
+        heap_set(index, b);
+        trail(index);
+    }
+
+    inline void unwind_trail(size_t from, size_t to)
+    {
+        for (size_t i = from; i < to; i++) {
+  	    size_t index = trail_get(i);
+            heap_set(index, ref_cell(index));
+        }
+    }
+};
+
+template<typename T> class ops_dock : public T
+{
+public:
+    ops_dock() { }
+    ops_dock(T &t) : T(t) { }
+};
+
+class ops_bridge
+{
+public:
+    inline ops_bridge(term_ops &ops) : ops_(ops) { }
+
+    inline term_ops & get_ops() { return ops_; }
+    inline const term_ops & get_ops() const { return ops_; }
+
+    inline void set_ops(term_ops &ops) { ops_ = ops; }
+
+private:
+    term_ops ops_;
+};
+
+class ops_proxy : public ops_dock<ops_bridge> 
+{
+public:
+    inline ops_proxy(term_ops &ops)
+        : ops_dock<ops_bridge>(*this) { set_ops(ops); }
+};
+
+
+template<typename HT, typename ST, typename OT> class term_env_dock
+  : public heap_dock<HT>, public stacks_dock<ST>, public ops_dock<OT>
+{
+public:
+  inline term_env_dock() { }
+
+  inline term_env_dock(HT &ht, ST &st, OT &ops)
+    : heap_dock_(ht), stacks_dock_(st), ops_dock_(ops), register_hb_(0)
+      heap_dock<HT>(heap_dock_),
+      stacks_dock<ST>(stacks_dock_),
+      ops_dock<OT>(ops_dock_) { }
+
+  inline bool is_atom(const term t) const
+      { return is_functor(t) && functor(t).arity() == 0; }
+
+  inline std::string atom_name(const term t) const
+      { return atom_name(functor(t)); }
+
+  inline bool is_functor(const term t) const
+      { auto t = deref(t).tag(); return t == tag_t::CON || t == tag_t::STR; }
+	 
+  inline bool is_functor(const term t, con_cell f)
+     { return is_functor(t) && functor(t) == f; }
+
+  inline bool is_ground(const term t) const
+     {
+        auto range = const_cast<term_env_dock<HT,ST> &>(*this).iterate_over(tt);
+        for (auto t : range) {
+   	    if (t.tag() == tag_t::REF) {
+	        return false;
+	    }
+        }
+        return true;    
+     }
+
+  inline size_t get_register_hb() const
+     { return register_hb_; }
+
+  inline void set_register_hb(size_t index)
+     { register_hb_ = index; }
   
-  void clear_name(const term &ref);
-  bool has_name(const term &ref) const;
-  void set_name(const term &ref, const std::string &name);
+  inline void clear_name(const term t)
+     { var_naming_.erase(t); }
+  inline bool has_name(const term t) const
+     { return var_naming_.count(t) != 0; }
+  inline void set_name(const term t, const std::string &name)
+     { var_naming_[t] = name; }
 
-  term to_term(cell cell) const;
 
-  size_t stack_size() const;
-  size_t heap_size() const;
-  size_t trail_size() const;
+  inline void unwind_trail(size_t from, size_t to)
+  {
+      for (size_t i = from; i < to; i++) {
+	  size_t index = trail_get(i);
+          heap_set(index, ref_cell(index));
+      }
+  }
 
-  void unwind_trail(size_t from_addr, size_t to_addr);
-  void tidy_trail(size_t from_addr, size_t to_addr);
+  inline void tidy_trail(size_t from_addr, size_t to_addr)
+  {
+      size_t i = from;
+      while (i < to) {
+   	  if (trail_get(i) < register_hb_) {
+   	      // This variable recording happened before the choice point.
+	      // We can't touch it.
+	      i++;
+          } else {
+	      // Remove this trail point, move one trail point we haven't
+	      // visited to this location.
+  	      trail_set(i, trail_get(to-1));
+	      to--;
+          }
+      }
 
-  void trim_heap(size_t new_size);
-  void trim_trail(size_t new_size);
+      // We're done. Trim the trail to the new end
+      trim_trail(to);
+  }
 
-  term_dfs_iterator begin(const term &t);
-  term_dfs_iterator end(const term &t);
+  inline bool unify(term a, term b)
+  {
+      term_utils utils(get_heap(), get_stacks());
+      return utils.unify(a, b);
+  }
+
+  inline term copy(term t)
+  {
+      term_utils utils(get_heap(), get_stacks());
+      return utils.copy(t);
+  }
 
   class term_range {
   public:
-      term_range(term_env &env, const term &t) : env_(env), term_(t) { }
+      term_range(term_env_dock &env, const term t) : env_(env), term_(t) { }
 
-      term_dfs_iterator begin() { return env_.begin(term_); }
-      term_dfs_iterator end() { return env_.end(term_); }
+      term_dfs_iterator_templ<HT,ST,OT> begin() { return env_.begin(term_); }
+      term_dfs_iterator_templ<HT,ST,OT> end() { return env_.end(term_); }
   private:
-      term_env &env_;
+      term_env_dock &env_;
       term term_;
   };
 
-  term_range iterate_over(const term &t)
+  term_range iterate_over(const term t)
       { return term_range(*this, t); }
 
-  std::string status() const;
+  std::string status() const
+  { 
+    std::stringstream ss;
+    ss << "term_env::status() { heap_size=" << heap_size()
+       << ",stack_size=" << stack_size() << ",trail_size=" << trail_size() <<"}";
+    return ss.str();
+  }
+
+  term parse(const std::string &str)
+  {
+      std::stringstream ss(str);
+      term_tokenizer tokenizer(ss);
+      term_parser parser(tokenizer, get_heap(), get_ops());
+      term r = parser.parse();
+
+      // Once parsing is done we'll copy over the var-name bindings
+      // so we can pretty print the variable names.
+      parser.for_each_var_name( [&](const term  &ref,
+				    const std::string &name)
+			     { var_naming_[ref] = name; } );
+      return r;
+  }
+
+  std::string to_string(term t,
+			term_emitter::style style = term_emitter::STYLE_TERM) const
+  {
+      t = deref(t);
+      std::stringstream ss;
+      term_emitter emitter(ss, get_heap(), get_ops());
+      emitter.set_style(style);
+      emitter.set_var_naming(var_naming_);
+      emitter.print(t);
+      return ss.str();
+  }
+
+  std::string safe_to_string(const term &t, term_emitter::style = term_emitter::STYLE_TERM) const
+  {
+      return to_string(t, style);
+  }
+
+  term_dfs_iterator_templ<HT,ST,OT> begin(const term &t)
+  {
+      return term_dfs_iterator_templ<HT,ST,OT>(*this, t);
+  }
+  
+  term_dfs_iterator_templ<HT,ST,OT> end(const term &t)
+  {
+      return term_dfs_iterator_templ<HT,ST,OT>(*this);
+  }
+
 
 private:
-  friend class term_env_impl; 
-  term_env_impl *impl_;
+  heap_dock<HT> heap_dock_;
+  stacks_dock<ST> stacks_dock_;
+  ops_dock<OT> ops_dock_;
+
+  size_t register_hb_;
+  std::unordered_map<term, std::string> var_naming_;
 };
 
-inline bool term_iterator::operator == (const term_iterator &other) const
+template<typename HT, typename ST, typename OT>
+inline bool term_iterator_templ<HT,ST,OT>::operator == (const term_iterator_templ<HT,ST,OT> &other) const
 {
     return env_.equal(current_, other.current_);
 }
 
-inline term term_iterator::first_of(const term &t)
+template<typename HT, typename ST, typename OT>
+inline term term_iterator_templ<HT,ST,OT>::first_of(const term &t)
 {
     if (env_.is_empty_list(t)) {
 	return t;
@@ -221,7 +531,8 @@ inline term term_iterator::first_of(const term &t)
     }
 }
 
-inline void term_iterator::advance()
+template<typename HT, typename ST, typename OT>
+inline void term_iterator_templ<HT,ST,OT>::advance()
 {
     term t = env_.deref(current_);
     if (t.tag() != common::tag_t::STR) {
@@ -231,12 +542,14 @@ inline void term_iterator::advance()
     elem_ = first_of(current_);
 }
 
-inline bool term_dfs_iterator::operator == (const term_dfs_iterator &other) const
+template<typename HT, typename ST, typename OT>
+inline bool term_dfs_iterator_templ<HT,ST,OT>::operator == (const term_dfs_iterator_templ<HT,ST,OT> &other) const
 {
     return elem_ == other.elem_ && stack_.size() == other.stack_.size();
 }
 
-inline term term_dfs_iterator::first_of(const term &t)
+template<typename HT, typename ST, typename OT>
+inline term term_dfs_iterator_templ<HT,ST,OT>::first_of(const term &t)
 {
     term p = env_.deref(t);
     while (p.tag() == tag_t::STR) {
@@ -252,7 +565,8 @@ inline term term_dfs_iterator::first_of(const term &t)
     return p;
 }
 
-inline void term_dfs_iterator::advance()
+template<typename HT, typename ST, typename OT>
+inline void term_dfs_iterator_templ<HT,ST,OT>::advance()
 {
     if (stack_.empty()) {
 	elem_ = term();
@@ -267,6 +581,13 @@ inline void term_dfs_iterator::advance()
     }
     elem_ = first_of(env_.arg(stack_.back().parent, new_index));
 }
+
+
+class term_env : public term_env_dock<heap, stacks, term_ops>
+{
+public:
+     term_env() : term_env_dock() { }
+};
 
 }}
 

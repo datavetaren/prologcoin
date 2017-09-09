@@ -20,6 +20,9 @@ class term_ops {
 public:
     term_ops();
 
+    inline term_ops & get_ops() { return *this; }
+    inline const term_ops & get_ops() const { return *this; }
+
     void print(std::ostream &out);
 
     enum type_t { XF = 0, YF = 1, XFX = 2, XFY = 3,

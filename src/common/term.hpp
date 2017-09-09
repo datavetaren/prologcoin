@@ -545,6 +545,9 @@ public:
     heap();
     ~heap();
 
+    inline heap & get_heap() { return *this; }
+    inline const heap & get_heap() const { return *this; }
+
     inline size_t size() const { return size_; }
 
     void trim(size_t new_size);
@@ -554,6 +557,16 @@ public:
 	if (index >= size()) {
 	    throw heap_index_out_of_range_exception(index, size());
 	}
+    }
+
+    inline cell & operator [] (size_t addr)
+    {
+	return find_block(addr)[addr];
+    }
+
+    inline const cell & operator [] (size_t addr) const
+    {
+	return get(addr);
     }
 
     size_t list_length(const cell lst) const;
@@ -783,16 +796,6 @@ private:
 	return allocate(tag, n);
     }
 
-    inline cell & operator [] (size_t addr)
-    {
-	return find_block(addr)[addr];
-    }
-
-    inline const cell & operator [] (size_t addr) const
-    {
-	return get(addr);
-    }
-
     inline const cell & get(size_t addr) const
     {
 	check_index(addr);
@@ -854,12 +857,6 @@ private:
     con_cell comma_;
 
     template<typename T> friend class ext;
-
-    // We want the implementator class of term environment to have
-    // direct cell access (not having to use reference counted pointers
-    // i.e. ext<cell>.) The term environment explicitly keeps track of
-    // root references.
-    friend class term_env_impl;
 };
 
 //

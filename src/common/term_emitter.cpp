@@ -3,7 +3,7 @@
 
 namespace prologcoin { namespace common {
 
-term_emitter::term_emitter(std::ostream &out, heap &h, term_ops &ops)
+term_emitter::term_emitter(std::ostream &out, const heap &h, const term_ops &ops)
         : out_(out),
 	  heap_(h),
 	  ops_(ops),
