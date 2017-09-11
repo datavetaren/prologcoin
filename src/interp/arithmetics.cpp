@@ -15,17 +15,17 @@ namespace prologcoin { namespace interp {
 
     term arithmetics_fn::plus_2(interpreter &interp, term *args)
     {
-	return interp.env().to_term(get_int(args[0]) + get_int(args[1]));
+	return get_int(args[0]) + get_int(args[1]);
     }
 
     term arithmetics_fn::minus_2(interpreter &interp, term *args)
     {
-	return interp.env().to_term(get_int(args[0]) - get_int(args[1]));
+	return get_int(args[0]) - get_int(args[1]);
     }
 
     term arithmetics_fn::times_2(interpreter &interp, term *args)
     {
-	return interp.env().to_term(get_int(args[0]) * get_int(args[1]));
+	return get_int(args[0]) * get_int(args[1]);
     }
 
     void arithmetics::load_fn(const std::string &name, size_t arity, arithmetics::fn fn)
@@ -59,7 +59,7 @@ namespace prologcoin { namespace interp {
 	term_env &env = interp_.env();
 	size_t stack_start = env.stack_size();
 	env.push(expr);
-	env.push(env.to_term(int_cell(0)));
+	env.push(int_cell(0));
 	while (stack_start < env.stack_size()) {
 	    cell visited0 = env.pop();
 	    term t = env.pop();
@@ -97,20 +97,20 @@ namespace prologcoin { namespace interp {
 		result = fn_call(interp_, &args_[off]);
 		args_.resize(off);
 		env.push(result);
-		env.push(env.to_term(int_cell(1)));
+		env.push(int_cell(1));
 		continue;
 	    }
 	    switch (t.tag()) {
 	    case tag_t::CON:
 	    case tag_t::STR: {
 		con_cell f = env.functor(t);
-		env.push(env.to_term(f));
-		env.push(env.to_term(int_cell(1)));
+		env.push(f);
+		env.push(int_cell(1));
 		size_t n = f.arity();
 		for (size_t i = 0; i < n; i++) {
 		    term arg = env.arg(t, n - i - 1);
 		    env.push(arg);
-		    env.push(env.to_term(int_cell(0)));
+		    env.push(int_cell(0));
 		}
 		break;
 	    }

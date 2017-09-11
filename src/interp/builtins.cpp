@@ -81,7 +81,7 @@ namespace prologcoin { namespace interp {
 	auto *ch = interp.allocate_choice_point(0);
 	ch->bp = 2;
 	interp.move_cut_point_to_last_choice_point();
-	term cut = interp.env().to_term(cut_op);
+	term cut = cut_op;
 	term arg0 = interp.env().arg(caller, 0);
 	term arg1 = interp.env().arg(caller, 1);
 	interp.set_continuation_point(arg1);
@@ -100,7 +100,7 @@ namespace prologcoin { namespace interp {
 
 	term cond = interp.env().arg(lhs, 0);
 	term iftrue = interp.env().arg(lhs, 1);
-	term cut_if = interp.env().to_term(cut_op_if);
+	term cut_if = cut_op_if;
 
 	auto *ch = interp.allocate_choice_point(0);
 	ch->bp = 1; // Go to 'C' the false clause if ((A->B) ; C) fails
@@ -160,13 +160,13 @@ namespace prologcoin { namespace interp {
 	int c = interp.env().standard_order(interp.env().arg(caller, 1),
 					    interp.env().arg(caller, 2));
 	if (c < 0) {
-	    term lt = interp.env().to_term(con_cell("<",0));
+	    term lt = con_cell("<",0);
 	    return interp.unify(order, lt);
 	} else if (c > 0) {
-	    term gt = interp.env().to_term(con_cell(">",0));
+	    term gt = con_cell(">",0);
 	    return interp.unify(order, gt);
 	} else {
-	    term eq = interp.env().to_term(con_cell("=",0));
+	    term eq = con_cell("=",0);
 	    return interp.unify(order, eq);
 	}
     }
@@ -292,14 +292,14 @@ namespace prologcoin { namespace interp {
 	    return false;
 	  case tag_t::INT:
  	  case tag_t::BIG: {
-	    term zero = interp.env().to_term(int_cell(0));
+	    term zero = int_cell(0);
 	    return interp.unify(f, t) && interp.unify(a, zero);
 	    }
 	  case tag_t::STR:
   	  case tag_t::CON: {
 	      con_cell tf = interp.env().functor(t);
-	      term fun = interp.env().to_term(tf);
-	      term arity = interp.env().to_term(int_cell(tf.arity()));
+	      term fun = tf;
+	      term arity = int_cell(tf.arity());
 	      return interp.unify(f, fun) && interp.unify(a, arity);
 	    }
 	}
@@ -410,7 +410,7 @@ namespace prologcoin { namespace interp {
 	    return false;
 	}
 	con_cell f = interp.env().to_atom(interp.env().functor(lhs));
-	term elem = interp.env().to_term(f);
+	term elem = f;
 	term lst = deconstruct_write_list(interp, lhs, 0);
 	lst = interp.new_dotted_pair(elem, lst);
 	return interp.unify(rhs, lst);

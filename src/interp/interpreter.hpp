@@ -176,12 +176,6 @@ public:
     inline common::term_env & env() { return *term_env_; }
     inline arithmetics & arith() { return arith_; }
 
-    void sync_with_heap()
-    {
-        env().sync_with_heap();
-	register_h_ = env().heap_size();
-    }
-
     void load_clause(const std::string &str);
     void load_clause(std::istream &is);
     void load_clause(const term &t);
@@ -221,8 +215,8 @@ public:
 
     class list_iterator : public common::term_iterator {
     public:
-	list_iterator(common::term_env &env, const common::term &t)
-            : term_iterator(env, t) { }
+	list_iterator(Env &env, const common::term t)
+            : common::term_iterator(env, t) { }
 
 	list_iterator begin() {
 	    return *this;
@@ -320,6 +314,11 @@ private:
     inline void set_heap_pointer(size_t h)
     {
         register_h_ = h;
+    }
+
+    inline void sync_env()
+    {
+	register_h_ = env().heap_size();
     }
 
     inline void set_continuation_point(const term &cont)

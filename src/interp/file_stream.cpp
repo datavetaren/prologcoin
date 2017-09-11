@@ -71,8 +71,6 @@ term file_stream::read_term()
 				{ env_.set_name(ref,name); } );
     parser_->clear_var_names();
 
-    env_.sync_with_heap();
-
     return r;
 }
 

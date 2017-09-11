@@ -121,7 +121,7 @@ static bool test_interpreter_file(const std::string &filepath)
 
 	    std::string comments = parser->get_comments_string();
 
-	    interp.sync_with_heap();
+	    // interp.sync_with_heap();
 
 	    process_meta(interp, comments);
 

@@ -579,7 +579,7 @@ public:
 	return con_cell(name, 0);
     }
 
-    inline const std::string atom_name(con_cell cell) const
+    inline std::string atom_name(con_cell cell) const
     {
         if (cell.is_direct()) {
 	    return cell.name();
@@ -628,7 +628,7 @@ public:
 
     size_t resolve_atom_index(const std::string &name) const;
 
-    inline con_cell functor(const cell &s) const
+    inline con_cell functor(const term s) const
     {
         if (s.tag() == tag_t::CON) {
 	    return static_cast<const con_cell &>(s);
@@ -715,6 +715,14 @@ public:
 	    p[i+2] = ref_cell(index+i+2);
 	}
 	return term(*this, *p);
+    }
+
+    inline term new_dotted_pair(term a, term b)
+    {
+	term t = new_str(dotted_pair_);
+	set_arg(t, 0, a);
+	set_arg(t, 1, a);
+	return t;
     }
 
     inline term new_ref()

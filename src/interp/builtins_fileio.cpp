@@ -45,7 +45,7 @@ namespace prologcoin { namespace interp {
 	    fs.open(file_stream::READ);
 	    size_t id = fs.get_id();
 	    con_cell f = interp.env().functor("$stream", 1);
-	    term newstream = interp.env().new_term(f, {interp.env().to_term(int_cell(id))} );
+	    term newstream = interp.env().new_term(f, {int_cell(id)} );
 	    return interp.unify(stream, newstream);
 	}
 
@@ -96,8 +96,7 @@ namespace prologcoin { namespace interp {
 	file_stream &fs = interp.get_file_stream(id);
 	term t;
 	if (fs.is_eof()) {
-	    t = interp.env().to_term(
-		  interp.env().functor("end_of_file",0));
+	    t = interp.env().functor("end_of_file",0);
 	} else {
 	    t = fs.read_term();
 	}

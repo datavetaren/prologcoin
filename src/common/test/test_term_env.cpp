@@ -20,6 +20,7 @@ static void test_simple_env()
     term_env env;
     std::string sin = "foo(1,2*3+4+5+ +6-(-7),8).";
     auto r = env.parse(sin);
+
     std::string sout = env.to_string(r);
     std::string expected = "foo(1, 2*3+4+5+ + 6- - 7, 8)";
     

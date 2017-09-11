@@ -433,7 +433,7 @@ void interpreter::print_profile(std::ostream &out) const
     for (auto p : all) {
 	auto f = p.f;
 	auto t = p.t;
-	std::cout << term_env_->to_string(term_env_->to_term(f)) << ": " << t << "\n";
+	std::cout << term_env_->to_string(f) << ": " << t << "\n";
     }
 
 }
@@ -472,8 +472,8 @@ void interpreter::deallocate_environment()
     environment_t *e = get_environment(register_e_);
     register_e_ = e->ce.value();
     register_b0_ = e->b0.value();
-    register_cp_ = term_env_->to_term(e->cp);
-    register_qr_ = term_env_->to_term(e->qr);
+    register_cp_ = e->cp;
+    register_qr_ = e->qr;
     register_pr_ = e->pr;
 }
 
@@ -505,7 +505,7 @@ interpreter::choice_point_t * interpreter::allocate_choice_point(size_t index_id
     ch->pr = register_pr_;
     register_b_ = at_index;
     register_hb_ = register_h_;
-    term_env_->set_last_choice_heap(register_hb_);
+    term_env_->set_register_hb(register_hb_);
 
     return ch;
 }
@@ -523,7 +523,7 @@ void interpreter::prepare_execution()
     register_tr_ = term_env_->trail_size();
     register_h_ = term_env_->heap_size();
     register_hb_ = register_h_;
-    term_env_->set_last_choice_heap(register_hb_);
+    term_env_->set_register_hb(register_hb_);
     register_b0_ = 0;
     register_top_b_ = 0;
     register_top_e_ = 0;
@@ -764,7 +764,7 @@ size_t interpreter::matched_predicate_id(con_cell functor, const term &first_arg
     term index_arg = first_arg;
     switch (first_arg.tag()) {
     case tag_t::STR:
-	index_arg = term_env_->to_term(term_env_->functor(first_arg)); break;
+	index_arg = term_env_->functor(first_arg); break;
     case tag_t::CON:
     case tag_t::INT:
 	break;
@@ -812,7 +812,7 @@ void interpreter::dispatch(term &instruction)
         // Return
         if (is_debug()) {
    	    environment_t *e = get_environment(register_e_);
-            std::cout << "interpreter::dispatch(): exit " << term_env_->to_string(term_env_->to_term(e->qr)) << "\n";
+            std::cout << "interpreter::dispatch(): exit " << term_env_->to_string(e->qr) << "\n";
         }
         deallocate_environment();
 	return;
@@ -982,14 +982,14 @@ interpreter::choice_point_t * interpreter::reset_to_choice_point(size_t b)
     auto ch = get_choice_point(b);
 
     register_e_ = ch->ce.value();
-    register_cp_ = term_env_->to_term(ch->cp);
+    register_cp_ = ch->cp;
     register_tr_ = ch->tr.value();
     register_h_ = ch->h.value();
     register_b0_ = ch->b0.value();
     register_hb_ = register_h_;
-    register_qr_ = term_env_->to_term(ch->qr);
+    register_qr_ = ch->qr;
     register_pr_ = ch->pr;
-    term_env_->set_last_choice_heap(register_hb_);
+    term_env_->set_register_hb(register_hb_);
 
     return ch;
 }
