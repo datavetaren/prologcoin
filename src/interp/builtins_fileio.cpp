@@ -45,7 +45,7 @@ namespace prologcoin { namespace interp {
 	    fs.open(file_stream::READ);
 	    size_t id = fs.get_id();
 	    con_cell f = interp.env().functor("$stream", 1);
-	    term newstream = interp.env().new_term(f, {int_cell(id)} );
+	    term newstream = interp.new_term(f, {int_cell(id)} );
 	    return interp.unify(stream, newstream);
 	}
 

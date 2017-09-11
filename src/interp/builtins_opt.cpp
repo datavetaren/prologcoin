@@ -60,7 +60,7 @@ namespace prologcoin { namespace interp {
 	term r = interp.env().empty_list();
 	
 	for (size_t i = 0; i < n; i++) {
-	    term &el = vec[n-i-1];
+	    term el = vec[n-i-1];
 	    r = interp.new_dotted_pair(el, r);
 	}
 

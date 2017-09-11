@@ -240,7 +240,7 @@ private:
     void init();
     bool unify(term &a, term &b);
     term copy(term &c);
-    term new_dotted_pair(term &a, term &b);
+    term new_dotted_pair(const term a, const term b);
     term new_term(con_cell functor);
     term new_term(con_cell functor, const std::initializer_list<term> &args);
     void prepare_execution();

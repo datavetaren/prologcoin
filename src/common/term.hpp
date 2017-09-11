@@ -695,7 +695,7 @@ public:
 	return term(*this, deref(get(s.index() + index + 1)));
     }
 
-    void set_arg(cell str, size_t index, cell c)
+    void set_arg(cell str, size_t index, const cell c)
     {
 	auto dc = deref(str);
         str_cell &s = static_cast<str_cell &>(dc);
@@ -717,11 +717,11 @@ public:
 	return term(*this, *p);
     }
 
-    inline term new_dotted_pair(term a, term b)
+    inline term new_dotted_pair(const term a, const term b)
     {
 	term t = new_str(dotted_pair_);
 	set_arg(t, 0, a);
-	set_arg(t, 1, a);
+	set_arg(t, 1, b);
 	return t;
     }
 

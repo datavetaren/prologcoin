@@ -54,7 +54,7 @@ term interpreter::copy(term &t)
     return tc;
 }
 
-term interpreter::new_dotted_pair(term &a, term &b)
+term interpreter::new_dotted_pair(const term a, const term b)
 {
     term t = term_env_->new_dotted_pair(a,b);
     register_h_ = term_env_->heap_size();
