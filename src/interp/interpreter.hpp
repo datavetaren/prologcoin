@@ -161,7 +161,6 @@ public:
     typedef common::int_cell int_cell;
 
     interpreter();
-    interpreter(common::term_env &env);
     ~interpreter();
 
     inline bool is_debug() const { return debug_; }
@@ -173,7 +172,6 @@ public:
     void close_all_files();
     bool is_file_id(size_t id) const;
 
-    // inline common::term_env & env() { return *term_env_; }
     inline arithmetics & arith() { return arith_; }
 
     void load_clause(const std::string &str);
@@ -408,8 +406,6 @@ private:
     term clause_head(const term clause);
     term clause_body(const term clause);
 
-    bool owns_term_env_;
-    common::term_env *term_env_;
     bool debug_;
 
     std::vector<std::function<void ()> > syntax_check_stack_;

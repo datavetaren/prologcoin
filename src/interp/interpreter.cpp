@@ -13,21 +13,10 @@ using namespace prologcoin::common;
 
 interpreter::interpreter() : register_pr_("", 0), comma_(",",2), empty_list_("[]", 0), implied_by_(":-", 2), arith_(*this)
 {
-    term_env_ = new term_env();
-    owns_term_env_ = true;
-
     init();
 
     load_builtins();
     load_builtins_opt();
-}
-
-interpreter::interpreter(term_env &env) : register_pr_("",0), comma_(",",2), empty_list_("[]",0), implied_by_(":-", 2), arith_(*this)
-{
-    term_env_ = &env;
-    owns_term_env_ = false;
-
-    init();
 }
 
 void interpreter::init()
@@ -52,9 +41,6 @@ interpreter::~interpreter()
     program_predicates_.clear();
     predicate_id_.clear();
     id_to_predicate_.clear();
-    if (owns_term_env_) {
-	delete term_env_;
-    }
 }
 
 void interpreter::close_all_files()
@@ -959,7 +945,7 @@ void interpreter::fail()
 
     do {
 	if (is_debug()) {
-	    std::cout << "interpreter::fail(): fail " << term_env_->to_string(register_qr_) << "\n";
+	    std::cout << "interpreter::fail(): fail " << to_string(register_qr_) << "\n";
 	}
 
         if (register_b_ == register_top_b_) {
@@ -982,7 +968,7 @@ void interpreter::fail()
 	    unbound = true;
 
 	    if (is_debug()) {
-	        std::string redo_str = term_env_->to_string(register_qr_);
+	        std::string redo_str = to_string(register_qr_);
 		std::cout << "interpreter::fail(): redo " << redo_str << std::endl;
 	    }
 	    auto &clauses = id_to_predicate_[index_id];
