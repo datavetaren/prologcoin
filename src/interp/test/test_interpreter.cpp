@@ -40,7 +40,7 @@ static void eval_check_1(const std::string &program,
 {
     interpreter interp;
 
-    term prog = interp.env().parse(program);
+    term prog = interp.parse(program);
 
     interp.load_program(prog);
 
@@ -48,12 +48,12 @@ static void eval_check_1(const std::string &program,
     interp.print_db(std::cout);
     std::cout << "----------------------------------------------\n";
     
-    term qr = interp.env().parse(query);
-    std::cout << "?- " << interp.env().to_string(qr) << ".\n";
+    term qr = interp.parse(query);
+    std::cout << "?- " << interp.to_string(qr) << ".\n";
 
     interp.execute(qr);
 
-    std::string result = interp.env().to_string(qr);
+    std::string result = interp.to_string(qr);
 
     std::cout << "----------------------------------------------" << std::endl;
     interp.print_result(std::cout);
@@ -98,7 +98,7 @@ static void eval_check_n(const std::string &program,
 {
     interpreter interp;
 
-    term prog = interp.env().parse(program);
+    term prog = interp.parse(program);
 
     interp.load_program(prog);
 
@@ -106,8 +106,8 @@ static void eval_check_n(const std::string &program,
     interp.print_db(std::cout);
     std::cout << "----------------------------------------------\n";
     
-    term qr = interp.env().parse(query);
-    std::cout << "?- " << interp.env().to_string(qr) << ".\n";
+    term qr = interp.parse(query);
+    std::cout << "?- " << interp.to_string(qr) << ".\n";
 
     std::cout << "----------------------------------------------" << std::endl;
 

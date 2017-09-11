@@ -11,24 +11,24 @@ namespace prologcoin { namespace interp {
 
     bool builtins_fileio::open_3(interpreter &interp, term &caller)
     {
-        term filename0 = interp.env().arg(caller, 0);
-	term mode0 = interp.env().arg(caller, 1);
-	term stream = interp.env().arg(caller, 2);
+        term filename0 = interp.arg(caller, 0);
+	term mode0 = interp.arg(caller, 1);
+	term stream = interp.arg(caller, 2);
 
-	if (!interp.env().is_atom(filename0)) {
+	if (!interp.is_atom(filename0)) {
 	    interp.abort(interpreter_exception_wrong_arg_type(
 		      "open/3: Filename must be an atom; was: "
-		      + interp.env().to_string(filename0)));
+		      + interp.to_string(filename0)));
 	}
 
-	if (!interp.env().is_atom(mode0)) {
+	if (!interp.is_atom(mode0)) {
 	    interp.abort(interpreter_exception_wrong_arg_type(
 		      "open/3: Mode must be an atom; was: "
-		      + interp.env().to_string(mode0)));
+		      + interp.to_string(mode0)));
 	}
 
-	std::string full_path = interp.get_full_path(interp.env().atom_name(filename0));
-	std::string mode = interp.env().atom_name(mode0);
+	std::string full_path = interp.get_full_path(interp.atom_name(filename0));
+	std::string mode = interp.atom_name(mode0);
 
 	if (!boost::filesystem::exists(full_path)) {
 	    interp.abort(interpreter_exception_file_not_found(
@@ -44,7 +44,7 @@ namespace prologcoin { namespace interp {
 	    file_stream &fs = interp.new_file_stream(full_path);
 	    fs.open(file_stream::READ);
 	    size_t id = fs.get_id();
-	    con_cell f = interp.env().functor("$stream", 1);
+	    con_cell f = interp.functor("$stream", 1);
 	    term newstream = interp.new_term(f, {int_cell(id)} );
 	    return interp.unify(stream, newstream);
 	}
@@ -57,16 +57,16 @@ namespace prologcoin { namespace interp {
     size_t builtins_fileio::get_stream_id(interpreter &interp, term &stream,
 					  const std::string &from_fun)
     {
-	if (!interp.env().is_functor(stream, con_cell("$stream", 1))) {
+	if (!interp.is_functor(stream, con_cell("$stream", 1))) {
 	    interp.abort(interpreter_exception_wrong_arg_type(
 		      from_fun + ": Expected stream argument; was: "
-		      + interp.env().to_string(stream)));
+		      + interp.to_string(stream)));
 	}
-	term stream_id = interp.env().arg(stream, 0);
+	term stream_id = interp.arg(stream, 0);
 	if (stream_id.tag() != tag_t::INT) {
 	    interp.abort(interpreter_exception_wrong_arg_type(
 		      from_fun + ": Unrecognized stream identifier: "
-		      + interp.env().to_string(stream_id)));
+		      + interp.to_string(stream_id)));
 	}
 
 	cell sid = stream_id;
@@ -83,7 +83,7 @@ namespace prologcoin { namespace interp {
 
     bool builtins_fileio::close_1(interpreter &interp, term &caller)
     {
-	term stream = interp.env().arg(caller, 0);
+	term stream = interp.arg(caller, 0);
 	size_t id = get_stream_id(interp, stream, "close/1");
 	interp.close_file_stream(id);
 	return true;
@@ -91,16 +91,16 @@ namespace prologcoin { namespace interp {
 
     bool builtins_fileio::read_2(interpreter &interp, term &caller)
     {
-	term stream = interp.env().arg(caller, 0);
+	term stream = interp.arg(caller, 0);
 	size_t id = get_stream_id(interp, stream, "read/2");
 	file_stream &fs = interp.get_file_stream(id);
 	term t;
 	if (fs.is_eof()) {
-	    t = interp.env().functor("end_of_file",0);
+	    t = interp.functor("end_of_file",0);
 	} else {
 	    t = fs.read_term();
 	}
-	term result = interp.env().arg(caller, 1);
+	term result = interp.arg(caller, 1);
 	bool r = interp.unify(t, result);
 
 	return r;
@@ -108,7 +108,7 @@ namespace prologcoin { namespace interp {
 
     bool builtins_fileio::at_end_of_stream_1(interpreter &interp, term &caller)
     {
-	term stream = interp.env().arg(caller, 0);
+	term stream = interp.arg(caller, 0);
 	size_t id = get_stream_id(interp, stream, "at_end_of_stream/1");
 	file_stream &fs = interp.get_file_stream(id);
 	return fs.is_eof();
@@ -116,8 +116,8 @@ namespace prologcoin { namespace interp {
 
     bool builtins_fileio::write_1(interpreter &interp, term &caller)
     {
-	term arg = interp.env().arg(caller, 0);
-	std::string str = interp.env().to_string(arg);
+	term arg = interp.arg(caller, 0);
+	std::string str = interp.to_string(arg);
 	std::cout << str << std::flush;
 	return true;
     }

@@ -148,7 +148,7 @@ struct meta_context {
 typedef std::function<void (interpreter &, meta_context *)> meta_fn;
 typedef std::pair<meta_context *, meta_fn> meta_entry;
 
-class interpreter {
+class interpreter : public common::term_env {
     friend class builtins;
     friend class builtins_opt;
     friend class builtins_fileio;
@@ -173,34 +173,34 @@ public:
     void close_all_files();
     bool is_file_id(size_t id) const;
 
-    inline common::term_env & env() { return *term_env_; }
+    // inline common::term_env & env() { return *term_env_; }
     inline arithmetics & arith() { return arith_; }
 
     void load_clause(const std::string &str);
     void load_clause(std::istream &is);
-    void load_clause(const term &t);
+    void load_clause(const term t);
 
     void load_program(const std::string &str);
     void load_program(std::istream &is);
-    void load_program(const term &clauses);
+    void load_program(const term clauses);
 
     void print_db() const;
     void print_db(std::ostream &out) const;
     void print_profile() const;
     void print_profile(std::ostream &out) const;
 
-    bool execute(const term &query);
+    bool execute(const term query);
 
     bool next();
 
     class binding {
     public:
 	binding() { }
-	binding(const std::string &name, const term &value) 
+	binding(const std::string &name, const term value) 
 	    : name_(name), value_(value) { }
 
 	inline const std::string & name() const { return name_; }
-	inline const term & value() const { return value_; }
+	inline const term value() const { return value_; }
 
     private:
 	std::string name_;
@@ -238,24 +238,19 @@ private:
     file_stream & get_file_stream(size_t id);
 
     void init();
-    bool unify(term &a, term &b);
-    term copy(term &c);
-    term new_dotted_pair(const term a, const term b);
-    term new_term(con_cell functor);
-    term new_term(con_cell functor, const std::initializer_list<term> &args);
     void prepare_execution();
     void abort(const interpreter_exception &ex);
     void fail();
-    bool select_clause(term &instruction,
+    bool select_clause(term instruction,
 		       size_t index_id, std::vector<term> &clauses,
 		       size_t from_clause);
 
-    inline term & current_query()
+    inline term current_query()
     {
 	return register_qr_;
     }
 
-    inline void set_current_query(term &qr) 
+    inline void set_current_query(term qr) 
     {
         register_qr_ = qr;
     }
@@ -301,32 +296,12 @@ private:
 	meta_.pop_back();
     }
 
-    inline void set_trail_pointer(size_t tr)
-    {
-        register_tr_ = tr;
-    }
-
-    inline size_t get_trail_pointer() const
-    {
-	return register_tr_;
-    }
-
-    inline void set_heap_pointer(size_t h)
-    {
-        register_h_ = h;
-    }
-
-    inline void sync_env()
-    {
-	register_h_ = env().heap_size();
-    }
-
-    inline void set_continuation_point(const term &cont)
+    inline void set_continuation_point(const term cont)
     {
         register_cp_ = cont;
     }
 
-    inline term & get_continuation_point()
+    inline term get_continuation_point()
     {
 	return register_cp_;
     }
@@ -405,13 +380,13 @@ private:
 	register_b0_ = register_b_;
     }
 
-    bool definitely_inequal(const term &a, const term &b);
-    common::cell first_arg_index(const term &first_arg);
-    term get_first_arg(const term &t);
+    bool definitely_inequal(const term a, const term b);
+    common::cell first_arg_index(const term first_arg);
+    term get_first_arg(const term t);
 
-    void compute_matched_predicate(con_cell functor, const term &first_arg,
+    void compute_matched_predicate(con_cell functor, const term first_arg,
 				   predicate &matched);
-    size_t matched_predicate_id(con_cell functor, const term &first_arg);
+    size_t matched_predicate_id(con_cell functor, const term first_arg);
 
     inline predicate & get_predicate(size_t id)
     {
@@ -420,18 +395,18 @@ private:
 
     void execute_once();
     bool cont();
-    void dispatch(term &instruction);
+    void dispatch(term instruction);
 
     void syntax_check();
 
-    void syntax_check_program(const term &term);
-    void syntax_check_clause(const term &term);
-    void syntax_check_head(const term &head);
-    void syntax_check_body(const term &body);
-    void syntax_check_goal(const term &goal);
+    void syntax_check_program(const term term);
+    void syntax_check_clause(const term term);
+    void syntax_check_head(const term head);
+    void syntax_check_body(const term body);
+    void syntax_check_goal(const term goal);
 
-    term clause_head(const term &clause);
-    term clause_body(const term &clause);
+    term clause_head(const term clause);
+    term clause_body(const term clause);
 
     bool owns_term_env_;
     common::term_env *term_env_;
@@ -455,9 +430,6 @@ private:
     term register_cp_;   // Continuation point
     size_t register_b_;  // Points to current choice point (0 means none)
     size_t register_e_;  // Points to current environment
-    size_t register_tr_; // Trail pointer
-    size_t register_h_;  // Heap pointer
-    size_t register_hb_; // Heap pointer for current choice point
     size_t register_b0_; // Record choice point (for neck cuts)
     term register_qr_;   // Current query 
     con_cell register_pr_; // Current predicate (for profiling)

@@ -30,8 +30,8 @@ namespace prologcoin { namespace interp {
 
     bool builtins::operator_comma(interpreter &interp, term &caller)
     {
-        term arg0 = interp.env().arg(caller, 0);
-	term arg1 = interp.env().arg(caller, 1);
+        term arg0 = interp.arg(caller, 0);
+	term arg1 = interp.arg(caller, 1);
 	interp.set_continuation_point(arg1);
         interp.allocate_environment();
 	interp.set_continuation_point(arg0);
@@ -63,8 +63,8 @@ namespace prologcoin { namespace interp {
 	static con_cell arrow("->", 2);
 
 	// Check if this is an if-then-else
-	term arg0 = interp.env().arg(caller, 0);
-	if (interp.env().functor(arg0) == arrow) {
+	term arg0 = interp.arg(caller, 0);
+	if (interp.functor(arg0) == arrow) {
 	    return operator_if_then_else(interp, caller);
 	}
 
@@ -82,8 +82,8 @@ namespace prologcoin { namespace interp {
 	ch->bp = 2;
 	interp.move_cut_point_to_last_choice_point();
 	term cut = cut_op;
-	term arg0 = interp.env().arg(caller, 0);
-	term arg1 = interp.env().arg(caller, 1);
+	term arg0 = interp.arg(caller, 0);
+	term arg1 = interp.arg(caller, 1);
 	interp.set_continuation_point(arg1);
 	interp.allocate_environment();
 	interp.set_continuation_point(cut);
@@ -96,10 +96,10 @@ namespace prologcoin { namespace interp {
     {
 	static con_cell cut_op_if("_!",0);
 
-	term lhs = interp.env().arg(caller, 0);
+	term lhs = interp.arg(caller, 0);
 
-	term cond = interp.env().arg(lhs, 0);
-	term iftrue = interp.env().arg(lhs, 1);
+	term cond = interp.arg(lhs, 0);
+	term iftrue = interp.arg(lhs, 1);
 	term cut_if = cut_op_if;
 
 	auto *ch = interp.allocate_choice_point(0);
@@ -119,46 +119,46 @@ namespace prologcoin { namespace interp {
 
     bool builtins::operator_at_less_than(interpreter &interp, term &caller)
     {
-        return interp.env().standard_order(interp.env().arg(caller, 0),
-				           interp.env().arg(caller, 1)) < 0;
+        return interp.standard_order(interp.arg(caller, 0),
+				     interp.arg(caller, 1)) < 0;
     }
 
     bool builtins::operator_at_equals_less_than(interpreter &interp, term &caller)
     {
-        return interp.env().standard_order(interp.env().arg(caller, 0),
-				           interp.env().arg(caller, 1)) <= 0;
+        return interp.standard_order(interp.arg(caller, 0),
+				     interp.arg(caller, 1)) <= 0;
     }
 
     bool builtins::operator_at_greater_than(interpreter &interp, term &caller)
     {
-        return interp.env().standard_order(interp.env().arg(caller, 0),
-				           interp.env().arg(caller, 1)) > 0;
+        return interp.standard_order(interp.arg(caller, 0),
+				     interp.arg(caller, 1)) > 0;
     }
 
     bool builtins::operator_at_greater_than_equals(interpreter &interp, term &caller)
     {
-        return interp.env().standard_order(interp.env().arg(caller, 0),
-				           interp.env().arg(caller, 1)) >= 0;
+        return interp.standard_order(interp.arg(caller, 0),
+				     interp.arg(caller, 1)) >= 0;
     }
 
     bool builtins::operator_equals(interpreter &interp, term &caller)
     {
-        return interp.env().standard_order(interp.env().arg(caller, 0),
-					   interp.env().arg(caller, 1)) == 0;
+        return interp.standard_order(interp.arg(caller, 0),
+				     interp.arg(caller, 1)) == 0;
     }
 
     bool builtins::operator_not_equals(interpreter &interp, term &caller)
     {
-        return interp.env().standard_order(interp.env().arg(caller, 0),
-					   interp.env().arg(caller, 1)) != 0;
+        return interp.standard_order(interp.arg(caller, 0),
+				     interp.arg(caller, 1)) != 0;
     }
 
     bool builtins::compare_3(interpreter &interp, term &caller)
     {
-        term order = interp.env().arg(caller, 0);
+        term order = interp.arg(caller, 0);
 
-	int c = interp.env().standard_order(interp.env().arg(caller, 1),
-					    interp.env().arg(caller, 2));
+	int c = interp.standard_order(interp.arg(caller, 1),
+				      interp.arg(caller, 2));
 	if (c < 0) {
 	    term lt = con_cell("<",0);
 	    return interp.unify(order, lt);
@@ -173,17 +173,17 @@ namespace prologcoin { namespace interp {
 
     bool builtins::operator_unification(interpreter &interp, term &caller)
     {
-	term arg0 = interp.env().arg(caller, 0);
-	term arg1 = interp.env().arg(caller, 1);
+	term arg0 = interp.arg(caller, 0);
+	term arg1 = interp.arg(caller, 1);
 	bool r = interp.unify(arg0, arg1);
 	return r;
     }
 
     bool builtins::operator_cannot_unify(interpreter &interp, term &caller)
     {
-	term lhs = interp.env().arg(caller, 0);
-	term rhs = interp.env().arg(caller, 1);
-	size_t current_tr = interp.get_trail_pointer();
+	term lhs = interp.arg(caller, 0);
+	term rhs = interp.arg(caller, 1);
+	size_t current_tr = interp.trail_size();
 	bool r = interp.unify(lhs, rhs);
 	if (r) {
 	    interp.unwind(current_tr);
@@ -197,7 +197,7 @@ namespace prologcoin { namespace interp {
     
     bool builtins::var_1(interpreter &interp, term &caller)
     {
-	return interp.env().arg(caller, 0).tag() == tag_t::REF;
+	return interp.arg(caller, 0).tag() == tag_t::REF;
     }
 
     bool builtins::nonvar_1(interpreter &interp, term &caller)
@@ -207,7 +207,7 @@ namespace prologcoin { namespace interp {
 
     bool builtins::integer_1(interpreter &interp, term &caller)
     {
-	return interp.env().arg(caller, 0).tag() == tag_t::INT;
+	return interp.arg(caller, 0).tag() == tag_t::INT;
     }
 
     bool builtins::number_1(interpreter &interp, term &caller)
@@ -217,12 +217,12 @@ namespace prologcoin { namespace interp {
 
     bool builtins::atom_1(interpreter &interp, term &caller)
     {
-	term arg = interp.env().arg(caller, 0);
+	term arg = interp.arg(caller, 0);
 	
 	switch (arg.tag()) {
 	case tag_t::CON: return true;
 	case tag_t::STR: {
-	    con_cell f = interp.env().functor(arg);
+	    con_cell f = interp.functor(arg);
 	    return f.arity() == 0;
 	}
 	default: return false;
@@ -231,11 +231,11 @@ namespace prologcoin { namespace interp {
 
     bool builtins::compound_1(interpreter &interp, term &caller)
     {
-	term arg = interp.env().arg(caller, 0);
+	term arg = interp.arg(caller, 0);
 	if (arg.tag() != tag_t::STR) {
 	    return false;
 	}
-	return interp.env().functor(arg).arity() > 0;
+	return interp.functor(arg).arity() > 0;
     }
 
     bool builtins::callable_1(interpreter &interp, term &caller)
@@ -250,8 +250,8 @@ namespace prologcoin { namespace interp {
 
     bool builtins::ground_1(interpreter &interp, term &caller)
     {
-	term arg = interp.env().arg(caller, 0);
-	return interp.env().is_ground(arg);
+	term arg = interp.arg(caller, 0);
+	return interp.is_ground(arg);
     }
 
     // TODO: cyclic_term/1 and acyclic_term/1
@@ -262,8 +262,8 @@ namespace prologcoin { namespace interp {
 
     bool builtins::is_2(interpreter &interp, term &caller)
     {
-	term lhs = interp.env().arg(caller, 0);
-	term rhs = interp.env().arg(caller, 1);
+	term lhs = interp.arg(caller, 0);
+	term rhs = interp.arg(caller, 1);
 	term result = interp.arith().eval(rhs, "is/2");
 	return interp.unify(lhs, result);
     }	
@@ -274,17 +274,17 @@ namespace prologcoin { namespace interp {
 
     bool builtins::copy_term_2(interpreter &interp, term &caller)
     {
-	term arg1 = interp.env().arg(caller, 0);
-	term arg2 = interp.env().arg(caller, 1);
+	term arg1 = interp.arg(caller, 0);
+	term arg2 = interp.arg(caller, 1);
 	term copy_arg1 = interp.copy(arg1);
 	return interp.unify(arg2, copy_arg1);
     }
 
     bool builtins::functor_3(interpreter &interp, term &caller)
     {
-	term t = interp.env().arg(caller, 0);
-	term f = interp.env().arg(caller, 1);
-	term a = interp.env().arg(caller, 2);
+	term t = interp.arg(caller, 0);
+	term f = interp.arg(caller, 1);
+	term a = interp.arg(caller, 2);
 
 	switch (t.tag()) {
   	  case tag_t::REF:
@@ -297,7 +297,7 @@ namespace prologcoin { namespace interp {
 	    }
 	  case tag_t::STR:
   	  case tag_t::CON: {
-	      con_cell tf = interp.env().functor(t);
+	      con_cell tf = interp.functor(t);
 	      term fun = tf;
 	      term arity = int_cell(tf.arity());
 	      return interp.unify(f, fun) && interp.unify(a, arity);
@@ -310,19 +310,19 @@ namespace prologcoin { namespace interp {
    term builtins::deconstruct_write_list(interpreter &interp,
 					 term &t, size_t index)
     {
-	term empty_lst = interp.env().empty_list();
+	term empty_lst = interp.empty_list();
 	term lst = empty_lst;
-	con_cell f = interp.env().functor(t);
+	con_cell f = interp.functor(t);
 	size_t n = f.arity();
 	term tail = lst;
 	while (index < n) {
-	    term arg = interp.env().arg(t, index);
+	    term arg = interp.arg(t, index);
 	    term elem = interp.new_dotted_pair(arg, empty_lst);
-	    if (interp.env().is_empty_list(tail)) {
+	    if (interp.is_empty_list(tail)) {
 		lst = elem;
 		tail = elem;
 	    } else {
-		interp.env().set_arg(tail, 1, elem);
+		interp.set_arg(tail, 1, elem);
 		tail = elem;
 	    }
 	    index++;
@@ -334,22 +334,22 @@ namespace prologcoin { namespace interp {
 					 term lst,
 					 term &t, size_t index)
     {
-	con_cell f = interp.env().functor(t);
+	con_cell f = interp.functor(t);
 	size_t n = f.arity();
 	while (index < n) {
 	    if (lst.tag() == tag_t::REF) {
 		term tail = deconstruct_write_list(interp, t, index);
 		return interp.unify(lst, tail);
 	    }
-	    if (!interp.env().is_dotted_pair(lst)) {
+	    if (!interp.is_dotted_pair(lst)) {
 		return false;
 	    }
-	    term elem = interp.env().arg(lst, 0);
-	    term arg = interp.env().arg(t, index);
+	    term elem = interp.arg(lst, 0);
+	    term arg = interp.arg(t, index);
 	    if (!interp.unify(elem, arg)) {
 		return false;
 	    }
-	    lst = interp.env().arg(lst, 1);
+	    lst = interp.arg(lst, 1);
 	    index++;
 	}
 	return true;
@@ -357,8 +357,8 @@ namespace prologcoin { namespace interp {
 
     bool builtins::operator_deconstruct(interpreter &interp, term &caller)
     {
-	auto lhs = interp.env().arg(caller, 0);
-	auto rhs = interp.env().arg(caller, 1);
+	auto lhs = interp.arg(caller, 0);
+	auto rhs = interp.arg(caller, 1);
 
 	// To make deconstruction more efficient, let's handle the
 	// common scenarios first.
@@ -368,48 +368,48 @@ namespace prologcoin { namespace interp {
 	}
 
 	if (lhs.tag() == tag_t::REF) {
-	    if (!interp.env().is_list(rhs)) {
-		interp.abort(interpreter_exception_not_list("=../2: Second argument is not a list; found " + interp.env().to_string(rhs)));
+	    if (!interp.is_list(rhs)) {
+		interp.abort(interpreter_exception_not_list("=../2: Second argument is not a list; found " + interp.to_string(rhs)));
 	    }
-	    size_t lst_len = interp.env().list_length(rhs);
+	    size_t lst_len = interp.list_length(rhs);
 	    if (lst_len == 0) {
-		interp.abort(interpreter_exception_not_list("=../2: Second argument must be non-empty; found " + interp.env().to_string(rhs)));
+		interp.abort(interpreter_exception_not_list("=../2: Second argument must be non-empty; found " + interp.to_string(rhs)));
 	    }
-	    term first_elem = interp.env().arg(rhs,0);
+	    term first_elem = interp.arg(rhs,0);
 	    if (first_elem.tag() == tag_t::REF) {
 		interp.abort(interpreter_exception_not_sufficiently_instantiated("=../2: Arguments are not sufficiently instantiated"));
 	    }
 	    if (first_elem.tag() == tag_t::INT && lst_len == 1) {
 		return interp.unify(lhs, first_elem);
 	    }
-	    if (!interp.env().is_functor(first_elem)) {
+	    if (!interp.is_functor(first_elem)) {
 		return false;
 	    }
-	    con_cell f = interp.env().functor(first_elem);
+	    con_cell f = interp.functor(first_elem);
 	    size_t num_args = lst_len - 1;
-	    term t = interp.new_term(interp.env().to_functor(f, num_args));
-	    term lst = interp.env().arg(rhs, 1);
+	    term t = interp.new_term(interp.to_functor(f, num_args));
+	    term lst = interp.arg(rhs, 1);
 	    for (size_t i = 0; i < num_args; i++) {
 		if (lst.tag() == tag_t::REF) {
 		    term tail = deconstruct_write_list(interp, lhs, i);
 		    return interp.unify(lst, tail);
 		}
-		term arg = interp.env().arg(lst, 0);
-		interp.env().set_arg(t, i, arg);
+		term arg = interp.arg(lst, 0);
+		interp.set_arg(t, i, arg);
 
-		lst = interp.env().arg(lst, 1);
+		lst = interp.arg(lst, 1);
 	    }
 	    return interp.unify(lhs, t);
 	}
 	if (lhs.tag() == tag_t::INT) {
-	    term empty = interp.env().empty_list();
+	    term empty = interp.empty_list();
 	    term lst = interp.new_dotted_pair(lhs,empty);
 	    return interp.unify(rhs, lst);
 	}
 	if (lhs.tag() != tag_t::STR && lhs.tag() != tag_t::CON) {
 	    return false;
 	}
-	con_cell f = interp.env().to_atom(interp.env().functor(lhs));
+	con_cell f = interp.to_atom(interp.functor(lhs));
 	term elem = f;
 	term lst = deconstruct_write_list(interp, lhs, 0);
 	lst = interp.new_dotted_pair(elem, lst);
@@ -422,7 +422,7 @@ namespace prologcoin { namespace interp {
 
     bool builtins::operator_disprove(interpreter &interp, term &caller)
     {
-	term arg = interp.env().arg(caller, 0);
+	term arg = interp.arg(caller, 0);
 	interp.new_meta_context<meta_context>(&operator_disprove_post);
 
 	interp.set_top_e();

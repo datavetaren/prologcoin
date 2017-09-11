@@ -74,7 +74,7 @@ class term_dfs_iterator_templ : public std::iterator<std::forward_iterator_tag,
 public:
     typedef term_env_dock<HT,ST,OT> Env;
 
-    inline term_dfs_iterator_templ(Env &env, const term &t)
+    inline term_dfs_iterator_templ(Env &env, const term t)
            : env_(env) { elem_ = first_of(t); }
 
     inline term_dfs_iterator_templ(Env &env)
@@ -109,6 +109,29 @@ private:
     };
 
     std::vector<dfs_pos> stack_;
+};
+
+template<typename HT, typename ST, typename OT>
+class const_term_dfs_iterator_templ : public term_dfs_iterator_templ<HT,ST,OT>
+{
+public:
+    typedef term_env_dock<HT,ST,OT> Env;
+
+    inline const_term_dfs_iterator_templ(const Env &env, const term t)
+  	   : term_dfs_iterator_templ<HT,ST,OT>(const_cast<Env &>(env), t) { }
+
+    inline const_term_dfs_iterator_templ(const Env &env)
+  	   : term_dfs_iterator_templ<HT,ST,OT>(const_cast<Env &>(env)) { }
+
+    inline bool operator == (const const_term_dfs_iterator_templ &other) const;
+    inline bool operator != (const const_term_dfs_iterator_templ &other) const
+        { return ! operator == (other); }
+
+    inline const_term_dfs_iterator_templ & operator ++ ()
+        { return static_cast<const_term_dfs_iterator_templ<HT,ST,OT> &>(
+		   term_dfs_iterator_templ<HT,ST,OT>::operator ++ ()); }
+
+    inline const Env & env() const { return term_dfs_iterator_templ<HT,ST,OT>::env(); }
 };
 
 template<typename T> class heap_dock : public T {
@@ -464,8 +487,25 @@ public:
       term term_;
   };
 
+  class const_term_range {
+  public:
+      const_term_range(const term_env_dock &env, const term t)
+           : env_(env), term_(t) { }
+
+      const_term_dfs_iterator_templ<HT,ST,OT> begin() const
+      { return env_.begin(term_); }
+      const_term_dfs_iterator_templ<HT,ST,OT> end() const
+      { return env_.end(term_); }
+  private:
+      const term_env_dock &env_;
+      term term_;
+  };
+
   term_range iterate_over(const term t)
       { return term_range(*this, t); }
+
+  const_term_range iterate_over(const term t) const
+      { return const_term_range(*this, t); }
 
   std::string status() const
   { 
@@ -520,6 +560,15 @@ public:
       return term_dfs_iterator_templ<HT,ST,OT>(*this);
   }
 
+  const_term_dfs_iterator_templ<HT,ST,OT> begin(const term t) const
+  {
+      return const_term_dfs_iterator_templ<HT,ST,OT>(*this, t);
+  }
+  
+  const_term_dfs_iterator_templ<HT,ST,OT> end(const term t) const
+  {
+      return const_term_dfs_iterator_templ<HT,ST,OT>(*this);
+  }
 
 private:
   size_t register_hb_;
@@ -560,6 +609,12 @@ template<typename HT, typename ST, typename OT>
 inline bool term_dfs_iterator_templ<HT,ST,OT>::operator == (const term_dfs_iterator_templ<HT,ST,OT> &other) const
 {
     return elem_ == other.elem_ && stack_.size() == other.stack_.size();
+}
+
+template<typename HT, typename ST, typename OT>
+inline bool const_term_dfs_iterator_templ<HT,ST,OT>::operator == (const const_term_dfs_iterator_templ<HT,ST,OT> &other) const
+{
+    return term_dfs_iterator_templ<HT,ST,OT>::operator == (other);
 }
 
 template<typename HT, typename ST, typename OT>

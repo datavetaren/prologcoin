@@ -30,7 +30,7 @@ namespace prologcoin { namespace interp {
 
     void arithmetics::load_fn(const std::string &name, size_t arity, arithmetics::fn fn)
     {
-	con_cell f = interp_.env().functor(name, arity);
+	con_cell f = interp_.functor(name, arity);
 	fn_map_[f] = fn;
     }
 
@@ -56,13 +56,12 @@ namespace prologcoin { namespace interp {
 	load_fns();
 
 	term result;
-	term_env &env = interp_.env();
-	size_t stack_start = env.stack_size();
-	env.push(expr);
-	env.push(int_cell(0));
-	while (stack_start < env.stack_size()) {
-	    cell visited0 = env.pop();
-	    term t = env.pop();
+	size_t stack_start = interp_.stack_size();
+	interp_.push(expr);
+	interp_.push(int_cell(0));
+	while (stack_start < interp_.stack_size()) {
+	    cell visited0 = interp_.pop();
+	    term t = interp_.pop();
 	    const int_cell &visited = static_cast<const int_cell &>(visited0);
             if (t.tag() == tag_t::INT) {
 		args_.push_back(t);
@@ -76,41 +75,41 @@ namespace prologcoin { namespace interp {
 		if (fn_call == nullptr) {
 		    interp_.abort(interpreter_exception_undefined_function(
 			   context + ": Undefined function: " +
-			   env.atom_name(f) + "/" +
+			   interp_.atom_name(f) + "/" +
 			   boost::lexical_cast<std::string>(arity) +
-			   " in " + env.safe_to_string(expr)));
+			   " in " + interp_.safe_to_string(expr)));
 		}
 		size_t end = args_.size();
 		size_t off = end - arity;
 		if (is_debug()) {
 		    std::cout << "arithmetics::eval(): " << 
-    		        env.atom_name(f) + "/" +
+    		        interp_.atom_name(f) + "/" +
 			boost::lexical_cast<std::string>(arity) + "(";
 		    bool first = true;
 		    for (size_t i = off; i < end; i++) {
 			if (!first) std::cout << ", ";
-			std::cout << env.to_string(args_[i]);
+			std::cout << interp_.to_string(args_[i]);
 			first = false;
 		    }
 		    std::cout << ")\n";
 		}
 		result = fn_call(interp_, &args_[off]);
 		args_.resize(off);
-		env.push(result);
-		env.push(int_cell(1));
+		interp_.push(result);
+		interp_.push(int_cell(1));
 		continue;
 	    }
 	    switch (t.tag()) {
 	    case tag_t::CON:
 	    case tag_t::STR: {
-		con_cell f = env.functor(t);
-		env.push(f);
-		env.push(int_cell(1));
+		con_cell f = interp_.functor(t);
+		interp_.push(f);
+		interp_.push(int_cell(1));
 		size_t n = f.arity();
 		for (size_t i = 0; i < n; i++) {
-		    term arg = env.arg(t, n - i - 1);
-		    env.push(arg);
-		    env.push(int_cell(0));
+		    term arg = interp_.arg(t, n - i - 1);
+		    interp_.push(arg);
+		    interp_.push(int_cell(0));
 		}
 		break;
 	    }
@@ -142,7 +141,7 @@ namespace prologcoin { namespace interp {
 	if (arg.tag() != tag_t::INT) {
 	    interp_.abort(interpreter_exception_argument_not_number(
 			      context + ": argument is not a number: " +
-			      interp_.env().safe_to_string(arg)));
+			      interp_.safe_to_string(arg)));
 	}
 	cell c = arg;
 	int_cell &r = static_cast<int_cell &>(c);

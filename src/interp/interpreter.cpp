@@ -38,43 +38,6 @@ void interpreter::init()
     prepare_execution();
 }
 
-bool interpreter::unify(term &a, term &b)
-{
-    bool r = term_env_->unify(a, b);
-    if (r) {
-        register_tr_ = term_env_->trail_size();
-    }
-    return r;
-}
-
-term interpreter::copy(term &t)
-{
-    term tc = term_env_->copy(t);
-    register_h_ = term_env_->heap_size();
-    return tc;
-}
-
-term interpreter::new_dotted_pair(const term a, const term b)
-{
-    term t = term_env_->new_dotted_pair(a,b);
-    register_h_ = term_env_->heap_size();
-    return t;
-}
-
-term interpreter::new_term(con_cell functor)
-{
-    term t = term_env_->new_term(functor);
-    register_h_ = term_env_->heap_size();
-    return t;
-}
-
-term interpreter::new_term(con_cell functor, const std::initializer_list<term> &args)
-{
-    term t = term_env_->new_term(functor, args);
-    register_h_ = term_env_->heap_size();
-    return t;
-}
-
 interpreter::~interpreter()
 {
     arith_.unload();
@@ -110,7 +73,7 @@ bool interpreter::is_file_id(size_t id) const
 file_stream & interpreter::new_file_stream(const std::string &path)
 {
     size_t new_id = file_id_count_;
-    file_stream *fs = new file_stream(env(), file_id_count_, path);
+    file_stream *fs = new file_stream(*this, file_id_count_, path);
     file_id_count_++;
     open_files_[new_id] = fs;
     return *fs;
@@ -140,7 +103,7 @@ void interpreter::syntax_check()
     }
 }
 
-void interpreter::load_clause(const term &t)
+void interpreter::load_clause(const term t)
 {
     syntax_check_stack_.push_back(
 			  std::bind(&interpreter::syntax_check_clause, this,
@@ -151,7 +114,7 @@ void interpreter::load_clause(const term &t)
 
     term head = clause_head(t);
 
-    con_cell predicate = term_env_->functor(head);
+    con_cell predicate = functor(head);
     
     auto found = program_db_.find(predicate);
     if (found == program_db_.end()) {
@@ -211,16 +174,16 @@ void interpreter::load_builtins()
     load_builtin(con_cell("number",1), &builtins::number_1);
     load_builtin(con_cell("atom",1), &builtins::atom_1);
     load_builtin(con_cell("atomic",1), &builtins::atomic_1);
-    load_builtin(env().functor("compound",1), &builtins::compound_1);
-    load_builtin(env().functor("callable",1), &builtins::callable_1);
+    load_builtin(functor("compound",1), &builtins::compound_1);
+    load_builtin(functor("callable",1), &builtins::callable_1);
     load_builtin(con_cell("ground", 1), &builtins::ground_1);
 
     // Arithmetics
     load_builtin(con_cell("is",2), &builtins::is_2);
 
     // Analyzing & constructing terms
-    load_builtin(env().functor("functor",3), &builtins::functor_3);
-    load_builtin(env().functor("copy_term",2), &builtins::copy_term_2);
+    load_builtin(functor("functor",3), &builtins::functor_3);
+    load_builtin(functor("copy_term",2), &builtins::copy_term_2);
     load_builtin(con_cell("=..", 2), &builtins::operator_deconstruct);
 
     // Meta
@@ -256,31 +219,31 @@ void interpreter::load_builtins_file_io()
     load_builtin(con_cell("open", 3), &builtins_fileio::open_3);
     load_builtin(con_cell("close", 1), &builtins_fileio::close_1);
     load_builtin(con_cell("read", 2), &builtins_fileio::read_2);
-    load_builtin(term_env_->functor("at_end_of_stream", 1), &builtins_fileio::at_end_of_stream_1);
+    load_builtin(functor("at_end_of_stream", 1), &builtins_fileio::at_end_of_stream_1);
     load_builtin(con_cell("write", 1), &builtins_fileio::write_1);
     load_builtin(con_cell("nl", 0), &builtins_fileio::nl_0);
 }
 
-void interpreter::load_program(const term &t)
+void interpreter::load_program(const term t)
 {
     syntax_check_stack_.push_back(
 			  std::bind(&interpreter::syntax_check_program, this,
 				    t));
     syntax_check();
 
-    for (auto clause : list_iterator(*term_env_, t)) {
+    for (auto clause : list_iterator(*this, t)) {
 	load_clause(clause);
     }
 }
 
-void interpreter::syntax_check_program(const term &t)
+void interpreter::syntax_check_program(const term t)
 {
-    if (!term_env_->is_list(t)) {
+    if (!is_list(t)) {
 	throw syntax_exception_program_not_a_list(t);
     }
 
     size_t sz = syntax_check_stack_.size();
-    for (auto clause : list_iterator(*term_env_, t)) {
+    for (auto clause : list_iterator(*this, t)) {
 	syntax_check_stack_.push_back(
 			  std::bind(&interpreter::syntax_check_clause, this,
 				    clause));
@@ -288,14 +251,14 @@ void interpreter::syntax_check_program(const term &t)
     std::reverse(syntax_check_stack_.begin() + sz, syntax_check_stack_.end());
 }
 
-void interpreter::syntax_check_clause(const term &t)
+void interpreter::syntax_check_clause(const term t)
 {
     static const con_cell def(":-", 2);
 
-    auto f = term_env_->functor(t);
+    auto f = functor(t);
     if (f == def) {
-	auto head = term_env_->arg(t, 0);
-	auto body = term_env_->arg(t, 1);
+	auto head = arg(t, 0);
+	auto body = arg(t, 1);
 	syntax_check_stack_.push_back(
 	      std::bind(&interpreter::syntax_check_head, this, head) );
 	syntax_check_stack_.push_back(
@@ -309,40 +272,40 @@ void interpreter::syntax_check_clause(const term &t)
 		  std::bind(&interpreter::syntax_check_head, this, t));
 }
 
-void interpreter::syntax_check_head(const term &t)
+void interpreter::syntax_check_head(const term t)
 {
     static con_cell def(":-", 2);
     static con_cell semi(";", 2);
     static con_cell comma(",", 2);
     static con_cell cannot_prove("\\+", 1);
 
-    if (!term_env_->is_functor(t)) {
+    if (!is_functor(t)) {
 	throw syntax_exception_clause_bad_head(t, "Head of clause is not a functor");
     }
 
     // Head cannot be functor ->, ; , or \+
-    auto f = term_env_->functor(t);
+    auto f = functor(t);
 
     if (f == def || f == semi || f == comma || f == cannot_prove) {
 	throw syntax_exception_clause_bad_head(t, "Clause has an invalid head; cannot be '->', ';', ',' or '\\+'");
     }
 }
 
-void interpreter::syntax_check_body(const term &t)
+void interpreter::syntax_check_body(const term t)
 {
     static con_cell imply("->", 2);
     static con_cell semi(";", 2);
     static con_cell comma(",", 2);
     static con_cell cannot_prove("\\+", 1);
 
-    if (term_env_->is_functor(t)) {
-	auto f = term_env_->functor(t);
+    if (is_functor(t)) {
+	auto f = functor(t);
 	if (f == imply || f == semi || f == comma || f == cannot_prove) {
 	    auto num_args = f.arity();
 	    for (size_t i = 0; i < num_args; i++) {
-		auto arg = term_env_->arg(t, i);
+		auto a = arg(t, i);
 		syntax_check_stack_.push_back(
-		      std::bind(&interpreter::syntax_check_body, this, arg));
+		      std::bind(&interpreter::syntax_check_body, this, a));
 	    }
 	    return;
 	}
@@ -352,11 +315,11 @@ void interpreter::syntax_check_body(const term &t)
 		  std::bind(&interpreter::syntax_check_goal, this, t));
 }
 
-void interpreter::syntax_check_goal(const term &t)
+void interpreter::syntax_check_goal(const term t)
 {
     // Each goal must be a functor (e.g. a plain integer is not allowed)
 
-    if (!term_env_->is_functor(t)) {
+    if (!is_functor(t)) {
 	auto tg = t.tag();
 	// We don't know what variables will be bound to, so we need
 	// to conservatively skip the syntax check.
@@ -387,7 +350,7 @@ void interpreter::print_db(std::ostream &out) const
 	bool do_nl = false;
 	for (auto clause : clauses) {
 	    if (do_nl) out << "\n";
-	    auto str = term_env_->to_string(clause, term_emitter::STYLE_PROGRAM);
+	    auto str = to_string(clause, term_emitter::STYLE_PROGRAM);
 	    out << str;
 	    do_nl = true;
 	}
@@ -433,14 +396,14 @@ void interpreter::print_profile(std::ostream &out) const
     for (auto p : all) {
 	auto f = p.f;
 	auto t = p.t;
-	std::cout << term_env_->to_string(f) << ": " << t << "\n";
+	std::cout << to_string(f) << ": " << t << "\n";
     }
 
 }
 
 inline interpreter::environment_t * interpreter::get_environment(size_t at_index)
 {
-    environment_t *e = reinterpret_cast<environment_t *>(term_env_->stack_ref(at_index));
+    environment_t *e = reinterpret_cast<environment_t *>(stack_ref(at_index));
     return e;
 }
 
@@ -453,7 +416,7 @@ void interpreter::allocate_environment()
     if (at_index == 0) {
 	at_index = 1;
     }
-    term_env_->ensure_stack(at_index, environment_num_cells);
+    ensure_stack(at_index, environment_num_cells);
     environment_t *e = get_environment(at_index);
     e->ce.set_value(register_e_);
     e->b0.set_value(register_b0_);
@@ -479,7 +442,7 @@ void interpreter::deallocate_environment()
 
 interpreter::choice_point_t * interpreter::get_choice_point(size_t at_index)
 {
-    choice_point_t *cp = reinterpret_cast<choice_point_t *>(term_env_->stack_ref(at_index));
+    choice_point_t *cp = reinterpret_cast<choice_point_t *>(stack_ref(at_index));
     return cp;
 }
 
@@ -491,21 +454,20 @@ interpreter::choice_point_t * interpreter::allocate_choice_point(size_t index_id
 	at_index = 1;
     }
 
-    term_env_->ensure_stack(at_index, choice_point_num_cells);
+    ensure_stack(at_index, choice_point_num_cells);
     choice_point_t *ch = get_choice_point(at_index);
     ch->ce.set_value(register_e_);
     ch->cp = register_cp_;
     ch->b.set_value(register_b_);
     ch->bp.set_value((index_id << 8) | 0); // 8 bits shifted = index_id
                                            // lower 8 bits = clause no
-    ch->tr.set_value(register_tr_);
-    ch->h.set_value(register_h_);
+    ch->tr.set_value(trail_size());
+    ch->h.set_value(heap_size());
     ch->b0.set_value(register_b0_);
     ch->qr = register_qr_;
     ch->pr = register_pr_;
     register_b_ = at_index;
-    register_hb_ = register_h_;
-    term_env_->set_register_hb(register_hb_);
+    set_register_hb(heap_size());
 
     return ch;
 }
@@ -520,20 +482,17 @@ void interpreter::prepare_execution()
     top_fail_ = false;
     register_b_ = 0;
     register_e_ = 0;
-    register_tr_ = term_env_->trail_size();
-    register_h_ = term_env_->heap_size();
-    register_hb_ = register_h_;
-    term_env_->set_register_hb(register_hb_);
+    set_register_hb(get_register_hb());
     register_b0_ = 0;
     register_top_b_ = 0;
     register_top_e_ = 0;
 }
 
-bool interpreter::execute(const term &query)
+bool interpreter::execute(const term query)
 {
     top_fail_ = false;
 
-    term_env_->trim_trail(0);
+    trim_trail(0);
 
     prepare_execution();
 
@@ -542,11 +501,11 @@ bool interpreter::execute(const term &query)
     std::unordered_set<std::string> seen;
 
     // Record all vars for this query
-    std::for_each( term_env_->begin(query),
-		   term_env_->end(query),
+    std::for_each( begin(query),
+		   end(query),
 		   [&](const term &t) {
 		       if (t.tag() == tag_t::REF) {
-			   const std::string name = term_env_->to_string(t);
+			   const std::string name = to_string(t);
 			   if (!seen.count(name)) {
 			       query_vars_.push_back(binding(name,t));
 			       seen.insert(name);
@@ -567,8 +526,6 @@ bool interpreter::cont()
 	    execute_once();
 	} while (register_e_ != register_top_e_ && !top_fail_);
 	
-	register_h_ = term_env_->heap_size();
-
         if (!meta_.empty()) {
 	    meta_entry &e = meta_.back();
 	    meta_context *mc = e.first;
@@ -597,29 +554,31 @@ bool interpreter::next()
 std::string interpreter::get_result(bool newlines) const
 {
     std::unordered_map<term, size_t> count_occurrences;
-    std::for_each(term_env_->begin(register_qr_),
-		  term_env_->end(register_qr_),
-		  [&] (const term &t) {
+    std::for_each(begin(register_qr_),
+		  end(register_qr_),
+		  [&] (const term t) {
 		    if (t.tag() == tag_t::REF) {
 		      ++count_occurrences[t];
 		    }
 		  }
 		  );
 
+    interpreter &ii = const_cast<interpreter &>(*this);
+
     // Those vars with a singleton occurrence will be named
     // '_'.
     size_t named_var_count = 0;
     for (auto v : count_occurrences) {
-        if (term_env_->has_name(v.first)) {
+        if (has_name(v.first)) {
     	    continue;
 	}
         if (v.second == 1) {
-            term_env_->set_name(v.first, "_");
+            ii.set_name(v.first, "_");
 	} else { // v.second > 1
   	    std::string name = "G_" + boost::lexical_cast<std::string>(
 		       named_var_count);
 	    named_var_count++;
-	    term_env_->set_name(v.first, name);
+	    ii.set_name(v.first, name);
 	}
     }
 
@@ -631,7 +590,7 @@ std::string interpreter::get_result(bool newlines) const
     for (auto v : query_vars_) {
 	auto &name = v.name();
 	auto &value = v.value();
-	auto value_str = term_env_->to_string(value);
+	auto value_str = to_string(value);
 	if (name != value_str) {
 	    if (!first) {
 		if (newlines) {
@@ -646,7 +605,7 @@ std::string interpreter::get_result(bool newlines) const
     }
 
     for (auto v : count_occurrences) {
-        term_env_->clear_name(v.first);
+        ii.clear_name(v.first);
     }
 
     if (first) {
@@ -669,19 +628,18 @@ void interpreter::execute_once()
 {
     term instruction = register_cp_;
 
-    register_cp_ = term_env_->empty_list();
+    register_cp_ = empty_list();
     dispatch(instruction);
 }
 
 void interpreter::tidy_trail()
 {
     size_t from = get_choice_point(register_b_)->tr;
-    size_t to = register_tr_;
-    term_env_->tidy_trail(from, to);
-    register_tr_ = term_env_->trail_size();
+    size_t to = trail_size();
+    term_env::tidy_trail(from, to);
 }
 
-bool interpreter::definitely_inequal(const term &a, const term &b)
+bool interpreter::definitely_inequal(const term a, const term b)
 {
     using namespace common;
     if (a.tag() == tag_t::REF || b.tag() == common::tag_t::REF) {
@@ -694,8 +652,8 @@ bool interpreter::definitely_inequal(const term &a, const term &b)
     case tag_t::REF: return false;
     case tag_t::CON: return a != b;
     case tag_t::STR: {
-	con_cell fa = term_env_->functor(a);
-	con_cell fb = term_env_->functor(b);
+	con_cell fa = functor(a);
+	con_cell fb = functor(b);
         return fa != fb;
     }
     case tag_t::INT: return a != b;
@@ -705,13 +663,13 @@ bool interpreter::definitely_inequal(const term &a, const term &b)
     return false;
 }
 
-common::cell interpreter::first_arg_index(const term &t)
+common::cell interpreter::first_arg_index(const term t)
 {
     switch (t.tag()) {
     case tag_t::REF: return t;
     case tag_t::CON: return t;
     case tag_t::STR: {
-	con_cell f = term_env_->functor(t);
+	con_cell f = functor(t);
 	return f;
     }
     case tag_t::INT: return t;
@@ -720,37 +678,37 @@ common::cell interpreter::first_arg_index(const term &t)
     return t;
 }
 
-term interpreter::clause_head(const term &clause)
+term interpreter::clause_head(const term clause)
 {
-    auto f = term_env_->functor(clause);
+    auto f = functor(clause);
     if (f == implied_by_) {
-	return term_env_->arg(clause, 0);
+	return arg(clause, 0);
     } else {
 	return clause;
     }
 }
 
-term interpreter::clause_body(const term &clause)
+term interpreter::clause_body(const term clause)
 {
-    auto f = term_env_->functor(clause);
+    auto f = functor(clause);
     if (f == implied_by_) {
-        return term_env_->arg(clause, 1);
+        return arg(clause, 1);
     } else {
-        return term_env_->empty_list();
+        return empty_list();
     }
 }
 
-void interpreter::compute_matched_predicate(con_cell functor,
-					    const term &first_arg,
+void interpreter::compute_matched_predicate(con_cell func,
+					    const term first_arg,
 					    predicate &matched)
 {
-    auto &clauses = program_db_[functor];
+    auto &clauses = program_db_[func];
     for (auto &clause : clauses) {
 	// Extract head
 	auto head = clause_head(clause);
-	auto head_functor = term_env_->functor(head);
+	auto head_functor = functor(head);
 	if (head_functor.arity() > 0) {
-	    auto head_first_arg = term_env_->arg(head, 0);
+	    auto head_first_arg = arg(head, 0);
 	    if (definitely_inequal(head_first_arg, first_arg)) {
 		continue;
 	    }
@@ -759,12 +717,12 @@ void interpreter::compute_matched_predicate(con_cell functor,
     }
 }
 
-size_t interpreter::matched_predicate_id(con_cell functor, const term &first_arg)
+size_t interpreter::matched_predicate_id(con_cell func, const term first_arg)
 {
     term index_arg = first_arg;
     switch (first_arg.tag()) {
     case tag_t::STR:
-	index_arg = term_env_->functor(first_arg); break;
+	index_arg = functor(first_arg); break;
     case tag_t::CON:
     case tag_t::INT:
 	break;
@@ -773,7 +731,7 @@ size_t interpreter::matched_predicate_id(con_cell functor, const term &first_arg
 	break;
     }
 
-    functor_index findex(functor, index_arg);
+    functor_index findex(func, index_arg);
     auto it = predicate_id_.find(findex);
     size_t id;
     if (it == predicate_id_.end()) {
@@ -781,38 +739,37 @@ size_t interpreter::matched_predicate_id(con_cell functor, const term &first_arg
 	id_to_predicate_.push_back( predicate() );
 	predicate_id_[findex] = id;
 	auto &pred = id_to_predicate_[id];
-	compute_matched_predicate(functor, first_arg, pred);
+	compute_matched_predicate(func, first_arg, pred);
     } else {
 	id = it->second;
     }
     return id;
 }
 
-common::term interpreter::get_first_arg(const term &t)
+common::term interpreter::get_first_arg(const term t)
 {
     if (t.tag() == tag_t::STR) {
-	auto f = term_env_->functor(t);
+	auto f = functor(t);
 	if (f.arity() == 0) {
-	    return term_env_->empty_list();
+	    return empty_list();
 	}
-	return term_env_->arg(t, 0);
+	return arg(t, 0);
     } else {
-	return term_env_->empty_list();
+	return empty_list();
     }
 }
 
-void interpreter::dispatch(term &instruction)
+void interpreter::dispatch(term instruction)
 {
     register_qr_ = instruction;
-    register_h_ = term_env_->heap_size();
 
-    con_cell f = term_env_->functor(instruction);
+    con_cell f = functor(instruction);
 
     if (f == empty_list_) {
         // Return
         if (is_debug()) {
    	    environment_t *e = get_environment(register_e_);
-            std::cout << "interpreter::dispatch(): exit " << term_env_->to_string(e->qr) << "\n";
+            std::cout << "interpreter::dispatch(): exit " << to_string(e->qr) << "\n";
         }
         deallocate_environment();
 	return;
@@ -831,7 +788,7 @@ void interpreter::dispatch(term &instruction)
 
     if (is_debug()) {
         // Print call
-      std::cout << "interpreter::dispatch(): call " << term_env_->to_string(instruction) << "\n";
+      std::cout << "interpreter::dispatch(): call " << to_string(instruction) << "\n";
     }
 
 #if PROFILER
@@ -853,7 +810,6 @@ void interpreter::dispatch(term &instruction)
 	if (!bf(*this, instruction)) {
 	    fail();
 	}
-	register_h_ = term_env_->heap_size();
 	return;
     }
 
@@ -865,7 +821,6 @@ void interpreter::dispatch(term &instruction)
 	    if (!r) {
 		fail();
 	    }
-	    register_h_ = term_env_->heap_size();
 	    return;
 	}
     }
@@ -883,7 +838,7 @@ void interpreter::dispatch(term &instruction)
         clauses = program_db_[f];
 	if (clauses.empty()) {
 	    std::stringstream msg;
-	    msg << "Undefined predicate " << term_env_->atom_name(f) << "/" << f.arity();
+	    msg << "Undefined predicate " << atom_name(f) << "/" << f.arity();
 	    abort(interpreter_exception_undefined_predicate(msg.str()));
 	    return;
 	}
@@ -910,7 +865,7 @@ void interpreter::dispatch(term &instruction)
     }
 }
 
-bool interpreter::select_clause(term &instruction,
+bool interpreter::select_clause(term instruction,
 				size_t index_id,
 				std::vector<term> &clauses,
 				size_t from_clause)
@@ -919,7 +874,7 @@ bool interpreter::select_clause(term &instruction,
         if (from_clause > 1) {
 	    return false;
 	}
-        register_cp_ = term_env_->arg(register_qr_, from_clause);
+        register_cp_ = arg(register_qr_, from_clause);
 	auto choice_point = get_choice_point(register_b_);
 	choice_point->bp.set_value(from_clause+1);
 	return true;
@@ -932,15 +887,13 @@ bool interpreter::select_clause(term &instruction,
     for (size_t i = from_clause; i < num_clauses; i++) {
         auto &clause = clauses[i];
 
-	size_t current_heap = term_env_->heap_size();
-	auto copy_clause = term_env_->copy(clause); // Instantiate it
-	register_h_ = term_env_->heap_size();
+	size_t current_heap = heap_size();
+	auto copy_clause = copy(clause); // Instantiate it
 
 	term copy_head = clause_head(copy_clause);
 	term copy_body = clause_body(copy_clause);
 
 	if (unify(copy_head, instruction)) { // Heads match?
-	    register_h_ = term_env_->heap_size();
 	    // Update choice point (where to continue on fail...)
 	    if (has_choices) {
 	        auto choice_point = get_choice_point(register_b_);
@@ -957,8 +910,7 @@ bool interpreter::select_clause(term &instruction,
 	    return true;
 	} else {
     	    // Discard garbage created on heap (due to copying clause)
-	    term_env_->trim_heap(current_heap);
-	    register_h_ = current_heap;
+	    trim_heap(current_heap);
 	}
     }
 
@@ -971,9 +923,7 @@ void interpreter::unwind_to_top_choice_point()
     if (register_top_b_ == 0) {
         return;
     }
-    size_t current_tr = register_tr_;
     reset_to_choice_point(register_top_b_);
-    unwind(current_tr);
     register_b_ = register_top_b_;
 }
 
@@ -983,30 +933,28 @@ interpreter::choice_point_t * interpreter::reset_to_choice_point(size_t b)
 
     register_e_ = ch->ce.value();
     register_cp_ = ch->cp;
-    register_tr_ = ch->tr.value();
-    register_h_ = ch->h.value();
+    unwind(ch->tr.value());
+    trim_heap(ch->h.value());
     register_b0_ = ch->b0.value();
-    register_hb_ = register_h_;
+    set_register_hb(heap_size());
     register_qr_ = ch->qr;
     register_pr_ = ch->pr;
-    term_env_->set_register_hb(register_hb_);
 
     return ch;
 }
 
-void interpreter::unwind(size_t current_tr)
+void interpreter::unwind(size_t from_tr)
 {
     // Unbind variables
-    term_env_->unwind_trail(register_tr_, current_tr);
-    term_env_->trim_trail(register_tr_);
-    term_env_->trim_heap(register_h_);
+    unwind_trail(from_tr, trail_size());
+    trim_trail(from_tr);
 }
 
 void interpreter::fail()
 {
     bool ok = false;
 
-    size_t current_tr = register_tr_;
+    size_t current_tr = trail_size();
     bool unbound = false;
 
     do {
@@ -1029,7 +977,7 @@ void interpreter::fail()
 
 	    // Unbind variables
 	    unwind(current_tr);
-	    current_tr = register_tr_;
+	    current_tr = trail_size();
 
 	    unbound = true;
 

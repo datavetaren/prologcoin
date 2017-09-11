@@ -103,7 +103,7 @@ static bool test_interpreter_file(const std::string &filepath)
 
     std::ifstream *infile = new std::ifstream(filepath);
     term_tokenizer *tokenizer = new term_tokenizer(*infile);
-    term_parser *parser = new term_parser(*tokenizer, interp.env().get_heap(), interp.env().get_ops());
+    term_parser *parser = new term_parser(*tokenizer, interp.get_heap(), interp.get_ops());
 
     con_cell query_op("?-", 1);
     con_cell action_op(":-", 1);
@@ -125,14 +125,14 @@ static bool test_interpreter_file(const std::string &filepath)
 
 	    process_meta(interp, comments);
 
-	    bool is_query = interp.env().is_functor(t, query_op);
-	    bool is_action = interp.env().is_functor(t, action_op);
+	    bool is_query = interp.is_functor(t, query_op);
+	    bool is_action = interp.is_functor(t, action_op);
 
 	    // Once parsing is done we'll copy over the var-name bindings
 	    // so we can pretty print the variable names.
 	    parser->for_each_var_name( [&](const term  &ref,
 					  const std::string &name)
-				      { interp.env().set_name(ref,name); } );
+				      { interp.set_name(ref,name); } );
 	    parser->clear_var_names();
 
 	    if (!is_query && new_block) {
@@ -144,7 +144,7 @@ static bool test_interpreter_file(const std::string &filepath)
 		std::cout << std::string(67, '-') << std::endl;
 	    }
 
-	    std::cout << interp.env().to_string(t,
+	    std::cout << interp.to_string(t,
 		is_query ? term_emitter::STYLE_TERM : term_emitter::STYLE_PROGRAM)
 		      << "\n";
 
@@ -166,7 +166,7 @@ static bool test_interpreter_file(const std::string &filepath)
 		} catch (syntax_exception &ex) {
   		    std::cout << "Syntax error: " << ex.what()
 			      << ": "
-			      << interp.env().to_string(ex.get_term())
+			      << interp.to_string(ex.get_term())
 			      << std::endl;
 	  	    throw ex;
 		}
@@ -176,20 +176,20 @@ static bool test_interpreter_file(const std::string &filepath)
 
 	    if (is_action) {
 		// Check if this is a consult operation
-		term a = interp.env().arg(t, 0);
-		if (!interp.env().is_list(a)) {
+		term a = interp.arg(t, 0);
+		if (!interp.is_list(a)) {
 		    std::cout << "Unrecognized action. Only [...] is supported (to include other files)" << std::endl;
 		    continue;
 		}
-		for (auto fileatom : interp.env().iterate_over(a)) {
-		    if (!interp.env().is_list(fileatom)) {
-			con_cell f = interp.env().functor(fileatom);
+		for (auto fileatom : interp.iterate_over(a)) {
+		    if (!interp.is_list(fileatom)) {
+			con_cell f = interp.functor(fileatom);
 			if (f.arity() != 0) {
-			    std::cout << "Unrecognized file name: " << interp.env().to_string(fileatom) << std::endl;
+			    std::cout << "Unrecognized file name: " << interp.to_string(fileatom) << std::endl;
 			    continue;
 			}
 			files.push_back(parser);
-			std::string incfile = interp.env().atom_name(f) + ".pl";
+			std::string incfile = interp.atom_name(f) + ".pl";
 			infile = new std::ifstream(interp.get_full_path(incfile));
 			if (!infile->good()) {
 			    delete infile;
@@ -197,7 +197,7 @@ static bool test_interpreter_file(const std::string &filepath)
 			    continue;
 			}
 			tokenizer = new term_tokenizer(*infile);
-			parser = new term_parser(*tokenizer, interp.env().get_heap(), interp.env().get_ops());
+			parser = new term_parser(*tokenizer, interp.get_heap(), interp.get_ops());
 			continue;
 		    }
 		}
@@ -209,7 +209,7 @@ static bool test_interpreter_file(const std::string &filepath)
 		first_clause = true;
 		new_block = true;
 
-		term q = interp.env().arg(t, 0);
+		term q = interp.arg(t, 0);
 		bool r = false;
 
 		std::string result;
