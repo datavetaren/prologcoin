@@ -43,7 +43,7 @@ class term_iterator_templ : public std::iterator<std::forward_iterator_tag,
 public:
     typedef term_env_dock<HT,ST,OT> Env;
     inline term_iterator_templ(Env &env, const term t)
-         : env_(env), current_(t) { elem_ = first_of(t); }
+	 : env_(env), current_(t) { elem_ = first_of(t); }
 
     inline bool operator == (const term_iterator_templ &other) const;
     inline bool operator != (const term_iterator_templ &other) const
@@ -89,6 +89,7 @@ public:
 	  it.advance(); return it; }
     inline reference operator * () const { return elem_; }
     inline pointer operator -> () const { return &elem_; }
+    inline size_t depth() const { return stack_.size(); }
 
     inline Env & env() { return env_; }
 
@@ -167,6 +168,15 @@ public:
         { return T::get_heap().functor(name, arity); }
     inline term new_term(con_cell functor)
         { return T::get_heap().new_str(functor); }
+    inline term new_term(con_cell functor, const std::vector<term> &args)
+        { term t = new_term(functor);
+          size_t i = 0;
+	  for (auto arg : args) {
+	      T::get_heap().set_arg(t, i, arg);
+	      i++;
+	  }
+	  return t;
+        }
     inline term new_term(con_cell functor, std::initializer_list<term> args)
         { term t = new_term(functor);
           size_t i = 0;
