@@ -2,6 +2,21 @@
 
 namespace prologcoin { namespace interp {
 
+std::unordered_map<wam_instruction_base::fn_type, wam_instruction_base::print_fn_type> wam_instruction_base::print_fns_;
+
+void wam_instruction_sequence::print(std::ostream &out)
+{
+    for (size_t i = 0; i < instrs_size_;) {
+	wam_instruction_base *instr
+	  = reinterpret_cast<wam_instruction_base *>(&instrs_[i]);
+	out << "[" << std::setw(5) << i << "]: ";
+	instr->print(out, interp_);
+	out << std::endl;
+	
+	i += instr->size();
+    }
+}
+
 wam_interpreter::wam_interpreter()
 {
 }

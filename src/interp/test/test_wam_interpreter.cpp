@@ -41,9 +41,26 @@ static void test_flatten()
     wam.test_flatten();
 }
 
+static void test_instruction_sequence()
+{
+    header("test_instruction_sequence");
+
+    wam_interpreter interp;
+    wam_instruction_sequence instrs(interp);
+    instrs.add(wam_instruction<PUT_VARIABLE_X>(1, 2));
+    instrs.add(wam_instruction<PUT_VARIABLE_X>(3, 4));
+    instrs.add(wam_instruction<PUT_VARIABLE_Y>(5, 6));
+    instrs.add(wam_instruction<PUT_VALUE_X>(6, 7));
+    instrs.add(wam_instruction<PUT_VALUE_Y>(8, 9));
+    instrs.add(wam_instruction<PUT_UNSAFE_VALUE_Y>(10, 11));
+    instrs.print(std::cout);
+}
+
 int main( int argc, char *argv[] )
 {
     test_flatten();
+
+    test_instruction_sequence();
 
     return 0;
 }
