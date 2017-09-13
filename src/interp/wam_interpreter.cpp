@@ -3,8 +3,9 @@
 namespace prologcoin { namespace interp {
 
 std::unordered_map<wam_instruction_base::fn_type, wam_instruction_base::print_fn_type> wam_instruction_base::print_fns_;
+std::unordered_map<wam_instruction_base::fn_type, wam_instruction_base::updater_fn_type> wam_instruction_base::updater_fns_;
 
-void wam_instruction_sequence::print(std::ostream &out)
+void wam_instruction_sequence::print_code(std::ostream &out)
 {
     for (size_t i = 0; i < instrs_size_;) {
 	wam_instruction_base *instr
@@ -17,7 +18,7 @@ void wam_instruction_sequence::print(std::ostream &out)
     }
 }
 
-wam_interpreter::wam_interpreter()
+wam_interpreter::wam_interpreter() : wam_instruction_sequence(*this)
 {
     top_fail_ = false;
     mode_ = READ;
@@ -31,6 +32,13 @@ wam_interpreter::wam_interpreter()
     register_s_ = 0;
     memset(register_xn_, 0, sizeof(register_xn_));
     memset(register_ai_, 0, sizeof(register_ai_));
+}
+
+wam_interpreter::~wam_interpreter()
+{
+    for (auto m : hash_maps_) {
+	delete m;
+    }
 }
 
 std::vector<wam_interpreter::prim_unification> wam_interpreter::flatten(const term t)
