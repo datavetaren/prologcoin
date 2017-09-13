@@ -393,7 +393,7 @@ void blaha();
 //
 class heap_block : private boost::noncopyable {
 public:
-    static const size_t MAX_SIZE = 1024*1024/sizeof(cell);
+    static const size_t MAX_SIZE = 1024*1024;
 
     inline heap_block() : index_(0), offset_(0),
 			  size_(0), cells_(new cell[MAX_SIZE]) { }
@@ -717,6 +717,39 @@ public:
 	return term(*this, *p);
     }
 
+    inline str_cell new_con0(con_cell con)
+    {
+        cell *p;
+	size_t index;
+        std::tie(p, index) = allocate(tag_t::CON, 1);
+	*p = con;
+	return str_cell(index);
+    }
+
+    inline str_cell new_str0(con_cell con)
+    {
+        cell *p;
+        size_t index;
+        std::tie(p, index) = allocate(tag_t::STR, 2);
+	static_cast<ptr_cell &>(*p).set_index(index+1);
+	p[1] = con;
+	return str_cell(index);
+    }
+
+    inline void new_cell0(cell c)
+    {
+        cell *p;
+        size_t index;
+        std::tie(p, index) = allocate(tag_t::STR, 1);
+	*p = c;
+    }
+
+    inline term new_dotted_pair()
+    {
+        term t = new_str0(dotted_pair_);
+	return t;
+    }
+
     inline term new_dotted_pair(const term a, const term b)
     {
 	term t = new_str(dotted_pair_);
@@ -734,9 +767,24 @@ public:
 	return term(*this, *p);
     }
 
+    inline void new_ref(size_t cnt)
+    {
+	size_t index;
+	cell *p;
+	std::tie(p, index) = allocate(tag_t::REF, cnt);
+	for (size_t i = 0; i < cnt; i++) {
+	    static_cast<ref_cell &>(*p).set_index(index+i);
+	}
+    }
+
     inline term empty_list() const
     {
-	return term(*this, empty_list_);
+	return empty_list_;
+    }
+
+    inline con_cell empty_list_con() const
+    {
+        return empty_list_;
     }
 
     inline size_t external_ptr_count() const

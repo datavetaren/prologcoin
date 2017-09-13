@@ -19,6 +19,18 @@ void wam_instruction_sequence::print(std::ostream &out)
 
 wam_interpreter::wam_interpreter()
 {
+    top_fail_ = false;
+    mode_ = READ;
+    num_of_args_= 0;
+    register_p_ = nullptr;
+    register_cp_ = nullptr;
+    register_e_ = nullptr;
+    register_b_ = nullptr;
+    register_b0_ = nullptr;
+    register_top_b_ = nullptr;
+    register_s_ = 0;
+    memset(register_xn_, 0, sizeof(register_xn_));
+    memset(register_ai_, 0, sizeof(register_ai_));
 }
 
 std::vector<wam_interpreter::prim_unification> wam_interpreter::flatten(const term t)
@@ -62,11 +74,9 @@ std::vector<wam_interpreter::prim_unification> wam_interpreter::flatten(const te
 void wam_interpreter::flatten_process(std::vector<wam_interpreter::prim_unification> &prims, std::vector<term> &args)
 {
     for (auto &a : args) {
-	if (is_functor(a) && functor(a).arity() > 0) {
-	    prim_unification prim = new_unification(a);
-	    prims.push_back(prim);
-	    a = prim.lhs();
-	}
+      prim_unification prim = new_unification(a);
+      prims.push_back(prim);
+      a = prim.lhs();
     }
 }
 

@@ -148,6 +148,8 @@ public:
     // Term management
     inline term new_ref()
         { return T::get_heap().new_ref(); }
+    inline void new_ref(size_t cnt)
+        { T::get_heap().new_ref(cnt); }
     inline term deref(const term t) const
         { return T::get_heap().deref(t); }
     inline con_cell functor(const term t) const
@@ -164,10 +166,18 @@ public:
     // Term creation
     inline term empty_list()
         { return T::get_heap().empty_list(); }
+    inline con_cell empty_list_con()
+        { return T::get_heap().empty_list_con(); }
     inline con_cell functor(const std::string &name, size_t arity)
         { return T::get_heap().functor(name, arity); }
     inline term new_term(con_cell functor)
         { return T::get_heap().new_str(functor); }
+    inline term new_term_con(con_cell functor)
+        { return T::get_heap().new_con0(functor); }
+    inline term new_term_str(con_cell functor)
+        { return T::get_heap().new_str0(functor); }
+    inline void new_term_copy_cell(term t)
+        { T::get_heap().new_cell0(t); }
     inline term new_term(con_cell functor, const std::vector<term> &args)
         { term t = new_term(functor);
           size_t i = 0;
@@ -186,6 +196,8 @@ public:
 	  }
 	  return t;
 	}
+    inline term new_dotted_pair()
+        { return T::get_heap().new_dotted_pair(); }
     inline term new_dotted_pair(term a, term b)
         { return T::get_heap().new_dotted_pair(a,b); }
     inline con_cell to_atom(con_cell functor)
@@ -478,6 +490,13 @@ public:
   {
       term_utils utils(heap_dock<HT>::get_heap(), stacks_dock<ST>::get_stacks());
       return utils.equal(a, b);
+  }
+
+  inline void bind(const ref_cell &a, term b)
+  {
+      size_t index = a.index();
+      heap_set(index, b);
+      trail(index);
   }
 
   inline int standard_order(const term a, const term b)
