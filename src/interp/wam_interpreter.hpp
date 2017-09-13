@@ -173,6 +173,7 @@ public:
       p_(p), data((static_cast<uint64_t>(arity) << 32) | num_y) { 
       static bool init = [] {
 	    register_printer(&invoke, &print); return true; } ();
+      static_cast<void>(init);
     }
 
     inline wam_instruction_base * p() const { return p_; }
@@ -314,11 +315,13 @@ private:
         if (t.tag() == common::tag_t::REF) {
   	    auto ref = static_cast<common::ref_cell &>(t);
 	    if (is_stack(ref)) {
-	        deref_stack(ref);
+	        return deref_stack(ref);
 	    } else {
 	        return term_env::deref(t);
 	    }
-        }
+        } else {
+	    return t;
+	}
     }
 
     inline void bind(common::ref_cell &ref, term t)
@@ -728,6 +731,8 @@ private:
 	new_e->ce = register_e_;
 	new_e->cp = register_cp_;
         register_e_ = new_e;
+
+	return new_e;
     }
 
     inline void deallocate()
@@ -806,6 +811,7 @@ public:
       data((static_cast<uint64_t>(xn) << 32) | ai) { 
       static bool init = [] {
 	    register_printer(&invoke, &print); return true; } ();
+      static_cast<void>(init);
     }
 
     inline uint32_t xn() const { return data >> 32; }
@@ -833,6 +839,7 @@ public:
       data((static_cast<uint64_t>(yn) << 32) | ai) { 
       static bool init = [] {
 	    register_printer(&invoke, &print); return true; } ();
+      static_cast<void>(init);
     }
 
     inline uint32_t yn() const { return data >> 32; }
@@ -860,6 +867,7 @@ public:
       data((static_cast<uint64_t>(xn) << 32) | ai) { 
       static bool init = [] {
 	    register_printer(&invoke, &print); return true; } ();
+      static_cast<void>(init);
     }
 
     inline uint32_t xn() const { return data >> 32; }
@@ -887,6 +895,7 @@ public:
       data((static_cast<uint64_t>(yn) << 32) | ai) { 
       static bool init = [] {
 	    register_printer(&invoke, &print); return true; } ();
+      static_cast<void>(init);
     }
 
     inline uint32_t yn() const { return data >> 32; }
@@ -914,6 +923,7 @@ public:
       data((static_cast<uint64_t>(yn) << 32) | ai) { 
       static bool init = [] {
 	    register_printer(&invoke, &print); return true; } ();
+      static_cast<void>(init);
     }
 
     inline uint32_t yn() const { return data >> 32; }

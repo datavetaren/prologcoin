@@ -495,8 +495,8 @@ public:
   inline void bind(const ref_cell &a, term b)
   {
       size_t index = a.index();
-      heap_set(index, b);
-      trail(index);
+      heap_dock<HT>::heap_set(index, b);
+      stacks_dock<ST>::trail(index);
   }
 
   inline int standard_order(const term a, const term b)
