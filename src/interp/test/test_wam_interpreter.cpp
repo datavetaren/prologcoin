@@ -1,5 +1,6 @@
 #include "../../common/term_tools.hpp"
 #include "../wam_interpreter.hpp"
+#include "../wam_compiler.hpp"
 
 using namespace prologcoin::common;
 using namespace prologcoin::interp;
@@ -13,31 +14,32 @@ static void header( const std::string &str )
 
 namespace prologcoin { namespace interp {
 
-class test_wam_interpreter
+class test_wam_compiler
 {
 public:
-    test_wam_interpreter() { }
+    test_wam_compiler() : comp(env) { }
 
     void test_flatten();
 
 private:
-    wam_interpreter interp;
+    term_env env;
+    wam_compiler comp;
 };
 
 }}
 
-void test_wam_interpreter::test_flatten()
+void test_wam_compiler::test_flatten()
 {
-    term t = interp.parse("f(g(y,12,h(k),i(2)),m(X)).");
-    auto fl = interp.flatten(t);
-    interp.print_prims(fl);
+    term t = env.parse("f(g(y,12,h(k),i(2)),m(X)).");
+    auto fl = comp.flatten(t);
+    comp.print_prims(fl);
 }
 
 static void test_flatten()
 {
     header("test_flatten");
 
-    test_wam_interpreter wam;
+    test_wam_compiler wam;
     wam.test_flatten();
 }
 
