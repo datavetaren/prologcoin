@@ -983,6 +983,12 @@ namespace std {
 	}
     };
 
+    template<> struct hash<prologcoin::common::ref_cell> {
+        size_t operator()(const prologcoin::common::ref_cell& k) const {
+	    return hash<uint64_t>()(k.index());
+	}
+    };
+
     template<> struct hash<prologcoin::common::con_cell> {
 	size_t operator()(const prologcoin::common::con_cell& k) const {
 	    return hash<uint64_t>()(k.value());

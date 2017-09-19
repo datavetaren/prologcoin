@@ -30,7 +30,8 @@ private:
 
 void test_wam_compiler::test_flatten()
 {
-    term t = env.parse("f(g(y,12,h(k),i(2)),m(X)).");
+    // term t = env.parse("f(g(y,12,h(k),i(2)),m(X)).");
+    term t = env.parse("p(f(X),h(Y,f(a)),Y).");
     auto fl = comp.flatten(t);
     comp.print_prims(fl);
 }
