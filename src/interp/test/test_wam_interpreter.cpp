@@ -32,7 +32,7 @@ void test_wam_compiler::test_flatten()
 {
     // term t = env.parse("f(g(y,12,h(k),i(2)),m(X)).");
     term t = env.parse("p(f(X),h(Y,f(a)),Y).");
-    auto fl = comp.flatten(t);
+    auto fl = comp.flatten(t, wam_compiler::COMPILE_PROGRAM);
     comp.print_prims(fl);
 }
 
@@ -55,7 +55,9 @@ static void test_instruction_sequence()
     interp.add(wam_instruction<PUT_VALUE_X>(6, 7));
     interp.add(wam_instruction<PUT_VALUE_Y>(8, 9));
     interp.add(wam_instruction<PUT_UNSAFE_VALUE_Y>(10, 11));
-    interp.add(wam_instruction<PUT_STRUCTURE>(con_cell("f",2), 12));
+    interp.add(wam_instruction<PUT_STRUCTURE_A>(con_cell("f",2), 12));
+    interp.add(wam_instruction<PUT_STRUCTURE_X>(con_cell("f",2), 11));
+    interp.add(wam_instruction<PUT_STRUCTURE_Y>(con_cell("f",2), 10));
     interp.add(wam_instruction<PUT_LIST>(13));
     interp.add(wam_instruction<PUT_CONSTANT>(con_cell("foo",0), 14));
     interp.add(wam_instruction<PUT_CONSTANT>(int_cell(4711), 15));

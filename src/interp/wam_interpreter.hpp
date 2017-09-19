@@ -25,7 +25,9 @@ enum wam_instruction_type {
   PUT_VALUE_X,
   PUT_VALUE_Y,
   PUT_UNSAFE_VALUE_Y,
-  PUT_STRUCTURE,
+  PUT_STRUCTURE_A,
+  PUT_STRUCTURE_X,
+  PUT_STRUCTURE_Y,
   PUT_LIST,
   PUT_CONSTANT,
   
@@ -528,12 +530,24 @@ private:
 	goto_next_instruction();
     }
 
-    inline void put_structure(common::con_cell f, uint32_t ai)
+    inline void put_structure_a(common::con_cell f, uint32_t ai)
     {
         a(ai) = new_term_con(f);
 	goto_next_instruction();
     }
 
+    inline void put_structure_x(common::con_cell f, uint32_t xn)
+    {
+        x(xn) = new_term_con(f);
+	goto_next_instruction();
+    }
+
+    inline void put_structure_y(common::con_cell f, uint32_t yn)
+    {
+        y(yn) = new_term_con(f);
+	goto_next_instruction();
+    }
+  
     inline void put_list(uint32_t ai)
     {
         a(ai) = new_dotted_pair();
@@ -1237,7 +1251,7 @@ public:
     uint64_t data;
 };
 
-template<> class wam_instruction<PUT_STRUCTURE> : public wam_instruction_base {
+template<> class wam_instruction<PUT_STRUCTURE_A> : public wam_instruction_base {
 public:
     inline wam_instruction(common::con_cell f, uint32_t ai) :
       wam_instruction_base(&invoke, sizeof(*this)),
@@ -1253,14 +1267,74 @@ public:
 
     static void invoke(wam_interpreter &interp, wam_instruction_base *self)
     {
-        auto self1 = reinterpret_cast<wam_instruction<PUT_STRUCTURE> *>(self);
-        interp.put_structure(self1->f(), self1->ai());
+        auto self1 = reinterpret_cast<wam_instruction<PUT_STRUCTURE_A> *>(self);
+        interp.put_structure_a(self1->f(), self1->ai());
     }
 
     static void print(std::ostream &out, wam_interpreter &interp, wam_instruction_base *self)
     {
-        auto self1 = reinterpret_cast<wam_instruction<PUT_STRUCTURE> *>(self);
+        auto self1 = reinterpret_cast<wam_instruction<PUT_STRUCTURE_A> *>(self);
         out << "put_structure " << interp.to_string(self1->f()) << "/" << self1->f().arity() << ", a" << self1->ai();
+    }
+
+    common::con_cell f_;
+    uint64_t data;
+};
+
+template<> class wam_instruction<PUT_STRUCTURE_X> : public wam_instruction_base {
+public:
+    inline wam_instruction(common::con_cell f, uint32_t xn) :
+      wam_instruction_base(&invoke, sizeof(*this)),
+      f_(f),
+      data(xn) { 
+      static bool init = [] {
+	    register_printer(&invoke, &print); return true; } ();
+      static_cast<void>(init);
+    }
+
+    inline common::con_cell f() const { return f_; }
+    inline size_t xn() const { return data; }
+
+    static void invoke(wam_interpreter &interp, wam_instruction_base *self)
+    {
+        auto self1 = reinterpret_cast<wam_instruction<PUT_STRUCTURE_X> *>(self);
+        interp.put_structure_x(self1->f(), self1->xn());
+    }
+
+    static void print(std::ostream &out, wam_interpreter &interp, wam_instruction_base *self)
+    {
+        auto self1 = reinterpret_cast<wam_instruction<PUT_STRUCTURE_X> *>(self);
+        out << "put_structure " << interp.to_string(self1->f()) << "/" << self1->f().arity() << ", x" << self1->xn();
+    }
+
+    common::con_cell f_;
+    uint64_t data;
+};
+
+template<> class wam_instruction<PUT_STRUCTURE_Y> : public wam_instruction_base {
+public:
+    inline wam_instruction(common::con_cell f, uint32_t yn) :
+      wam_instruction_base(&invoke, sizeof(*this)),
+      f_(f),
+      data(yn) { 
+      static bool init = [] {
+	    register_printer(&invoke, &print); return true; } ();
+      static_cast<void>(init);
+    }
+
+    inline common::con_cell f() const { return f_; }
+    inline size_t yn() const { return data; }
+
+    static void invoke(wam_interpreter &interp, wam_instruction_base *self)
+    {
+        auto self1 = reinterpret_cast<wam_instruction<PUT_STRUCTURE_Y> *>(self);
+        interp.put_structure_y(self1->f(), self1->yn());
+    }
+
+    static void print(std::ostream &out, wam_interpreter &interp, wam_instruction_base *self)
+    {
+        auto self1 = reinterpret_cast<wam_instruction<PUT_STRUCTURE_Y> *>(self);
+        out << "put_structure " << interp.to_string(self1->f()) << "/" << self1->f().arity() << ", y" << self1->yn();
     }
 
     common::con_cell f_;

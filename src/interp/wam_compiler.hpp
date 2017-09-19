@@ -17,33 +17,41 @@ public:
 private:
     friend class test_wam_compiler;
 
+    static const size_t NO_ARG = (size_t)-1;
+
     class prim_unification {
     public:
-	prim_unification() : lhs_(common::ref_cell()), rhs_() { }
-	prim_unification(const prim_unification &other)
-	    : lhs_(other.lhs_), rhs_(other.rhs_) { }
-	prim_unification(common::ref_cell lhs, term rhs)
-	    : lhs_(lhs), rhs_(rhs) { }
-	common::ref_cell lhs() const { return lhs_; }
-	term rhs() const { return rhs_; }
+	inline prim_unification() : lhs_(common::ref_cell()), rhs_() { }
+	inline prim_unification(const prim_unification &other)
+	  : lhs_(other.lhs_), lhs_arg_index_(other.lhs_arg_index_),
+	    rhs_(other.rhs_), predicate_(other.predicate_) { }
+	inline prim_unification(common::ref_cell lhs, term rhs)
+	  : lhs_(lhs), lhs_arg_index_(NO_ARG), rhs_(rhs), predicate_(false) { }
+	inline common::ref_cell lhs() const { return lhs_; }
+        inline bool is_lhs_arg() const { return lhs_arg_index_ != NO_ARG; }
+        inline size_t get_lhs_arg_index() const { return lhs_arg_index_; }
+	inline term rhs() const { return rhs_; }
+        inline bool is_predicate() const { return predicate_; }
 
+        inline void set_predicate(bool b) { predicate_ = b; }
+        inline void set_lhs_arg_index(size_t i) { lhs_arg_index_ = i; }
     private:
 	common::ref_cell lhs_;
+        size_t lhs_arg_index_;
 	term rhs_;
+        bool predicate_;
     };
 
-    enum compile_type { COMPILE_QUERY, COMPILE_FACT };
+    enum compile_type { COMPILE_QUERY, COMPILE_PROGRAM };
 
-    void compile_query_or_fact(term t, compile_type c,
-			       wam_instruction_sequence &seq);
+    void compile_query_or_program(term t, compile_type c,
+			          wam_instruction_sequence &seq);
 
     void print_prims(const std::vector<prim_unification> &prims) const;
 
     // Takes a nested term and unfolds it into a sequence of
     // primitive unifications.
-    std::vector<prim_unification> flatten(const term t);
-    void flatten_process(std::vector<prim_unification> &prims,
-			 std::vector<term> &args);
+    std::vector<prim_unification> flatten(const term t, compile_type for_type);
     prim_unification new_unification(term t);
 
     struct reg {

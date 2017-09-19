@@ -3,12 +3,14 @@
 
 namespace prologcoin { namespace interp {
 
-std::vector<wam_compiler::prim_unification> wam_compiler::flatten(const term t)
+std::vector<wam_compiler::prim_unification> wam_compiler::flatten(const term t, wam_compiler::compile_type for_type)
 {
     std::vector<prim_unification> prims;
 
     std::queue<prim_unification> queue;
-    queue.push(new_unification(t));
+    auto prim = new_unification(t);
+    prim.set_predicate(true);
+    queue.push(prim);
 
     while (!queue.empty()) {
 	prim_unification p = queue.front();
@@ -18,9 +20,13 @@ std::vector<wam_compiler::prim_unification> wam_compiler::flatten(const term t)
 	    auto f = env_.functor(p.rhs());
 	    size_t n = f.arity();
 	    for (size_t i = 0; i < n; i++) {
-		auto arg = env_.arg(p.rhs(), i);
+	        size_t pos = (for_type == COMPILE_QUERY) ? n - i - 1 : i;
+		auto arg = env_.arg(p.rhs(), pos);
 		prim_unification p1 = new_unification(arg);
-		env_.set_arg(p.rhs(), i, p1.lhs());
+		if (p.is_predicate()) {
+		    p1.set_lhs_arg_index(pos);
+		}
+		env_.set_arg(p.rhs(), pos, p1.lhs());
 		queue.push(p1);
 	    }
 	    prims.push_back(p);
@@ -34,6 +40,11 @@ std::vector<wam_compiler::prim_unification> wam_compiler::flatten(const term t)
 	}
 	}
     }
+    
+    if (for_type == COMPILE_QUERY) {
+        std::reverse(prims.begin(), prims.end());
+    }
+
     return prims;
 }
 
@@ -44,34 +55,47 @@ wam_compiler::prim_unification wam_compiler::new_unification(term t)
     return prim_unification(name, t);
 }
 
-void wam_compiler::compile_query_or_fact(term t, wam_compiler::compile_type c,
-				  	 wam_instruction_sequence &instrs)
+void wam_compiler::compile_query_or_program(wam_compiler::term t,
+					    wam_compiler::compile_type c,
+				      	    wam_instruction_sequence &instrs)
 
 {
-    std::vector<prim_unification> prims = flatten(t);
+    std::vector<prim_unification> prims = flatten(t, c);
 
     size_t n = prims.size();
-
-    register_pool regs;
     
+    register_pool regs;
+
     for (size_t i = 0; i < n; i++) {
-	bool is_predicate = i == 0;
 	auto &prim = prims[i];
+        bool is_predicate = prim.is_predicate();
 	auto lhsvar = prim.lhs();
 
 	if (!is_predicate) {
 	    regs.allocate(lhsvar, reg::X_REG);
 	}
-
 	term rhs = prim.rhs();
-	switch (rhs.tag()) {
-	case common::tag_t::INT:
-	case common::tag_t::CON:
-	    // We have X = a or X = 4711
-	    if (c == COMPILE_QUERY) {
-		// instrs.add(wam_instruction<PUT_CONSTANT>(rhs));
+
+	if (c == COMPILE_QUERY) {
+	    switch (rhs.tag()) {
+	    case common::tag_t::REF:
+	      /*
+	      { auto ref = static_cast<common::ref_cell &>(rhs);
+		reg r;
+		std::tie(r, isnew) = regs.allocate(ref, X_REG);
+		if (isnew) {
+		  instrs.add(wam_instruction<PUT__X>(r);
+	        }
+	      }
+	      */
+	      break;
+
+	    case common::tag_t::INT:
+	    case common::tag_t::CON:
+	      // We have X = a or X = 4711
+	      instrs.add(wam_instruction<SET_CONSTANT>(rhs));
+	      break;
 	    }
-	    break;
 	}
     }
 }
