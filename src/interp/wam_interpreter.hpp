@@ -39,8 +39,10 @@ enum wam_instruction_type {
   GET_LIST,
   GET_CONSTANT,
 
+  SET_VARIABLE_A,
   SET_VARIABLE_X,
   SET_VARIABLE_Y,
+  SET_VALUE_A,
   SET_VALUE_X,
   SET_VALUE_Y,
   SET_LOCAL_VALUE_X,
@@ -655,6 +657,13 @@ private:
 	}
     }
 
+    inline void set_variable_a(uint32_t ai)
+    {
+        term t = new_ref();
+	a(ai) = t;
+	goto_next_instruction();
+    }
+
     inline void set_variable_x(uint32_t xn)
     {
         term t = new_ref();
@@ -666,6 +675,12 @@ private:
     {
         term t = new_ref();
 	y(yn) = t;
+	goto_next_instruction();
+    }
+
+    inline void set_value_a(uint32_t ai)
+    {
+        new_term_copy_cell(a(ai));
 	goto_next_instruction();
     }
 
@@ -1597,6 +1612,33 @@ public:
     uint64_t data;
 };
 
+template<> class wam_instruction<SET_VARIABLE_A> : public wam_instruction_base {
+public:
+    inline wam_instruction(uint32_t ai) :
+      wam_instruction_base(&invoke, sizeof(*this)),
+      data(ai) { 
+      static bool init = [] {
+	    register_printer(&invoke, &print); return true; } ();
+      static_cast<void>(init);
+    }
+
+    inline uint32_t ai() const { return data; }
+
+    static void invoke(wam_interpreter &interp, wam_instruction_base *self)
+    {
+        auto self1 = reinterpret_cast<wam_instruction<SET_VARIABLE_A> *>(self);
+        interp.set_variable_a(self1->ai());
+    }
+
+    static void print(std::ostream &out, wam_interpreter &interp, wam_instruction_base *self)
+    {
+        auto self1 = reinterpret_cast<wam_instruction<SET_VARIABLE_A> *>(self);
+        out << "set_variable a" << self1->ai();
+    }
+
+    uint64_t data;
+};
+
 template<> class wam_instruction<SET_VARIABLE_X> : public wam_instruction_base {
 public:
     inline wam_instruction(uint32_t xn) :
@@ -1646,6 +1688,33 @@ public:
     {
         auto self1 = reinterpret_cast<wam_instruction<SET_VARIABLE_Y> *>(self);
         out << "set_variable y" << self1->yn();
+    }
+
+    uint64_t data;
+};
+
+template<> class wam_instruction<SET_VALUE_A> : public wam_instruction_base {
+public:
+    inline wam_instruction(uint32_t ai) :
+      wam_instruction_base(&invoke, sizeof(*this)),
+      data(ai) { 
+      static bool init = [] {
+	    register_printer(&invoke, &print); return true; } ();
+      static_cast<void>(init);
+    }
+
+    inline uint32_t ai() const { return data; }
+
+    static void invoke(wam_interpreter &interp, wam_instruction_base *self)
+    {
+        auto self1 = reinterpret_cast<wam_instruction<SET_VALUE_A> *>(self);
+        interp.set_value_a(self1->ai());
+    }
+
+    static void print(std::ostream &out, wam_interpreter &interp, wam_instruction_base *self)
+    {
+        auto self1 = reinterpret_cast<wam_instruction<SET_VALUE_A> *>(self);
+        out << "set_value a" << self1->ai();
     }
 
     uint64_t data;

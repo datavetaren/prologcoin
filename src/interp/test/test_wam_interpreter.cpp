@@ -17,32 +17,49 @@ namespace prologcoin { namespace interp {
 class test_wam_compiler
 {
 public:
-    test_wam_compiler() : comp(env) { }
+    test_wam_compiler() : interp_(), comp_(interp_) { }
 
     void test_flatten();
+    void test_compile();
 
 private:
-    term_env env;
-    wam_compiler comp;
+    wam_interpreter interp_;
+    wam_compiler comp_;
 };
 
 }}
 
 void test_wam_compiler::test_flatten()
 {
-    // term t = env.parse("f(g(y,12,h(k),i(2)),m(X)).");
-    term t = env.parse("p(f(X),h(Y,f(a)),Y).");
-    auto fl = comp.flatten(t, wam_compiler::COMPILE_PROGRAM);
-    comp.print_prims(fl);
+    term t = interp_.parse("p(f(X),h(Y,f(a)),Y).");
+    auto fl = comp_.flatten(t, wam_compiler::COMPILE_PROGRAM);
+    comp_.print_prims(fl);
 }
 
 static void test_flatten()
 {
     header("test_flatten");
 
-    test_wam_compiler wam;
-    wam.test_flatten();
+    test_wam_compiler test;
+    test.test_flatten();
 }
+
+void test_wam_compiler::test_compile()
+{
+    term t = interp_.parse("p(Z,h(Z,W),f(W)).");
+    wam_instruction_sequence seq(interp_);
+    comp_.compile_query_or_program(t,wam_compiler::COMPILE_QUERY,seq);
+    seq.print_code(std::cout);
+}
+
+static void test_compile()
+{
+    header("test_compile");
+
+    test_wam_compiler test;
+    test.test_compile();
+}
+
 
 static void test_instruction_sequence()
 {
@@ -123,6 +140,8 @@ static void test_instruction_sequence()
 int main( int argc, char *argv[] )
 {
     test_flatten();
+
+    test_compile();
 
     test_instruction_sequence();
 

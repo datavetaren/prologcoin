@@ -17,29 +17,20 @@ public:
 private:
     friend class test_wam_compiler;
 
-    static const size_t NO_ARG = (size_t)-1;
-
     class prim_unification {
     public:
 	inline prim_unification() : lhs_(common::ref_cell()), rhs_() { }
 	inline prim_unification(const prim_unification &other)
-	  : lhs_(other.lhs_), lhs_arg_index_(other.lhs_arg_index_),
-	    rhs_(other.rhs_), predicate_(other.predicate_) { }
+	    : lhs_(other.lhs_), rhs_(other.rhs_) { }
 	inline prim_unification(common::ref_cell lhs, term rhs)
-	  : lhs_(lhs), lhs_arg_index_(NO_ARG), rhs_(rhs), predicate_(false) { }
-	inline common::ref_cell lhs() const { return lhs_; }
-        inline bool is_lhs_arg() const { return lhs_arg_index_ != NO_ARG; }
-        inline size_t get_lhs_arg_index() const { return lhs_arg_index_; }
-	inline term rhs() const { return rhs_; }
-        inline bool is_predicate() const { return predicate_; }
+	    : lhs_(lhs), rhs_(rhs) { }
 
-        inline void set_predicate(bool b) { predicate_ = b; }
-        inline void set_lhs_arg_index(size_t i) { lhs_arg_index_ = i; }
+	inline common::ref_cell lhs() const { return lhs_; }
+	inline term rhs() const { return rhs_; }
+
     private:
 	common::ref_cell lhs_;
-        size_t lhs_arg_index_;
 	term rhs_;
-        bool predicate_;
     };
 
     enum compile_type { COMPILE_QUERY, COMPILE_PROGRAM };
@@ -51,7 +42,8 @@ private:
 
     // Takes a nested term and unfolds it into a sequence of
     // primitive unifications.
-    std::vector<prim_unification> flatten(const term t, compile_type for_type);
+    std::vector<wam_compiler::prim_unification> flatten(const term t, compile_type for_type);
+
     prim_unification new_unification(term t);
 
     struct reg {
@@ -62,6 +54,7 @@ private:
 	    Y_REG
 	};
 
+	reg() : num(0), type(X_REG) { }
 	reg(size_t n, reg_type t) : num(n), type(t) { }
 
 	size_t num;
@@ -70,17 +63,18 @@ private:
 
     class register_pool {
     public:
-	register_pool() : a_cnt_(0), x_cnt_(0), y_cnt_(0) { }
+	register_pool() : x_cnt_(0), y_cnt_(0) { }
 
 	std::pair<reg,bool> allocate(common::ref_cell var, reg::reg_type regtype);
+	std::pair<reg,bool> allocate(common::ref_cell var, reg::reg_type regtype, size_t no);
 
     private:
 	std::unordered_map<common::ref_cell, reg> reg_map_;
-	size_t a_cnt_;
 	size_t x_cnt_;
 	size_t y_cnt_;
     };
 
+    register_pool regs_;
     common::term_env &env_;
 };
 
