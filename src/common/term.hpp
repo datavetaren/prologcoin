@@ -154,6 +154,8 @@ public:
 
     inline tag_t tag() const { return tag_t(static_cast<tag_t::kind_t>(raw_value_&0x7));}
 
+    inline value_t raw_value() const { return raw_value_; }
+
     inline value_t value() const { return raw_value_ >> 3; }
 
     inline void set_value(value_t v) { raw_value_ = (v << 3) | (raw_value_ & 0x7); }

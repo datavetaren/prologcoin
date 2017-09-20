@@ -350,6 +350,7 @@ public:
     bool unify(term a, term b);
     term copy(const term t);
     bool equal(const term a, const term b);
+    uint64_t hash(const term t);
 
     // Return -1, 0 or 1 when comparing standard order for 'a' and 'b'
     int standard_order(const term a, const term b);
@@ -485,6 +486,13 @@ public:
       term_utils utils(heap_dock<HT>::get_heap(), stacks_dock<ST>::get_stacks());
       return utils.copy(t);
   }
+
+  inline uint64_t hash(term t)
+  {
+      term_utils utils(heap_dock<HT>::get_heap(), stacks_dock<ST>::get_stacks());
+      return utils.hash(t);
+  }
+
 
   inline bool equal(const term a, const term b)
   {
@@ -688,6 +696,38 @@ public:
      term_env() : term_env_dock() { }
 };
 
+//
+// This is handy for having unordered sets with equal terms.
+// (Good for common sub-term recognition.) We also need this for
+// good register allocation in the WAM compiler.
+//
+class eq_term {
+public:
+    inline eq_term(const eq_term &other)
+        : env_(other.env_), term_(other.term_) { }
+    inline eq_term(term_env &env, term t) : env_(env), term_(t) { }
+
+    inline bool operator == (const eq_term &other) const {
+        return env_.equal(term_, other.term_);
+    }
+
+    inline uint64_t hash() const {
+        return env_.hash(term_);
+    }
+
+private:
+    term_env &env_;
+    term term_;
+};
+
 }}
+
+namespace std {
+    template<> struct hash<prologcoin::common::eq_term> {
+        size_t operator()(const prologcoin::common::eq_term& eqt) const {
+ 	    return eqt.hash();
+	}
+    };
+}
 
 #endif

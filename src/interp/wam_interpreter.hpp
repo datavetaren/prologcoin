@@ -35,7 +35,9 @@ enum wam_instruction_type {
   GET_VARIABLE_Y,
   GET_VALUE_X,
   GET_VALUE_Y,
-  GET_STRUCTURE,
+  GET_STRUCTURE_A,
+  GET_STRUCTURE_X,
+  GET_STRUCTURE_Y,
   GET_LIST,
   GET_CONSTANT,
 
@@ -50,8 +52,10 @@ enum wam_instruction_type {
   SET_CONSTANT,
   SET_VOID,
 
+  UNIFY_VARIABLE_A,
   UNIFY_VARIABLE_X,
   UNIFY_VARIABLE_Y,
+  UNIFY_VALUE_A,
   UNIFY_VALUE_X,
   UNIFY_VALUE_Y,
   UNIFY_LOCAL_VALUE_X,
@@ -592,10 +596,27 @@ private:
 	}
     }
 
-    inline void get_structure(common::con_cell f, uint32_t ai)
+    inline void get_structure_a(common::con_cell f, uint32_t ai)
+    {
+        term t = deref(a(ai));
+	return get_structure(f, t);
+    }
+
+    inline void get_structure_x(common::con_cell f, uint32_t xn)
+    {
+        term t = deref(x(xn));
+	return get_structure(f, t);
+    }
+
+    inline void get_structure_y(common::con_cell f, uint32_t yn)
+    {
+        term t = deref(y(yn));
+	return get_structure(f, t);
+    }
+
+    inline void get_structure(common::con_cell f, common::term t)
     {
         bool fail = false;
-        term t = deref(a(ai));
 	switch (t.tag()) {
 	case common::tag_t::REF: {
 	    term s = new_term_str(f);
@@ -628,7 +649,7 @@ private:
 
     inline void get_list(uint32_t ai)
     {
-        get_structure(empty_list_con(), ai);
+        get_structure_a(empty_list_con(), ai);
     }
 
     inline void get_constant(common::term c, uint32_t ai)
@@ -742,6 +763,16 @@ private:
 	goto_next_instruction();
     }
 
+    inline void unify_variable_a(uint32_t ai)
+    {
+        switch (mode_) {
+	case READ: a(ai) = heap_get(register_s_); break;
+	case WRITE: a(ai) = new_ref(); break;
+        }
+	register_s_++;
+	goto_next_instruction();
+    }
+
     inline void unify_variable_x(uint32_t xn)
     {
         switch (mode_) {
@@ -760,6 +791,21 @@ private:
         }
 	register_s_++;
 	goto_next_instruction();
+    }
+
+    inline void unify_value_a(uint32_t ai)
+    {
+        bool fail = false;
+        switch (mode_) {
+	case READ: fail = !unify(a(ai), heap_get(register_s_)); break;
+	case WRITE: new_term_copy_cell(a(ai)); break;
+        }
+	register_s_++;
+	if (fail) {
+	    backtrack();
+	} else {
+	    goto_next_instruction();
+	}
     }
 
     inline void unify_value_x(uint32_t xn)
@@ -1525,7 +1571,7 @@ public:
     uint64_t data;
 };
 
-template<> class wam_instruction<GET_STRUCTURE> : public wam_instruction_base {
+template<> class wam_instruction<GET_STRUCTURE_A> : public wam_instruction_base {
 public:
     inline wam_instruction(common::con_cell f, uint32_t ai) :
       wam_instruction_base(&invoke, sizeof(*this)),
@@ -1541,14 +1587,74 @@ public:
 
     static void invoke(wam_interpreter &interp, wam_instruction_base *self)
     {
-        auto self1 = reinterpret_cast<wam_instruction<GET_STRUCTURE> *>(self);
+        auto self1 = reinterpret_cast<wam_instruction<GET_STRUCTURE_A> *>(self);
         interp.get_structure(self1->f(), self1->ai());
     }
 
     static void print(std::ostream &out, wam_interpreter &interp, wam_instruction_base *self)
     {
-        auto self1 = reinterpret_cast<wam_instruction<GET_STRUCTURE> *>(self);
+      auto self1 = reinterpret_cast<wam_instruction<GET_STRUCTURE_A> *>(self);
         out << "get_structure " << interp.to_string(self1->f()) << "/" << self1->f().arity() << ", a" << self1->ai();
+    }
+
+    common::con_cell f_;
+    uint64_t data;
+};
+
+template<> class wam_instruction<GET_STRUCTURE_X> : public wam_instruction_base {
+public:
+    inline wam_instruction(common::con_cell f, uint32_t xn) :
+      wam_instruction_base(&invoke, sizeof(*this)),
+      f_(f),
+      data(xn) { 
+      static bool init = [] {
+	    register_printer(&invoke, &print); return true; } ();
+      static_cast<void>(init);
+    }
+
+    inline common::con_cell f() const { return f_; }
+    inline size_t xn() const { return data; }
+
+    static void invoke(wam_interpreter &interp, wam_instruction_base *self)
+    {
+        auto self1 = reinterpret_cast<wam_instruction<GET_STRUCTURE_X> *>(self);
+        interp.get_structure(self1->f(), self1->xn());
+    }
+
+    static void print(std::ostream &out, wam_interpreter &interp, wam_instruction_base *self)
+    {
+      auto self1 = reinterpret_cast<wam_instruction<GET_STRUCTURE_X> *>(self);
+        out << "get_structure " << interp.to_string(self1->f()) << "/" << self1->f().arity() << ", x" << self1->xn();
+    }
+
+    common::con_cell f_;
+    uint64_t data;
+};
+
+template<> class wam_instruction<GET_STRUCTURE_Y> : public wam_instruction_base {
+public:
+    inline wam_instruction(common::con_cell f, uint32_t yn) :
+      wam_instruction_base(&invoke, sizeof(*this)),
+      f_(f),
+      data(yn) { 
+      static bool init = [] {
+	    register_printer(&invoke, &print); return true; } ();
+      static_cast<void>(init);
+    }
+
+    inline common::con_cell f() const { return f_; }
+    inline size_t yn() const { return data; }
+
+    static void invoke(wam_interpreter &interp, wam_instruction_base *self)
+    {
+        auto self1 = reinterpret_cast<wam_instruction<GET_STRUCTURE_Y> *>(self);
+        interp.get_structure(self1->f(), self1->yn());
+    }
+
+    static void print(std::ostream &out, wam_interpreter &interp, wam_instruction_base *self)
+    {
+      auto self1 = reinterpret_cast<wam_instruction<GET_STRUCTURE_Y> *>(self);
+        out << "get_structure " << interp.to_string(self1->f()) << "/" << self1->f().arity() << ", y" << self1->yn();
     }
 
     common::con_cell f_;
@@ -1882,6 +1988,33 @@ public:
     uint64_t data;
 };
 
+template<> class wam_instruction<UNIFY_VARIABLE_A> : public wam_instruction_base {
+public:
+    inline wam_instruction(uint32_t ai) :
+      wam_instruction_base(&invoke, sizeof(*this)),
+      data(ai) { 
+      static bool init = [] {
+	    register_printer(&invoke, &print); return true; } ();
+      static_cast<void>(init);
+    }
+
+    inline uint32_t ai() const { return data; }
+
+    static void invoke(wam_interpreter &interp, wam_instruction_base *self)
+    {
+        auto self1 = reinterpret_cast<wam_instruction<UNIFY_VARIABLE_A> *>(self);
+        interp.unify_variable_a(self1->ai());
+    }
+
+    static void print(std::ostream &out, wam_interpreter &interp, wam_instruction_base *self)
+    {
+        auto self1 = reinterpret_cast<wam_instruction<UNIFY_VARIABLE_A> *>(self);
+        out << "unify_variable a" << self1->ai();
+    }
+
+    uint64_t data;
+};
+
 template<> class wam_instruction<UNIFY_VARIABLE_X> : public wam_instruction_base {
 public:
     inline wam_instruction(uint32_t xn) :
@@ -1931,6 +2064,33 @@ public:
     {
         auto self1 = reinterpret_cast<wam_instruction<UNIFY_VARIABLE_Y> *>(self);
         out << "unify_variable y" << self1->yn();
+    }
+
+    uint64_t data;
+};
+
+template<> class wam_instruction<UNIFY_VALUE_A> : public wam_instruction_base {
+public:
+    inline wam_instruction(uint32_t ai) :
+      wam_instruction_base(&invoke, sizeof(*this)),
+      data(ai) { 
+      static bool init = [] {
+	    register_printer(&invoke, &print); return true; } ();
+      static_cast<void>(init);
+    }
+
+    inline uint32_t ai() const { return data; }
+
+    static void invoke(wam_interpreter &interp, wam_instruction_base *self)
+    {
+        auto self1 = reinterpret_cast<wam_instruction<UNIFY_VALUE_A> *>(self);
+        interp.unify_value_a(self1->ai());
+    }
+
+    static void print(std::ostream &out, wam_interpreter &interp, wam_instruction_base *self)
+    {
+        auto self1 = reinterpret_cast<wam_instruction<UNIFY_VALUE_A> *>(self);
+        out << "unify_value a" << self1->ai();
     }
 
     uint64_t data;

@@ -96,6 +96,38 @@ bool term_utils::equal(term a, term b)
     return true;
 }
 
+uint64_t term_utils::hash(term t)
+{
+    size_t d = stack_size();
+
+    push(t);
+
+    uint64_t h = 0;
+
+    while (stack_size() > d) {
+	t = deref(pop());
+
+	switch (t.tag()) {
+	case tag_t::CON:
+	case tag_t::INT:
+	case tag_t::REF:
+	    h += t.raw_value();
+	    break;
+        case tag_t::STR: {
+	    con_cell f = functor(t);
+	    h += f.raw_value();
+	    size_t n = f.arity();
+	    for (size_t i = 0; i < n; i++) {
+	        push(arg(t, i));
+	    }
+	  }
+	  break;
+	}
+    }
+
+    return h;
+}
+
 bool term_utils::unify(term a, term b)
 {
     size_t start_trail = trail_size();

@@ -47,9 +47,24 @@ static void test_flatten()
 void test_wam_compiler::test_compile()
 {
     term t = interp_.parse("p(Z,h(Z,W),f(W)).");
-    wam_instruction_sequence seq(interp_);
-    comp_.compile_query_or_program(t,wam_compiler::COMPILE_QUERY,seq);
-    seq.print_code(std::cout);
+
+    std::cout << "Compile " << interp_.to_string(t) << " as QUERY:" << std::endl << std::endl;
+
+    {
+        wam_instruction_sequence seq(interp_);
+        comp_.compile_query_or_program(t,wam_compiler::COMPILE_QUERY,seq);
+        seq.print_code(std::cout);
+    }
+
+    term t2 = interp_.parse("p(Z,h(Z,W),f(W)).");
+
+    std::cout << std::endl << "Compile " << interp_.to_string(t2) << " as PROGRAM:" << std::endl << std::endl;
+
+    {
+        wam_instruction_sequence seq(interp_);
+	comp_.compile_query_or_program(t2,wam_compiler::COMPILE_PROGRAM,seq);
+	seq.print_code(std::cout);
+    }
 }
 
 static void test_compile()
@@ -82,7 +97,9 @@ static void test_instruction_sequence()
     interp.add(wam_instruction<GET_VARIABLE_Y>(16,17));
     interp.add(wam_instruction<GET_VALUE_X>(18,19));
     interp.add(wam_instruction<GET_VALUE_Y>(20,21));
-    interp.add(wam_instruction<GET_STRUCTURE>(con_cell("g",2), 22));
+    interp.add(wam_instruction<GET_STRUCTURE_A>(con_cell("ga",2), 22));
+    interp.add(wam_instruction<GET_STRUCTURE_X>(con_cell("gx",2), 21));
+    interp.add(wam_instruction<GET_STRUCTURE_Y>(con_cell("gy",2), 20));
     interp.add(wam_instruction<GET_LIST>(23));
     interp.add(wam_instruction<GET_CONSTANT>(con_cell("bar",0), 24));
     interp.add(wam_instruction<GET_CONSTANT>(int_cell(-123), 25));

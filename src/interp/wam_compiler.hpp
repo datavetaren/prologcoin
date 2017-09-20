@@ -35,9 +35,6 @@ private:
 
     enum compile_type { COMPILE_QUERY, COMPILE_PROGRAM };
 
-    void compile_query_or_program(term t, compile_type c,
-			          wam_instruction_sequence &seq);
-
     void print_prims(const std::vector<prim_unification> &prims) const;
 
     // Takes a nested term and unfolds it into a sequence of
@@ -45,6 +42,7 @@ private:
     std::vector<wam_compiler::prim_unification> flatten(const term t, compile_type for_type);
 
     prim_unification new_unification(term t);
+    prim_unification new_unification(common::ref_cell ref, term t);
 
     struct reg {
 
@@ -65,14 +63,34 @@ private:
     public:
 	register_pool() : x_cnt_(0), y_cnt_(0) { }
 
-	std::pair<reg,bool> allocate(common::ref_cell var, reg::reg_type regtype);
-	std::pair<reg,bool> allocate(common::ref_cell var, reg::reg_type regtype, size_t no);
+	std::pair<reg,bool> allocate(common::ref_cell ref, reg::reg_type regtype);
+	std::pair<reg,bool> allocate(common::ref_cell ref, reg::reg_type regtype, size_t no);
 
     private:
 	std::unordered_map<common::ref_cell, reg> reg_map_;
 	size_t x_cnt_;
 	size_t y_cnt_;
     };
+
+    void compile_query_ref(reg lhsreg, common::ref_cell rhsvar,
+			   wam_instruction_sequence &seq);
+    void compile_query_str(reg lhsreg, term rhs,
+			   wam_instruction_sequence &seq);
+    void compile_query(reg lhsreg, term rhs, wam_instruction_sequence &seq);
+
+    void compile_program_ref(reg lhsreg, common::ref_cell rhsvar,
+			   wam_instruction_sequence &seq);
+    void compile_program_str(reg lhsreg, term rhs,
+			   wam_instruction_sequence &seq);
+    void compile_program(reg lhsreg, term rhs, wam_instruction_sequence &seq);
+
+    void compile_query_or_program(term t, compile_type c,
+			          wam_instruction_sequence &seq);
+
+    std::pair<reg,bool> allocate_reg(common::ref_cell ref);
+
+    std::unordered_map<common::ref_cell, size_t> argument_pos_;
+    std::unordered_map<common::eq_term, common::ref_cell> term_map_;
 
     register_pool regs_;
     common::term_env &env_;
