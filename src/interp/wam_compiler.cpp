@@ -30,7 +30,8 @@ std::vector<wam_compiler::prim_unification> wam_compiler::flatten(const term t,
 		if (is_found) {
 		    ref = found->second;
 		} else {
-  		    auto ref0 = static_cast<const common::ref_cell &>(env_.new_ref());
+		    auto ref1 = env_.new_ref();
+  		    auto ref0 = static_cast<const common::ref_cell &>(ref1);
 	  	    ref = ref0;
 		    term_map_.insert(std::make_pair(common::eq_term(env_,arg), ref));
 		}
