@@ -39,7 +39,7 @@ private:
 
     // Takes a nested term and unfolds it into a sequence of
     // primitive unifications.
-    std::vector<wam_compiler::prim_unification> flatten(const term t, compile_type for_type);
+    std::vector<wam_compiler::prim_unification> flatten(const term t, compile_type for_type, bool is_predicate_call);
 
     prim_unification new_unification(term t);
     prim_unification new_unification(common::ref_cell ref, term t);
@@ -82,10 +82,25 @@ private:
 			   wam_instruction_sequence &seq);
     void compile_program_str(reg lhsreg, term rhs,
 			   wam_instruction_sequence &seq);
-    void compile_program(reg lhsreg, term rhs, wam_instruction_sequence &seq);
+    void compile_program(reg lhsreg, term rhs, 
+			 wam_instruction_sequence &seq);
 
     void compile_query_or_program(term t, compile_type c,
+				  bool is_predicate,
 			          wam_instruction_sequence &seq);
+
+    term clause_head(const term clause);
+    term first_arg(const term clause);
+    bool first_arg_is_var(const term clause);
+    bool first_arg_is_con(const term clause);
+    bool first_arg_is_str(const term clause);
+
+    std::vector<std::vector<term> > partition_clauses(const std::vector<term> &clauses, std::function<bool (const term t1, const term t2)> pred);
+    std::vector<std::vector<term> > partition_clauses_nonvar(const std::vector<term> &clauses);
+    std::vector<std::vector<term> > partition_clauses_first_arg(const std::vector<term> &clauses);
+
+
+    void print_partition(std::ostream &out, const std::vector<std::vector<term> > &partition);
 
     std::pair<reg,bool> allocate_reg(common::ref_cell ref);
 

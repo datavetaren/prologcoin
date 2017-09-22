@@ -222,6 +222,23 @@ void interpreter::load_program(const term t)
     }
 }
 
+void interpreter::load_program(const std::string &str)
+{
+    std::stringstream ss(str);
+    load_program(ss);
+}
+
+void interpreter::load_program(std::istream &in)
+{
+    auto prog = parse(in);
+    return load_program(prog);
+}
+
+const std::vector<term> & interpreter::get_predicate(common::con_cell pn)
+{
+    return program_db_[pn];
+}
+
 void interpreter::syntax_check_program(const term t)
 {
     if (!is_list(t)) {

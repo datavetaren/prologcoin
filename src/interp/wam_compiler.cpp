@@ -3,8 +3,12 @@
 
 namespace prologcoin { namespace interp {
 
-std::vector<wam_compiler::prim_unification> wam_compiler::flatten(const term t,
-								  wam_compiler::compile_type for_type)
+typedef wam_compiler::term term;
+
+std::vector<wam_compiler::prim_unification> wam_compiler::flatten(
+	  const term t,
+	  wam_compiler::compile_type for_type,
+	  bool is_predicate_call)
 {
     std::vector<prim_unification> prims;
 
@@ -12,7 +16,7 @@ std::vector<wam_compiler::prim_unification> wam_compiler::flatten(const term t,
     auto prim = new_unification(t);
     worklist.push(prim);
 
-    bool is_predicate = true;
+    bool is_predicate = is_predicate_call;
 
     while (!worklist.empty()) {
 	prim_unification p = worklist.front();
@@ -234,10 +238,11 @@ void wam_compiler::compile_program(wam_compiler::reg lhsreg, common::term rhs, w
 
 void wam_compiler::compile_query_or_program(wam_compiler::term t,
 					    wam_compiler::compile_type c,
+					    bool is_predicate_call,
 				      	    wam_instruction_sequence &instrs)
 
 {
-    std::vector<prim_unification> prims = flatten(t, c);
+    std::vector<prim_unification> prims = flatten(t, c, is_predicate_call);
 
     print_prims(prims);
 
@@ -259,6 +264,143 @@ void wam_compiler::compile_query_or_program(wam_compiler::term t,
 	} else {
 	    compile_program(lhsreg, rhs, instrs);
 	}
+    }
+}
+
+term wam_compiler::clause_head(const term clause)
+{
+    common::con_cell implication(":-", 2);
+    if (env_.functor(clause) == implication) {
+        return env_.arg(clause, 0);
+    } else {
+        return clause; // It's a fact
+    }
+}
+
+std::vector<std::vector<term> > wam_compiler::partition_clauses(const std::vector<term> &clauses, std::function<bool (const term t1, const term t2)> pred)
+{
+    std::vector<std::vector<term> > partitioned;
+
+    partitioned.push_back(std::vector<term>());
+    auto *v = &partitioned.back();
+    bool last_clause_ref = false;
+    bool has_last_clause = false;
+    term last_clause;
+    for (auto &clause : clauses) {
+        auto head = clause_head(clause);
+	auto f = env_.functor(head);
+	if (f.arity() < 1) {
+	    // There's no argument, so no partition can be made. All clauses
+	    // becomes a single partition.
+	    *v = clauses;
+	    return partitioned;
+	}
+
+	bool is_diff = false;
+
+	// If there's a preceding clause, use the predicate to see
+	// if these two are disjoint or not.
+	if (has_last_clause) {
+	    is_diff = pred(last_clause, clause);
+	}
+	if (is_diff) {
+	    // It's a var, if v is non-empty, push it and create a new one
+	    if (!v->empty()) {
+	        partitioned.push_back(std::vector<term>());
+		v = &partitioned.back();
+	    }
+	}
+	v->push_back(clause);
+	last_clause = clause;
+	has_last_clause = true;
+    }
+
+    return partitioned;
+}
+
+term wam_compiler::first_arg(const term clause)
+{
+    return env_.arg(clause_head(clause), 0);
+}
+
+bool wam_compiler::first_arg_is_var(const term clause)
+{
+    term arg = first_arg(clause);
+    return arg.tag() == common::tag_t::REF;
+}
+
+bool wam_compiler::first_arg_is_con(const term clause)
+{
+    term arg = first_arg(clause);
+    return arg.tag() == common::tag_t::CON;
+}
+
+bool wam_compiler::first_arg_is_str(const term clause)
+{
+    term arg = first_arg(clause);
+    return arg.tag() == common::tag_t::STR;
+}
+
+std::vector<std::vector<term> > wam_compiler::partition_clauses_nonvar(const std::vector<term> &clauses)
+{
+    return partition_clauses(clauses,
+       [&] (const term c1, const term c2)
+	     { return first_arg_is_var(c1) || first_arg_is_var(c2); } );
+}
+
+std::vector<std::vector<term> > wam_compiler::partition_clauses_first_arg(const std::vector<term> &clauses)
+{
+    std::unordered_map<term, std::vector<term> > map;
+    std::vector<term> refs;
+    std::vector<term> order;
+
+    for (auto &clause : clauses) {
+        auto head = clause_head(clause);
+	auto arg = first_arg(head);
+	switch (arg.tag()) {
+	case common::tag_t::REF:
+	    refs.push_back(clause);
+	    break;
+	case common::tag_t::CON:
+	case common::tag_t::STR: {
+	    auto f = env_.functor(arg);
+	    bool is_new = map.count(f) == 0;
+	    auto &v = map[f];
+	    v.push_back(clause);
+	    if (is_new) order.push_back(f);
+	    break;
+	    }
+	case common::tag_t::INT: {
+	    bool is_new = map.count(arg) == 0;
+	    auto &v = map[arg];
+	    v.push_back(clause);
+	    if (is_new) order.push_back(arg);
+	    break;
+    	    }
+	}
+    }
+
+    std::vector<std::vector<term> > result;
+    if (!refs.empty()) {
+        result.push_back(refs);
+    }
+
+    for (auto o : order) {
+        result.push_back(map[o]);
+    }
+
+    return result;
+}
+
+void wam_compiler::print_partition(std::ostream &out, const std::vector<std::vector<term> > &p)
+{
+    size_t i = 0;
+    for (auto &cs : p) {
+        out << "Section " << i << ": " << std::endl;
+	for (auto &c : cs) {
+	    out << "   " << env_.to_string(c) << std::endl;
+	}
+	i++;
     }
 }
 

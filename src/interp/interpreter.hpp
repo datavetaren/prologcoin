@@ -182,6 +182,8 @@ public:
     void load_program(std::istream &is);
     void load_program(const term clauses);
 
+    const std::vector<term> & get_predicate(common::con_cell pn);
+
     void print_db() const;
     void print_db(std::ostream &out) const;
     void print_profile() const;

@@ -266,7 +266,7 @@ public:
     uint64_t data;
 };
 
-class wam_interpreter : public common::term_env, public wam_instruction_sequence
+class wam_interpreter : public interpreter, public wam_instruction_sequence
 {
 public:
     wam_interpreter();

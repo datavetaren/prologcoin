@@ -553,10 +553,9 @@ public:
     return ss.str();
   }
 
-  term parse(const std::string &str)
+  term parse(std::istream &in)
   {
-      std::stringstream ss(str);
-      term_tokenizer tokenizer(ss);
+      term_tokenizer tokenizer(in);
       term_parser parser(tokenizer, heap_dock<HT>::get_heap(),
 			 ops_dock<OT>::get_ops());
       term r = parser.parse();
@@ -567,6 +566,12 @@ public:
 				    const std::string &name)
 			     { var_naming_[ref] = name; } );
       return r;
+  }
+
+  term parse(const std::string &str)
+  {
+      std::stringstream ss(str);
+      return parse(ss);
   }
 
   std::string to_string(const term t,
