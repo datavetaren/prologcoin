@@ -283,7 +283,6 @@ std::vector<std::vector<term> > wam_compiler::partition_clauses(const std::vecto
 
     partitioned.push_back(std::vector<term>());
     auto *v = &partitioned.back();
-    bool last_clause_ref = false;
     bool has_last_clause = false;
     term last_clause;
     for (auto &clause : clauses) {
