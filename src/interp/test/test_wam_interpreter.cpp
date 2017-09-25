@@ -240,28 +240,28 @@ static void test_instruction_sequence()
     interp.add(wam_instruction<UNIFY_VOID>(9));
     interp.add(wam_instruction<ALLOCATE>());
     interp.add(wam_instruction<DEALLOCATE>());
-    interp.add(wam_instruction<CALL>(con_cell("f",3), nullptr, 10));
-    interp.add(wam_instruction<EXECUTE>(con_cell("g",4), nullptr));
+    interp.add(wam_instruction<CALL>(con_cell("f",3), 10));
+    interp.add(wam_instruction<EXECUTE>(con_cell("g",4)));
     interp.add(wam_instruction<PROCEED>());
-    interp.add(wam_instruction<TRY_ME_ELSE>(interp.to_code(41)));
-    interp.add(wam_instruction<RETRY_ME_ELSE>(interp.to_code(47)));
+    interp.add(wam_instruction<TRY_ME_ELSE>(con_cell("1", 0)));
+    interp.add(wam_instruction<RETRY_ME_ELSE>(con_cell("2", 0)));
     interp.add(wam_instruction<TRUST_ME>());
-    interp.add(wam_instruction<TRY>(interp.to_code(53)));
-    interp.add(wam_instruction<RETRY>(interp.to_code(58)));
-    interp.add(wam_instruction<TRUST>(interp.to_code(63)));
-    interp.add(wam_instruction<SWITCH_ON_TERM>(interp.to_code(0),
-					       interp.to_code(5),
-					       nullptr,
-					       interp.to_code(10)));
+    interp.add(wam_instruction<TRY>(con_cell("3",0)));
+    interp.add(wam_instruction<RETRY>(con_cell("4",0)));
+    interp.add(wam_instruction<TRUST>(con_cell("5",0)));
+    interp.add(wam_instruction<SWITCH_ON_TERM>(con_cell("6",0),
+					       con_cell("7",0),
+					       code_point(),
+					       con_cell("8",0)));
 
     auto *hm1 = interp.new_hash_map();
-    hm1->insert(std::make_pair(con_cell("f", 2), interp.to_code(126)));
-    hm1->insert(std::make_pair(int_cell(1234), interp.to_code(207)));
+    hm1->insert(std::make_pair(con_cell("f", 2), con_cell("126",0)));
+    hm1->insert(std::make_pair(int_cell(1234), con_cell("207",0)));
     interp.add(wam_instruction<SWITCH_ON_CONSTANT>(hm1));
 
     auto *hm2 = interp.new_hash_map();
-    hm2->insert(std::make_pair(con_cell("f", 2), interp.to_code(221)));
-    hm2->insert(std::make_pair(con_cell("g", 3), interp.to_code(235)));
+    hm2->insert(std::make_pair(con_cell("f", 2), con_cell("221",0)));
+    hm2->insert(std::make_pair(con_cell("g", 3), con_cell("235",0)));
     interp.add(wam_instruction<SWITCH_ON_STRUCTURE>(hm2));
 
     interp.add(wam_instruction<NECK_CUT>());

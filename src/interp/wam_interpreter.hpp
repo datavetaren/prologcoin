@@ -89,6 +89,29 @@ class wam_interpreter;
 
 typedef uint64_t code_t;
 
+class wam_instruction_base;
+
+// Contemplated this be a union, but it's better to ensure
+// portability. And it might be good to have access to both
+// the instruction pointer as well as the label.
+class code_point {
+public:
+    inline code_point() : code_(nullptr), label_("", 0) { }
+    inline code_point(common::con_cell l) : code_(nullptr), label_(l) { }
+    inline code_point(const code_point &other)
+        : code_(other.code_), label_(other.label_) { }
+
+    inline wam_instruction_base * code() const { return code_; }
+    inline common::con_cell label() const { return label_; }
+
+    inline void set_code(wam_instruction_base *p) { code_ = p; }
+    inline void set_label(const common::con_cell l) { label_ = l; }
+
+private:
+    wam_instruction_base *code_;
+    common::con_cell label_;
+};
+
 class wam_instruction_base
 {
 protected:
@@ -105,12 +128,12 @@ public:
     inline size_t size() const { return size_; }
 
 protected:
-    inline wam_instruction_base * update_ptr(wam_instruction_base *p, code_t *old_base, code_t *new_base)
+    inline void update_ptr(code_point &p, code_t *old_base, code_t *new_base)
     {
-	if (p == nullptr) {
-	    return p;
+	if (p.code() == nullptr) {
+	    return;
 	}
-	return reinterpret_cast<wam_instruction_base *>(reinterpret_cast<code_t *>(p) - old_base + new_base);
+	p.set_code(reinterpret_cast<wam_instruction_base *>(reinterpret_cast<code_t *>(p.code()) - old_base + new_base));
     }
 
     inline void update(code_t *old_base, code_t *new_base)
@@ -234,10 +257,9 @@ private:
 
 template<> class wam_instruction<CALL> : public wam_instruction_base {
 public:
-      inline wam_instruction(common::con_cell pn, wam_instruction_base *p,
-			     uint32_t num_y) :
+      inline wam_instruction(common::con_cell l, uint32_t num_y) :
       wam_instruction_base(&invoke, sizeof(*this)),
-      pn_(pn), p_(p), data(num_y) { 
+      p_(l), data(num_y) { 
       static bool init = [] {
 	    register_printer(&invoke, &print);
 	    register_updater(&invoke, &updater);
@@ -247,11 +269,11 @@ public:
 
     inline void update(code_t *old_base, code_t *new_base)
     {
-	p_ = update_ptr(p_, old_base, new_base);
+	update_ptr(p_, old_base, new_base);
     }
 
-    inline wam_instruction_base * p() const { return p_; }
-    inline common::con_cell pn() const { return pn_; }
+    inline code_point p() const { return p_; }
+    inline common::con_cell pn() const { return p_.label(); }
     inline size_t arity() const { return pn().arity(); }
     inline size_t num_y() const { return data; }
 
@@ -261,8 +283,7 @@ public:
 
     static void updater(wam_instruction_base *self, code_t *old_base, code_t *new_base);
 
-    common::con_cell pn_;
-    wam_instruction_base *p_;
+    code_point p_;
     uint64_t data;
 };
 
@@ -274,7 +295,7 @@ public:
 
     typedef common::term term;
 
-    typedef std::unordered_map<term, wam_instruction_base *> hash_map;
+    typedef std::unordered_map<term, code_point> hash_map;
 
     inline hash_map * new_hash_map()
     {
@@ -1121,7 +1142,7 @@ private:
 	if (it == map.end()) {
 	    backtrack();
 	} else {
-	    register_p_ = it->second;
+	    register_p_ = it->second.code();
 	}
     }
 
@@ -1132,7 +1153,7 @@ private:
 	if (it == map.end()) {
 	    backtrack();
 	} else {
-	    register_p_ = it->second;
+	    register_p_ = it->second.code();
 	}
     }
 
@@ -2307,7 +2328,7 @@ public:
 inline void wam_instruction<CALL>::invoke(wam_interpreter &interp, wam_instruction_base *self)
 {
     auto self1 = reinterpret_cast<wam_instruction<CALL> *>(self);
-    interp.call(self1->p(), self1->arity(), self1->num_y());
+    interp.call(self1->p().code(), self1->arity(), self1->num_y());
 }
 
 inline void wam_instruction<CALL>::print(std::ostream &out, wam_interpreter &interp, wam_instruction_base *self)
@@ -2324,22 +2345,22 @@ inline void wam_instruction<CALL>::updater(wam_instruction_base *self, code_t *o
 
 template<> class wam_instruction<EXECUTE> : public wam_instruction_base {
 public:
-      inline wam_instruction(common::con_cell pn, wam_instruction_base *p) :
+      inline wam_instruction(code_point p) :
       wam_instruction_base(&invoke, sizeof(*this)),
-      pn_(pn), p_(p) {
+      p_(p) {
       static bool init = [] {
 	    register_printer(&invoke, &print); return true; } ();
       static_cast<void>(init);
     }
 
-    inline wam_instruction_base * p() const { return p_; }
-    inline common::con_cell pn() const { return pn_; }
+    inline code_point p() const { return p_; }
+    inline common::con_cell pn() const { return p_.label(); }
     inline size_t arity() const { return pn().arity(); }
 
     static void invoke(wam_interpreter &interp, wam_instruction_base *self)
     {
 	auto self1 = reinterpret_cast<wam_instruction<EXECUTE> *>(self);
-	interp.execute(self1->p(), self1->arity());
+	interp.execute(self1->p().code(), self1->arity());
     }
 
     static void print(std::ostream &out, wam_interpreter &interp, wam_instruction_base *self)
@@ -2348,8 +2369,7 @@ public:
 	out << "execute " << interp.to_string(self1->pn()) << "/" << self1->arity();
     }
 
-    common::con_cell pn_;
-    wam_instruction_base *p_;
+    code_point p_;
 };
 
 template<> class wam_instruction<PROCEED> : public wam_instruction_base {
@@ -2377,7 +2397,7 @@ public:
 
 template<> class wam_instruction<TRY_ME_ELSE> : public wam_instruction_base {
 public:
-      inline wam_instruction(wam_instruction_base *p) :
+      inline wam_instruction(code_point p) :
       wam_instruction_base(&invoke, sizeof(*this)),
       p_(p) {
       static bool init = [] {
@@ -2387,23 +2407,23 @@ public:
       static_cast<void>(init);
     }
 
-    inline wam_instruction_base * p() const { return p_; }
+    inline code_point p() const { return p_; }
 
     inline void update(code_t *old_base, code_t *new_base)
     {
-	p_ = update_ptr(p_, old_base, new_base);
+	update_ptr(p_, old_base, new_base);
     }
 
     static void invoke(wam_interpreter &interp, wam_instruction_base *self)
     {
 	auto self1 = reinterpret_cast<wam_instruction<TRY_ME_ELSE> *>(self);
-	interp.try_me_else(self1->p());
+	interp.try_me_else(self1->p().code());
     }
 
     static void print(std::ostream &out, wam_interpreter &interp, wam_instruction_base *self)
     {
 	auto self1 = reinterpret_cast<wam_instruction<TRY_ME_ELSE> *>(self);
-	out << "try_me_else L:" << interp.to_code_addr(self1->p());
+	out << "try_me_else L:" << interp.to_string(self1->p().label());
     }
 
     static void updater(wam_instruction_base *self, code_t *old_base, code_t *new_base)
@@ -2412,12 +2432,12 @@ public:
 	self1->update(old_base, new_base);
     }
 
-    wam_instruction_base *p_;
+    code_point p_;
 };
 
 template<> class wam_instruction<RETRY_ME_ELSE> : public wam_instruction_base {
 public:
-      inline wam_instruction(wam_instruction_base *p) :
+      inline wam_instruction(code_point p) :
       wam_instruction_base(&invoke, sizeof(*this)),
       p_(p) {
       static bool init = [] {
@@ -2427,23 +2447,23 @@ public:
       static_cast<void>(init);
     }
 
-    inline wam_instruction_base * p() const { return p_; }
+    inline code_point p() const { return p_; }
 
     inline void update(code_t *old_base, code_t *new_base)
     {
-	p_ = update_ptr(p_, old_base, new_base);
+        update_ptr(p_, old_base, new_base);
     }
 
     static void invoke(wam_interpreter &interp, wam_instruction_base *self)
     {
 	auto self1 = reinterpret_cast<wam_instruction<RETRY_ME_ELSE> *>(self);
-	interp.retry_me_else(self1->p());
+	interp.retry_me_else(self1->p().code());
     }
 
     static void print(std::ostream &out, wam_interpreter &interp, wam_instruction_base *self)
     {
 	auto self1 = reinterpret_cast<wam_instruction<RETRY_ME_ELSE> *>(self);
-	out << "retry_me_else L:" << interp.to_code_addr(self1->p());
+	out << "retry_me_else L:" << interp.to_string(self1->p().label());
     }
 
     static void updater(wam_instruction_base *self, code_t *old_base, code_t *new_base)
@@ -2453,7 +2473,7 @@ public:
     }
 
 
-    wam_instruction_base *p_;
+    code_point p_;
 };
 
 template<> class wam_instruction<TRUST_ME> : public wam_instruction_base {
@@ -2481,7 +2501,7 @@ public:
 
 template<> class wam_instruction<TRY> : public wam_instruction_base {
 public:
-      inline wam_instruction(wam_instruction_base *p) :
+      inline wam_instruction(code_point p) :
       wam_instruction_base(&invoke, sizeof(*this)),
       p_(p) {
       static bool init = [] {
@@ -2491,23 +2511,23 @@ public:
       static_cast<void>(init);
     }
 
-    inline wam_instruction_base * p() const { return p_; }
+    inline code_point p() const { return p_; }
 
     inline void update(code_t *old_base, code_t *new_base)
     {
-	p_ = update_ptr(p_, old_base, new_base);
+	update_ptr(p_, old_base, new_base);
     }
 
     static void invoke(wam_interpreter &interp, wam_instruction_base *self)
     {
 	auto self1 = reinterpret_cast<wam_instruction<TRY> *>(self);
-	interp.try_(self1->p());
+	interp.try_(self1->p().code());
     }
 
     static void print(std::ostream &out, wam_interpreter &interp, wam_instruction_base *self)
     {
 	auto self1 = reinterpret_cast<wam_instruction<TRY> *>(self);
-	out << "try L:" << interp.to_code_addr(self1->p());
+	out << "try L:" << interp.to_string(self1->p().label());
     }
 
     static void updater(wam_instruction_base *self, code_t *old_base, code_t *new_base)
@@ -2516,12 +2536,12 @@ public:
 	self1->update(old_base, new_base);
     }
 
-    wam_instruction_base *p_;
+    code_point p_;
 };
 
 template<> class wam_instruction<RETRY> : public wam_instruction_base {
 public:
-      inline wam_instruction(wam_instruction_base *p) :
+      inline wam_instruction(code_point p) :
       wam_instruction_base(&invoke, sizeof(*this)),
       p_(p) {
       static bool init = [] {
@@ -2531,23 +2551,23 @@ public:
       static_cast<void>(init);
     }
 
-    inline wam_instruction_base * p() const { return p_; }
+    inline code_point p() const { return p_; }
 
     inline void update(code_t *old_base, code_t *new_base)
     {
-	p_ = update_ptr(p_, old_base, new_base);
+	update_ptr(p_, old_base, new_base);
     }
 
     static void invoke(wam_interpreter &interp, wam_instruction_base *self)
     {
 	auto self1 = reinterpret_cast<wam_instruction<RETRY> *>(self);
-	interp.retry(self1->p());
+	interp.retry(self1->p().code());
     }
 
     static void print(std::ostream &out, wam_interpreter &interp, wam_instruction_base *self)
     {
 	auto self1 = reinterpret_cast<wam_instruction<RETRY> *>(self);
-	out << "retry L:" << interp.to_code_addr(self1->p());
+	out << "retry L:" << interp.to_string(self1->p().label());
     }
 
     static void updater(wam_instruction_base *self, code_t *old_base, code_t *new_base)
@@ -2556,12 +2576,12 @@ public:
 	self1->update(old_base, new_base);
     }
 
-    wam_instruction_base *p_;
+    code_point p_;
 };
 
 template<> class wam_instruction<TRUST> : public wam_instruction_base {
 public:
-      inline wam_instruction(wam_instruction_base *p) :
+      inline wam_instruction(code_point p) :
       wam_instruction_base(&invoke, sizeof(*this)),
       p_(p) {
       static bool init = [] {
@@ -2571,23 +2591,23 @@ public:
       static_cast<void>(init);
     }
 
-    inline wam_instruction_base * p() const { return p_; }
+    inline code_point p() const { return p_; }
 
     inline void update(code_t *old_base, code_t *new_base)
     {
-	p_ = update_ptr(p_, old_base, new_base);
+	update_ptr(p_, old_base, new_base);
     }
 
     static void invoke(wam_interpreter &interp, wam_instruction_base *self)
     {
 	auto self1 = reinterpret_cast<wam_instruction<TRUST> *>(self);
-	interp.trust(self1->p());
+	interp.trust(self1->p().code());
     }
 
     static void print(std::ostream &out, wam_interpreter &interp, wam_instruction_base *self)
     {
 	auto self1 = reinterpret_cast<wam_instruction<TRUST> *>(self);
-	out << "trust L:" << interp.to_code_addr(self1->p());
+	out << "trust L:" << interp.to_string(self1->p().label());
     }
 
     static void updater(wam_instruction_base *self, code_t *old_base, code_t *new_base)
@@ -2596,15 +2616,15 @@ public:
 	self1->update(old_base, new_base);
     }
 
-    wam_instruction_base *p_;
+    code_point p_;
 };
 
 template<> class wam_instruction<SWITCH_ON_TERM> : public wam_instruction_base {
 public:
-      inline wam_instruction(wam_instruction_base *pv,
-			     wam_instruction_base *pc,
-			     wam_instruction_base *pl,
-			     wam_instruction_base *ps) :
+      inline wam_instruction(code_point pv,
+			     code_point pc,
+			     code_point pl,
+			     code_point ps) :
       wam_instruction_base(&invoke, sizeof(*this)),
       pv_(pv), pc_(pc), pl_(pl), ps_(ps) {
       static bool init = [] {
@@ -2614,51 +2634,51 @@ public:
       static_cast<void>(init);
     }
 
-    inline wam_instruction_base * pv() const { return pv_; }
-    inline wam_instruction_base * pc() const { return pc_; }
-    inline wam_instruction_base * pl() const { return pl_; }
-    inline wam_instruction_base * ps() const { return ps_; }
+    inline code_point pv() const { return pv_; }
+    inline code_point pc() const { return pc_; }
+    inline code_point pl() const { return pl_; }
+    inline code_point ps() const { return ps_; }
 
     inline void update(code_t *old_base, code_t *new_base)
     {
-	pv_ = update_ptr(pv_, old_base, new_base);
-	pc_ = update_ptr(pc_, old_base, new_base);
-	pl_ = update_ptr(pl_, old_base, new_base);
-	ps_ = update_ptr(ps_, old_base, new_base);
+        update_ptr(pv_, old_base, new_base);
+	update_ptr(pc_, old_base, new_base);
+	update_ptr(pl_, old_base, new_base);
+	update_ptr(ps_, old_base, new_base);
     }
 
     static void invoke(wam_interpreter &interp, wam_instruction_base *self)
     {
 	auto self1 = reinterpret_cast<wam_instruction<SWITCH_ON_TERM> *>(self);
-	interp.switch_on_term(self1->pv(), self1->pc(), self1->pl(), self1->ps());
+	interp.switch_on_term(self1->pv().code(), self1->pc().code(), self1->pl().code(), self1->ps().code());
     }
 
     static void print(std::ostream &out, wam_interpreter &interp, wam_instruction_base *self)
     {
 	auto self1 = reinterpret_cast<wam_instruction<SWITCH_ON_TERM> *>(self);
 	out << "switch_on_term ";
-        if (self1->pv() == nullptr) {
+        if (self1->pv().code() == nullptr) {
 	    out << "V->fail";
 	} else {
-	    out << "V->L:" << interp.to_code_addr(self1->pv());
+	    out << "V->L:" << interp.to_string(self1->pv().label());
 	}
 	out << ", ";
-	if (self1->pc() == nullptr) {
+	if (self1->pc().code() == nullptr) {
 	    out << "C->fail";
 	} else {
-	    out << "C->L:" << interp.to_code_addr(self1->pc());
+	    out << "C->L:" << interp.to_string(self1->pc().label());
 	}
 	out << ", ";
-	if (self1->pl() == nullptr) {
+	if (self1->pl().code() == nullptr) {
 	    out << "L->fail";
 	} else {
-	    out << "L->L:" << interp.to_code_addr(self1->pl());
+	    out << "L->L:" << interp.to_string(self1->pl().label());
 	}
 	out << ", ";
-	if (self1->ps() == nullptr) {
+	if (self1->ps().code() == nullptr) {
 	    out << "S->fail";
 	} else {
-	    out << "S->L:" << interp.to_code_addr(self1->ps());
+	    out << "S->L:" << interp.to_string(self1->ps().label());
 	}
     }
 
@@ -2668,10 +2688,10 @@ public:
 	self1->update(old_base, new_base);
     }
 
-    wam_instruction_base *pv_;
-    wam_instruction_base *pc_;
-    wam_instruction_base *pl_;
-    wam_instruction_base *ps_;
+    code_point pv_;
+    code_point pc_;
+    code_point pl_;
+    code_point ps_;
 };
 
 template<> class wam_instruction<SWITCH_ON_CONSTANT> : public wam_instruction_base {
@@ -2691,7 +2711,7 @@ public:
     inline void update(code_t *old_base, code_t *new_base)
     {
 	for (auto &v : map()) {
-	    v.second = update_ptr(v.second, old_base, new_base);
+	    update_ptr(v.second, old_base, new_base);
 	}
     }
 
@@ -2708,7 +2728,7 @@ public:
 	bool first = true;
 	for (auto &v : self1->map()) {
 	    if (!first) out << ", ";
-	    out << interp.to_string(v.first) << "->L:" << interp.to_code_addr(v.second);
+	    out << interp.to_string(v.first) << "->L:" << interp.to_string(v.second.label());
 	    first = false;
 	}
     }
@@ -2740,7 +2760,7 @@ public:
     inline void update(code_t *old_base, code_t *new_base)
     {
 	for (auto &v : map()) {
-	    v.second = update_ptr(v.second, old_base, new_base);
+	    update_ptr(v.second, old_base, new_base);
 	}
     }
 
@@ -2759,7 +2779,7 @@ public:
 	    if (!first) out << ", ";
 	    auto str = static_cast<const common::str_cell &>(v.first);
 	    auto f = interp.functor(str);
-	    out << interp.to_string(v.first) << "/" << f.arity() << "->L:" << interp.to_code_addr(v.second);
+	    out << interp.to_string(v.first) << "/" << f.arity() << "->L:" << interp.to_string(v.second.label());
 	    first = false;
 	}
     }
