@@ -2,6 +2,8 @@
 
 namespace prologcoin { namespace interp {
 
+const common::cell code_point::fail_cell_ = common::ref_cell(0);
+
 std::unordered_map<wam_instruction_base::fn_type, wam_instruction_base::print_fn_type> wam_instruction_base::print_fns_;
 std::unordered_map<wam_instruction_base::fn_type, wam_instruction_base::updater_fn_type> wam_instruction_base::updater_fns_;
 

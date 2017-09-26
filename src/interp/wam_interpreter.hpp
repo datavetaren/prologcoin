@@ -96,20 +96,29 @@ class wam_instruction_base;
 // the instruction pointer as well as the label.
 class code_point {
 public:
-    inline code_point() : code_(nullptr), label_("", 0) { }
+    inline code_point() : code_(nullptr), label_(common::ref_cell(0)) { }
     inline code_point(common::con_cell l) : code_(nullptr), label_(l) { }
+    inline code_point(common::int_cell i) : code_(nullptr), label_(i) { }
     inline code_point(const code_point &other)
         : code_(other.code_), label_(other.label_) { }
 
+    inline static code_point fail() {
+        return code_point();
+    }
+
+    inline bool is_fail() const { return label_ == fail_cell_; }
+
     inline wam_instruction_base * code() const { return code_; }
-    inline common::con_cell label() const { return label_; }
+    inline common::cell label() const { return label_; }
 
     inline void set_code(wam_instruction_base *p) { code_ = p; }
-    inline void set_label(const common::con_cell l) { label_ = l; }
+    inline void set_label(const common::cell l) { label_ = l; }
 
 private:
+    static const common::cell fail_cell_;
+
     wam_instruction_base *code_;
-    common::con_cell label_;
+    common::cell label_;
 };
 
 class wam_instruction_base
@@ -273,7 +282,13 @@ public:
     }
 
     inline code_point p() const { return p_; }
-    inline common::con_cell pn() const { return p_.label(); }
+
+    inline common::con_cell pn() const
+    { common::cell c = p().label();
+      common::con_cell &cc = static_cast<common::con_cell &>(c);
+      return cc;
+    }
+
     inline size_t arity() const { return pn().arity(); }
     inline size_t num_y() const { return data; }
 
@@ -2354,7 +2369,12 @@ public:
     }
 
     inline code_point p() const { return p_; }
-    inline common::con_cell pn() const { return p_.label(); }
+    inline common::con_cell pn() const
+    { common::cell c = p().label();
+      common::con_cell &cc = static_cast<common::con_cell &>(c);
+      return cc;
+    }
+
     inline size_t arity() const { return pn().arity(); }
 
     static void invoke(wam_interpreter &interp, wam_instruction_base *self)
@@ -2657,25 +2677,25 @@ public:
     {
 	auto self1 = reinterpret_cast<wam_instruction<SWITCH_ON_TERM> *>(self);
 	out << "switch_on_term ";
-        if (self1->pv().code() == nullptr) {
+        if (self1->pv().is_fail()) {
 	    out << "V->fail";
 	} else {
 	    out << "V->L:" << interp.to_string(self1->pv().label());
 	}
 	out << ", ";
-	if (self1->pc().code() == nullptr) {
+	if (self1->pc().is_fail()) {
 	    out << "C->fail";
 	} else {
 	    out << "C->L:" << interp.to_string(self1->pc().label());
 	}
 	out << ", ";
-	if (self1->pl().code() == nullptr) {
+	if (self1->pl().is_fail()) {
 	    out << "L->fail";
 	} else {
 	    out << "L->L:" << interp.to_string(self1->pl().label());
 	}
 	out << ", ";
-	if (self1->ps().code() == nullptr) {
+	if (self1->ps().is_fail()) {
 	    out << "S->fail";
 	} else {
 	    out << "S->L:" << interp.to_string(self1->ps().label());

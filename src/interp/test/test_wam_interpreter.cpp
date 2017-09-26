@@ -243,25 +243,25 @@ static void test_instruction_sequence()
     interp.add(wam_instruction<CALL>(con_cell("f",3), 10));
     interp.add(wam_instruction<EXECUTE>(con_cell("g",4)));
     interp.add(wam_instruction<PROCEED>());
-    interp.add(wam_instruction<TRY_ME_ELSE>(con_cell("1", 0)));
-    interp.add(wam_instruction<RETRY_ME_ELSE>(con_cell("2", 0)));
+    interp.add(wam_instruction<TRY_ME_ELSE>(int_cell(1)));
+    interp.add(wam_instruction<RETRY_ME_ELSE>(int_cell(2)));
     interp.add(wam_instruction<TRUST_ME>());
-    interp.add(wam_instruction<TRY>(con_cell("3",0)));
-    interp.add(wam_instruction<RETRY>(con_cell("4",0)));
-    interp.add(wam_instruction<TRUST>(con_cell("5",0)));
-    interp.add(wam_instruction<SWITCH_ON_TERM>(con_cell("6",0),
-					       con_cell("7",0),
-					       code_point(),
-					       con_cell("8",0)));
+    interp.add(wam_instruction<TRY>(int_cell(3)));
+    interp.add(wam_instruction<RETRY>(int_cell(4)));
+    interp.add(wam_instruction<TRUST>(int_cell(5)));
+    interp.add(wam_instruction<SWITCH_ON_TERM>(int_cell(6),
+					       int_cell(7),
+					       code_point::fail(),
+					       int_cell(8)));
 
     auto *hm1 = interp.new_hash_map();
-    hm1->insert(std::make_pair(con_cell("f", 2), con_cell("126",0)));
-    hm1->insert(std::make_pair(int_cell(1234), con_cell("207",0)));
+    hm1->insert(std::make_pair(con_cell("f", 2), int_cell(126)));
+    hm1->insert(std::make_pair(int_cell(1234), int_cell(207)));
     interp.add(wam_instruction<SWITCH_ON_CONSTANT>(hm1));
 
     auto *hm2 = interp.new_hash_map();
-    hm2->insert(std::make_pair(con_cell("f", 2), con_cell("221",0)));
-    hm2->insert(std::make_pair(con_cell("g", 3), con_cell("235",0)));
+    hm2->insert(std::make_pair(con_cell("f", 2), int_cell(221)));
+    hm2->insert(std::make_pair(con_cell("g", 3), int_cell(235)));
     interp.add(wam_instruction<SWITCH_ON_STRUCTURE>(hm2));
 
     interp.add(wam_instruction<NECK_CUT>());
