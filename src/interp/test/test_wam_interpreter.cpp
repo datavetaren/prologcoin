@@ -75,9 +75,9 @@ void test_wam_compiler::test_compile()
     std::cout << "Compile " << interp_.to_string(t) << " as QUERY:" << std::endl << std::endl;
 
     {
-        wam_instruction_sequence seq(interp_);
+        wam_interim_code seq(interp_);
         comp_.compile_query_or_program(t,wam_compiler::COMPILE_QUERY,true,seq);
-        seq.print_code(std::cout);
+        seq.print(std::cout);
     }
 
     term t2 = interp_.parse("p(Z,h(Z,W),f(W)).");
@@ -85,9 +85,36 @@ void test_wam_compiler::test_compile()
     std::cout << std::endl << "Compile " << interp_.to_string(t2) << " as PROGRAM:" << std::endl << std::endl;
 
     {
-        wam_instruction_sequence seq(interp_);
+        wam_interim_code seq(interp_);
 	comp_.compile_query_or_program(t2,wam_compiler::COMPILE_PROGRAM,true,seq);
-	seq.print_code(std::cout);
+	seq.print(std::cout);
+    }
+
+    {
+        std::string prog =
+        R"PROG(
+          [
+            (append([X|Xs],Ys,[X|Zs]) :- append(Xs,Ys,Zs)),
+             append([],Ys,Ys),
+            (nrev([X|Xs],Ys) :- nrev(Xs,Ys0), append(Ys0,[X],Ys)),
+             nrev([],[])
+          ].)PROG";
+
+	std::cout << std::endl << "Compile append & nrev" << std::endl << std::endl;
+
+	try {
+	    interp_.load_program(prog);
+	} catch (std::runtime_error &err) {
+	    std::cout << "Syntax error: " << err.what() << std::endl;
+	    throw;
+	}
+
+	auto &clauses = interp_.get_predicate(con_cell("nrev",2));
+
+	wam_interim_code seq(interp_);
+	comp_.compile_clause(clauses[0], seq);
+
+	seq.print(std::cout);
     }
 }
 

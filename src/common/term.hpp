@@ -165,6 +165,8 @@ public:
     inline bool operator == (const cell other) const { return value() == other.value(); }
     inline bool operator != (const cell other) const { return value() != other.value(); }
 
+    inline operator bool () const { return raw_value_ != 0; }
+
     std::string str() const;
 
 private:

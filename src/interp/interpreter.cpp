@@ -637,7 +637,7 @@ void interpreter::execute_once()
 
 void interpreter::tidy_trail()
 {
-    size_t from = get_choice_point(register_b_)->tr;
+    size_t from = get_choice_point(register_b_)->tr.value();
     size_t to = trail_size();
     term_env::tidy_trail(from, to);
 }

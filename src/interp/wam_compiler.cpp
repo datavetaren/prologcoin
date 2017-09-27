@@ -5,6 +5,71 @@ namespace prologcoin { namespace interp {
 
 typedef wam_compiler::term term;
 
+// --------------------------------------------------------------
+//  wam_interim_code
+// --------------------------------------------------------------
+
+wam_interim_code::wam_interim_code(wam_interpreter &interp) : interp_(interp)
+{
+}
+
+void wam_interim_code::push_back(const wam_instruction_base &instr)
+{
+    wam_instruction_base *i = reinterpret_cast<wam_instruction_base *>(new char[instr.size_in_bytes()]);
+    memcpy(i, &instr, instr.size_in_bytes());
+    push_back(i);
+    std::cout.flush();
+}
+
+void wam_interim_code::push_back(wam_instruction_base *instr)
+{
+    if (empty()) {
+        push_front(instr);
+	end_ = begin();
+    } else {
+        end_ = insert_after(end_, instr);
+    }
+}
+
+void wam_interim_code::print(std::ostream &out) const
+{
+    size_t cnt = 0;
+    for (auto *i : *this) {
+	out << "[" << std::setw(5) << cnt << "]: ";
+        i->print(out, interp_);
+	cnt += i->size();
+	out << std::endl;
+    }
+}
+
+// --------------------------------------------------------------
+//  wam_goal_iterator
+// --------------------------------------------------------------
+
+void wam_goal_iterator::first_of()
+{
+    term t;
+    while (env_.is_comma((t = stack_.top()))) {
+        stack_.pop();
+	term arg1 = env_.arg(t, 1);
+	term arg0 = env_.arg(t, 0);
+	stack_.push(arg1);
+	stack_.push(arg0);
+    }
+}
+
+void wam_goal_iterator::advance()
+{
+    stack_.pop();
+    if (!stack_.empty()) {
+        first_of();
+    }
+}
+
+// --------------------------------------------------------------
+//  wam_compiler
+// --------------------------------------------------------------
+
 std::vector<wam_compiler::prim_unification> wam_compiler::flatten(
 	  const term t,
 	  wam_compiler::compile_type for_type,
@@ -45,7 +110,7 @@ std::vector<wam_compiler::prim_unification> wam_compiler::flatten(
 
 		prim_unification p1 = new_unification(ref, arg);
 		env_.set_arg(p.rhs(), pos, ref);
-		if (!is_found) {
+		if (!is_found || is_predicate) {
 		    worklist.push(p1);
 		}
 	    }
@@ -60,6 +125,7 @@ std::vector<wam_compiler::prim_unification> wam_compiler::flatten(
 	    break;
 	}
 	case common::tag_t::REF:
+	    prims.push_back(p);
 	    break;
 	}
 	is_predicate = false;
@@ -94,7 +160,7 @@ std::pair<wam_compiler::reg,bool> wam_compiler::allocate_reg(common::ref_cell re
     }
 }
 
-void wam_compiler::compile_query_ref(wam_compiler::reg lhsreg, common::ref_cell rhsvar, wam_instruction_sequence &instrs)
+void wam_compiler::compile_query_ref(wam_compiler::reg lhsreg, common::ref_cell rhsvar, wam_interim_code &instrs)
 {
     reg rhsreg;
     bool isnew;
@@ -104,11 +170,11 @@ void wam_compiler::compile_query_ref(wam_compiler::reg lhsreg, common::ref_cell 
         // ai = xn
         assert(rhsreg.type == reg::X_REG);
 	if (isnew) {
-	    instrs.add(wam_instruction<PUT_VARIABLE_X>(
-			       rhsreg.num, lhsreg.num ));
+	    instrs.push_back(wam_instruction<PUT_VARIABLE_X>(
+			     rhsreg.num, lhsreg.num ));
 	} else {
-	    instrs.add(wam_instruction<PUT_VALUE_X>(
-  			       rhsreg.num, lhsreg.num ));
+	    instrs.push_back(wam_instruction<PUT_VALUE_X>(
+  			     rhsreg.num, lhsreg.num ));
 	}
     } else { // lhsreg.type == reg::X_REG
       // xn = V
@@ -116,13 +182,13 @@ void wam_compiler::compile_query_ref(wam_compiler::reg lhsreg, common::ref_cell 
     }
 }
 
-void wam_compiler::compile_query_str(wam_compiler::reg lhsreg, common::term rhs, wam_instruction_sequence &instrs)
+void wam_compiler::compile_query_str(wam_compiler::reg lhsreg, common::term rhs, wam_interim_code &instrs)
 {
     auto f = env_.functor(rhs);
     if (lhsreg.type == reg::A_REG) {
-        instrs.add(wam_instruction<PUT_STRUCTURE_A>(f,lhsreg.num));
+        instrs.push_back(wam_instruction<PUT_STRUCTURE_A>(f,lhsreg.num));
     } else {
-        instrs.add(wam_instruction<PUT_STRUCTURE_X>(f,lhsreg.num));
+        instrs.push_back(wam_instruction<PUT_STRUCTURE_X>(f,lhsreg.num));
     }
     size_t n = f.arity();
     for (size_t i = 0; i < n; i++) {
@@ -134,27 +200,27 @@ void wam_compiler::compile_query_str(wam_compiler::reg lhsreg, common::term rhs,
 	std::tie(r,isnew) = allocate_reg(ref);
 	if (r.type == reg::A_REG) {
 	    if (isnew) {
-	        instrs.add(wam_instruction<SET_VARIABLE_A>(r.num));
+	        instrs.push_back(wam_instruction<SET_VARIABLE_A>(r.num));
 	    } else {
-	        instrs.add(wam_instruction<SET_VALUE_A>(r.num));
+	        instrs.push_back(wam_instruction<SET_VALUE_A>(r.num));
 	    }
 	} else {
 	    if (isnew) {
-	        instrs.add(wam_instruction<SET_VARIABLE_X>(r.num));
+	        instrs.push_back(wam_instruction<SET_VARIABLE_X>(r.num));
 	    } else {
-	        instrs.add(wam_instruction<SET_VALUE_X>(r.num));
+	        instrs.push_back(wam_instruction<SET_VALUE_X>(r.num));
 	    }
 	}
     }
 }
 
-void wam_compiler::compile_query(wam_compiler::reg lhsreg, common::term rhs, wam_instruction_sequence &instrs)
+void wam_compiler::compile_query(wam_compiler::reg lhsreg, common::term rhs, wam_interim_code &instrs)
 {
     switch (rhs.tag()) {
       case common::tag_t::INT:
       case common::tag_t::CON:
       // We have X = a or X = 4711
-	instrs.add(wam_instruction<SET_CONSTANT>(rhs));
+	instrs.push_back(wam_instruction<SET_CONSTANT>(rhs));
 	break;
       case common::tag_t::REF:
 	compile_query_ref(lhsreg, static_cast<common::ref_cell &>(rhs), instrs);
@@ -165,7 +231,7 @@ void wam_compiler::compile_query(wam_compiler::reg lhsreg, common::term rhs, wam
     }
 }
 
-void wam_compiler::compile_program_ref(wam_compiler::reg lhsreg, common::ref_cell rhsvar, wam_instruction_sequence &instrs)
+void wam_compiler::compile_program_ref(wam_compiler::reg lhsreg, common::ref_cell rhsvar, wam_interim_code &instrs)
 {
     reg rhsreg;
     bool isnew;
@@ -175,10 +241,10 @@ void wam_compiler::compile_program_ref(wam_compiler::reg lhsreg, common::ref_cel
         // ai = xn
         assert(rhsreg.type == reg::X_REG);
 	if (isnew) {
-	    instrs.add(wam_instruction<GET_VARIABLE_X>(
+	    instrs.push_back(wam_instruction<GET_VARIABLE_X>(
 			       rhsreg.num, lhsreg.num ));
 	} else {
-	    instrs.add(wam_instruction<GET_VALUE_X>(
+	    instrs.push_back(wam_instruction<GET_VALUE_X>(
   			       rhsreg.num, lhsreg.num ));
 	}
     } else { // lhsreg.type == reg::X_REG
@@ -187,13 +253,13 @@ void wam_compiler::compile_program_ref(wam_compiler::reg lhsreg, common::ref_cel
     }
 }
 
-void wam_compiler::compile_program_str(wam_compiler::reg lhsreg, common::term rhs, wam_instruction_sequence &instrs)
+void wam_compiler::compile_program_str(wam_compiler::reg lhsreg, common::term rhs, wam_interim_code &instrs)
 {
     auto f = env_.functor(rhs);
     if (lhsreg.type == reg::A_REG) {
-        instrs.add(wam_instruction<GET_STRUCTURE_A>(f,lhsreg.num));
+        instrs.push_back(wam_instruction<GET_STRUCTURE_A>(f,lhsreg.num));
     } else {
-        instrs.add(wam_instruction<GET_STRUCTURE_X>(f,lhsreg.num));
+        instrs.push_back(wam_instruction<GET_STRUCTURE_X>(f,lhsreg.num));
     }
     size_t n = f.arity();
     for (size_t i = 0; i < n; i++) {
@@ -205,27 +271,27 @@ void wam_compiler::compile_program_str(wam_compiler::reg lhsreg, common::term rh
 	std::tie(r,isnew) = allocate_reg(ref);
 	if (r.type == reg::A_REG) {
 	    if (isnew) {
-	        instrs.add(wam_instruction<UNIFY_VARIABLE_A>(r.num));
+	        instrs.push_back(wam_instruction<UNIFY_VARIABLE_A>(r.num));
 	    } else {
-	        instrs.add(wam_instruction<UNIFY_VALUE_A>(r.num));
+	        instrs.push_back(wam_instruction<UNIFY_VALUE_A>(r.num));
 	    }
 	} else {
 	    if (isnew) {
-	        instrs.add(wam_instruction<UNIFY_VARIABLE_X>(r.num));
+	        instrs.push_back(wam_instruction<UNIFY_VARIABLE_X>(r.num));
 	    } else {
-	        instrs.add(wam_instruction<UNIFY_VALUE_X>(r.num));
+	        instrs.push_back(wam_instruction<UNIFY_VALUE_X>(r.num));
 	    }
 	}
     }
 }
 
-void wam_compiler::compile_program(wam_compiler::reg lhsreg, common::term rhs, wam_instruction_sequence &instrs)
+void wam_compiler::compile_program(wam_compiler::reg lhsreg, common::term rhs, wam_interim_code &instrs)
 {
     switch (rhs.tag()) {
       case common::tag_t::INT:
       case common::tag_t::CON:
       // We have X = a or X = 4711
-	instrs.add(wam_instruction<UNIFY_CONSTANT>(rhs));
+	instrs.push_back(wam_instruction<UNIFY_CONSTANT>(rhs));
 	break;
       case common::tag_t::REF:
 	compile_program_ref(lhsreg, static_cast<common::ref_cell &>(rhs), instrs);
@@ -239,12 +305,14 @@ void wam_compiler::compile_program(wam_compiler::reg lhsreg, common::term rhs, w
 void wam_compiler::compile_query_or_program(wam_compiler::term t,
 					    wam_compiler::compile_type c,
 					    bool is_predicate_call,
-				      	    wam_instruction_sequence &instrs)
+				      	    wam_interim_code &instrs)
 
 {
-    std::vector<prim_unification> prims = flatten(t, c, is_predicate_call);
+    if (is_predicate_call) {
+        argument_pos_.clear();
+    }
 
-    print_prims(prims);
+    std::vector<prim_unification> prims = flatten(t, c, is_predicate_call);
 
     size_t n = prims.size();
 
@@ -267,6 +335,42 @@ void wam_compiler::compile_query_or_program(wam_compiler::term t,
     }
 }
 
+bool wam_compiler::clause_needs_environment(const term clause)
+{
+    auto body = clause_body(clause);
+    (void)body;
+    return true;
+}
+
+void wam_compiler::compile_clause(const term clause, wam_interim_code &seq)
+{
+    // First analyze how many calls we have.
+    // We only need an environment if there are more than 1 call.
+
+    bool needs_env = clause_needs_environment(clause);
+
+    if (needs_env) seq.push_back(wam_instruction<ALLOCATE>());
+
+    term head = clause_head(clause);
+    compile_query_or_program(head, COMPILE_PROGRAM, true, seq);
+
+    term body = clause_body(clause);
+    term last_goal;
+    for (auto goal : for_all_goals(body)) {
+        if (last_goal) {
+	    auto f = env_.functor(last_goal);
+  	    seq.push_back(wam_instruction<CALL>(f, 0));
+        }
+        compile_query_or_program(goal, COMPILE_QUERY, true, seq);
+	last_goal = goal;
+    }
+    if (needs_env) seq.push_back(wam_instruction<DEALLOCATE>());
+    if (last_goal) {
+        auto f = env_.functor(last_goal);
+        seq.push_back(wam_instruction<EXECUTE>(f));
+    }
+}
+
 term wam_compiler::clause_head(const term clause)
 {
     common::con_cell implication(":-", 2);
@@ -274,6 +378,17 @@ term wam_compiler::clause_head(const term clause)
         return env_.arg(clause, 0);
     } else {
         return clause; // It's a fact
+    }
+}
+
+term wam_compiler::clause_body(const term clause)
+{
+    common::con_cell implication(":-", 2);
+    if (env_.functor(clause) == implication) {
+        return env_.arg(clause, 1);
+    } else {
+        common::con_cell ctrue("true", 0);
+        return ctrue;
     }
 }
 

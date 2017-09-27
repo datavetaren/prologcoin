@@ -126,15 +126,16 @@ class wam_instruction_base
 protected:
     typedef void (*fn_type)(wam_interpreter &interp, wam_instruction_base *self);
     inline wam_instruction_base(fn_type fn, uint64_t sz_bytes)
-      : fn_(fn), size_((sizeof(*this)+sz_bytes+sizeof(code_t)-1)/sizeof(code_t)) { }
+      : fn_(fn), size_((sz_bytes+sizeof(code_t)-1)/sizeof(code_t)) { }
 
 public:
     inline void invoke(wam_interpreter &interp) {
         fn_(interp, this);
     }
 
-    inline fn_type fn() const { return fn_; }
-    inline size_t size() const { return size_; }
+  inline fn_type fn() const { return fn_; }
+  inline size_t size() const {return size_; }
+  inline size_t size_in_bytes() const { return size_ * sizeof(code_t); }
 
 protected:
     inline void update_ptr(code_point &p, code_t *old_base, code_t *new_base)
@@ -183,7 +184,7 @@ private:
     static std::unordered_map<fn_type, print_fn_type> print_fns_;
     static std::unordered_map<fn_type, updater_fn_type> updater_fns_;
 
-    friend class wam_instruction_sequence;
+    friend class wam_code;
 };
 
 template<wam_instruction_type I> class wam_instruction : protected wam_instruction_base
@@ -193,10 +194,10 @@ public:
       : wam_instruction_base(fn, sz_bytes) { }
 };
 
-class wam_instruction_sequence
+class wam_code
 {
 public:
-    wam_instruction_sequence(wam_interpreter &interp,
+    wam_code(wam_interpreter &interp,
   			     size_t initial_capacity = 256)
 	: interp_(interp), instrs_size_(0), instrs_capacity_(initial_capacity)
     { instrs_ = new code_t[instrs_capacity_]; }
@@ -302,7 +303,7 @@ public:
     uint64_t data;
 };
 
-class wam_interpreter : public interpreter, public wam_instruction_sequence
+class wam_interpreter : public interpreter, public wam_code
 {
 public:
     wam_interpreter();
@@ -1198,7 +1199,7 @@ private:
     friend class test_wam_interpreter;
 };
 
-inline void wam_instruction_sequence::update(code_t *old_base, code_t *new_base)
+inline void wam_code::update(code_t *old_base, code_t *new_base)
 {
     wam_instruction_base *instr = reinterpret_cast<wam_instruction_base *>(new_base);
     for (size_t i = 0; i < instrs_size_;) {

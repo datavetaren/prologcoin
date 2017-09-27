@@ -7,7 +7,7 @@ const common::cell code_point::fail_cell_ = common::ref_cell(0);
 std::unordered_map<wam_instruction_base::fn_type, wam_instruction_base::print_fn_type> wam_instruction_base::print_fns_;
 std::unordered_map<wam_instruction_base::fn_type, wam_instruction_base::updater_fn_type> wam_instruction_base::updater_fns_;
 
-void wam_instruction_sequence::print_code(std::ostream &out)
+void wam_code::print_code(std::ostream &out)
 {
     for (size_t i = 0; i < instrs_size_;) {
 	wam_instruction_base *instr
@@ -20,7 +20,7 @@ void wam_instruction_sequence::print_code(std::ostream &out)
     }
 }
 
-wam_interpreter::wam_interpreter() : wam_instruction_sequence(*this)
+wam_interpreter::wam_interpreter() : wam_code(*this)
 {
     top_fail_ = false;
     mode_ = READ;
