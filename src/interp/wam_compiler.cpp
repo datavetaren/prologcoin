@@ -347,10 +347,50 @@ void wam_compiler::compile_query_or_program(wam_compiler::term t,
     }
 }
 
-template<wam_instruction_type I> static void remap(
-		    wam_instruction<I> *i,
-	            std::unordered_map<size_t, size_t> &map) {
-     i->set_xn(map[i->xn()]);
+std::function<uint32_t ()> wam_compiler::x_getter(wam_instruction_base *instr)
+{
+    switch (instr->type()) {
+	case PUT_VARIABLE_X:
+	case PUT_VALUE_X:
+	case GET_VARIABLE_X:
+	case GET_VALUE_X:
+	    return [=]{return reinterpret_cast<wam_instruction_binary_reg *>(instr)->reg_1();};
+	case PUT_STRUCTURE_X:
+	case GET_STRUCTURE_X:
+	    return [=]{return reinterpret_cast<wam_instruction_con_reg *>(instr)->reg();};
+	case SET_VARIABLE_X:
+	case SET_VALUE_X:
+	case SET_LOCAL_VALUE_X:
+	case UNIFY_VARIABLE_X:
+	case UNIFY_VALUE_X:
+	case UNIFY_LOCAL_VALUE_X:
+	    return [=]{return reinterpret_cast<wam_instruction_unary_reg *>(instr)->reg();};
+	default:
+	    return nullptr;
+    }
+}
+
+std::function<void (uint32_t)> wam_compiler::x_setter(wam_instruction_base *instr)
+{
+    switch (instr->type()) {
+	case PUT_VARIABLE_X:
+	case PUT_VALUE_X:
+	case GET_VARIABLE_X:
+	case GET_VALUE_X:
+	    return [=](uint32_t xn){reinterpret_cast<wam_instruction_binary_reg *>(instr)->set_reg_1(xn);};
+	case PUT_STRUCTURE_X:
+	case GET_STRUCTURE_X:
+	    return [=](uint32_t xn){reinterpret_cast<wam_instruction_con_reg *>(instr)->set_reg(xn);};
+	case SET_VARIABLE_X:
+	case SET_VALUE_X:
+	case SET_LOCAL_VALUE_X:
+	case UNIFY_VARIABLE_X:
+	case UNIFY_VALUE_X:
+	case UNIFY_LOCAL_VALUE_X:
+	    return [=](uint32_t xn){reinterpret_cast<wam_instruction_unary_reg *>(instr)->set_reg(xn);};
+	default:
+	    return nullptr;
+    }
 }
 
 void wam_compiler::remap_x_registers(wam_interim_code &instrs)
@@ -364,66 +404,18 @@ void wam_compiler::remap_x_registers(wam_interim_code &instrs)
   	  cnt++;
       }
     };
+
     for (auto instr : instrs) {
-        switch (instr->type()) {
-	case PUT_VARIABLE_X:
-	  mapit(static_cast<wam_instruction<PUT_VARIABLE_X> *>(instr)->xn()); break;
-	case PUT_VALUE_X:
-	  mapit(static_cast<wam_instruction<PUT_VALUE_X> *>(instr)->xn()); break;
-	case PUT_STRUCTURE_X:
-	  mapit(static_cast<wam_instruction<PUT_STRUCTURE_X> *>(instr)->xn()); break;
-	case GET_VARIABLE_X:
-	  mapit(static_cast<wam_instruction<GET_VARIABLE_X> *>(instr)->xn()); break;
-	case GET_VALUE_X:
-	  mapit(static_cast<wam_instruction<GET_VALUE_X> *>(instr)->xn()); break;
-	case GET_STRUCTURE_X:
-	  mapit(static_cast<wam_instruction<GET_STRUCTURE_X> *>(instr)->xn()); break;
-	case SET_VARIABLE_X:
-	  mapit(static_cast<wam_instruction<SET_VARIABLE_X> *>(instr)->xn()); break;
-	case SET_VALUE_X:
-	  mapit(static_cast<wam_instruction<SET_VALUE_X> *>(instr)->xn()); break;
-	case SET_LOCAL_VALUE_X:
-	  mapit(static_cast<wam_instruction<SET_LOCAL_VALUE_X> *>(instr)->xn()); break;
-	case UNIFY_VARIABLE_X:
-	  mapit(static_cast<wam_instruction<UNIFY_VARIABLE_X> *>(instr)->xn()); break;
-	case UNIFY_VALUE_X:
-	  mapit(static_cast<wam_instruction<UNIFY_VALUE_X> *>(instr)->xn()); break;
-	case UNIFY_LOCAL_VALUE_X:
-	  mapit(static_cast<wam_instruction<UNIFY_LOCAL_VALUE_X> *>(instr)->xn()); break;
-	default:
-	  break;
-        }
+        if (auto x_get = x_getter(instr)) {
+	    mapit(x_get());
+	}
     }
 
     for (auto instr : instrs) {
-        switch (instr->type()) {
-	case PUT_VARIABLE_X:
-	  remap(static_cast<wam_instruction<PUT_VARIABLE_X> *>(instr), map); break;
-	case PUT_VALUE_X:
-	  remap(static_cast<wam_instruction<PUT_VALUE_X> *>(instr), map); break;
-	case PUT_STRUCTURE_X:
-	  remap(static_cast<wam_instruction<PUT_STRUCTURE_X> *>(instr), map); break;
-	case GET_VARIABLE_X:
-	  remap(static_cast<wam_instruction<GET_VARIABLE_X> *>(instr), map); break;
-	case GET_VALUE_X:
-	  remap(static_cast<wam_instruction<GET_VALUE_X> *>(instr), map); break;
-	case GET_STRUCTURE_X:
-	  remap(static_cast<wam_instruction<GET_STRUCTURE_X> *>(instr), map); break;
-	case SET_VARIABLE_X:
-	  remap(static_cast<wam_instruction<SET_VARIABLE_X> *>(instr), map); break;
-	case SET_VALUE_X:
-	  remap(static_cast<wam_instruction<SET_VALUE_X> *>(instr), map); break;
-	case SET_LOCAL_VALUE_X:
-	  remap(static_cast<wam_instruction<SET_LOCAL_VALUE_X> *>(instr), map); break;
-	case UNIFY_VARIABLE_X:
-	  remap(static_cast<wam_instruction<UNIFY_VARIABLE_X> *>(instr), map); break;
-	case UNIFY_VALUE_X:
-	  remap(static_cast<wam_instruction<UNIFY_VALUE_X> *>(instr), map); break;
-	case UNIFY_LOCAL_VALUE_X:
-	  remap(static_cast<wam_instruction<UNIFY_LOCAL_VALUE_X> *>(instr), map); break;
-	default:
-	  break;
-        }
+	if (auto x_set = x_setter(instr)) {
+	    auto x_get = x_getter(instr);
+	    x_set(map[x_get()]);
+	}
     }
 }
 

@@ -25,7 +25,7 @@ public:
 
     std::forward_list<wam_instruction_base *>::iterator end()
     {
-        return end_;
+        return std::forward_list<wam_instruction_base *>::end();
     }
 
     std::forward_list<wam_instruction_base *>::const_iterator begin() const
@@ -35,7 +35,7 @@ public:
 
     std::forward_list<wam_instruction_base *>::const_iterator end() const
     {
-        return end_;
+        return std::forward_list<wam_instruction_base *>::end();
     }
 
 
@@ -185,6 +185,9 @@ private:
 
     term clause_head(const term clause);
     term clause_body(const term clause);
+
+    std::function<uint32_t ()> x_getter(wam_instruction_base *instr);
+    std::function<void (uint32_t)> x_setter(wam_instruction_base *instr);
 
     class goals_range {
     public:
