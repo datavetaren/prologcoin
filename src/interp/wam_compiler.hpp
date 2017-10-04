@@ -18,6 +18,27 @@ public:
 
     void print(std::ostream &out) const;
 
+    std::forward_list<wam_instruction_base *>::iterator begin()
+    {
+        return std::forward_list<wam_instruction_base *>::begin();
+    }
+
+    std::forward_list<wam_instruction_base *>::iterator end()
+    {
+        return end_;
+    }
+
+    std::forward_list<wam_instruction_base *>::const_iterator begin() const
+    {
+        return std::forward_list<wam_instruction_base *>::begin();
+    }
+
+    std::forward_list<wam_instruction_base *>::const_iterator end() const
+    {
+        return end_;
+    }
+
+
 private:
     void push_back(wam_instruction_base *instr);
 
@@ -67,7 +88,8 @@ class wam_compiler {
 public:
     typedef common::term term;
 
-    wam_compiler(common::term_env &env) : env_(env) { }
+    wam_compiler(common::term_env &env)
+      : env_(env), regs_a_(env, A_REG), regs_x_(env,X_REG), regs_y_(env,Y_REG) { }
 
 private:
     friend class test_wam_compiler;
@@ -99,14 +121,13 @@ private:
     prim_unification new_unification(term t);
     prim_unification new_unification(common::ref_cell ref, term t);
 
+    enum reg_type {
+        A_REG,
+	X_REG,
+	Y_REG
+    };
+
     struct reg {
-
-	enum reg_type {
-	    A_REG,
-	    X_REG,
-	    Y_REG
-	};
-
 	reg() : num(0), type(X_REG) { }
 	reg(size_t n, reg_type t) : num(n), type(t) { }
 
@@ -114,17 +135,31 @@ private:
 	reg_type type;
     };
 
+    friend static inline std::ostream & operator << (std::ostream &out, reg &r)
+    {
+        switch (r.type) {
+	case A_REG: out << "a"; break;
+	case X_REG: out << "x"; break;
+	case Y_REG: out << "y"; break;
+	}
+	out << r.num;
+	return out;
+    }
+
     class register_pool {
     public:
-	register_pool() : x_cnt_(0), y_cnt_(0) { }
+        register_pool(common::term_env &env, reg_type type) : env_(env), reg_type_(type) { }
 
-	std::pair<reg,bool> allocate(common::ref_cell ref, reg::reg_type regtype);
-	std::pair<reg,bool> allocate(common::ref_cell ref, reg::reg_type regtype, size_t no);
+	std::pair<reg,bool> allocate(common::ref_cell ref);
+        std::pair<reg,bool> allocate(common::ref_cell ref, size_t index);
+        void allocate(common::ref_cell ref, reg r);
+
+        void deallocate(common::ref_cell ref);
 
     private:
+        common::term_env &env_;
+        reg_type reg_type_;
 	std::unordered_map<common::ref_cell, reg> reg_map_;
-	size_t x_cnt_;
-	size_t y_cnt_;
     };
 
     void compile_query_ref(reg lhsreg, common::ref_cell rhsvar,
@@ -140,9 +175,11 @@ private:
     void compile_program(reg lhsreg, term rhs, 
 			 wam_interim_code &seq);
 
+
     void compile_query_or_program(term t, compile_type c,
 				  bool is_predicate,
 			          wam_interim_code &seq);
+    void remap_x_registers(wam_interim_code &seq);
 
     bool clause_needs_environment(const term clause);
     void compile_clause(const term clause, wam_interim_code &seq);
@@ -181,12 +218,43 @@ private:
 
     void print_partition(std::ostream &out, const std::vector<std::vector<term> > &partition);
 
-    std::pair<reg,bool> allocate_reg(common::ref_cell ref);
+    template<reg_type T> std::pair<reg,bool> allocate_reg(common::ref_cell ref);
+    template<reg_type T> std::pair<reg,bool> allocate_reg(common::ref_cell ref, size_t index);
+    template<reg_type T> void allocate_reg(common::ref_cell ref, reg r);
+
+    template<> std::pair<reg,bool> allocate_reg<A_REG>(common::ref_cell ref)
+    { return regs_a_.allocate(ref); }
+    template<> std::pair<reg,bool> allocate_reg<A_REG>(common::ref_cell ref, size_t index)
+    { return regs_a_.allocate(ref, index); }
+    template<> void allocate_reg<A_REG>(common::ref_cell ref, reg r)
+    { regs_a_.allocate(ref, r); }
+
+    template<> std::pair<reg,bool> allocate_reg<X_REG>(common::ref_cell ref)
+    { return regs_x_.allocate(ref); }
+    template<> std::pair<reg,bool> allocate_reg<X_REG>(common::ref_cell ref, size_t index)
+    { return regs_x_.allocate(ref, index); }
+    template<> void allocate_reg<X_REG>(common::ref_cell ref, reg r)
+    { regs_x_.allocate(ref, r); }
+
+    template<> std::pair<reg,bool> allocate_reg<Y_REG>(common::ref_cell ref)
+    { return regs_y_.allocate(ref); }
+    template<> std::pair<reg,bool> allocate_reg<Y_REG>(common::ref_cell ref, size_t index)
+    { return regs_y_.allocate(ref, index); }
+    template<> void allocate_reg<Y_REG>(common::ref_cell ref, reg r)
+    { regs_y_.allocate(ref, r); }
+
+    bool is_argument(common::ref_cell ref)
+    { return argument_pos_.count(ref) > 0; }
+
+    size_t get_argument_index(common::ref_cell ref)
+    { return argument_pos_[ref]; }
 
     std::unordered_map<common::ref_cell, size_t> argument_pos_;
     std::unordered_map<common::eq_term, common::ref_cell> term_map_;
 
-    register_pool regs_;
+    register_pool regs_a_;
+    register_pool regs_x_;
+    register_pool regs_y_;
     common::term_env &env_;
 };
 

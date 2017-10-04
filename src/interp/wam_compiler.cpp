@@ -18,7 +18,6 @@ void wam_interim_code::push_back(const wam_instruction_base &instr)
     wam_instruction_base *i = reinterpret_cast<wam_instruction_base *>(new char[instr.size_in_bytes()]);
     memcpy(i, &instr, instr.size_in_bytes());
     push_back(i);
-    std::cout.flush();
 }
 
 void wam_interim_code::push_back(wam_instruction_base *instr)
@@ -34,7 +33,7 @@ void wam_interim_code::push_back(wam_instruction_base *instr)
 void wam_interim_code::print(std::ostream &out) const
 {
     size_t cnt = 0;
-    for (auto *i : *this) {
+    for (auto i : *this) {
 	out << "[" << std::setw(5) << cnt << "]: ";
         i->print(out, interp_);
 	cnt += i->size();
@@ -93,6 +92,15 @@ std::vector<wam_compiler::prim_unification> wam_compiler::flatten(
 	    for (size_t i = 0; i < n; i++) {
 	        auto pos = (for_type == COMPILE_QUERY) ? n - i - 1 : i;
 		auto arg = env_.arg(p.rhs(), pos);
+
+		// Only flatten constants if we're at the top-level predicate
+		if (!is_predicate) {
+		    if (arg.tag() == common::tag_t::REF ||
+		        arg.tag() == common::tag_t::CON ||
+		        arg.tag() == common::tag_t::INT) {
+		        continue;
+		    }
+		}
 		auto found = term_map_.find(common::eq_term(env_,arg));
 		common::ref_cell ref;
 		bool is_found = found != term_map_.end();
@@ -124,9 +132,14 @@ std::vector<wam_compiler::prim_unification> wam_compiler::flatten(
 	    prims.push_back(p);
 	    break;
 	}
-	case common::tag_t::REF:
-	    prims.push_back(p);
+	case common::tag_t::REF: {
+  	    common::ref_cell &ref = static_cast<common::ref_cell>(p.lhs());
+	    // Is LHS a predicate argument? Then emit assignment a_i = X
+	    // if (argument_pos_.count(ref)) {
+	        prims.push_back(p);
+		// }
 	    break;
+	}
 	}
 	is_predicate = false;
     }
@@ -150,25 +163,16 @@ wam_compiler::prim_unification wam_compiler::new_unification(common::ref_cell re
     return prim_unification(ref, t);
 }
 
-std::pair<wam_compiler::reg,bool> wam_compiler::allocate_reg(common::ref_cell ref)
-{
-    auto found = argument_pos_.find(ref);
-    if (found != argument_pos_.end()) {
-        return regs_.allocate(ref, reg::A_REG, found->second);
-    } else {
-        return regs_.allocate(ref, reg::X_REG);
-    }
-}
-
 void wam_compiler::compile_query_ref(wam_compiler::reg lhsreg, common::ref_cell rhsvar, wam_interim_code &instrs)
 {
     reg rhsreg;
     bool isnew;
-    std::tie(rhsreg, isnew) = allocate_reg(rhsvar);
 
-    if (lhsreg.type == reg::A_REG) {
+    std::tie(rhsreg, isnew) = allocate_reg<X_REG>(rhsvar);
+
+    if (lhsreg.type == A_REG) {
         // ai = xn
-        assert(rhsreg.type == reg::X_REG);
+        assert(rhsreg.type == X_REG);
 	if (isnew) {
 	    instrs.push_back(wam_instruction<PUT_VARIABLE_X>(
 			     rhsreg.num, lhsreg.num ));
@@ -176,16 +180,23 @@ void wam_compiler::compile_query_ref(wam_compiler::reg lhsreg, common::ref_cell 
 	    instrs.push_back(wam_instruction<PUT_VALUE_X>(
   			     rhsreg.num, lhsreg.num ));
 	}
-    } else { // lhsreg.type == reg::X_REG
-      // xn = V
-      // No instruction needs to be emitted
+    } else { // lhsreg.type == X_REG
+        assert(rhsreg.type == A_REG);
+	// We shouldn't get Xi = Xj instructions.
+	if (isnew) {
+	    instrs.push_back(wam_instruction<PUT_VARIABLE_X>(
+					     lhsreg.num, rhsreg.num ));
+	} else {
+	    instrs.push_back(wam_instruction<PUT_VALUE_X>(
+					     lhsreg.num, rhsreg.num ));
+        }
     }
 }
 
 void wam_compiler::compile_query_str(wam_compiler::reg lhsreg, common::term rhs, wam_interim_code &instrs)
 {
     auto f = env_.functor(rhs);
-    if (lhsreg.type == reg::A_REG) {
+    if (lhsreg.type == A_REG) {
         instrs.push_back(wam_instruction<PUT_STRUCTURE_A>(f,lhsreg.num));
     } else {
         instrs.push_back(wam_instruction<PUT_STRUCTURE_X>(f,lhsreg.num));
@@ -193,22 +204,27 @@ void wam_compiler::compile_query_str(wam_compiler::reg lhsreg, common::term rhs,
     size_t n = f.arity();
     for (size_t i = 0; i < n; i++) {
         auto arg = env_.arg(rhs, i);
-	assert(arg.tag() == common::tag_t::REF);
-	auto ref = static_cast<common::ref_cell &>(arg);
-	reg r;
-	bool isnew = false;
-	std::tie(r,isnew) = allocate_reg(ref);
-	if (r.type == reg::A_REG) {
-	    if (isnew) {
-	        instrs.push_back(wam_instruction<SET_VARIABLE_A>(r.num));
-	    } else {
-	        instrs.push_back(wam_instruction<SET_VALUE_A>(r.num));
-	    }
+	if (arg.tag() == common::tag_t::CON ||
+	    arg.tag() == common::tag_t::INT) {
+	    instrs.push_back(wam_instruction<SET_CONSTANT>(arg));
 	} else {
-	    if (isnew) {
-	        instrs.push_back(wam_instruction<SET_VARIABLE_X>(r.num));
+	    assert(arg.tag() == common::tag_t::REF);
+	    auto ref = static_cast<common::ref_cell &>(arg);
+	    reg r;
+	    bool isnew = false;
+	    std::tie(r,isnew) = allocate_reg<X_REG>(ref);
+	    if (r.type == A_REG) {
+	        if (isnew) {
+		    instrs.push_back(wam_instruction<SET_VARIABLE_A>(r.num));
+		} else {
+		    instrs.push_back(wam_instruction<SET_VALUE_A>(r.num));
+		}
 	    } else {
-	        instrs.push_back(wam_instruction<SET_VALUE_X>(r.num));
+	        if (isnew) {
+		    instrs.push_back(wam_instruction<SET_VARIABLE_X>(r.num));
+		} else {
+		    instrs.push_back(wam_instruction<SET_VALUE_X>(r.num));
+		}
 	    }
 	}
     }
@@ -235,11 +251,11 @@ void wam_compiler::compile_program_ref(wam_compiler::reg lhsreg, common::ref_cel
 {
     reg rhsreg;
     bool isnew;
-    std::tie(rhsreg, isnew) = allocate_reg(rhsvar);
+    std::tie(rhsreg, isnew) = allocate_reg<X_REG>(rhsvar);
 
-    if (lhsreg.type == reg::A_REG) {
+    if (lhsreg.type == A_REG) {
         // ai = xn
-        assert(rhsreg.type == reg::X_REG);
+        assert(rhsreg.type == X_REG);
 	if (isnew) {
 	    instrs.push_back(wam_instruction<GET_VARIABLE_X>(
 			       rhsreg.num, lhsreg.num ));
@@ -248,15 +264,15 @@ void wam_compiler::compile_program_ref(wam_compiler::reg lhsreg, common::ref_cel
   			       rhsreg.num, lhsreg.num ));
 	}
     } else { // lhsreg.type == reg::X_REG
-      // xn = V
-      // No instruction needs to be emitted
+        // xn = V
+        allocate_reg<X_REG>(rhsvar, lhsreg);
     }
 }
 
 void wam_compiler::compile_program_str(wam_compiler::reg lhsreg, common::term rhs, wam_interim_code &instrs)
 {
     auto f = env_.functor(rhs);
-    if (lhsreg.type == reg::A_REG) {
+    if (lhsreg.type == A_REG) {
         instrs.push_back(wam_instruction<GET_STRUCTURE_A>(f,lhsreg.num));
     } else {
         instrs.push_back(wam_instruction<GET_STRUCTURE_X>(f,lhsreg.num));
@@ -268,8 +284,8 @@ void wam_compiler::compile_program_str(wam_compiler::reg lhsreg, common::term rh
 	auto ref = static_cast<common::ref_cell &>(arg);
 	reg r;
 	bool isnew = false;
-	std::tie(r,isnew) = allocate_reg(ref);
-	if (r.type == reg::A_REG) {
+	std::tie(r,isnew) = allocate_reg<X_REG>(ref);
+	if (r.type == A_REG) {
 	    if (isnew) {
 	        instrs.push_back(wam_instruction<UNIFY_VARIABLE_A>(r.num));
 	    } else {
@@ -308,11 +324,9 @@ void wam_compiler::compile_query_or_program(wam_compiler::term t,
 				      	    wam_interim_code &instrs)
 
 {
-    if (is_predicate_call) {
-        argument_pos_.clear();
-    }
-
     std::vector<prim_unification> prims = flatten(t, c, is_predicate_call);
+
+    // print_prims(prims);
 
     size_t n = prims.size();
 
@@ -323,7 +337,12 @@ void wam_compiler::compile_query_or_program(wam_compiler::term t,
 	// Won't allocate if there's already an allocation (e.g. if it is
 	// an argument it has already been allocated)
 	reg lhsreg;
-	std::tie(lhsreg, std::ignore) = allocate_reg(lhsvar);
+	if (is_argument(lhsvar)) {
+  	    size_t pos = get_argument_index(lhsvar);
+	    std::tie(lhsreg, std::ignore) = allocate_reg<A_REG>(lhsvar, pos);
+	} else {
+  	    std::tie(lhsreg, std::ignore) = allocate_reg<X_REG>(lhsvar);
+	}
 
 	term rhs = prim.rhs();
 
@@ -332,6 +351,86 @@ void wam_compiler::compile_query_or_program(wam_compiler::term t,
 	} else {
 	    compile_program(lhsreg, rhs, instrs);
 	}
+    }
+}
+
+template<wam_instruction_type I> static void remap(
+		    wam_instruction<I> *i,
+	            std::unordered_map<size_t, size_t> &map) {
+     i->set_xn(map[i->xn()]);
+}
+
+void wam_compiler::remap_x_registers(wam_interim_code &instrs)
+{
+    // Find live registers, and remap them.
+    std::unordered_map<size_t, size_t> map;
+    size_t cnt = 0;
+    auto mapit = [&](size_t i) {
+      if (map.find(i) == map.end()) {
+	  map[i] = cnt;
+  	  cnt++;
+      }
+    };
+    for (auto instr : instrs) {
+        switch (instr->type()) {
+	case PUT_VARIABLE_X:
+	  mapit(static_cast<wam_instruction<PUT_VARIABLE_X> *>(instr)->xn()); break;
+	case PUT_VALUE_X:
+	  mapit(static_cast<wam_instruction<PUT_VALUE_X> *>(instr)->xn()); break;
+	case PUT_STRUCTURE_X:
+	  mapit(static_cast<wam_instruction<PUT_STRUCTURE_X> *>(instr)->xn()); break;
+	case GET_VARIABLE_X:
+	  mapit(static_cast<wam_instruction<GET_VARIABLE_X> *>(instr)->xn()); break;
+	case GET_VALUE_X:
+	  mapit(static_cast<wam_instruction<GET_VALUE_X> *>(instr)->xn()); break;
+	case GET_STRUCTURE_X:
+	  mapit(static_cast<wam_instruction<GET_STRUCTURE_X> *>(instr)->xn()); break;
+	case SET_VARIABLE_X:
+	  mapit(static_cast<wam_instruction<SET_VARIABLE_X> *>(instr)->xn()); break;
+	case SET_VALUE_X:
+	  mapit(static_cast<wam_instruction<SET_VALUE_X> *>(instr)->xn()); break;
+	case SET_LOCAL_VALUE_X:
+	  mapit(static_cast<wam_instruction<SET_LOCAL_VALUE_X> *>(instr)->xn()); break;
+	case UNIFY_VARIABLE_X:
+	  mapit(static_cast<wam_instruction<UNIFY_VARIABLE_X> *>(instr)->xn()); break;
+	case UNIFY_VALUE_X:
+	  mapit(static_cast<wam_instruction<UNIFY_VALUE_X> *>(instr)->xn()); break;
+	case UNIFY_LOCAL_VALUE_X:
+	  mapit(static_cast<wam_instruction<UNIFY_LOCAL_VALUE_X> *>(instr)->xn()); break;
+	default:
+	  break;
+        }
+    }
+
+    for (auto instr : instrs) {
+        switch (instr->type()) {
+	case PUT_VARIABLE_X:
+	  remap(static_cast<wam_instruction<PUT_VARIABLE_X> *>(instr), map); break;
+	case PUT_VALUE_X:
+	  remap(static_cast<wam_instruction<PUT_VALUE_X> *>(instr), map); break;
+	case PUT_STRUCTURE_X:
+	  remap(static_cast<wam_instruction<PUT_STRUCTURE_X> *>(instr), map); break;
+	case GET_VARIABLE_X:
+	  remap(static_cast<wam_instruction<GET_VARIABLE_X> *>(instr), map); break;
+	case GET_VALUE_X:
+	  remap(static_cast<wam_instruction<GET_VALUE_X> *>(instr), map); break;
+	case GET_STRUCTURE_X:
+	  remap(static_cast<wam_instruction<GET_STRUCTURE_X> *>(instr), map); break;
+	case SET_VARIABLE_X:
+	  remap(static_cast<wam_instruction<SET_VARIABLE_X> *>(instr), map); break;
+	case SET_VALUE_X:
+	  remap(static_cast<wam_instruction<SET_VALUE_X> *>(instr), map); break;
+	case SET_LOCAL_VALUE_X:
+	  remap(static_cast<wam_instruction<SET_LOCAL_VALUE_X> *>(instr), map); break;
+	case UNIFY_VARIABLE_X:
+	  remap(static_cast<wam_instruction<UNIFY_VARIABLE_X> *>(instr), map); break;
+	case UNIFY_VALUE_X:
+	  remap(static_cast<wam_instruction<UNIFY_VALUE_X> *>(instr), map); break;
+	case UNIFY_LOCAL_VALUE_X:
+	  remap(static_cast<wam_instruction<UNIFY_LOCAL_VALUE_X> *>(instr), map); break;
+	default:
+	  break;
+        }
     }
 }
 
@@ -369,6 +468,8 @@ void wam_compiler::compile_clause(const term clause, wam_interim_code &seq)
         auto f = env_.functor(last_goal);
         seq.push_back(wam_instruction<EXECUTE>(f));
     }
+
+    remap_x_registers(seq);
 }
 
 term wam_compiler::clause_head(const term clause)
@@ -518,27 +619,35 @@ void wam_compiler::print_partition(std::ostream &out, const std::vector<std::vec
     }
 }
 
-std::pair<wam_compiler::reg,bool> wam_compiler::register_pool::allocate(common::ref_cell ref, wam_compiler::reg::reg_type regtype)
-{
-    return allocate(ref, regtype, 0);
-}
-
-std::pair<wam_compiler::reg,bool> wam_compiler::register_pool::allocate(common::ref_cell ref, wam_compiler::reg::reg_type regtype, size_t regno)
+std::pair<wam_compiler::reg,bool> wam_compiler::register_pool::allocate(common::ref_cell ref)
 {
     auto it = reg_map_.find(ref);
     if (it == reg_map_.end()) {
-	size_t regcnt;
-	switch (regtype) {
-        case reg::A_REG: regcnt = regno; break;
-	case reg::X_REG: regcnt = x_cnt_++; break;
-	case reg::Y_REG: regcnt = y_cnt_++; break;
-	}
-	reg r(regcnt, regtype);
-	reg_map_.insert(std::make_pair(ref, r));
+        size_t regcnt = reg_map_.size();
+	reg r(regcnt, reg_type_);
+	allocate(ref, r);
 	return std::make_pair(r, true);
     } else {
-	return std::make_pair(it->second, false);
+        return std::make_pair(it->second, false);
     }
+}
+
+std::pair<wam_compiler::reg,bool> wam_compiler::register_pool::allocate(common::ref_cell ref, size_t index)
+{
+    reg r(index, reg_type_);
+    allocate(ref, r);
+    return std::make_pair(r, true);
+}
+
+void wam_compiler::register_pool::allocate(common::ref_cell ref, wam_compiler::reg r)
+{
+    reg_map_[ref] = r;
+}
+
+
+void wam_compiler::register_pool::deallocate(common::ref_cell ref)
+{
+    reg_map_.erase(ref);
 }
 
 void wam_compiler::print_prims(const std::vector<wam_compiler::prim_unification> &prims ) const

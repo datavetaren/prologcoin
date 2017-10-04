@@ -125,8 +125,8 @@ class wam_instruction_base
 {
 protected:
     typedef void (*fn_type)(wam_interpreter &interp, wam_instruction_base *self);
-    inline wam_instruction_base(fn_type fn, uint64_t sz_bytes)
-      : fn_(fn), size_((sz_bytes+sizeof(code_t)-1)/sizeof(code_t)) { }
+    inline wam_instruction_base(fn_type fn, uint64_t sz_bytes, wam_instruction_type t)
+      : fn_(fn), size_and_type_(((sz_bytes+sizeof(code_t)-1)/sizeof(code_t) << 8) | (static_cast<int>(t) & 0xff )) { }
 
 public:
     inline void invoke(wam_interpreter &interp) {
@@ -134,8 +134,10 @@ public:
     }
 
   inline fn_type fn() const { return fn_; }
-  inline size_t size() const {return size_; }
-  inline size_t size_in_bytes() const { return size_ * sizeof(code_t); }
+  inline wam_instruction_type type() const
+  { return static_cast<wam_instruction_type>(size_and_type_ & 0xff); }
+  inline size_t size() const {return size_and_type_ >> 8 ; }
+  inline size_t size_in_bytes() const { return size() * sizeof(code_t); }
 
 protected:
     inline void update_ptr(code_point &p, code_t *old_base, code_t *new_base)
@@ -157,7 +159,7 @@ protected:
 
 private:
     fn_type fn_;
-    uint64_t size_;
+    uint64_t size_and_type_;
 
     typedef void (*print_fn_type)(std::ostream &out, wam_interpreter &interp, wam_instruction_base *self);
 
@@ -268,7 +270,7 @@ private:
 template<> class wam_instruction<CALL> : public wam_instruction_base {
 public:
       inline wam_instruction(common::con_cell l, uint32_t num_y) :
-      wam_instruction_base(&invoke, sizeof(*this)),
+          wam_instruction_base(&invoke, sizeof(*this), CALL),
       p_(l), data(num_y) { 
       static bool init = [] {
 	    register_printer(&invoke, &print);
@@ -1212,7 +1214,7 @@ inline void wam_code::update(code_t *old_base, code_t *new_base)
 template<> class wam_instruction<PUT_VARIABLE_X> : public wam_instruction_base {
 public:
     inline wam_instruction(uint32_t xn, uint32_t ai) :
-      wam_instruction_base(&invoke, sizeof(*this)),
+      wam_instruction_base(&invoke, sizeof(*this), PUT_VARIABLE_X),
       data((static_cast<uint64_t>(xn) << 32) | ai) { 
       static bool init = [] {
 	    register_printer(&invoke, &print); return true; } ();
@@ -1221,6 +1223,7 @@ public:
 
     inline uint32_t xn() const { return data >> 32; }
     inline uint32_t ai() const { return data & 0xffffffff; }
+    inline void set_xn(size_t n) { data = (static_cast<uint64_t>(n) << 32) | ai(); }
 
     static void invoke(wam_interpreter &interp, wam_instruction_base *self)
     {
@@ -1240,7 +1243,7 @@ public:
 template<> class wam_instruction<PUT_VARIABLE_Y> : public wam_instruction_base {
 public:
     inline wam_instruction(uint32_t yn, uint32_t ai) :
-      wam_instruction_base(&invoke, sizeof(*this)),
+      wam_instruction_base(&invoke, sizeof(*this), PUT_VARIABLE_Y),
       data((static_cast<uint64_t>(yn) << 32) | ai) { 
       static bool init = [] {
 	    register_printer(&invoke, &print); return true; } ();
@@ -1268,7 +1271,7 @@ public:
 template<> class wam_instruction<PUT_VALUE_X> : public wam_instruction_base {
 public:
     inline wam_instruction(uint32_t xn, uint32_t ai) :
-      wam_instruction_base(&invoke, sizeof(*this)),
+      wam_instruction_base(&invoke, sizeof(*this), PUT_VALUE_X),
       data((static_cast<uint64_t>(xn) << 32) | ai) { 
       static bool init = [] {
 	    register_printer(&invoke, &print); return true; } ();
@@ -1277,6 +1280,7 @@ public:
 
     inline uint32_t xn() const { return data >> 32; }
     inline uint32_t ai() const { return data & 0xffffffff; }
+    inline void set_xn(size_t n) { data = (static_cast<uint64_t>(n) << 32) | ai(); }
 
     static void invoke(wam_interpreter &interp, wam_instruction_base *self)
     {
@@ -1296,7 +1300,7 @@ public:
 template<> class wam_instruction<PUT_VALUE_Y> : public wam_instruction_base {
 public:
     inline wam_instruction(uint32_t yn, uint32_t ai) :
-      wam_instruction_base(&invoke, sizeof(*this)),
+      wam_instruction_base(&invoke, sizeof(*this), PUT_VALUE_Y),
       data((static_cast<uint64_t>(yn) << 32) | ai) { 
       static bool init = [] {
 	    register_printer(&invoke, &print); return true; } ();
@@ -1324,7 +1328,7 @@ public:
 template<> class wam_instruction<PUT_UNSAFE_VALUE_Y> : public wam_instruction_base {
 public:
     inline wam_instruction(uint32_t yn, uint32_t ai) :
-      wam_instruction_base(&invoke, sizeof(*this)),
+      wam_instruction_base(&invoke, sizeof(*this), PUT_UNSAFE_VALUE_Y),
       data((static_cast<uint64_t>(yn) << 32) | ai) { 
       static bool init = [] {
 	    register_printer(&invoke, &print); return true; } ();
@@ -1352,7 +1356,7 @@ public:
 template<> class wam_instruction<PUT_STRUCTURE_A> : public wam_instruction_base {
 public:
     inline wam_instruction(common::con_cell f, uint32_t ai) :
-      wam_instruction_base(&invoke, sizeof(*this)),
+      wam_instruction_base(&invoke, sizeof(*this), PUT_STRUCTURE_A),
       f_(f),
       data(ai) { 
       static bool init = [] {
@@ -1382,7 +1386,7 @@ public:
 template<> class wam_instruction<PUT_STRUCTURE_X> : public wam_instruction_base {
 public:
     inline wam_instruction(common::con_cell f, uint32_t xn) :
-      wam_instruction_base(&invoke, sizeof(*this)),
+      wam_instruction_base(&invoke, sizeof(*this), PUT_STRUCTURE_X),
       f_(f),
       data(xn) { 
       static bool init = [] {
@@ -1392,6 +1396,7 @@ public:
 
     inline common::con_cell f() const { return f_; }
     inline size_t xn() const { return data; }
+    inline void set_xn(size_t n) { data = n; }
 
     static void invoke(wam_interpreter &interp, wam_instruction_base *self)
     {
@@ -1412,7 +1417,7 @@ public:
 template<> class wam_instruction<PUT_STRUCTURE_Y> : public wam_instruction_base {
 public:
     inline wam_instruction(common::con_cell f, uint32_t yn) :
-      wam_instruction_base(&invoke, sizeof(*this)),
+      wam_instruction_base(&invoke, sizeof(*this), PUT_STRUCTURE_Y),
       f_(f),
       data(yn) { 
       static bool init = [] {
@@ -1442,7 +1447,7 @@ public:
 template<> class wam_instruction<PUT_LIST> : public wam_instruction_base {
 public:
     inline wam_instruction(uint32_t ai) :
-      wam_instruction_base(&invoke, sizeof(*this)),
+      wam_instruction_base(&invoke, sizeof(*this), PUT_LIST),
       data(ai) { 
       static bool init = [] {
 	    register_printer(&invoke, &print); return true; } ();
@@ -1469,7 +1474,7 @@ public:
 template<> class wam_instruction<PUT_CONSTANT> : public wam_instruction_base {
 public:
     inline wam_instruction(common::term c, uint32_t ai) :
-      wam_instruction_base(&invoke, sizeof(*this)),
+      wam_instruction_base(&invoke, sizeof(*this), PUT_CONSTANT),
       c_(c),
       data(ai) { 
       static bool init = [] {
@@ -1499,7 +1504,7 @@ public:
 template<> class wam_instruction<GET_VARIABLE_X> : public wam_instruction_base {
 public:
     inline wam_instruction(uint32_t xn, uint32_t ai) :
-      wam_instruction_base(&invoke, sizeof(*this)),
+      wam_instruction_base(&invoke, sizeof(*this), GET_VARIABLE_X),
       data((static_cast<uint64_t>(xn) << 32) | ai) { 
       static bool init = [] {
 	    register_printer(&invoke, &print); return true; } ();
@@ -1508,6 +1513,7 @@ public:
 
     inline uint32_t xn() const { return data >> 32; }
     inline uint32_t ai() const { return data & 0xffffffff; }
+    inline void set_xn(size_t n) { data = static_cast<uint64_t>(n) << 32 | ai(); }
 
     static void invoke(wam_interpreter &interp, wam_instruction_base *self)
     {
@@ -1527,7 +1533,7 @@ public:
 template<> class wam_instruction<GET_VARIABLE_Y> : public wam_instruction_base {
 public:
     inline wam_instruction(uint32_t yn, uint32_t ai) :
-      wam_instruction_base(&invoke, sizeof(*this)),
+      wam_instruction_base(&invoke, sizeof(*this), GET_VARIABLE_Y),
       data((static_cast<uint64_t>(yn) << 32) | ai) { 
       static bool init = [] {
 	    register_printer(&invoke, &print); return true; } ();
@@ -1555,7 +1561,7 @@ public:
 template<> class wam_instruction<GET_VALUE_X> : public wam_instruction_base {
 public:
     inline wam_instruction(uint32_t xn, uint32_t ai) :
-      wam_instruction_base(&invoke, sizeof(*this)),
+      wam_instruction_base(&invoke, sizeof(*this), GET_VALUE_X),
       data((static_cast<uint64_t>(xn) << 32) | ai) { 
       static bool init = [] {
 	    register_printer(&invoke, &print); return true; } ();
@@ -1564,6 +1570,7 @@ public:
 
     inline uint32_t xn() const { return data >> 32; }
     inline uint32_t ai() const { return data & 0xffffffff; }
+    inline void set_xn(size_t n) { data = static_cast<uint64_t>(n) << 32 | ai(); }
 
     static void invoke(wam_interpreter &interp, wam_instruction_base *self)
     {
@@ -1583,7 +1590,7 @@ public:
 template<> class wam_instruction<GET_VALUE_Y> : public wam_instruction_base {
 public:
     inline wam_instruction(uint32_t yn, uint32_t ai) :
-      wam_instruction_base(&invoke, sizeof(*this)),
+      wam_instruction_base(&invoke, sizeof(*this), GET_VALUE_Y),
       data((static_cast<uint64_t>(yn) << 32) | ai) { 
       static bool init = [] {
 	    register_printer(&invoke, &print); return true; } ();
@@ -1611,7 +1618,7 @@ public:
 template<> class wam_instruction<GET_STRUCTURE_A> : public wam_instruction_base {
 public:
     inline wam_instruction(common::con_cell f, uint32_t ai) :
-      wam_instruction_base(&invoke, sizeof(*this)),
+      wam_instruction_base(&invoke, sizeof(*this), GET_STRUCTURE_A),
       f_(f),
       data(ai) { 
       static bool init = [] {
@@ -1641,7 +1648,7 @@ public:
 template<> class wam_instruction<GET_STRUCTURE_X> : public wam_instruction_base {
 public:
     inline wam_instruction(common::con_cell f, uint32_t xn) :
-      wam_instruction_base(&invoke, sizeof(*this)),
+      wam_instruction_base(&invoke, sizeof(*this), GET_STRUCTURE_X),
       f_(f),
       data(xn) { 
       static bool init = [] {
@@ -1651,6 +1658,7 @@ public:
 
     inline common::con_cell f() const { return f_; }
     inline size_t xn() const { return data; }
+    inline void set_xn(size_t n) { data = n; }
 
     static void invoke(wam_interpreter &interp, wam_instruction_base *self)
     {
@@ -1671,7 +1679,7 @@ public:
 template<> class wam_instruction<GET_STRUCTURE_Y> : public wam_instruction_base {
 public:
     inline wam_instruction(common::con_cell f, uint32_t yn) :
-      wam_instruction_base(&invoke, sizeof(*this)),
+      wam_instruction_base(&invoke, sizeof(*this), GET_STRUCTURE_Y),
       f_(f),
       data(yn) { 
       static bool init = [] {
@@ -1701,7 +1709,7 @@ public:
 template<> class wam_instruction<GET_LIST> : public wam_instruction_base {
 public:
     inline wam_instruction(uint32_t ai) :
-      wam_instruction_base(&invoke, sizeof(*this)),
+      wam_instruction_base(&invoke, sizeof(*this), GET_LIST),
       data(ai) { 
       static bool init = [] {
 	    register_printer(&invoke, &print); return true; } ();
@@ -1728,7 +1736,7 @@ public:
 template<> class wam_instruction<GET_CONSTANT> : public wam_instruction_base {
 public:
     inline wam_instruction(common::term c, uint32_t ai) :
-      wam_instruction_base(&invoke, sizeof(*this)),
+      wam_instruction_base(&invoke, sizeof(*this), GET_CONSTANT),
       c_(c),
       data(ai) { 
       static bool init = [] {
@@ -1758,7 +1766,7 @@ public:
 template<> class wam_instruction<SET_VARIABLE_A> : public wam_instruction_base {
 public:
     inline wam_instruction(uint32_t ai) :
-      wam_instruction_base(&invoke, sizeof(*this)),
+      wam_instruction_base(&invoke, sizeof(*this), SET_VARIABLE_A),
       data(ai) { 
       static bool init = [] {
 	    register_printer(&invoke, &print); return true; } ();
@@ -1785,7 +1793,7 @@ public:
 template<> class wam_instruction<SET_VARIABLE_X> : public wam_instruction_base {
 public:
     inline wam_instruction(uint32_t xn) :
-      wam_instruction_base(&invoke, sizeof(*this)),
+      wam_instruction_base(&invoke, sizeof(*this), SET_VARIABLE_X),
       data(xn) { 
       static bool init = [] {
 	    register_printer(&invoke, &print); return true; } ();
@@ -1793,6 +1801,7 @@ public:
     }
 
     inline uint32_t xn() const { return data; }
+    inline void set_xn(size_t n) { data = n; }
 
     static void invoke(wam_interpreter &interp, wam_instruction_base *self)
     {
@@ -1812,7 +1821,7 @@ public:
 template<> class wam_instruction<SET_VARIABLE_Y> : public wam_instruction_base {
 public:
     inline wam_instruction(uint32_t yn) :
-      wam_instruction_base(&invoke, sizeof(*this)),
+      wam_instruction_base(&invoke, sizeof(*this), SET_VARIABLE_Y),
       data(yn) { 
       static bool init = [] {
 	    register_printer(&invoke, &print); return true; } ();
@@ -1839,7 +1848,7 @@ public:
 template<> class wam_instruction<SET_VALUE_A> : public wam_instruction_base {
 public:
     inline wam_instruction(uint32_t ai) :
-      wam_instruction_base(&invoke, sizeof(*this)),
+      wam_instruction_base(&invoke, sizeof(*this), SET_VALUE_A),
       data(ai) { 
       static bool init = [] {
 	    register_printer(&invoke, &print); return true; } ();
@@ -1866,7 +1875,7 @@ public:
 template<> class wam_instruction<SET_VALUE_X> : public wam_instruction_base {
 public:
     inline wam_instruction(uint32_t xn) :
-      wam_instruction_base(&invoke, sizeof(*this)),
+      wam_instruction_base(&invoke, sizeof(*this), SET_VALUE_X),
       data(xn) { 
       static bool init = [] {
 	    register_printer(&invoke, &print); return true; } ();
@@ -1874,6 +1883,7 @@ public:
     }
 
     inline uint32_t xn() const { return data; }
+    inline void set_xn(size_t n) { data = n; }
 
     static void invoke(wam_interpreter &interp, wam_instruction_base *self)
     {
@@ -1893,7 +1903,7 @@ public:
 template<> class wam_instruction<SET_VALUE_Y> : public wam_instruction_base {
 public:
     inline wam_instruction(uint32_t yn) :
-      wam_instruction_base(&invoke, sizeof(*this)),
+      wam_instruction_base(&invoke, sizeof(*this), SET_VALUE_Y),
       data(yn) { 
       static bool init = [] {
 	    register_printer(&invoke, &print); return true; } ();
@@ -1920,7 +1930,7 @@ public:
 template<> class wam_instruction<SET_LOCAL_VALUE_X> : public wam_instruction_base {
 public:
     inline wam_instruction(uint32_t xn) :
-      wam_instruction_base(&invoke, sizeof(*this)),
+      wam_instruction_base(&invoke, sizeof(*this), SET_LOCAL_VALUE_X),
       data(xn) { 
       static bool init = [] {
 	    register_printer(&invoke, &print); return true; } ();
@@ -1928,6 +1938,7 @@ public:
     }
 
     inline uint32_t xn() const { return data; }
+    inline void set_xn(size_t n) { data = n; }
 
     static void invoke(wam_interpreter &interp, wam_instruction_base *self)
     {
@@ -1947,7 +1958,7 @@ public:
 template<> class wam_instruction<SET_LOCAL_VALUE_Y> : public wam_instruction_base {
 public:
     inline wam_instruction(uint32_t yn) :
-      wam_instruction_base(&invoke, sizeof(*this)),
+      wam_instruction_base(&invoke, sizeof(*this), SET_LOCAL_VALUE_Y),
       data(yn) { 
       static bool init = [] {
 	    register_printer(&invoke, &print); return true; } ();
@@ -1974,7 +1985,7 @@ public:
 template<> class wam_instruction<SET_CONSTANT> : public wam_instruction_base {
 public:
     inline wam_instruction(common::term c) :
-      wam_instruction_base(&invoke, sizeof(*this)),
+      wam_instruction_base(&invoke, sizeof(*this), SET_CONSTANT),
       c_(c) {
       static bool init = [] {
 	    register_printer(&invoke, &print); return true; } ();
@@ -2001,7 +2012,7 @@ public:
 template<> class wam_instruction<SET_VOID> : public wam_instruction_base {
 public:
     inline wam_instruction(uint32_t n) :
-      wam_instruction_base(&invoke, sizeof(*this)),
+      wam_instruction_base(&invoke, sizeof(*this), SET_VOID),
       data(n) { 
       static bool init = [] {
 	    register_printer(&invoke, &print); return true; } ();
@@ -2028,7 +2039,7 @@ public:
 template<> class wam_instruction<UNIFY_VARIABLE_A> : public wam_instruction_base {
 public:
     inline wam_instruction(uint32_t ai) :
-      wam_instruction_base(&invoke, sizeof(*this)),
+      wam_instruction_base(&invoke, sizeof(*this), UNIFY_VARIABLE_A),
       data(ai) { 
       static bool init = [] {
 	    register_printer(&invoke, &print); return true; } ();
@@ -2055,7 +2066,7 @@ public:
 template<> class wam_instruction<UNIFY_VARIABLE_X> : public wam_instruction_base {
 public:
     inline wam_instruction(uint32_t xn) :
-      wam_instruction_base(&invoke, sizeof(*this)),
+      wam_instruction_base(&invoke, sizeof(*this), UNIFY_VARIABLE_X),
       data(xn) { 
       static bool init = [] {
 	    register_printer(&invoke, &print); return true; } ();
@@ -2063,6 +2074,7 @@ public:
     }
 
     inline uint32_t xn() const { return data; }
+    inline void set_xn(size_t n) { data = n; }
 
     static void invoke(wam_interpreter &interp, wam_instruction_base *self)
     {
@@ -2082,7 +2094,7 @@ public:
 template<> class wam_instruction<UNIFY_VARIABLE_Y> : public wam_instruction_base {
 public:
     inline wam_instruction(uint32_t yn) :
-      wam_instruction_base(&invoke, sizeof(*this)),
+      wam_instruction_base(&invoke, sizeof(*this), UNIFY_VARIABLE_Y),
       data(yn) { 
       static bool init = [] {
 	    register_printer(&invoke, &print); return true; } ();
@@ -2109,7 +2121,7 @@ public:
 template<> class wam_instruction<UNIFY_VALUE_A> : public wam_instruction_base {
 public:
     inline wam_instruction(uint32_t ai) :
-      wam_instruction_base(&invoke, sizeof(*this)),
+      wam_instruction_base(&invoke, sizeof(*this), UNIFY_VALUE_A),
       data(ai) { 
       static bool init = [] {
 	    register_printer(&invoke, &print); return true; } ();
@@ -2136,7 +2148,7 @@ public:
 template<> class wam_instruction<UNIFY_VALUE_X> : public wam_instruction_base {
 public:
     inline wam_instruction(uint32_t xn) :
-      wam_instruction_base(&invoke, sizeof(*this)),
+      wam_instruction_base(&invoke, sizeof(*this), UNIFY_VALUE_X),
       data(xn) { 
       static bool init = [] {
 	    register_printer(&invoke, &print); return true; } ();
@@ -2144,6 +2156,7 @@ public:
     }
 
     inline uint32_t xn() const { return data; }
+    inline void set_xn(size_t n) { data = n; }
 
     static void invoke(wam_interpreter &interp, wam_instruction_base *self)
     {
@@ -2163,7 +2176,7 @@ public:
 template<> class wam_instruction<UNIFY_VALUE_Y> : public wam_instruction_base {
 public:
     inline wam_instruction(uint32_t yn) :
-      wam_instruction_base(&invoke, sizeof(*this)),
+      wam_instruction_base(&invoke, sizeof(*this), UNIFY_VALUE_Y),
       data(yn) { 
       static bool init = [] {
 	    register_printer(&invoke, &print); return true; } ();
@@ -2190,7 +2203,7 @@ public:
 template<> class wam_instruction<UNIFY_LOCAL_VALUE_X> : public wam_instruction_base {
 public:
     inline wam_instruction(uint32_t xn) :
-      wam_instruction_base(&invoke, sizeof(*this)),
+      wam_instruction_base(&invoke, sizeof(*this), UNIFY_LOCAL_VALUE_X),
       data(xn) { 
       static bool init = [] {
 	    register_printer(&invoke, &print); return true; } ();
@@ -2198,6 +2211,7 @@ public:
     }
 
     inline uint32_t xn() const { return data; }
+    inline void set_xn(size_t n) { data = n; }
 
     static void invoke(wam_interpreter &interp, wam_instruction_base *self)
     {
@@ -2217,7 +2231,7 @@ public:
 template<> class wam_instruction<UNIFY_LOCAL_VALUE_Y> : public wam_instruction_base {
 public:
     inline wam_instruction(uint32_t yn) :
-      wam_instruction_base(&invoke, sizeof(*this)),
+      wam_instruction_base(&invoke, sizeof(*this), UNIFY_LOCAL_VALUE_Y),
       data(yn) { 
       static bool init = [] {
 	    register_printer(&invoke, &print); return true; } ();
@@ -2244,7 +2258,7 @@ public:
 template<> class wam_instruction<UNIFY_CONSTANT> : public wam_instruction_base {
 public:
     inline wam_instruction(common::term c) :
-      wam_instruction_base(&invoke, sizeof(*this)),
+      wam_instruction_base(&invoke, sizeof(*this), UNIFY_CONSTANT),
       c_(c) {
       static bool init = [] {
 	    register_printer(&invoke, &print); return true; } ();
@@ -2271,7 +2285,7 @@ public:
 template<> class wam_instruction<UNIFY_VOID> : public wam_instruction_base {
 public:
     inline wam_instruction(uint32_t n) :
-      wam_instruction_base(&invoke, sizeof(*this)),
+      wam_instruction_base(&invoke, sizeof(*this), UNIFY_VOID),
       data(n) { 
       static bool init = [] {
 	    register_printer(&invoke, &print); return true; } ();
@@ -2298,7 +2312,7 @@ public:
 template<> class wam_instruction<ALLOCATE> : public wam_instruction_base {
 public:
     inline wam_instruction() :
-      wam_instruction_base(&invoke, sizeof(*this)) {
+      wam_instruction_base(&invoke, sizeof(*this), ALLOCATE) {
       static bool init = [] {
 	    register_printer(&invoke, &print); return true; } ();
       static_cast<void>(init);
@@ -2321,7 +2335,7 @@ public:
 template<> class wam_instruction<DEALLOCATE> : public wam_instruction_base {
 public:
     inline wam_instruction() :
-      wam_instruction_base(&invoke, sizeof(*this)) {
+      wam_instruction_base(&invoke, sizeof(*this), DEALLOCATE) {
       static bool init = [] {
 	    register_printer(&invoke, &print); return true; } ();
       static_cast<void>(init);
@@ -2362,7 +2376,7 @@ inline void wam_instruction<CALL>::updater(wam_instruction_base *self, code_t *o
 template<> class wam_instruction<EXECUTE> : public wam_instruction_base {
 public:
       inline wam_instruction(code_point p) :
-      wam_instruction_base(&invoke, sizeof(*this)),
+      wam_instruction_base(&invoke, sizeof(*this), EXECUTE),
       p_(p) {
       static bool init = [] {
 	    register_printer(&invoke, &print); return true; } ();
@@ -2396,7 +2410,7 @@ public:
 template<> class wam_instruction<PROCEED> : public wam_instruction_base {
 public:
     inline wam_instruction() :
-      wam_instruction_base(&invoke, sizeof(*this)) {
+      wam_instruction_base(&invoke, sizeof(*this), PROCEED) {
       static bool init = [] {
 	    register_printer(&invoke, &print); return true; } ();
       static_cast<void>(init);
@@ -2419,7 +2433,7 @@ public:
 template<> class wam_instruction<TRY_ME_ELSE> : public wam_instruction_base {
 public:
       inline wam_instruction(code_point p) :
-      wam_instruction_base(&invoke, sizeof(*this)),
+	wam_instruction_base(&invoke, sizeof(*this), TRY_ME_ELSE),
       p_(p) {
       static bool init = [] {
  	    register_printer(&invoke, &print);
@@ -2459,7 +2473,7 @@ public:
 template<> class wam_instruction<RETRY_ME_ELSE> : public wam_instruction_base {
 public:
       inline wam_instruction(code_point p) :
-      wam_instruction_base(&invoke, sizeof(*this)),
+	wam_instruction_base(&invoke, sizeof(*this), RETRY_ME_ELSE),
       p_(p) {
       static bool init = [] {
 	    register_printer(&invoke, &print);
@@ -2500,7 +2514,7 @@ public:
 template<> class wam_instruction<TRUST_ME> : public wam_instruction_base {
 public:
     inline wam_instruction() :
-      wam_instruction_base(&invoke, sizeof(*this)) {
+      wam_instruction_base(&invoke, sizeof(*this), TRUST_ME) {
       static bool init = [] {
 	    register_printer(&invoke, &print); return true; } ();
       static_cast<void>(init);
@@ -2523,7 +2537,7 @@ public:
 template<> class wam_instruction<TRY> : public wam_instruction_base {
 public:
       inline wam_instruction(code_point p) :
-      wam_instruction_base(&invoke, sizeof(*this)),
+	wam_instruction_base(&invoke, sizeof(*this), TRY),
       p_(p) {
       static bool init = [] {
 	    register_printer(&invoke, &print);
@@ -2563,7 +2577,7 @@ public:
 template<> class wam_instruction<RETRY> : public wam_instruction_base {
 public:
       inline wam_instruction(code_point p) :
-      wam_instruction_base(&invoke, sizeof(*this)),
+	wam_instruction_base(&invoke, sizeof(*this), RETRY),
       p_(p) {
       static bool init = [] {
 	    register_printer(&invoke, &print);
@@ -2603,7 +2617,7 @@ public:
 template<> class wam_instruction<TRUST> : public wam_instruction_base {
 public:
       inline wam_instruction(code_point p) :
-      wam_instruction_base(&invoke, sizeof(*this)),
+	wam_instruction_base(&invoke, sizeof(*this), TRUST),
       p_(p) {
       static bool init = [] {
 	    register_printer(&invoke, &print);
@@ -2646,7 +2660,7 @@ public:
 			     code_point pc,
 			     code_point pl,
 			     code_point ps) :
-      wam_instruction_base(&invoke, sizeof(*this)),
+      wam_instruction_base(&invoke, sizeof(*this), SWITCH_ON_TERM),
       pv_(pv), pc_(pc), pl_(pl), ps_(ps) {
       static bool init = [] {
 	    register_printer(&invoke, &print);
@@ -2718,7 +2732,7 @@ public:
 template<> class wam_instruction<SWITCH_ON_CONSTANT> : public wam_instruction_base {
 public:
       inline wam_instruction(wam_interpreter::hash_map *map) :
-      wam_instruction_base(&invoke, sizeof(*this)),
+	wam_instruction_base(&invoke, sizeof(*this), SWITCH_ON_CONSTANT),
       map_(map) {
       static bool init = [] {
 	    register_printer(&invoke, &print);
@@ -2767,7 +2781,7 @@ public:
 template<> class wam_instruction<SWITCH_ON_STRUCTURE> : public wam_instruction_base {
 public:
       inline wam_instruction(wam_interpreter::hash_map *map) :
-      wam_instruction_base(&invoke, sizeof(*this)),
+	wam_instruction_base(&invoke, sizeof(*this), SWITCH_ON_STRUCTURE),
       map_(map) {
       static bool init = [] {
 	    register_printer(&invoke, &print);
@@ -2818,7 +2832,7 @@ public:
 template<> class wam_instruction<NECK_CUT> : public wam_instruction_base {
 public:
     inline wam_instruction() :
-      wam_instruction_base(&invoke, sizeof(*this)) {
+      wam_instruction_base(&invoke, sizeof(*this), NECK_CUT) {
       static bool init = [] {
 	    register_printer(&invoke, &print); return true; } ();
       static_cast<void>(init);
@@ -2841,7 +2855,7 @@ public:
 template<> class wam_instruction<GET_LEVEL> : public wam_instruction_base {
 public:
     inline wam_instruction(uint32_t yn) :
-      wam_instruction_base(&invoke, sizeof(*this)),
+      wam_instruction_base(&invoke, sizeof(*this), GET_LEVEL),
       data(yn) { 
       static bool init = [] {
 	    register_printer(&invoke, &print); return true; } ();
@@ -2868,7 +2882,7 @@ public:
 template<> class wam_instruction<CUT> : public wam_instruction_base {
 public:
     inline wam_instruction(uint32_t yn) :
-      wam_instruction_base(&invoke, sizeof(*this)),
+      wam_instruction_base(&invoke, sizeof(*this), CUT),
       data(yn) { 
       static bool init = [] {
 	    register_printer(&invoke, &print); return true; } ();
