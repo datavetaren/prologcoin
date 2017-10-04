@@ -127,17 +127,10 @@ std::vector<wam_compiler::prim_unification> wam_compiler::flatten(
 	    }
 	    break;
 	}
+	case common::tag_t::REF:
 	case common::tag_t::CON: 
 	case common::tag_t::INT: {
 	    prims.push_back(p);
-	    break;
-	}
-	case common::tag_t::REF: {
-  	    common::ref_cell &ref = static_cast<common::ref_cell>(p.lhs());
-	    // Is LHS a predicate argument? Then emit assignment a_i = X
-	    // if (argument_pos_.count(ref)) {
-	        prims.push_back(p);
-		// }
 	    break;
 	}
 	}

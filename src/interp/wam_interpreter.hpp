@@ -193,7 +193,7 @@ template<wam_instruction_type I> class wam_instruction : protected wam_instructi
 {
 public:
     inline wam_instruction(fn_type fn, size_t sz_bytes)
-      : wam_instruction_base(fn, sz_bytes) { }
+	: wam_instruction_base(fn, sz_bytes, I) { }
 };
 
 class wam_code

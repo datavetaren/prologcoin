@@ -89,7 +89,7 @@ public:
     typedef common::term term;
 
     wam_compiler(common::term_env &env)
-      : env_(env), regs_a_(env, A_REG), regs_x_(env,X_REG), regs_y_(env,Y_REG) { }
+      : env_(env), regs_a_(A_REG), regs_x_(X_REG), regs_y_(Y_REG) { }
 
 private:
     friend class test_wam_compiler;
@@ -135,7 +135,7 @@ private:
 	reg_type type;
     };
 
-    friend static inline std::ostream & operator << (std::ostream &out, reg &r)
+    friend inline std::ostream & operator << (std::ostream &out, reg &r)
     {
         switch (r.type) {
 	case A_REG: out << "a"; break;
@@ -148,7 +148,7 @@ private:
 
     class register_pool {
     public:
-        register_pool(common::term_env &env, reg_type type) : env_(env), reg_type_(type) { }
+        register_pool(reg_type type) : reg_type_(type) { }
 
 	std::pair<reg,bool> allocate(common::ref_cell ref);
         std::pair<reg,bool> allocate(common::ref_cell ref, size_t index);
@@ -157,7 +157,6 @@ private:
         void deallocate(common::ref_cell ref);
 
     private:
-        common::term_env &env_;
         reg_type reg_type_;
 	std::unordered_map<common::ref_cell, reg> reg_map_;
     };
@@ -222,32 +221,13 @@ private:
     template<reg_type T> std::pair<reg,bool> allocate_reg(common::ref_cell ref, size_t index);
     template<reg_type T> void allocate_reg(common::ref_cell ref, reg r);
 
-    template<> std::pair<reg,bool> allocate_reg<A_REG>(common::ref_cell ref)
-    { return regs_a_.allocate(ref); }
-    template<> std::pair<reg,bool> allocate_reg<A_REG>(common::ref_cell ref, size_t index)
-    { return regs_a_.allocate(ref, index); }
-    template<> void allocate_reg<A_REG>(common::ref_cell ref, reg r)
-    { regs_a_.allocate(ref, r); }
-
-    template<> std::pair<reg,bool> allocate_reg<X_REG>(common::ref_cell ref)
-    { return regs_x_.allocate(ref); }
-    template<> std::pair<reg,bool> allocate_reg<X_REG>(common::ref_cell ref, size_t index)
-    { return regs_x_.allocate(ref, index); }
-    template<> void allocate_reg<X_REG>(common::ref_cell ref, reg r)
-    { regs_x_.allocate(ref, r); }
-
-    template<> std::pair<reg,bool> allocate_reg<Y_REG>(common::ref_cell ref)
-    { return regs_y_.allocate(ref); }
-    template<> std::pair<reg,bool> allocate_reg<Y_REG>(common::ref_cell ref, size_t index)
-    { return regs_y_.allocate(ref, index); }
-    template<> void allocate_reg<Y_REG>(common::ref_cell ref, reg r)
-    { regs_y_.allocate(ref, r); }
-
     bool is_argument(common::ref_cell ref)
     { return argument_pos_.count(ref) > 0; }
 
     size_t get_argument_index(common::ref_cell ref)
     { return argument_pos_[ref]; }
+
+    common::term_env &env_;
 
     std::unordered_map<common::ref_cell, size_t> argument_pos_;
     std::unordered_map<common::eq_term, common::ref_cell> term_map_;
@@ -255,8 +235,30 @@ private:
     register_pool regs_a_;
     register_pool regs_x_;
     register_pool regs_y_;
-    common::term_env &env_;
 };
+
+template<> inline std::pair<wam_compiler::reg,bool> wam_compiler::allocate_reg<wam_compiler::A_REG>(common::ref_cell ref)
+{ return regs_a_.allocate(ref); }
+template<> inline std::pair<wam_compiler::reg,bool> wam_compiler::allocate_reg<wam_compiler::A_REG>(common::ref_cell ref, size_t index)
+    { return regs_a_.allocate(ref, index); }
+template<> inline void wam_compiler::allocate_reg<wam_compiler::A_REG>(common::ref_cell ref, wam_compiler::reg r)
+    { regs_a_.allocate(ref, r); }
+
+template<> inline std::pair<wam_compiler::reg,bool> wam_compiler::allocate_reg<wam_compiler::X_REG>(common::ref_cell ref)
+{ return regs_x_.allocate(ref); }
+template<> inline std::pair<wam_compiler::reg,bool> wam_compiler::allocate_reg<wam_compiler::X_REG>(common::ref_cell ref, size_t index)
+{ return regs_x_.allocate(ref, index); }
+template<> inline void wam_compiler::allocate_reg<wam_compiler::X_REG>(common::ref_cell ref, wam_compiler::reg r)
+{ regs_x_.allocate(ref, r); }
+
+template<> inline std::pair<wam_compiler::reg,bool> wam_compiler::allocate_reg<wam_compiler::Y_REG>(common::ref_cell ref)
+{ return regs_y_.allocate(ref); }
+template<> inline std::pair<wam_compiler::reg,bool> wam_compiler::allocate_reg<wam_compiler::Y_REG>(common::ref_cell ref, size_t index)
+{ return regs_y_.allocate(ref, index); }
+template<> inline void wam_compiler::allocate_reg<wam_compiler::Y_REG>(common::ref_cell ref, wam_compiler::reg r)
+{ regs_y_.allocate(ref, r); }
+
+
 
 }}
 
