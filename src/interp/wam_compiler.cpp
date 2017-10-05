@@ -338,13 +338,10 @@ void wam_compiler::compile_program(wam_compiler::reg lhsreg, common::term rhs, w
 
 void wam_compiler::compile_query_or_program(wam_compiler::term t,
 					    wam_compiler::compile_type c,
-					    bool is_predicate_call,
 				      	    wam_interim_code &instrs)
 
 {
-    std::vector<prim_unification> prims = flatten(t, c, is_predicate_call);
-
-    // print_prims(prims);
+    std::vector<prim_unification> prims = flatten(t, c, true);
 
     size_t n = prims.size();
 
@@ -692,6 +689,8 @@ bool wam_compiler::clause_needs_environment(const term clause)
 
 void wam_compiler::compile_clause(const term clause, wam_interim_code &seq)
 {
+    common::con_cell unification_op("=", 2);
+
     // First analyze how many calls we have.
     // We only need an environment if there are more than 1 call.
 
@@ -701,23 +700,33 @@ void wam_compiler::compile_clause(const term clause, wam_interim_code &seq)
 
     term head = clause_head(clause);
     seq.push_back(wam_interim_instruction<INTERIM_HEAD>());
-    compile_query_or_program(head, COMPILE_PROGRAM, true, seq);
+    compile_query_or_program(head, COMPILE_PROGRAM, seq);
 
     term body = clause_body(clause);
     term last_goal;
     for (auto goal : for_all_goals(body)) {
         if (last_goal) {
 	    auto f = env_.functor(last_goal);
-  	    seq.push_back(wam_instruction<CALL>(f, 0));
+	    bool is_prim = f == unification_op;
+	    if (!is_prim) {
+	        seq.push_back(wam_instruction<CALL>(f, 0));
+	    }
         }
-	seq.push_back(wam_interim_instruction<INTERIM_GOAL>());
-        compile_query_or_program(goal, COMPILE_QUERY, true, seq);
+	auto f = env_.functor(goal);
+	bool is_prim = f == unification_op;
+	if (!is_prim) {
+	    seq.push_back(wam_interim_instruction<INTERIM_GOAL>());
+	    compile_query_or_program(goal, COMPILE_QUERY, seq);
+	}
 	last_goal = goal;
     }
     if (needs_env) seq.push_back(wam_instruction<DEALLOCATE>());
     if (last_goal) {
         auto f = env_.functor(last_goal);
-        seq.push_back(wam_instruction<EXECUTE>(f));
+	bool is_prim = f == unification_op;
+	if (!is_prim) {
+	    seq.push_back(wam_instruction<EXECUTE>(f));
+	}
     }
 
     remap_x_registers(seq);

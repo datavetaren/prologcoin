@@ -76,7 +76,7 @@ void test_wam_compiler::test_compile()
 
     {
         wam_interim_code seq(interp_);
-        comp_.compile_query_or_program(t,wam_compiler::COMPILE_QUERY,true,seq);
+        comp_.compile_query_or_program(t,wam_compiler::COMPILE_QUERY,seq);
         seq.print(std::cout);
     }
 
@@ -86,7 +86,7 @@ void test_wam_compiler::test_compile()
 
     {
         wam_interim_code seq(interp_);
-	comp_.compile_query_or_program(t2,wam_compiler::COMPILE_PROGRAM,true,seq);
+	comp_.compile_query_or_program(t2,wam_compiler::COMPILE_PROGRAM,seq);
 	seq.print(std::cout);
     }
 

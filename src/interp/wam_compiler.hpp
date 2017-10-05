@@ -261,7 +261,6 @@ private:
 
 
     void compile_query_or_program(term t, compile_type c,
-				  bool is_predicate,
 			          wam_interim_code &seq);
     void remap_x_registers(wam_interim_code &seq);
     void remap_y_registers(wam_interim_code &seq);
