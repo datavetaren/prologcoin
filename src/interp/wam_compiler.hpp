@@ -10,6 +10,79 @@
 
 namespace prologcoin { namespace interp {
 
+enum wam_interim_instruction_type {
+    INTERIM_FIRST = LAST + 1,
+    INTERIM_LABEL,
+    INTERIM_HEAD,
+    INTERIM_GOAL
+};
+
+class wam_interim_instruction_base : public wam_instruction_base {
+public:
+    inline wam_interim_instruction_base(fn_type fn, uint64_t sz_bytes,
+					wam_interim_instruction_type t)
+      : wam_instruction_base(fn, sz_bytes, static_cast<wam_instruction_type>(t))
+    {
+    }
+
+    inline wam_interim_instruction_type type() const {
+        return static_cast<wam_interim_instruction_type>(wam_instruction_base::type());
+    }
+};
+
+template<wam_interim_instruction_type I> class wam_interim_instruction : public wam_interim_instruction_base
+{
+public:
+    inline wam_interim_instruction(fn_type fn, uint64_t sz_bytes, wam_interim_instruction_type t)
+      : wam_interim_instruction_base(fn, sz_bytes, I) { }
+};
+
+template<> class wam_interim_instruction<INTERIM_HEAD> : public wam_interim_instruction_base {
+public:
+    inline wam_interim_instruction() :
+      wam_interim_instruction_base(&invoke, sizeof(*this), INTERIM_HEAD) {
+        static bool init = [] {
+	  register_printer(&invoke, &print); return true; } ();
+        static_cast<void>(init);
+    }
+
+    static void invoke(wam_interpreter &interp, wam_instruction_base *self)
+    {
+        assert("this instruction should never be executed." == nullptr);
+    }
+
+    static void print(std::ostream &out, wam_interpreter &interp,
+		      wam_instruction_base *self)
+    {
+        auto self1 = reinterpret_cast<wam_interim_instruction<INTERIM_HEAD> *>(self);
+	(void)self1;
+        out << "interim_head";
+    }
+};
+
+template<> class wam_interim_instruction<INTERIM_GOAL> : public wam_interim_instruction_base {
+public:
+    inline wam_interim_instruction() :
+      wam_interim_instruction_base(&invoke, sizeof(*this), INTERIM_GOAL) {
+        static bool init = [] {
+	  register_printer(&invoke, &print); return true; } ();
+        static_cast<void>(init);
+    }
+
+    static void invoke(wam_interpreter &interp, wam_instruction_base *self)
+    {
+        assert("this instruction should never be executed." == nullptr);
+    }
+
+    static void print(std::ostream &out, wam_interpreter &interp,
+		      wam_instruction_base *self)
+    {
+        auto self1 = reinterpret_cast<wam_interim_instruction<INTERIM_GOAL> *>(self);
+	(void)self1;
+        out << "interim_goal";
+    }
+};
+
 class wam_interim_code : private std::forward_list<wam_instruction_base *> {
 public:
     wam_interim_code(wam_interpreter &interp);
@@ -17,6 +90,9 @@ public:
     void push_back(const wam_instruction_base &instr);
 
     void print(std::ostream &out) const;
+
+    std::vector<wam_instruction_base *> get_all();
+    std::vector<wam_instruction_base *> get_all_reversed();
 
     std::forward_list<wam_instruction_base *>::iterator begin()
     {
@@ -38,12 +114,17 @@ public:
         return std::forward_list<wam_instruction_base *>::end();
     }
 
+    size_t size() const
+    {
+        return size_;
+    }
 
 private:
     void push_back(wam_instruction_base *instr);
 
     wam_interpreter &interp_;
     std::forward_list<wam_instruction_base *>::iterator end_;
+    size_t size_;
 };
 
 class wam_goal_iterator : public std::iterator<std::forward_iterator_tag,
@@ -161,6 +242,10 @@ private:
 	std::unordered_map<common::ref_cell, reg> reg_map_;
     };
 
+    inline bool is_interim_instruction(wam_instruction_base *instr) const {
+        return instr->type() >= INTERIM_FIRST;
+    }
+
     void compile_query_ref(reg lhsreg, common::ref_cell rhsvar,
 			   wam_interim_code &seq);
     void compile_query_str(reg lhsreg, term rhs,
@@ -179,6 +264,14 @@ private:
 				  bool is_predicate,
 			          wam_interim_code &seq);
     void remap_x_registers(wam_interim_code &seq);
+    void remap_y_registers(wam_interim_code &seq);
+    void find_x_to_y_registers(wam_interim_code &seq,
+			       std::vector<size_t> &x_to_y);
+    void allocate_y_registers(wam_interim_code &seq);
+    void update_calls_for_environment_trimming(wam_interim_code &seq);
+    void find_unsafe_y_registers(wam_interim_code &seq,
+				 std::unordered_set<size_t> &unsafe_y_regs);
+    void remap_to_unsafe_y_registers(wam_interim_code &instrs);
 
     bool clause_needs_environment(const term clause);
     void compile_clause(const term clause, wam_interim_code &seq);
@@ -188,6 +281,11 @@ private:
 
     std::function<uint32_t ()> x_getter(wam_instruction_base *instr);
     std::function<void (uint32_t)> x_setter(wam_instruction_base *instr);
+
+    std::function<uint32_t ()> y_getter(wam_instruction_base *instr);
+    std::function<void (uint32_t)> y_setter(wam_instruction_base *instr);
+
+    void change_x_to_y(wam_instruction_base *instr);
 
     class goals_range {
     public:

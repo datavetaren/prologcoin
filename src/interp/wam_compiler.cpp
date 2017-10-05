@@ -9,7 +9,7 @@ typedef wam_compiler::term term;
 //  wam_interim_code
 // --------------------------------------------------------------
 
-wam_interim_code::wam_interim_code(wam_interpreter &interp) : interp_(interp)
+wam_interim_code::wam_interim_code(wam_interpreter &interp) : interp_(interp), size_(0)
 {
 }
 
@@ -28,6 +28,31 @@ void wam_interim_code::push_back(wam_instruction_base *instr)
     } else {
         end_ = insert_after(end_, instr);
     }
+    size_++;
+}
+
+std::vector<wam_instruction_base *> wam_interim_code::get_all_reversed()
+{
+    std::vector<wam_instruction_base *> instrs_rev(size_);
+    size_t i = size_-1;
+
+    for (auto instr : *this) {
+        instrs_rev[i] = instr;
+	i--;
+    }
+    return instrs_rev;
+}
+
+std::vector<wam_instruction_base *> wam_interim_code::get_all()
+{
+    std::vector<wam_instruction_base *> instrs(size_);
+    size_t i = 0;
+
+    for (auto instr : *this) {
+        instrs[i] = instr;
+	i++;
+    }
+    return instrs;
 }
 
 void wam_interim_code::print(std::ostream &out) const
@@ -393,6 +418,72 @@ std::function<void (uint32_t)> wam_compiler::x_setter(wam_instruction_base *inst
     }
 }
 
+std::function<uint32_t ()> wam_compiler::y_getter(wam_instruction_base *instr)
+{
+    switch (instr->type()) {
+	case PUT_VARIABLE_Y:
+	case PUT_VALUE_Y:
+	case GET_VARIABLE_Y:
+	case GET_VALUE_Y:
+	    return [=]{return reinterpret_cast<wam_instruction_binary_reg *>(instr)->reg_1();};
+	case PUT_STRUCTURE_Y:
+	case GET_STRUCTURE_Y:
+	    return [=]{return reinterpret_cast<wam_instruction_con_reg *>(instr)->reg();};
+	case SET_VARIABLE_Y:
+	case SET_VALUE_Y:
+	case SET_LOCAL_VALUE_Y:
+	case UNIFY_VARIABLE_Y:
+	case UNIFY_VALUE_Y:
+	case UNIFY_LOCAL_VALUE_Y:
+	    return [=]{return reinterpret_cast<wam_instruction_unary_reg *>(instr)->reg();};
+	default:
+	    return nullptr;
+    }
+}
+
+std::function<void (uint32_t)> wam_compiler::y_setter(wam_instruction_base *instr)
+{
+    switch (instr->type()) {
+	case PUT_VARIABLE_Y:
+	case PUT_VALUE_Y:
+	case GET_VARIABLE_Y:
+	case GET_VALUE_Y:
+	    return [=](uint32_t yn){reinterpret_cast<wam_instruction_binary_reg *>(instr)->set_reg_1(yn);};
+	case PUT_STRUCTURE_Y:
+	case GET_STRUCTURE_Y:
+	    return [=](uint32_t yn){reinterpret_cast<wam_instruction_con_reg *>(instr)->set_reg(yn);};
+	case SET_VARIABLE_Y:
+	case SET_VALUE_Y:
+	case SET_LOCAL_VALUE_Y:
+	case UNIFY_VARIABLE_Y:
+	case UNIFY_VALUE_Y:
+	case UNIFY_LOCAL_VALUE_Y:
+	    return [=](uint32_t yn){reinterpret_cast<wam_instruction_unary_reg *>(instr)->set_reg(yn);};
+	default:
+	    return nullptr;
+    }
+}
+
+void wam_compiler::change_x_to_y(wam_instruction_base *instr)
+{
+    switch (instr->type()) {
+        case PUT_VARIABLE_X: instr->set_type<PUT_VARIABLE_Y>(); break;
+        case PUT_VALUE_X: instr->set_type<PUT_VALUE_Y>(); break;
+        case GET_VARIABLE_X: instr->set_type<GET_VARIABLE_Y>(); break;
+        case GET_VALUE_X: instr->set_type<GET_VALUE_Y>(); break;
+        case PUT_STRUCTURE_X: instr->set_type<PUT_STRUCTURE_Y>(); break;
+        case GET_STRUCTURE_X: instr->set_type<GET_STRUCTURE_Y>(); break;
+        case SET_VARIABLE_X: instr->set_type<SET_VARIABLE_Y>(); break;
+        case SET_VALUE_X: instr->set_type<SET_VALUE_Y>(); break;
+        case SET_LOCAL_VALUE_X: instr->set_type<SET_LOCAL_VALUE_Y>(); break;
+        case UNIFY_VARIABLE_X: instr->set_type<UNIFY_VARIABLE_Y>(); break;
+        case UNIFY_VALUE_X: instr->set_type<UNIFY_VALUE_Y>(); break;
+        case UNIFY_LOCAL_VALUE_X: instr->set_type<UNIFY_LOCAL_VALUE_Y>(); break;
+	default:
+	    break;
+    }
+}
+
 void wam_compiler::remap_x_registers(wam_interim_code &instrs)
 {
     // Find live registers, and remap them.
@@ -419,6 +510,179 @@ void wam_compiler::remap_x_registers(wam_interim_code &instrs)
     }
 }
 
+void wam_compiler::find_x_to_y_registers(wam_interim_code &instrs,
+					 std::vector<size_t> &x_to_y)
+{
+    std::unordered_map<size_t, size_t> first_occur;
+    bool head_found = false;
+    size_t goal_number = 0;
+    for (auto instr : instrs) {
+        if (is_interim_instruction(instr)) {
+	    auto interim = reinterpret_cast<wam_interim_instruction_base *>(instr);
+	    if (interim->type() == INTERIM_HEAD) {
+	        head_found = true;
+	    } else if (!head_found) {
+	        continue;
+	    }
+	    if (interim->type() == INTERIM_GOAL) {
+	        goal_number++;
+	    }
+	}
+	// Map goal number 0 and 1 to the same ID 1 (as head and goal should be
+	// unified into the same set)
+	if (auto x_get = x_getter(instr)) {
+	    size_t id = (goal_number <= 1) ? 1 : goal_number;
+	    size_t xn = x_get();
+	    auto it = first_occur.find(xn);
+	    if (it == first_occur.end()) {
+	        first_occur[xn] = id;
+	    } else if (it->second != id) {
+	        x_to_y.push_back(xn);
+	    }
+        }
+    }
+}
+
+
+void wam_compiler::allocate_y_registers(wam_interim_code &instrs)
+{
+    std::vector<size_t> x_to_y;
+    find_x_to_y_registers(instrs, x_to_y);
+
+     size_t y_cnt = 0;
+    std::unordered_map<size_t, size_t> map;
+
+    // Create x => y map
+    for (auto x : x_to_y) {
+	map[x] = y_cnt;
+	y_cnt++;
+    }
+
+    // Change X to Y instructions and set new register number
+    for (auto instr : instrs) {
+        if (auto x_get = x_getter(instr)) {
+	    auto it = map.find(x_get());
+	    if (it != map.end()) {
+	        change_x_to_y(instr);
+		auto y_set = y_setter(instr);
+		y_set(it->second);
+	    }
+        }
+    }
+}
+
+void wam_compiler::remap_y_registers(wam_interim_code &instrs)
+{
+    auto instrs_rev = instrs.get_all_reversed();
+
+    std::unordered_map<size_t, size_t> map;
+    size_t cnt = 0;
+    auto mapit = [&](size_t i) {
+      if (map.find(i) == map.end()) {
+	  map[i] = cnt;
+  	  cnt++;
+      }
+    };
+
+    for (auto instr : instrs_rev) {
+        if (auto y_get = y_getter(instr)) {
+	    mapit(y_get());
+	}
+    }
+
+    for (auto instr : instrs_rev) {
+	if (auto y_set = y_setter(instr)) {
+	    auto y_get = y_getter(instr);
+	    y_set(map[y_get()]);
+	}
+    }
+}
+
+void wam_compiler::update_calls_for_environment_trimming(wam_interim_code &instrs)
+{
+    auto instrs_rev = instrs.get_all_reversed();
+    size_t biggest_y = 0;
+    for (auto instr : instrs_rev) {
+        if (auto y_get = y_getter(instr)) {
+	    biggest_y = std::max(biggest_y, y_get());
+	}
+	if (instr->type() == CALL) {
+	    auto call_instr = reinterpret_cast<wam_instruction<CALL> *>(instr);
+	    call_instr->set_num_y(biggest_y+1);
+	}
+    }
+}
+
+void wam_compiler::find_unsafe_y_registers(wam_interim_code &instrs,
+					   std::unordered_set<size_t> &unsafe_y_regs)
+{
+    // We need at least one call instruction.
+    size_t num_calls = 0;
+    for (auto instr : instrs) {
+        if (instr->type() == CALL) {
+	    num_calls++;
+	}
+    }
+
+    // There can't be unsafe variables if we dont' have call instructions
+    if (num_calls == 0) {
+        return;
+    }
+
+    auto instrs_rev = instrs.get_all_reversed();
+
+    for (auto instr : instrs_rev) {
+        // Don't search further when we've found the last call.
+        // All Y variables after last call are in "unsafe" state.
+        if (is_interim_instruction(instr)) {
+	    auto interim_instr = reinterpret_cast<wam_interim_instruction_base *>(instr);
+	    if (interim_instr->type() == INTERIM_GOAL) {
+	        // No point in going beyond the last call
+	        break;
+	    }
+        }
+	if (instr->type() == PUT_VALUE_Y) {
+	    auto y_get = y_getter(instr);
+	    size_t yn = y_get();
+	    unsafe_y_regs.insert(yn);
+        }
+    }
+}
+
+void wam_compiler::remap_to_unsafe_y_registers(wam_interim_code &instrs)
+{
+    std::unordered_set<size_t> unsafe_y_regs;
+    find_unsafe_y_registers(instrs, unsafe_y_regs);
+    if (unsafe_y_regs.empty()) {
+        return;
+    }
+    auto all = instrs.get_all();
+    auto n = all.size();
+    size_t last_goal_index = 0;
+    for (size_t i = 0; i < n; i++) {
+        size_t j = n - i - 1;
+        auto instr = all[j];
+	if (is_interim_instruction(instr)) {
+	    auto interim_instr = reinterpret_cast<wam_interim_instruction_base *>(instr);
+	    if (interim_instr->type() == INTERIM_GOAL) {
+	        last_goal_index = j;
+	        break;
+	    }
+	}
+    }
+
+    for (size_t i = last_goal_index; i < n; i++) {
+        auto instr = all[i];
+	if (instr->type() == PUT_VALUE_Y) {
+	    size_t yn = y_getter(instr)();
+	    if (unsafe_y_regs.find(yn) != unsafe_y_regs.end()) {
+	        instr->set_type<PUT_UNSAFE_VALUE_Y>();
+		unsafe_y_regs.erase(yn);
+	    }
+	}
+    }
+}
+
 bool wam_compiler::clause_needs_environment(const term clause)
 {
     auto body = clause_body(clause);
@@ -436,6 +700,7 @@ void wam_compiler::compile_clause(const term clause, wam_interim_code &seq)
     if (needs_env) seq.push_back(wam_instruction<ALLOCATE>());
 
     term head = clause_head(clause);
+    seq.push_back(wam_interim_instruction<INTERIM_HEAD>());
     compile_query_or_program(head, COMPILE_PROGRAM, true, seq);
 
     term body = clause_body(clause);
@@ -445,6 +710,7 @@ void wam_compiler::compile_clause(const term clause, wam_interim_code &seq)
 	    auto f = env_.functor(last_goal);
   	    seq.push_back(wam_instruction<CALL>(f, 0));
         }
+	seq.push_back(wam_interim_instruction<INTERIM_GOAL>());
         compile_query_or_program(goal, COMPILE_QUERY, true, seq);
 	last_goal = goal;
     }
@@ -455,6 +721,10 @@ void wam_compiler::compile_clause(const term clause, wam_interim_code &seq)
     }
 
     remap_x_registers(seq);
+    allocate_y_registers(seq);
+    remap_y_registers(seq);
+    update_calls_for_environment_trimming(seq);
+    remap_to_unsafe_y_registers(seq);
 }
 
 term wam_compiler::clause_head(const term clause)
