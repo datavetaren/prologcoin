@@ -169,8 +169,8 @@ class wam_compiler {
 public:
     typedef common::term term;
 
-    wam_compiler(common::term_env &env)
-      : env_(env), regs_a_(A_REG), regs_x_(X_REG), regs_y_(Y_REG) { }
+    wam_compiler(wam_interpreter &interp)
+      : interp_(interp), env_(interp), regs_a_(A_REG), regs_x_(X_REG), regs_y_(Y_REG) { }
 
 private:
     friend class test_wam_compiler;
@@ -241,6 +241,16 @@ private:
         reg_type reg_type_;
 	std::unordered_map<common::ref_cell, reg> reg_map_;
     };
+
+    inline bool is_builtin(common::con_cell f) const
+    {
+        return interp_.is_builtin(f);
+    }
+
+    inline builtin get_builtin(common::con_cell f) const
+    {
+        return interp_.get_builtin(f);
+    }
 
     inline bool is_interim_instruction(wam_instruction_base *instr) const {
         return instr->type() >= INTERIM_FIRST;
@@ -327,6 +337,7 @@ private:
     size_t get_argument_index(common::ref_cell ref)
     { return argument_pos_[ref]; }
 
+    wam_interpreter &interp_;
     common::term_env &env_;
 
     std::unordered_map<common::ref_cell, size_t> argument_pos_;

@@ -68,6 +68,7 @@ enum wam_instruction_type {
   CALL,
   EXECUTE,
   PROCEED,
+  BUILTIN,
  
   TRY_ME_ELSE,
   RETRY_ME_ELSE,
@@ -511,6 +512,33 @@ public:
     static void print(std::ostream &out, wam_interpreter &interp, wam_instruction_base *self);
 
     static void updater(wam_instruction_base *self, code_t *old_base, code_t *new_base);
+};
+
+template<> class wam_instruction<BUILTIN> : public wam_instruction_base {
+public:
+    inline wam_instruction(common::con_cell f, builtin b) :
+      wam_instruction_base(&invoke, sizeof(*this), BUILTIN),
+      f_(f), bn_(b) {
+       init();
+    }
+
+    inline static void init() {
+	static bool init_ = [] {
+	    register_printer(&invoke, &print);
+	    return true; } ();
+	static_cast<void>(init_);
+    }
+
+    inline common::con_cell f() const { return f_; }
+    inline builtin bn() const { return bn_; }
+    inline size_t arity() const { return f().arity(); }
+
+    static void invoke(wam_interpreter &interp, wam_instruction_base *self);
+
+    static void print(std::ostream &out, wam_interpreter &interp, wam_instruction_base *self);
+private:
+    common::con_cell f_;
+    builtin bn_;
 };
 
 class wam_interpreter : public interpreter, public wam_code
@@ -1225,6 +1253,16 @@ private:
     inline void proceed()
     {
         register_p_ = register_cp_;
+    }
+
+    inline bool builtin(wam_instruction_base *p)
+    {
+        auto b = reinterpret_cast<wam_instruction<BUILTIN> *>(p);
+	auto bn = b->bn();
+	num_of_args_ = b->arity();
+        register_cp_ = next_instruction(register_p_);
+	// TODO: We need to call bn here...
+	return false;
     }
 
     inline void allocate_choice_point(wam_instruction_base *p_else)
@@ -2728,6 +2766,18 @@ public:
         out << "proceed";
     }
 };
+
+inline void wam_instruction<BUILTIN>::invoke(wam_interpreter &interp, wam_instruction_base *self)
+{
+    auto self1 = reinterpret_cast<wam_instruction<BUILTIN> *>(self);
+    interp.builtin(self1);
+}
+
+inline void wam_instruction<BUILTIN>::print(std::ostream &out, wam_interpreter &interp, wam_instruction_base *self)
+{
+    auto self1 = reinterpret_cast<wam_instruction<BUILTIN> *>(self);
+    out << "builtin " << interp.to_string(self1->f()) << "/" << self1->arity();
+}
 
 template<> class wam_instruction<TRY_ME_ELSE> : public wam_instruction_code_point {
 public:

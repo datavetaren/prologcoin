@@ -96,7 +96,7 @@ void test_wam_compiler::test_compile()
           [
             (append([X|Xs],Ys,[X|Zs]) :- append(Xs,Ys,Zs)),
              append([],Ys,Ys),
-            (nrev([X|Xs],Ys) :- nrev(Xs,Ys0), append(Ys0,[X],Ys)),
+            (nrev([X|Xs],Ys) :- nrev(Xs,Ys0), append(Ys0,[X],Ys), Ys = 123),
              nrev([],[])
           ].)PROG";
 

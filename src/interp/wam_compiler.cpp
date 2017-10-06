@@ -253,8 +253,12 @@ void wam_compiler::compile_query(wam_compiler::reg lhsreg, common::term rhs, wam
     switch (rhs.tag()) {
       case common::tag_t::INT:
       case common::tag_t::CON:
-      // We have X = a or X = 4711
-	instrs.push_back(wam_instruction<SET_CONSTANT>(rhs));
+	// We have X = a or X = 4711
+	if (lhsreg.type == A_REG) {
+  	    instrs.push_back(wam_instruction<PUT_CONSTANT>(rhs, lhsreg.num));
+	} else {
+	    instrs.push_back(wam_instruction<SET_CONSTANT>(rhs));
+	}
 	break;
       case common::tag_t::REF:
 	compile_query_ref(lhsreg, static_cast<common::ref_cell &>(rhs), instrs);
@@ -689,8 +693,6 @@ bool wam_compiler::clause_needs_environment(const term clause)
 
 void wam_compiler::compile_clause(const term clause, wam_interim_code &seq)
 {
-    common::con_cell unification_op("=", 2);
-
     // First analyze how many calls we have.
     // We only need an environment if there are more than 1 call.
 
@@ -707,26 +709,36 @@ void wam_compiler::compile_clause(const term clause, wam_interim_code &seq)
     for (auto goal : for_all_goals(body)) {
         if (last_goal) {
 	    auto f = env_.functor(last_goal);
-	    bool is_prim = f == unification_op;
-	    if (!is_prim) {
+	    bool isbn = is_builtin(f);
+	    if (isbn) {
+  	        seq.push_back(wam_instruction<BUILTIN>(f, get_builtin(f)));
+	    } else {
 	        seq.push_back(wam_instruction<CALL>(f, 0));
 	    }
         }
 	auto f = env_.functor(goal);
-	bool is_prim = f == unification_op;
-	if (!is_prim) {
+	bool isbn = is_builtin(f);
+	if (!isbn) {
 	    seq.push_back(wam_interim_instruction<INTERIM_GOAL>());
-	    compile_query_or_program(goal, COMPILE_QUERY, seq);
 	}
+	compile_query_or_program(goal, COMPILE_QUERY, seq);
 	last_goal = goal;
     }
-    if (needs_env) seq.push_back(wam_instruction<DEALLOCATE>());
     if (last_goal) {
         auto f = env_.functor(last_goal);
-	bool is_prim = f == unification_op;
-	if (!is_prim) {
+	bool isbn = is_builtin(f);
+	if (isbn) {
+  	    seq.push_back(wam_instruction<BUILTIN>(f, get_builtin(f)));
+	} else {
+  	    if (needs_env) {
+	       seq.push_back(wam_instruction<DEALLOCATE>());
+	       needs_env = false;
+	    }
 	    seq.push_back(wam_instruction<EXECUTE>(f));
 	}
+    }
+    if (needs_env) {
+        seq.push_back(wam_instruction<DEALLOCATE>());
     }
 
     remap_x_registers(seq);

@@ -227,6 +227,15 @@ public:
 	}
     };
 
+    inline builtin get_builtin(con_cell f)
+    {
+        return builtins_[f];
+    }
+    inline bool is_builtin(con_cell f) const
+    {
+        return builtins_.find(f) != builtins_.end();
+    }
+
 private:
     void load_builtin(con_cell f, builtin b);
     void load_builtin_opt(con_cell f, builtin_opt b);
