@@ -1,4 +1,5 @@
 #include <queue>
+#include <algorithm>
 #include "wam_compiler.hpp"
 
 namespace prologcoin { namespace interp {
@@ -605,7 +606,10 @@ void wam_compiler::update_calls_for_environment_trimming(wam_interim_code &instr
     size_t biggest_y = 0;
     for (auto instr : instrs_rev) {
         if (auto y_get = y_getter(instr)) {
-	    biggest_y = std::max(biggest_y, y_get());
+	    auto y = y_get();
+	    if (y > biggest_y) {
+		y = biggest_y;
+	    }
 	}
 	if (instr->type() == CALL) {
 	    auto call_instr = reinterpret_cast<wam_instruction<CALL> *>(instr);

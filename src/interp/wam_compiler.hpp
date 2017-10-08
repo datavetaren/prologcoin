@@ -253,7 +253,8 @@ private:
     }
 
     inline bool is_interim_instruction(wam_instruction_base *instr) const {
-        return instr->type() >= INTERIM_FIRST;
+        return static_cast<wam_interim_instruction_type>(instr->type())
+	                         >= INTERIM_FIRST;
     }
 
     void compile_query_ref(reg lhsreg, common::ref_cell rhsvar,
