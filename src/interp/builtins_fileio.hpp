@@ -10,12 +10,12 @@ namespace prologcoin { namespace interp {
 
     class builtins_fileio {
     public:
-        static bool open_3(interpreter &interp, common::term &caller);
-        static bool read_2(interpreter &interp, common::term &caller);
-        static bool close_1(interpreter &interp, common::term &caller);
-        static bool at_end_of_stream_1(interpreter &interp, common::term &caller);
-	static bool write_1(interpreter &interp, common::term &caller);
-	static bool nl_0(interpreter &interp, common::term &caller);
+        static bool open_3(interpreter &interp, size_t arity, common::term args[]);
+        static bool read_2(interpreter &interp, size_t arity, common::term args[]);
+        static bool close_1(interpreter &interp, size_t arity, common::term args[]);
+        static bool at_end_of_stream_1(interpreter &interp, size_t arity, common::term args[]);
+	static bool write_1(interpreter &interp, size_t arity, common::term args[]);
+	static bool nl_0(interpreter &interp, size_t arity, common::term args[]);
     private:
         static size_t get_stream_id(interpreter &interp, common::term &stream,
 		  		    const std::string &from_fun);

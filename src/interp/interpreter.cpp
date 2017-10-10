@@ -810,7 +810,12 @@ void interpreter::dispatch(term instruction)
     // Is this a built-in?
     auto bf = builtins_[f];
     if (bf != nullptr) {
-	if (!bf(*this, instruction)) {
+	size_t arity = f.arity();
+	term args[32]; // Maximum number of arguments.
+	for (size_t i = 0; i < arity; i++) {
+	    args[i] = arg(instruction, i);
+	}
+	if (!bf(*this, arity, args)) {
 	    fail();
 	}
 	return;

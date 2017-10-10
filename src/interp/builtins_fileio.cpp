@@ -9,11 +9,11 @@ namespace prologcoin { namespace interp {
 
     static std::unordered_map<size_t, std::istream> file_map_;
 
-    bool builtins_fileio::open_3(interpreter &interp, term &caller)
+    bool builtins_fileio::open_3(interpreter &interp, size_t arity, term args[])
     {
-        term filename0 = interp.arg(caller, 0);
-	term mode0 = interp.arg(caller, 1);
-	term stream = interp.arg(caller, 2);
+        term filename0 = args[0];
+	term mode0 = args[1];
+	term stream = args[2];
 
 	if (!interp.is_atom(filename0)) {
 	    interp.abort(interpreter_exception_wrong_arg_type(
@@ -81,17 +81,17 @@ namespace prologcoin { namespace interp {
 	return id;
     }
 
-    bool builtins_fileio::close_1(interpreter &interp, term &caller)
+    bool builtins_fileio::close_1(interpreter &interp, size_t arity, term args[])
     {
-	term stream = interp.arg(caller, 0);
+	term stream = args[0];
 	size_t id = get_stream_id(interp, stream, "close/1");
 	interp.close_file_stream(id);
 	return true;
     }
 
-    bool builtins_fileio::read_2(interpreter &interp, term &caller)
+    bool builtins_fileio::read_2(interpreter &interp, size_t arity, term args[])
     {
-	term stream = interp.arg(caller, 0);
+	term stream = args[0];
 	size_t id = get_stream_id(interp, stream, "read/2");
 	file_stream &fs = interp.get_file_stream(id);
 	term t;
@@ -100,29 +100,29 @@ namespace prologcoin { namespace interp {
 	} else {
 	    t = fs.read_term();
 	}
-	term result = interp.arg(caller, 1);
+	term result = args[1];
 	bool r = interp.unify(t, result);
 
 	return r;
     }
 
-    bool builtins_fileio::at_end_of_stream_1(interpreter &interp, term &caller)
+    bool builtins_fileio::at_end_of_stream_1(interpreter &interp, size_t arity, term args[])
     {
-	term stream = interp.arg(caller, 0);
+	term stream = args[0];
 	size_t id = get_stream_id(interp, stream, "at_end_of_stream/1");
 	file_stream &fs = interp.get_file_stream(id);
 	return fs.is_eof();
     }
 
-    bool builtins_fileio::write_1(interpreter &interp, term &caller)
+    bool builtins_fileio::write_1(interpreter &interp, size_t arity, term args[])
     {
-	term arg = interp.arg(caller, 0);
+	term arg = args[0];
 	std::string str = interp.to_string(arg);
 	std::cout << str << std::flush;
 	return true;
     }
 
-    bool builtins_fileio::nl_0(interpreter &interp, term &caller)
+    bool builtins_fileio::nl_0(interpreter &interp, size_t arity, term args[])
     {
 	std::cout << std::endl << std::flush;
 	return true;

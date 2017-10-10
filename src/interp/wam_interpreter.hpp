@@ -1258,7 +1258,7 @@ private:
     inline bool builtin(wam_instruction_base *p)
     {
         auto b = reinterpret_cast<wam_instruction<BUILTIN> *>(p);
-	auto bn = b->bn();
+	// auto bn = b->bn();
 	num_of_args_ = b->arity();
         register_cp_ = next_instruction(register_p_);
 	// TODO: We need to call bn here...

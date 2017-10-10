@@ -1,5 +1,6 @@
 #include "builtins.hpp"
 #include "interpreter.hpp"
+#include <stdarg.h>
 
 namespace prologcoin { namespace interp {
 
@@ -9,7 +10,7 @@ namespace prologcoin { namespace interp {
     // Profiling
     //
 
-    bool builtins::profile_0(interpreter &interp, term &caller)
+    bool builtins::profile_0(interpreter &interp, size_t arity, common::term args[])
     {
 	interp.print_profile();
 	return true;
@@ -19,7 +20,7 @@ namespace prologcoin { namespace interp {
     // Simple
     //
 
-    bool builtins::true_0(interpreter &interp, term &caller)
+    bool builtins::true_0(interpreter &interp, size_t arity, common::term args[])
     {
 	return true;
     }
@@ -28,17 +29,17 @@ namespace prologcoin { namespace interp {
     // Control flow
     //
 
-    bool builtins::operator_comma(interpreter &interp, term &caller)
+    // TODO: This needs to be modified to use callbacks.
+    bool builtins::operator_comma(interpreter &interp, size_t arity, common::term args[])
     {
-        term arg0 = interp.arg(caller, 0);
-	term arg1 = interp.arg(caller, 1);
-	interp.set_continuation_point(arg1);
+	interp.set_continuation_point(args[1]);
         interp.allocate_environment();
-	interp.set_continuation_point(arg0);
+	interp.set_continuation_point(args[0]);
 	return true;
     }
 
-    bool builtins::operator_cut(interpreter &interp, term &caller)
+    // TODO: This needs to be modified to use callbacks. Cut should be a primitive.
+    bool builtins::operator_cut(interpreter &interp, size_t arity, common::term args[])
     {
         if (interp.has_late_choice_point()) {
 	    interp.reset_choice_point();
@@ -47,7 +48,8 @@ namespace prologcoin { namespace interp {
         return true;
     }
 
-    bool builtins::operator_cut_if(interpreter &interp, term &caller)
+    // TODO: This needs to be modified to use callbacks. Cut should be a primitive.
+    bool builtins::operator_cut_if(interpreter &interp, size_t arity, common::term args[])
     {
         if (interp.has_late_choice_point()) {
 	    interp.reset_choice_point();
@@ -58,14 +60,15 @@ namespace prologcoin { namespace interp {
         return true;
     }
 
-    bool builtins::operator_disjunction(interpreter &interp, term &caller)
+    // TODO: This needs to be modified to use callbacks. 
+    bool builtins::operator_disjunction(interpreter &interp, size_t arity, common::term args[])
     {
 	static con_cell arrow("->", 2);
 
 	// Check if this is an if-then-else
-	term arg0 = interp.arg(caller, 0);
+	term arg0 = args[0];
 	if (interp.functor(arg0) == arrow) {
-	    return operator_if_then_else(interp, caller);
+	    return operator_if_then_else(interp, arity, args);
 	}
 
         auto *ch = interp.allocate_choice_point(0);
@@ -74,7 +77,8 @@ namespace prologcoin { namespace interp {
 	return true;
     }
 
-    bool builtins::operator_if_then(interpreter &interp, term &caller)
+    // TODO: This needs to be modified to use callbacks.
+    bool builtins::operator_if_then(interpreter &interp, size_t arity, common::term args[])
     {
 	static con_cell cut_op("!",0);
 
@@ -82,8 +86,8 @@ namespace prologcoin { namespace interp {
 	ch->bp = 2;
 	interp.move_cut_point_to_last_choice_point();
 	term cut = cut_op;
-	term arg0 = interp.arg(caller, 0);
-	term arg1 = interp.arg(caller, 1);
+	term arg0 = args[0];
+	term arg1 = args[1];
 	interp.set_continuation_point(arg1);
 	interp.allocate_environment();
 	interp.set_continuation_point(cut);
@@ -92,11 +96,12 @@ namespace prologcoin { namespace interp {
         return true;
     }
 
-    bool builtins::operator_if_then_else(interpreter &interp, term &caller)
+    // TODO: This needs to be modified to use callbacks.
+    bool builtins::operator_if_then_else(interpreter &interp, size_t arity, common::term args[])
     {
 	static con_cell cut_op_if("_!",0);
 
-	term lhs = interp.arg(caller, 0);
+	term lhs = args[0];
 
 	term cond = interp.arg(lhs, 0);
 	term iftrue = interp.arg(lhs, 1);
@@ -117,48 +122,41 @@ namespace prologcoin { namespace interp {
     // Standard order, eqaulity and unification
     //
 
-    bool builtins::operator_at_less_than(interpreter &interp, term &caller)
+    bool builtins::operator_at_less_than(interpreter &interp, size_t arity, common::term args[])
     {
-        return interp.standard_order(interp.arg(caller, 0),
-				     interp.arg(caller, 1)) < 0;
+        return interp.standard_order(args[0], args[1]) < 0;
     }
 
-    bool builtins::operator_at_equals_less_than(interpreter &interp, term &caller)
+    bool builtins::operator_at_equals_less_than(interpreter &interp, size_t arity, common::term args[])
     {
-        return interp.standard_order(interp.arg(caller, 0),
-				     interp.arg(caller, 1)) <= 0;
+        return interp.standard_order(args[0], args[1]) <= 0;
     }
 
-    bool builtins::operator_at_greater_than(interpreter &interp, term &caller)
+    bool builtins::operator_at_greater_than(interpreter &interp, size_t arity, common::term args[])
     {
-        return interp.standard_order(interp.arg(caller, 0),
-				     interp.arg(caller, 1)) > 0;
+        return interp.standard_order(args[0], args[1]) > 0;
     }
 
-    bool builtins::operator_at_greater_than_equals(interpreter &interp, term &caller)
+    bool builtins::operator_at_greater_than_equals(interpreter &interp, size_t arity, common::term args[])
     {
-        return interp.standard_order(interp.arg(caller, 0),
-				     interp.arg(caller, 1)) >= 0;
+        return interp.standard_order(args[0], args[1]) >= 0;
     }
 
-    bool builtins::operator_equals(interpreter &interp, term &caller)
+    bool builtins::operator_equals(interpreter &interp, size_t arity, common::term args[])
     {
-        return interp.standard_order(interp.arg(caller, 0),
-				     interp.arg(caller, 1)) == 0;
+        return interp.standard_order(args[0], args[1]) == 0;
     }
 
-    bool builtins::operator_not_equals(interpreter &interp, term &caller)
+    bool builtins::operator_not_equals(interpreter &interp, size_t arity, common::term args[])
     {
-        return interp.standard_order(interp.arg(caller, 0),
-				     interp.arg(caller, 1)) != 0;
+        return interp.standard_order(args[0], args[1]) != 0;
     }
 
-    bool builtins::compare_3(interpreter &interp, term &caller)
+    bool builtins::compare_3(interpreter &interp, size_t arity, common::term args[])
     {
-        term order = interp.arg(caller, 0);
+        term order = args[0];
 
-	int c = interp.standard_order(interp.arg(caller, 1),
-				      interp.arg(caller, 2));
+	int c = interp.standard_order(args[1], args[2]);
 	if (c < 0) {
 	    term lt = con_cell("<",0);
 	    return interp.unify(order, lt);
@@ -171,18 +169,18 @@ namespace prologcoin { namespace interp {
 	}
     }
 
-    bool builtins::operator_unification(interpreter &interp, term &caller)
+    bool builtins::operator_unification(interpreter &interp, size_t arity, common::term args[])
     {
-	term arg0 = interp.arg(caller, 0);
-	term arg1 = interp.arg(caller, 1);
+	term arg0 = args[0];
+	term arg1 = args[1];
 	bool r = interp.unify(arg0, arg1);
 	return r;
     }
 
-    bool builtins::operator_cannot_unify(interpreter &interp, term &caller)
+    bool builtins::operator_cannot_unify(interpreter &interp, size_t arity, common::term args[])
     {
-	term lhs = interp.arg(caller, 0);
-	term rhs = interp.arg(caller, 1);
+	term lhs = args[0];
+	term rhs = args[1];
 	size_t current_tr = interp.trail_size();
 	bool r = interp.unify(lhs, rhs);
 	if (r) {
@@ -195,29 +193,29 @@ namespace prologcoin { namespace interp {
     // Type tests
     //
     
-    bool builtins::var_1(interpreter &interp, term &caller)
+    bool builtins::var_1(interpreter &interp, size_t arity, common::term args[])
     {
-	return interp.arg(caller, 0).tag() == tag_t::REF;
+	return args[0].tag() == tag_t::REF;
     }
 
-    bool builtins::nonvar_1(interpreter &interp, term &caller)
+    bool builtins::nonvar_1(interpreter &interp, size_t arity, common::term args[])
     {
-	return !var_1(interp, caller);
+	return !var_1(interp, arity, args);
     }
 
-    bool builtins::integer_1(interpreter &interp, term &caller)
+    bool builtins::integer_1(interpreter &interp, size_t arity, common::term args[])
     {
-	return interp.arg(caller, 0).tag() == tag_t::INT;
+	return args[0].tag() == tag_t::INT;
     }
 
-    bool builtins::number_1(interpreter &interp, term &caller)
+    bool builtins::number_1(interpreter &interp, size_t arity, common::term args[])
     {
-	return integer_1(interp, caller);
+	return integer_1(interp, arity, args);
     }
 
-    bool builtins::atom_1(interpreter &interp, term &caller)
+    bool builtins::atom_1(interpreter &interp, size_t arity, common::term args[])
     {
-	term arg = interp.arg(caller, 0);
+	term arg = args[0];
 	
 	switch (arg.tag()) {
 	case tag_t::CON: return true;
@@ -229,28 +227,28 @@ namespace prologcoin { namespace interp {
 	}
     }
 
-    bool builtins::compound_1(interpreter &interp, term &caller)
+    bool builtins::compound_1(interpreter &interp, size_t arity, common::term args[])
     {
-	term arg = interp.arg(caller, 0);
+	term arg = args[0];
 	if (arg.tag() != tag_t::STR) {
 	    return false;
 	}
 	return interp.functor(arg).arity() > 0;
     }
 
-    bool builtins::callable_1(interpreter &interp, term &caller)
+    bool builtins::callable_1(interpreter &interp, size_t arity, common::term args[])
     {
-	return atom_1(interp, caller) || compound_1(interp, caller);
+	return atom_1(interp, arity, args) || compound_1(interp, arity, args);
     }
 
-    bool builtins::atomic_1(interpreter &interp, term &caller)
+    bool builtins::atomic_1(interpreter &interp, size_t arity, common::term args[])
     {
-	return atom_1(interp, caller);
+	return atom_1(interp, arity, args);
     }
 
-    bool builtins::ground_1(interpreter &interp, term &caller)
+    bool builtins::ground_1(interpreter &interp, size_t arity, common::term args[])
     {
-	term arg = interp.arg(caller, 0);
+	term arg = args[0];
 	return interp.is_ground(arg);
     }
 
@@ -260,10 +258,10 @@ namespace prologcoin { namespace interp {
     // Arithmetics
     //
 
-    bool builtins::is_2(interpreter &interp, term &caller)
+    bool builtins::is_2(interpreter &interp, size_t arity, common::term args[])
     {
-	term lhs = interp.arg(caller, 0);
-	term rhs = interp.arg(caller, 1);
+	term lhs = args[0];
+	term rhs = args[1];
 	term result = interp.arith().eval(rhs, "is/2");
 	return interp.unify(lhs, result);
     }	
@@ -272,19 +270,19 @@ namespace prologcoin { namespace interp {
     // Analyzing & constructing terms
     //
 
-    bool builtins::copy_term_2(interpreter &interp, term &caller)
+    bool builtins::copy_term_2(interpreter &interp, size_t arity, common::term args[])
     {
-	term arg1 = interp.arg(caller, 0);
-	term arg2 = interp.arg(caller, 1);
+	term arg1 = args[0];
+	term arg2 = args[1];
 	term copy_arg1 = interp.copy(arg1);
 	return interp.unify(arg2, copy_arg1);
     }
 
-    bool builtins::functor_3(interpreter &interp, term &caller)
+    bool builtins::functor_3(interpreter &interp, size_t arity, common::term args[])
     {
-	term t = interp.arg(caller, 0);
-	term f = interp.arg(caller, 1);
-	term a = interp.arg(caller, 2);
+	term t = args[0];
+	term f = args[1];
+	term a = args[2];
 
 	switch (t.tag()) {
   	  case tag_t::REF:
@@ -355,10 +353,10 @@ namespace prologcoin { namespace interp {
 	return true;
     }
 
-    bool builtins::operator_deconstruct(interpreter &interp, term &caller)
+    bool builtins::operator_deconstruct(interpreter &interp, size_t arity, common::term args[])
     {
-	auto lhs = interp.arg(caller, 0);
-	auto rhs = interp.arg(caller, 1);
+	auto lhs = args[0];
+	auto rhs = args[1];
 
 	// To make deconstruction more efficient, let's handle the
 	// common scenarios first.
@@ -420,9 +418,9 @@ namespace prologcoin { namespace interp {
     // Meta
     //
 
-    bool builtins::operator_disprove(interpreter &interp, term &caller)
+	bool builtins::operator_disprove(interpreter &interp, size_t arity, common::term args[])
     {
-	term arg = interp.arg(caller, 0);
+	term arg = args[0];
 	interp.new_meta_context<meta_context>(&operator_disprove_post);
 
 	interp.set_top_e();
