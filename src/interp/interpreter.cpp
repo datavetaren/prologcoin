@@ -801,7 +801,7 @@ void interpreter::dispatch(code_point instruction)
     }
 }
 
-bool interpreter::select_clause(code_point &instruction,
+bool interpreter::select_clause(const code_point &instruction,
 				size_t index_id,
 				std::vector<term> &clauses,
 				size_t from_clause)
@@ -905,11 +905,9 @@ void interpreter::fail()
 	    return;
         }
 
-	size_t bpval0 = static_cast<int_cell &>(b()->bp.term_code()).value();
-
 	auto ch = reset_to_choice_point(b());
 
-	size_t bpval = static_cast<int_cell &>(ch->bp.term_code()).value();
+	size_t bpval = static_cast<const int_cell &>(ch->bp.term_code()).value();
 
 	// Is there another clause to backtrack to?
 	if (bpval != 0) {

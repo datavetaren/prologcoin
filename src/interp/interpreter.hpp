@@ -163,7 +163,7 @@ public:
     inline bool is_fail() const { return term_code_ == fail_term_; }
 
     inline wam_instruction_base * wam_code() const { return wam_code_; }
-    inline common::cell term_code() const { return term_code_; }
+    inline const common::cell & term_code() const { return term_code_; }
 
     inline void set_wam_code(wam_instruction_base *p) { wam_code_ = p; }
     inline void set_term_code(const common::term t) { term_code_ = t; }
@@ -176,7 +176,7 @@ private:
 };
 
 // Saved wrapped environment
-class environment_base_t;
+struct environment_base_t;
 struct environment_saved_t {
     uint64_t saved;
 
@@ -405,7 +405,7 @@ protected:
         return (sizeof(environment_ext_t)-sizeof(environment_base_t))/sizeof(term);
     }
 
-    inline void set_cp(code_point &cp)
+    inline void set_cp(const code_point &cp)
     {
         register_cp_ = cp;
     }
@@ -605,7 +605,7 @@ private:
     void prepare_execution();
     void abort(const interpreter_exception &ex);
     void fail();
-    bool select_clause(code_point &instruction,
+    bool select_clause(const code_point &instruction,
 		       size_t index_id,
 		       std::vector<term> &clauses,
 		       size_t from_clause);

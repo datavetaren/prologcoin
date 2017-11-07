@@ -1233,10 +1233,10 @@ private:
 	register_p_ = L;
     }
 
-    inline void switch_on_term(code_point &pv,
-			       code_point &pc,
-			       code_point &pl,
-			       code_point &ps)
+    inline void switch_on_term(const code_point &pv,
+			       const code_point &pc,
+			       const code_point &pl,
+			       const code_point &ps)
     {
 	term t = deref(a(0));
 	switch (t.tag()) {
