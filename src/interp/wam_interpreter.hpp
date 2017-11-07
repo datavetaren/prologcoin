@@ -94,36 +94,6 @@ typedef uint64_t code_t;
 
 class wam_instruction_base;
 
-// Contemplated this be a union, but it's better to ensure
-// portability. And it might be good to have access to both
-// the instruction pointer as well as the label.
-class code_point {
-public:
-    inline code_point() : code_(nullptr), label_(common::ref_cell(0)) { }
-    inline code_point(common::con_cell l) : code_(nullptr), label_(l) { }
-    inline code_point(common::int_cell i) : code_(nullptr), label_(i) { }
-    inline code_point(const code_point &other)
-        : code_(other.code_), label_(other.label_) { }
-
-    inline static code_point fail() {
-        return code_point();
-    }
-
-    inline bool is_fail() const { return label_ == fail_cell_; }
-
-    inline wam_instruction_base * code() const { return code_; }
-    inline common::cell label() const { return label_; }
-
-    inline void set_code(wam_instruction_base *p) { code_ = p; }
-    inline void set_label(const common::cell l) { label_ = l; }
-
-private:
-    static const common::cell fail_cell_;
-
-    wam_instruction_base *code_;
-    common::cell label_;
-};
-
 typedef std::unordered_map<common::term, code_point> wam_hash_map;
 
 template<wam_instruction_type I> class wam_instruction;
@@ -152,10 +122,10 @@ public:
 protected:
     inline void update_ptr(code_point &p, code_t *old_base, code_t *new_base)
     {
-	if (p.code() == nullptr) {
+	if (p.wam_code() == nullptr) {
 	    return;
 	}
-	p.set_code(reinterpret_cast<wam_instruction_base *>(reinterpret_cast<code_t *>(p.code()) - old_base + new_base));
+	p.set_wam_code(reinterpret_cast<wam_instruction_base *>(reinterpret_cast<code_t *>(p.wam_code()) - old_base + new_base));
     }
 
     inline void update(code_t *old_base, code_t *new_base)
@@ -497,7 +467,7 @@ public:
     inline code_point & p() { return cp(); }
 
     inline common::con_cell pn() const
-    { common::cell c = p().label();
+    { auto c = p().term_code();
       common::con_cell &cc = static_cast<common::con_cell &>(c);
       return cc;
     }
@@ -559,43 +529,17 @@ public:
 private:
     template<wam_instruction_type I> friend class wam_instruction;
 
-    struct environment_t {
-        environment_t        *ce; // Continuation environment
-        wam_instruction_base *cp; // Continuation point
-        term                  yn[]; // Y variables
-    };
-
-    struct choice_point_t {
-        environment_t        *ce;
-        wam_instruction_base *cp;
-        choice_point_t       *b;
-        wam_instruction_base *bp;
-        size_t                tr;
-        size_t                h; 
-        choice_point_t       *b0;
-        size_t                arity;
-        term                  ai[];
-    };
-
-    typedef union {
-        environment_t *e;
-        choice_point_t *cp;
-        term term;
-    } word_t;
-
-    template<typename T> inline size_t words() const
-    { return sizeof(T)/sizeof(word_t); }
-
-    template<typename T> inline word_t * base(T *t) const
-    { return reinterpret_cast<word_t *>(t); }
-
-    inline size_t num_y(environment_t *e)
+    static inline size_t num_y(environment_base_t *e)
     {
-        auto after_call = e->cp;
-	auto at_call = reinterpret_cast<wam_instruction<CALL> *>(
+        auto after_call = e->cp.wam_code();
+        if (after_call == nullptr) {
+	    return interpreter::num_y(e);
+        } else {
+	    auto at_call = reinterpret_cast<wam_instruction<CALL> *>(
 		 reinterpret_cast<code_t *>(after_call) -
 		 sizeof(wam_instruction<CALL>)/sizeof(code_t));
-	return at_call->num_y();
+	    return at_call->num_y();
+	}
     }
 
     inline term & x(size_t i)
@@ -605,32 +549,27 @@ private:
 
     inline term & y(size_t i)
     {
-        return register_e_->yn[i];
-    }
-
-    inline term & a(size_t i)
-    {
-        return register_ai_[i];    
+        return e()->yn[i];
     }
 
     inline void backtrack()
     {
-        if (register_b_ == register_top_b_) {
-	    top_fail_ = true;
+        if (b() == top_b()) {
+	    set_top_fail(true);
         } else {
-	    register_b0_ = register_b_->b0;
-	    register_p_ = register_b_->bp;
+	    set_b0(b()->b0);
+	    register_p_ = b()->bp;
 	}
     }
 
     inline void tidy_trail()
     {
-	size_t i = register_b_->tr;
+        size_t i = b()->tr;
 	size_t tr = trail_size();
-	size_t b = to_stack_addr(base(register_b_));
+	size_t bb = to_stack_addr(base(b()));
 	while (i < tr) {
 	    if (trail_get(i) < get_register_hb() ||
-		(heap_size() < trail_get(i) && trail_get(i) < b)) {
+		(heap_size() < trail_get(i) && trail_get(i) < bb)) {
 		i++;
 	    } else {
 		trail_set(i, trail_get(tr-1));
@@ -654,46 +593,41 @@ private:
 
     inline void trail(size_t a)
     {
-	size_t b = to_stack_addr(base(register_b_));
-	if (a < get_register_hb() || (is_stack(a) && a < b)) {
+        size_t bb = to_stack_addr(base(b()));
+	if (a < get_register_hb() || (is_stack(a) && a < bb)) {
 	    push_trail(a);
 	}
     }
 
     bool top_fail_;
     enum mode_t { READ, WRITE } mode_;
-    size_t num_of_args_;
-    wam_instruction_base *register_p_;
-    wam_instruction_base *register_cp_;
-    environment_t *register_e_;
-    choice_point_t *register_b_;
-    choice_point_t *register_b0_;
-    choice_point_t *register_top_b_;
+
+    code_point register_p_;
+    code_point register_cp_;
+
     size_t register_s_;
 
     std::vector<wam_hash_map *> hash_maps_;
 
     term register_xn_[1024];
-    term register_ai_[256];
-
-    // Stack is emulated at heap offset >= 2^59 (3 bits for tag, remember!)
-    // (This conforms to the WAM standard where addr(stack) > addr(heap))
-    const size_t STACK_BASE = 0x80000000000000;
-
-    word_t    *stack_;
-    size_t    stack_ptr_;
 
   public:
-    inline wam_instruction_base * next_instruction(wam_instruction_base *p)
+    inline void next_instruction(code_point &p)
     {
-	return reinterpret_cast<wam_instruction_base *>(reinterpret_cast<code_t *>(p) + p->size());
+        p.set_wam_code(reinterpret_cast<wam_instruction_base *>(reinterpret_cast<code_t *>(p.wam_code()) + p.wam_code()->size()));
     }
+
+    inline wam_instruction_base *  next_instruction(wam_instruction_base *p)
+    {
+        return reinterpret_cast<wam_instruction_base *>(reinterpret_cast<code_t *>(p) + p->size());
+    }
+
 
   private:
 
     inline void goto_next_instruction()
     {
-	register_p_ = next_instruction(register_p_);
+        next_instruction(register_p_);
     }
 
     inline term deref_stack(common::ref_cell ref0)
@@ -737,31 +671,6 @@ private:
 	}
     }
 
-    inline bool is_stack(common::ref_cell ref)
-    {
-        return ref.index() >= STACK_BASE;
-    }
-
-    inline bool is_stack(size_t ref)
-    {
-	return ref >= STACK_BASE;
-    }
-
-    inline word_t * to_stack(common::ref_cell ref)
-    {
-        return &stack_[ref.index() - STACK_BASE];
-    }
-
-    inline word_t * to_stack(size_t ref)
-    {
-	return &stack_[ref - STACK_BASE];
-    }
-
-    inline size_t to_stack_addr(word_t *p)
-    {
-        return static_cast<size_t>(p - stack_) + STACK_BASE;
-    }
-
     inline void put_variable_x(uint32_t xn, uint32_t ai)
     {
         term ref = new_ref();
@@ -799,7 +708,7 @@ private:
 	    return;
 	}
 	auto ref = static_cast<common::ref_cell &>(t);
-	if (!is_stack(ref) || to_stack(ref) < base(register_e_)) {
+	if (!is_stack(ref) || to_stack(ref) < base(e())) {
 	    a(ai) = t;
         } else {
 	    t = new_ref();
@@ -1213,120 +1122,84 @@ private:
 
     inline void allocate()
     {
-        word_t *new_e0;
-	if (base(register_e_) > base(register_b_)) {
-	    new_e0 = base(register_e_) + num_y(register_e_) + words<environment_t>();
-	} else {
-	    new_e0 = base(register_b_) + register_b_->arity +
-	               words<choice_point_t>();
-	}
-	environment_t *new_e = reinterpret_cast<environment_t *>(new_e0);
-	new_e->ce = register_e_;
-	new_e->cp = register_cp_;
-        register_e_ = new_e;
-
+        allocate_environment(true);
 	goto_next_instruction();
     }
 
     inline void deallocate()
     {
-        register_cp_ = register_e_->cp;
-        register_e_ = register_e_->ce;
+        deallocate_environment();
 	goto_next_instruction();
     }
 
-    inline void call(wam_instruction_base *p, size_t arity, uint32_t num_stack)
+    inline void call(code_point &p, size_t arity, uint32_t num_stack)
     {
-        register_cp_ = next_instruction(register_p_);
-	num_of_args_ = arity;
-	register_b0_ = register_b_;
+        set_cp(register_p_);
+        next_instruction(cp());
+	set_num_of_args(arity);
+	set_b0(b());
 	register_p_ = p;
     }
 
-    inline void execute(wam_instruction_base *p, size_t arity)
+    inline void execute(code_point &p, size_t arity)
     {
-        num_of_args_ = arity;
-	register_b0_ = register_b_;
+        set_num_of_args(arity);
+	set_b0(b());
 	register_p_ = p;
     }
 
     inline void proceed()
     {
-        register_p_ = register_cp_;
+        register_p_ = cp();
     }
 
     inline bool builtin(wam_instruction_base *p)
     {
         auto b = reinterpret_cast<wam_instruction<BUILTIN> *>(p);
-	// auto bn = b->bn();
-	num_of_args_ = b->arity();
-        register_cp_ = next_instruction(register_p_);
+	set_num_of_args(b->arity());
+        register_cp_ = register_p_;
+	next_instruction(register_cp_);
 	// TODO: We need to call bn here...
 	return false;
     }
 
-    inline void allocate_choice_point(wam_instruction_base *p_else)
+    void retry_choice_point(code_point &p_else)
     {
-        word_t *new_b0;
-	if (base(register_e_) > base(register_b_)) {
-	     new_b0 = base(register_e_->cp) + num_y(register_e_) + words<environment_t>();
-	} else {
-	  new_b0 = base(register_b_->cp) + register_b_->arity + words<choice_point_t>();
-	}
-	auto *new_b = reinterpret_cast<choice_point_t *>(new_b0);
-	new_b->arity = num_of_args_;
-	for (size_t i = 0; i < num_of_args_; i++) {
-	    new_b->ai[i] = a(i);
-	}
-	new_b->ce = register_e_;
-	new_b->cp = register_cp_;
-	new_b->b = register_b_;
-	new_b->bp = p_else;
-	new_b->tr = trail_size();
-	new_b->h = heap_size();
-	new_b->b0 = register_b0_;
-	register_b_ = new_b;
-	set_register_hb(heap_size());
-    }
-
-    void retry_choice_point(wam_instruction_base *p_else)
-    {
-	size_t n = register_b_->arity;
+        size_t n = b()->arity;
 	for (size_t i = 0; i < n; i++) {
-	    a(i) = register_b_->ai[i];
+  	    a(i) = b()->ai[i];
 	}
-	register_e_ = register_b_->ce;
-	register_cp_ = register_b_->cp;
-	register_b_->bp = p_else;
-	unwind_trail(register_b_->tr, trail_size());
-	trim_trail(register_b_->tr);
-	trim_heap(register_b_->h);
+	set_e(b()->ce);
+	set_cp(b()->cp);
+	b()->bp = p_else;
+	unwind_trail(b()->tr, trail_size());
+	trim_trail(b()->tr);
+	trim_heap(b()->h);
 	set_register_hb(heap_size());
     }
 
     void trust_choice_point()
     {
-	size_t n = register_b_->arity;
+        size_t n = b()->arity;
 	for (size_t i = 0; i < n; i++) {
-	    a(i) = register_b_->ai[i];
+	    a(i) = b()->ai[i];
 	}
-	register_e_ = register_b_->ce;
-	register_cp_ = register_b_->cp;
-	unwind_trail(register_b_->tr, trail_size());
-	trim_trail(register_b_->tr);
-	trim_heap(register_b_->h);
-	register_b_ = register_b_->b;
-	set_register_hb(register_b_->h);
+	set_e(b()->ce);
+	set_cp(b()->cp);
+	unwind_trail(b()->tr, trail_size());
+	trim_trail(b()->tr);
+	trim_heap(b()->h);
+	set_b(b()->b);
+	set_register_hb(b()->h);
     }
 
-
-    inline void try_me_else(wam_instruction_base *L)
+    inline void try_me_else(code_point &L)
     {
 	allocate_choice_point(L);
 	goto_next_instruction();
     }
 
-    inline void retry_me_else(wam_instruction_base *L)
+    inline void retry_me_else(code_point &L)
     {
 	retry_choice_point(L);
 	goto_next_instruction();
@@ -1338,33 +1211,37 @@ private:
 	goto_next_instruction();
     }
 
-    inline void try_(wam_instruction_base *L)
+    inline void try_(code_point &L)
     {
-	allocate_choice_point(next_instruction(register_p_));
+        auto p = register_p_;
+	next_instruction(p);
+	allocate_choice_point(p);
 	register_p_ = L;
     }
 
-    inline void retry(wam_instruction_base *L)
+    inline void retry(code_point &L)
     {
-	retry_choice_point(next_instruction(register_p_));
+        auto p = register_p_;
+	next_instruction(p);
+	retry_choice_point(p);
 	register_p_ = L;
     }
 
-    inline void trust(wam_instruction_base *L)
+    inline void trust(code_point &L)
     {
 	trust_choice_point();
 	register_p_ = L;
     }
 
-    inline void switch_on_term(wam_instruction_base *pv,
-			       wam_instruction_base *pc,
-			       wam_instruction_base *pl,
-			       wam_instruction_base *ps)
+    inline void switch_on_term(code_point &pv,
+			       code_point &pc,
+			       code_point &pl,
+			       code_point &ps)
     {
 	term t = deref(a(0));
 	switch (t.tag()) {
 	case common::tag_t::CON: case common::tag_t::INT:
-	    if (pc == nullptr) {
+	    if (pc.is_fail()) {
 		backtrack();
 	    } else {
 		register_p_ = pc;
@@ -1372,13 +1249,13 @@ private:
 	    break;
 	case common::tag_t::STR: {
 	    if (is_dotted_pair(t)) {
-		if (pl == nullptr) {
+	        if (pl.is_fail()) {
 		    backtrack();
 		} else {
 		    register_p_ = pl;
 		}
 	    } else {
-		if (ps == nullptr) {
+	        if (ps.is_fail()) {
 		    backtrack();
 		} else {
 		    register_p_ = ps;
@@ -1387,7 +1264,7 @@ private:
 	}
 	case common::tag_t::REF:
 	default: {
-	    if (pv == nullptr) {
+	    if (pv.is_fail()) {
 		backtrack();
 	    } else {
 		register_p_ = pv;
@@ -1404,7 +1281,7 @@ private:
 	if (it == map.end()) {
 	    backtrack();
 	} else {
-	    register_p_ = it->second.code();
+	    register_p_ = it->second;
 	}
     }
 
@@ -1415,14 +1292,14 @@ private:
 	if (it == map.end()) {
 	    backtrack();
 	} else {
-	    register_p_ = it->second.code();
+	    register_p_ = it->second;
 	}
     }
 
     inline void neck_cut()
     {
-	if (register_b_ > register_b0_) {
-	    register_b_ = register_b0_;
+        if (b() > b0()) {
+	    set_b(b0());
 	    tidy_trail();
 	}
 	goto_next_instruction();
@@ -1430,15 +1307,16 @@ private:
 
     inline void get_level(uint32_t yn)
     {
-	y(yn) = common::int_cell(to_stack_addr(base(register_b0_)));
+        y(yn) = common::int_cell(to_stack_addr(base(b0())));
 	goto_next_instruction();
     }
 
     inline void cut(uint32_t yn)
     {
-	auto b0 = to_stack(static_cast<common::int_cell &>(y(yn)).value())->cp;
-	if (register_b_ > b0) {
-	    register_b_ = b0;
+        auto b0 = reinterpret_cast<choice_point_t *>(
+	     to_stack(static_cast<common::int_cell &>(y(yn)).value()));
+	if (b() > b0) {
+	    set_b(b0);
 	}
     }
 
@@ -1449,7 +1327,7 @@ inline void wam_code::update(code_t *old_base, code_t *new_base)
 {
     wam_instruction_base *instr = reinterpret_cast<wam_instruction_base *>(new_base);
     for (size_t i = 0; i < instrs_size_;) {
-	instr = interp_.next_instruction(instr);
+	interp_.next_instruction(instr);
 	instr->update(old_base, new_base);
 	i = static_cast<size_t>(reinterpret_cast<code_t *>(instr) - new_base);
     }
@@ -2686,7 +2564,7 @@ public:
 inline void wam_instruction<CALL>::invoke(wam_interpreter &interp, wam_instruction_base *self)
 {
     auto self1 = reinterpret_cast<wam_instruction<CALL> *>(self);
-    interp.call(self1->p().code(), self1->arity(), self1->num_y());
+    interp.call(self1->p(), self1->arity(), self1->num_y());
 }
 
 inline void wam_instruction<CALL>::print(std::ostream &out, wam_interpreter &interp, wam_instruction_base *self)
@@ -2719,7 +2597,7 @@ public:
     inline code_point & p() { return cp(); }
 
     inline common::con_cell pn() const
-    { common::cell c = p().label();
+    { auto c = p().term_code();
       common::con_cell &cc = static_cast<common::con_cell &>(c);
       return cc;
     }
@@ -2729,7 +2607,7 @@ public:
     static void invoke(wam_interpreter &interp, wam_instruction_base *self)
     {
 	auto self1 = reinterpret_cast<wam_instruction<EXECUTE> *>(self);
-	interp.execute(self1->p().code(), self1->arity());
+	interp.execute(self1->p(), self1->arity());
     }
 
     static void print(std::ostream &out, wam_interpreter &interp, wam_instruction_base *self)
@@ -2805,13 +2683,13 @@ public:
     static void invoke(wam_interpreter &interp, wam_instruction_base *self)
     {
 	auto self1 = reinterpret_cast<wam_instruction<TRY_ME_ELSE> *>(self);
-	interp.try_me_else(self1->p().code());
+	interp.try_me_else(self1->p());
     }
 
     static void print(std::ostream &out, wam_interpreter &interp, wam_instruction_base *self)
     {
 	auto self1 = reinterpret_cast<wam_instruction<TRY_ME_ELSE> *>(self);
-	out << "try_me_else L:" << interp.to_string(self1->p().label());
+	out << "try_me_else L:" << interp.to_string(self1->p().term_code());
     }
 
     static void updater(wam_instruction_base *self, code_t *old_base, code_t *new_base)
@@ -2847,13 +2725,13 @@ public:
     static void invoke(wam_interpreter &interp, wam_instruction_base *self)
     {
 	auto self1 = reinterpret_cast<wam_instruction<RETRY_ME_ELSE> *>(self);
-	interp.retry_me_else(self1->p().code());
+	interp.retry_me_else(self1->p());
     }
 
     static void print(std::ostream &out, wam_interpreter &interp, wam_instruction_base *self)
     {
 	auto self1 = reinterpret_cast<wam_instruction<RETRY_ME_ELSE> *>(self);
-	out << "retry_me_else L:" << interp.to_string(self1->p().label());
+	out << "retry_me_else L:" << interp.to_string(self1->p().term_code());
     }
 
     static void updater(wam_instruction_base *self, code_t *old_base, code_t *new_base)
@@ -2917,13 +2795,13 @@ public:
     static void invoke(wam_interpreter &interp, wam_instruction_base *self)
     {
 	auto self1 = reinterpret_cast<wam_instruction<TRY> *>(self);
-	interp.try_(self1->p().code());
+	interp.try_(self1->p());
     }
 
     static void print(std::ostream &out, wam_interpreter &interp, wam_instruction_base *self)
     {
 	auto self1 = reinterpret_cast<wam_instruction<TRY> *>(self);
-	out << "try L:" << interp.to_string(self1->p().label());
+	out << "try L:" << interp.to_string(self1->p().term_code());
     }
 
     static void updater(wam_instruction_base *self, code_t *old_base, code_t *new_base)
@@ -2959,13 +2837,13 @@ public:
     static void invoke(wam_interpreter &interp, wam_instruction_base *self)
     {
 	auto self1 = reinterpret_cast<wam_instruction<RETRY> *>(self);
-	interp.retry(self1->p().code());
+	interp.retry(self1->p());
     }
 
     static void print(std::ostream &out, wam_interpreter &interp, wam_instruction_base *self)
     {
 	auto self1 = reinterpret_cast<wam_instruction<RETRY> *>(self);
-	out << "retry L:" << interp.to_string(self1->p().label());
+	out << "retry L:" << interp.to_string(self1->p().term_code());
     }
 
     static void updater(wam_instruction_base *self, code_t *old_base, code_t *new_base)
@@ -3001,13 +2879,13 @@ public:
     static void invoke(wam_interpreter &interp, wam_instruction_base *self)
     {
 	auto self1 = reinterpret_cast<wam_instruction<TRUST> *>(self);
-	interp.trust(self1->p().code());
+	interp.trust(self1->p());
     }
 
     static void print(std::ostream &out, wam_interpreter &interp, wam_instruction_base *self)
     {
 	auto self1 = reinterpret_cast<wam_instruction<TRUST> *>(self);
-	out << "trust L:" << interp.to_string(self1->p().label());
+	out << "trust L:" << interp.to_string(self1->p().term_code());
     }
 
     static void updater(wam_instruction_base *self, code_t *old_base, code_t *new_base)
@@ -3052,7 +2930,7 @@ public:
     static void invoke(wam_interpreter &interp, wam_instruction_base *self)
     {
 	auto self1 = reinterpret_cast<wam_instruction<SWITCH_ON_TERM> *>(self);
-	interp.switch_on_term(self1->pv().code(), self1->pc().code(), self1->pl().code(), self1->ps().code());
+	interp.switch_on_term(self1->pv(), self1->pc(), self1->pl(), self1->ps());
     }
 
     static void print(std::ostream &out, wam_interpreter &interp, wam_instruction_base *self)
@@ -3062,25 +2940,25 @@ public:
         if (self1->pv().is_fail()) {
 	    out << "V->fail";
 	} else {
-	    out << "V->L:" << interp.to_string(self1->pv().label());
+	    out << "V->L:" << interp.to_string(self1->pv().term_code());
 	}
 	out << ", ";
 	if (self1->pc().is_fail()) {
 	    out << "C->fail";
 	} else {
-	    out << "C->L:" << interp.to_string(self1->pc().label());
+	    out << "C->L:" << interp.to_string(self1->pc().term_code());
 	}
 	out << ", ";
 	if (self1->pl().is_fail()) {
 	    out << "L->fail";
 	} else {
-	    out << "L->L:" << interp.to_string(self1->pl().label());
+  	    out << "L->L:" << interp.to_string(self1->pl().term_code());
 	}
 	out << ", ";
 	if (self1->ps().is_fail()) {
 	    out << "S->fail";
 	} else {
-	    out << "S->L:" << interp.to_string(self1->ps().label());
+	    out << "S->L:" << interp.to_string(self1->ps().term_code());
 	}
     }
 
@@ -3124,7 +3002,7 @@ public:
 	bool first = true;
 	for (auto &v : self1->map()) {
 	    if (!first) out << ", ";
-	    out << interp.to_string(v.first) << "->L:" << interp.to_string(v.second.label());
+	    out << interp.to_string(v.first) << "->L:" << interp.to_string(v.second.term_code());
 	    first = false;
 	}
     }
@@ -3163,7 +3041,7 @@ public:
 	    if (!first) out << ", ";
 	    auto str = static_cast<const common::str_cell &>(v.first);
 	    auto f = interp.functor(str);
-	    out << interp.to_string(v.first) << "/" << f.arity() << "->L:" << interp.to_string(v.second.label());
+	    out << interp.to_string(v.first) << "/" << f.arity() << "->L:" << interp.to_string(v.second.term_code());
 	    first = false;
 	}
     }

@@ -32,9 +32,9 @@ namespace prologcoin { namespace interp {
     // TODO: This needs to be modified to use callbacks.
     bool builtins::operator_comma(interpreter &interp, size_t arity, common::term args[])
     {
-	interp.set_continuation_point(args[1]);
-        interp.allocate_environment();
-	interp.set_continuation_point(args[0]);
+        interp.set_cp(code_point(args[1]));
+        interp.allocate_environment(true);
+	interp.set_cp(code_point(args[0]));
 	return true;
     }
 
@@ -55,7 +55,7 @@ namespace prologcoin { namespace interp {
 	    interp.reset_choice_point();
 	    interp.tidy_trail();
 	    auto *ch = interp.get_last_choice_point();
-	    ch->bp = 2; // Don't back track to false clause
+	    ch->bp = code_point(int_cell(2)); // Don't back track to false clause
 	}
         return true;
     }
@@ -71,9 +71,8 @@ namespace prologcoin { namespace interp {
 	    return operator_if_then_else(interp, arity, args);
 	}
 
-        auto *ch = interp.allocate_choice_point(0);
-        ch->bp = 1; // Index 0 and clause 1 (use query to get clause 1)
-	interp.set_continuation_point(arg0);
+        interp.allocate_choice_point(code_point(int_cell(1)));
+	interp.set_cp(code_point(arg0));
 	return true;
     }
 
@@ -82,17 +81,16 @@ namespace prologcoin { namespace interp {
     {
 	static con_cell cut_op("!",0);
 
-	auto *ch = interp.allocate_choice_point(0);
-	ch->bp = 2;
+	interp.allocate_choice_point(code_point(int_cell(2)));
 	interp.move_cut_point_to_last_choice_point();
 	term cut = cut_op;
 	term arg0 = args[0];
 	term arg1 = args[1];
-	interp.set_continuation_point(arg1);
-	interp.allocate_environment();
-	interp.set_continuation_point(cut);
-	interp.allocate_environment();
-	interp.set_continuation_point(arg0);
+	interp.set_cp(code_point(arg1));
+	interp.allocate_environment(true);
+	interp.set_cp(code_point(cut));
+	interp.allocate_environment(true);
+	interp.set_cp(code_point(arg0));
         return true;
     }
 
@@ -107,14 +105,14 @@ namespace prologcoin { namespace interp {
 	term iftrue = interp.arg(lhs, 1);
 	term cut_if = cut_op_if;
 
-	auto *ch = interp.allocate_choice_point(0);
-	ch->bp = 1; // Go to 'C' the false clause if ((A->B) ; C) fails
+	// Go to 'C' the false clause if ((A->B) ; C) fails
+	interp.allocate_choice_point(code_point(int_cell(1)));
 	interp.move_cut_point_to_last_choice_point();
-	interp.set_continuation_point(iftrue);
-	interp.allocate_environment();
-	interp.set_continuation_point(cut_if);
-	interp.allocate_environment();
-	interp.set_continuation_point(cond);
+	interp.set_cp(code_point(iftrue));
+	interp.allocate_environment(true);
+	interp.set_cp(code_point(cut_if));
+	interp.allocate_environment(true);
+	interp.set_cp(code_point(cond));
         return true;
     }
 
@@ -424,10 +422,10 @@ namespace prologcoin { namespace interp {
 	interp.new_meta_context<meta_context>(&operator_disprove_post);
 
 	interp.set_top_e();
-	interp.allocate_environment();
-	interp.set_top_b();
+	interp.allocate_environment(true);
+	interp.set_top_b(interp.b());
 	interp.set_current_query(arg);
-	interp.set_continuation_point(arg);
+	interp.set_cp(code_point(arg));
 
 	return true;
     }

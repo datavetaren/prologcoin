@@ -42,6 +42,7 @@ static void eval_check_1(const std::string &program,
 
     term prog = interp.parse(program);
 
+    // interp.set_debug(true);
     interp.load_program(prog);
 
     std::cout << "Program --------------------------------------\n";
@@ -100,6 +101,7 @@ static void eval_check_n(const std::string &program,
 
     term prog = interp.parse(program);
 
+    // interp.set_debug(true);
     interp.load_program(prog);
 
     std::cout << "Program --------------------------------------\n";

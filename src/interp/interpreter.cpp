@@ -11,6 +11,8 @@ namespace prologcoin { namespace interp {
 
 using namespace prologcoin::common;
 
+const common::term code_point::fail_term_ = common::ref_cell(0);
+
 interpreter::interpreter() : register_pr_("", 0), comma_(",",2), empty_list_("[]", 0), implied_by_(":-", 2), arith_(*this)
 {
     init();
@@ -23,6 +25,11 @@ void interpreter::init()
 {
     debug_ = false;
     file_id_count_ = 1;
+    num_of_args_= 0;
+    memset(register_ai_, 0, sizeof(register_ai_));
+    stack_ = reinterpret_cast<word_t *>(new char[MAX_STACK_SIZE]);
+    stack_ptr_ = 0;
+    num_y_fn_ = &num_y;
     id_to_predicate_.push_back(predicate()); // Reserve index 0
     prepare_execution();
 }
@@ -31,7 +38,7 @@ interpreter::~interpreter()
 {
     arith_.unload();
     close_all_files();
-    register_cp_ = term();
+    register_cp_.reset();
     register_qr_ = term();
     query_vars_.clear();
     syntax_check_stack_.clear();
@@ -404,77 +411,6 @@ void interpreter::print_profile(std::ostream &out) const
 
 }
 
-inline interpreter::environment_t * interpreter::get_environment(size_t at_index)
-{
-    environment_t *e = reinterpret_cast<environment_t *>(stack_ref(at_index));
-    return e;
-}
-
-void interpreter::allocate_environment()
-{
-    // If the choice point protects the current environment, then
-    // allocate after choice point.
-    size_t at_index = (register_b_ > register_e_) ?
-	register_b_ + choice_point_num_cells : register_e_ + environment_num_cells;
-    if (at_index == 0) {
-	at_index = 1;
-    }
-    ensure_stack(at_index, environment_num_cells);
-    environment_t *e = get_environment(at_index);
-    e->ce.set_value(register_e_);
-    e->b0.set_value(register_b0_);
-    e->cp = register_cp_;
-    e->qr = register_qr_;
-    e->pr = register_pr_;
-    register_e_ = at_index;
-}
-
-void interpreter::deallocate_environment()
-{
-    // This does not manipulate the stack! It only updates E and CP registers
-    // (current environment and continuation pointer), because a choice point
-    // may still use the "deallocated" environment.
-
-    environment_t *e = get_environment(register_e_);
-    register_e_ = e->ce.value();
-    register_b0_ = e->b0.value();
-    register_cp_ = e->cp;
-    register_qr_ = e->qr;
-    register_pr_ = e->pr;
-}
-
-interpreter::choice_point_t * interpreter::get_choice_point(size_t at_index)
-{
-    choice_point_t *cp = reinterpret_cast<choice_point_t *>(stack_ref(at_index));
-    return cp;
-}
-
-interpreter::choice_point_t * interpreter::allocate_choice_point(size_t index_id)
-{
-    size_t at_index = (register_e_ > register_b_) ?
-	register_e_ + environment_num_cells : register_b_ + choice_point_num_cells;
-    if (at_index == 0) {
-	at_index = 1;
-    }
-
-    ensure_stack(at_index, choice_point_num_cells);
-    choice_point_t *ch = get_choice_point(at_index);
-    ch->ce.set_value(register_e_);
-    ch->cp = register_cp_;
-    ch->b.set_value(register_b_);
-    ch->bp.set_value((index_id << 8) | 0); // 8 bits shifted = index_id
-                                           // lower 8 bits = clause no
-    ch->tr.set_value(trail_size());
-    ch->h.set_value(heap_size());
-    ch->b0.set_value(register_b0_);
-    ch->qr = register_qr_;
-    ch->pr = register_pr_;
-    register_b_ = at_index;
-    set_register_hb(heap_size());
-
-    return ch;
-}
-
 void interpreter::abort(const interpreter_exception &ex)
 {
     throw ex;
@@ -482,13 +418,17 @@ void interpreter::abort(const interpreter_exception &ex)
 
 void interpreter::prepare_execution()
 {
+    stack_ptr_ = 0;
+    num_of_args_= 0;
+    memset(register_ai_, 0, sizeof(register_ai_));
     top_fail_ = false;
-    register_b_ = 0;
-    register_e_ = 0;
+    register_b_ = nullptr;
+    register_e_ = nullptr;
+    register_e_is_extended_ = false;
     set_register_hb(get_register_hb());
-    register_b0_ = 0;
-    register_top_b_ = 0;
-    register_top_e_ = 0;
+    register_b0_ = nullptr;
+    register_top_b_ = nullptr;
+    register_top_e_ = nullptr;
 }
 
 bool interpreter::execute(const term query)
@@ -516,7 +456,7 @@ bool interpreter::execute(const term query)
 		       }
 		   } );
 
-    register_cp_ = query;
+    register_cp_ = code_point(query);
     register_qr_ = query;
 
     return cont();
@@ -629,15 +569,15 @@ void interpreter::print_result(std::ostream &out) const
 
 void interpreter::execute_once()
 {
-    term instruction = register_cp_;
+    auto instruction = register_cp_;
 
-    register_cp_ = empty_list();
+    register_cp_ = code_point(empty_list());
     dispatch(instruction);
 }
 
 void interpreter::tidy_trail()
 {
-    size_t from = get_choice_point(register_b_)->tr.value();
+    size_t from = (b() == nullptr) ? 0 : b()->tr;
     size_t to = trail_size();
     term_env::tidy_trail(from, to);
 }
@@ -749,49 +689,32 @@ size_t interpreter::matched_predicate_id(con_cell func, const term first_arg)
     return id;
 }
 
-common::term interpreter::get_first_arg(const term t)
+common::term interpreter::get_first_arg()
 {
-    if (t.tag() == tag_t::STR) {
-	auto f = functor(t);
-	if (f.arity() == 0) {
-	    return empty_list();
-	}
-	return arg(t, 0);
-    } else {
-	return empty_list();
+    if (num_of_args_ == 0) {
+        return empty_list();
     }
+    return a(0);
 }
 
-void interpreter::dispatch(term instruction)
+void interpreter::dispatch(code_point instruction)
 {
-    register_qr_ = instruction;
+    register_qr_ = instruction.term_code();
 
-    con_cell f = functor(instruction);
+    con_cell f = functor(register_qr_);
 
     if (f == empty_list_) {
         // Return
         if (is_debug()) {
-   	    environment_t *e = get_environment(register_e_);
-            std::cout << "interpreter::dispatch(): exit " << to_string(e->qr) << "\n";
+	    std::cout << "interpreter::dispatch(): exit " << to_string(ee()->qr) << "\n";
         }
         deallocate_environment();
 	return;
     }
 
-    /*
-    if (f == comma_) {
-        term arg0 = env().arg(instruction, 0);
-	term arg1 = env().arg(instruction, 1);
-	set_continuation_point(arg1);
-        allocate_environment();
-	set_continuation_point(arg0);
-	return;
-    }
-    */
-
     if (is_debug()) {
         // Print call
-      std::cout << "interpreter::dispatch(): call " << to_string(instruction) << "\n";
+        std::cout << "interpreter::dispatch(): call " << to_string(instruction.term_code()) << "\n";
     }
 
 #if PROFILER
@@ -807,15 +730,16 @@ void interpreter::dispatch(term instruction)
     } sc(*this, f);
 #endif
 
+    size_t arity = f.arity();
+    for (size_t i = 0; i < arity; i++) {
+        a(i) = arg(instruction.term_code(), i);
+    }
+    set_num_of_args(arity);
+
     // Is this a built-in?
     auto bf = builtins_[f];
     if (bf != nullptr) {
-	size_t arity = f.arity();
-	term args[32]; // Maximum number of arguments.
-	for (size_t i = 0; i < arity; i++) {
-	    args[i] = arg(instruction, i);
-	}
-	if (!bf(*this, arity, args)) {
+	if (!bf(*this, arity, args())) {
 	    fail();
 	}
 	return;
@@ -824,7 +748,7 @@ void interpreter::dispatch(term instruction)
     // Is there a successful optimized built-in?
     auto obf = builtins_opt_[f];
     if (obf != nullptr) {
-	tribool r = obf(*this, instruction);
+        tribool r = obf(*this, arity, args());
 	if (!indeterminate(r)) {
 	    if (!r) {
 		fail();
@@ -833,7 +757,8 @@ void interpreter::dispatch(term instruction)
 	}
     }
 
-    auto first_arg = get_first_arg(instruction);
+    auto first_arg = get_first_arg();
+
     size_t predicate_id = matched_predicate_id(f, first_arg);
     predicate  &p = get_predicate(predicate_id);
 
@@ -856,16 +781,19 @@ void interpreter::dispatch(term instruction)
     }
 
     size_t num_clauses = clauses.size();
+
     bool has_choices = num_clauses > 1;
     size_t index_id = predicate_id;
 
     // More than one clause that matches? We need a choice point.
     if (has_choices) {
         // Before making the actual call we'll remember the current choice
-        // point. This is the one we backtrack to if we encounter a cut operation.
-        register_b0_ = register_b_;
+        // point. This is the one we backtrack to if we encounter a cut operatio
+        set_b0(b());
 
-	allocate_choice_point(index_id);
+	int_cell index_id_int(index_id);
+	code_point cp(index_id_int);
+	allocate_choice_point(cp);
     }
 
     if (!select_clause(instruction, index_id, clauses, 0)) {
@@ -873,7 +801,7 @@ void interpreter::dispatch(term instruction)
     }
 }
 
-bool interpreter::select_clause(term instruction,
+bool interpreter::select_clause(code_point &instruction,
 				size_t index_id,
 				std::vector<term> &clauses,
 				size_t from_clause)
@@ -882,9 +810,8 @@ bool interpreter::select_clause(term instruction,
         if (from_clause > 1) {
 	    return false;
 	}
-        register_cp_ = arg(register_qr_, from_clause);
-	auto choice_point = get_choice_point(register_b_);
-	choice_point->bp.set_value(from_clause+1);
+        set_cp(code_point(arg(register_qr_, from_clause)));
+	b()->bp = code_point(int_cell(from_clause+1));
 	return true;
     }
 
@@ -901,17 +828,19 @@ bool interpreter::select_clause(term instruction,
 	term copy_head = clause_head(copy_clause);
 	term copy_body = clause_body(copy_clause);
 
-	if (unify(copy_head, instruction)) { // Heads match?
+	if (unify(copy_head, instruction.term_code())) { // Heads match?
 	    // Update choice point (where to continue on fail...)
 	    if (has_choices) {
-	        auto choice_point = get_choice_point(register_b_);
+	        auto choice_point = b();
 		if (i == num_clauses - 1) {
-		    choice_point->bp.set_value(0);
+	  	    choice_point->bp = code_point(int_cell(0));
 		} else {
-		    choice_point->bp.set_value((index_id << 8) + (i+1));
+		    choice_point->bp = code_point(int_cell((index_id << 8) + (i+1)));
 		}
 	    }
-	    allocate_environment();
+
+	    allocate_environment(true);
+
 	    register_cp_ = copy_body;
 	    register_qr_ = copy_head;
 
@@ -928,23 +857,24 @@ bool interpreter::select_clause(term instruction,
 
 void interpreter::unwind_to_top_choice_point()
 {
-    if (register_top_b_ == 0) {
+    if (top_b() == nullptr) {
         return;
     }
-    reset_to_choice_point(register_top_b_);
-    register_b_ = register_top_b_;
+    reset_to_choice_point(top_b());
+    set_b(top_b());
 }
 
-interpreter::choice_point_t * interpreter::reset_to_choice_point(size_t b)
+choice_point_t * interpreter::reset_to_choice_point(choice_point_t *b)
 {
-    auto ch = get_choice_point(b);
+    auto ch = b;
 
-    register_e_ = ch->ce.value();
-    register_cp_ = ch->cp;
-    unwind(ch->tr.value());
-    trim_heap(ch->h.value());
-    register_b0_ = ch->b0.value();
+    set_e(ch->ce);
+    set_cp(ch->cp);
+    unwind(ch->tr);
+    trim_heap(ch->h);
+    set_b0(ch->b0);
     set_register_hb(heap_size());
+    
     register_qr_ = ch->qr;
     register_pr_ = ch->pr;
 
@@ -975,9 +905,11 @@ void interpreter::fail()
 	    return;
         }
 
-	auto ch = reset_to_choice_point(register_b_);
+	size_t bpval0 = static_cast<int_cell &>(b()->bp.term_code()).value();
 
-	size_t bpval = ch->bp.value();
+	auto ch = reset_to_choice_point(b());
+
+	size_t bpval = static_cast<int_cell &>(ch->bp.term_code()).value();
 
 	// Is there another clause to backtrack to?
 	if (bpval != 0) {
@@ -996,12 +928,12 @@ void interpreter::fail()
 	    auto &clauses = id_to_predicate_[index_id];
 	    size_t from_clause = bpval & 0xff;
 
-  	    ok = select_clause(register_qr_, index_id, clauses, from_clause);
+  	    ok = select_clause(code_point(register_qr_), index_id, clauses, from_clause);
 
 	}
 	if (!ok) {
 	    unbound = false;
-	    register_b_ = ch->b.value();
+	    set_b(ch->b);
 	}
     } while (!ok);
 

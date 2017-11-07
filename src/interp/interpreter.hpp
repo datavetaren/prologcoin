@@ -140,9 +140,109 @@ public:
 	: interpreter_exception(msg) { }
 };
 
+class wam_instruction_base;
+
+// Contemplated this be a union, but it's better to ensure
+// portability. And it might be good to have access to both
+// the instruction pointer as well as the label.
+class code_point {
+public:
+    inline code_point() : wam_code_(nullptr), term_code_(common::ref_cell(0)){}
+    inline code_point(const common::term t) : wam_code_(nullptr),term_code_(t){}
+    inline code_point(const common::con_cell l) : wam_code_(nullptr), term_code_(l){}
+    inline code_point(const common::int_cell i) : wam_code_(nullptr), term_code_(i){}
+    inline code_point(const code_point &other)
+        : wam_code_(other.wam_code_), term_code_(other.term_code_) { }
+
+    inline static code_point fail() {
+        return code_point();
+    }
+
+    inline void reset() { wam_code_ = nullptr; term_code_ = fail_term_; }
+
+    inline bool is_fail() const { return term_code_ == fail_term_; }
+
+    inline wam_instruction_base * wam_code() const { return wam_code_; }
+    inline common::cell term_code() const { return term_code_; }
+
+    inline void set_wam_code(wam_instruction_base *p) { wam_code_ = p; }
+    inline void set_term_code(const common::term t) { term_code_ = t; }
+
+private:
+    static const common::cell fail_term_;
+
+    wam_instruction_base *wam_code_;
+    common::cell term_code_;
+};
+
+// Saved wrapped environment
+class environment_base_t;
+struct environment_saved_t {
+    uint64_t saved;
+
+    environment_saved_t(environment_base_t *e, bool is_extended)
+    {
+        saved = reinterpret_cast<uint64_t>(e) + (is_extended ? 1 : 0);
+    }
+
+    environment_base_t * ce0()
+    {
+        return reinterpret_cast<environment_base_t *>(saved & ~0x1);
+    }
+
+    bool is_extended()
+    {
+        return saved & 0x1;
+    }
+
+    std::pair<environment_base_t *, bool> ce()
+    {
+        return std::make_pair(ce0(), is_extended());
+    }
+};
+
+// Base data type for stack frames
+struct environment_base_t {
+    environment_saved_t   ce; // Continuation environment
+    code_point            cp; // Continuation point
+};
+
+// Data type for stack frames with Y variables (for WAM)
+struct environment_t : public environment_base_t {
+    common::term          yn[]; // Y variables
+};
+
+struct choice_point_t {
+    environment_saved_t   ce;
+    code_point            cp;
+    choice_point_t       *b;
+    code_point            bp;
+    size_t                tr;
+    size_t                h; 
+    choice_point_t       *b0;
+    common::term          qr; // Only used for naive interpreter (for now)
+    common::con_cell      pr; // Only used for naive interpreter (for now)
+    size_t                arity;
+    common::term          ai[];
+};
+
+// Extended environment (for naive interpreter)
+struct environment_ext_t : public environment_base_t {
+    choice_point_t       *b0;
+    common::term          qr;
+    common::con_cell      pr;
+};
+
+typedef union {
+    environment_t *e;
+    environment_ext_t *ee;
+    choice_point_t *cp;
+    common::term term;
+} word_t;
+
 struct meta_context {
-    size_t old_top_b;
-    size_t old_top_e;
+    choice_point_t *old_top_b;
+    environment_base_t *old_top_e;
 };
 
 typedef std::function<void (interpreter &, meta_context *)> meta_fn;
@@ -236,6 +336,261 @@ public:
         return builtins_.find(f) != builtins_.end();
     }
 
+protected:
+    template<typename T> inline size_t words() const
+    { return sizeof(T)/sizeof(word_t); }
+
+    template<typename T> inline word_t * base(T *t) const
+    { return reinterpret_cast<word_t *>(t); }
+
+    inline bool is_stack(common::ref_cell ref)
+    {
+        return ref.index() >= STACK_BASE;
+    }
+
+    inline bool is_stack(size_t ref)
+    {
+	return ref >= STACK_BASE;
+    }
+
+    inline word_t * to_stack(common::ref_cell ref)
+    {
+        return &stack_[ref.index() - STACK_BASE];
+    }
+
+    inline word_t * to_stack(size_t ref)
+    {
+	return &stack_[ref - STACK_BASE];
+    }
+
+    inline size_t to_stack_addr(word_t *p)
+    {
+        return static_cast<size_t>(p - stack_) + STACK_BASE;
+    }
+
+    typedef size_t (*num_y_fn_t)(environment_base_t *);
+
+    inline num_y_fn_t num_y_fn()
+    {
+        return num_y_fn_;
+    }
+
+    inline void set_num_y_fn( num_y_fn_t num_y_fn)
+    {
+        num_y_fn_ = num_y_fn;
+    }
+
+    inline term & a(size_t i)
+    {
+        return register_ai_[i];    
+    }
+
+    inline term * args()
+    {
+        return &register_ai_[0];
+    }
+
+    inline size_t num_of_args()
+    {
+        return num_of_args_;
+    }
+
+    inline void set_num_of_args(size_t n)
+    {
+        num_of_args_ = n;
+    }
+
+    static inline size_t num_y(environment_base_t *)
+    {
+        return (sizeof(environment_ext_t)-sizeof(environment_base_t))/sizeof(term);
+    }
+
+    inline void set_cp(code_point &cp)
+    {
+        register_cp_ = cp;
+    }
+
+    inline code_point & cp()
+    {
+	return register_cp_;
+    }
+
+    inline bool has_late_choice_point() 
+    {
+        return b() > b0();
+    }
+
+    inline void reset_choice_point()
+    {
+        set_b(b0());
+    }
+
+    void unwind_to_top_choice_point();
+
+    inline void set_top_e()
+    {
+        register_top_e_ = register_e_;
+    }
+
+    inline environment_base_t * e0()
+    {
+        return register_e_;
+    }
+
+    inline environment_t * e()
+    {
+        return reinterpret_cast<environment_t *>(e0());
+    }
+
+    inline environment_ext_t * ee()
+    {
+        return reinterpret_cast<environment_ext_t *>(e0());
+    }
+
+    inline bool e_is_extended()
+    {
+        return register_e_is_extended_;
+    }
+
+    inline environment_saved_t save_e()
+    {
+        return environment_saved_t(e0(), e_is_extended());
+    }
+
+    inline void set_e(environment_saved_t saved)
+    {
+        std::tie(register_e_, register_e_is_extended_) = saved.ce();
+    }
+
+    inline void set_e(environment_base_t *e)
+    {
+        register_e_ = e;
+	register_e_is_extended_ = false;
+    }
+
+    inline void set_ee(environment_ext_t *ee)
+    {
+        register_e_ = ee;
+	register_e_is_extended_ = true;
+    }
+
+    inline environment_base_t * top_e()
+    {
+        return register_top_e_;
+    }
+
+    inline choice_point_t * b()
+    {
+        return register_b_;
+    }
+
+    inline void set_b(choice_point_t *b)
+    {
+        register_b_ = b;
+    }
+
+    inline choice_point_t * b0()
+    {
+        return register_b0_;
+    }
+
+    inline void set_b0(choice_point_t *b)
+    {
+        register_b0_ = b;
+    }
+
+    inline choice_point_t * top_b()
+    {
+        return register_top_b_;
+    }
+
+    inline void set_top_b(choice_point_t *b)
+    {
+        register_top_b_ = b;
+    }
+
+    inline void set_top_fail(bool b)
+    {
+        top_fail_ = b;
+    }
+  
+    inline bool is_top_fail() const
+    {
+        return top_fail_;
+    }
+
+    void allocate_environment(bool big)
+    {
+        word_t *new_e0;
+	if (base(e0()) > base(b())) {
+	    new_e0 = base(e0()) + words<term>()*(num_y_fn()(e0())) + words<environment_base_t>();
+	} else {
+	    if (b() == nullptr) {
+	        new_e0 = stack_;
+  	    } else {
+	        new_e0 = base(b()) + words<term>()*b()->arity + words<choice_point_t>();
+	    }
+	}
+
+	if (!big) {
+	    environment_t *new_e = reinterpret_cast<environment_t *>(new_e0);
+	    new_e->ce = save_e();
+	    new_e->cp = cp();
+	    set_e(new_e);
+	} else {
+	    environment_ext_t *new_ee = reinterpret_cast<environment_ext_t *>(new_e0);
+	    new_ee->ce = save_e();
+	    new_ee->cp = cp();
+	    new_ee->b0 = b0();
+	    new_ee->qr = register_qr_;
+	    new_ee->pr = register_pr_;
+
+	    set_ee(new_ee);
+	}
+    }
+
+    void deallocate_environment()
+    {
+	if (e_is_extended()) {
+	    environment_ext_t *ee1 = ee();
+	    set_b0(ee1->b0);
+	    set_qr(ee1->qr);
+	    set_pr(ee1->pr);
+	}
+        set_cp(e0()->cp);
+        set_e(e0()->ce);
+    }
+
+    inline void allocate_choice_point(const code_point &cont)
+    {
+        word_t *new_b0;
+	if (base(e0()) > base(b())) {
+	    new_b0 = base(e0()) + num_y_fn()(e0()) + words<environment_t>();
+	} else {
+  	    if (e0() == nullptr) {
+	        new_b0 = stack_;
+	    } else {
+  	        new_b0 = base(b()) + b()->arity + words<choice_point_t>();
+	    }
+	}
+	auto *new_b = reinterpret_cast<choice_point_t *>(new_b0);
+	new_b->arity = num_of_args_;
+	for (size_t i = 0; i < num_of_args_; i++) {
+	    new_b->ai[i] = a(i);
+	}
+	new_b->ce = save_e();
+	new_b->cp = register_cp_;
+	new_b->b = register_b_;
+	new_b->bp = cont;
+	new_b->tr = trail_size();
+	new_b->h = heap_size();
+	new_b->b0 = register_b0_;
+	new_b->qr = register_qr_;
+	new_b->pr = register_pr_;
+	register_b_ = new_b;
+	set_register_hb(heap_size());
+    }
+
 private:
     void load_builtin(con_cell f, builtin b);
     void load_builtin_opt(con_cell f, builtin_opt b);
@@ -250,8 +605,9 @@ private:
     void prepare_execution();
     void abort(const interpreter_exception &ex);
     void fail();
-    bool select_clause(term instruction,
-		       size_t index_id, std::vector<term> &clauses,
+    bool select_clause(code_point &instruction,
+		       size_t index_id,
+		       std::vector<term> &clauses,
 		       size_t from_clause);
 
     inline term current_query()
@@ -264,29 +620,15 @@ private:
         register_qr_ = qr;
     }
 
-    struct environment_t {
-	int_cell ce; // Continuation environment
-        int_cell b0; // Choice point when encountering a cut operation.
-	cell cp;     // Continuation point
-        cell qr;     // Current query (good for debugging/tracing)
-	con_cell pr; // Current predicate
-    };
+    inline void set_qr(term qr)
+    {
+        set_current_query(qr);
+    }
 
-    static const int environment_num_cells = sizeof(environment_t) / sizeof(cell);
-
-    struct choice_point_t {
-	int_cell ce; // Continuation environment
-	cell cp;     // Continuation point (term that represents code)
-	int_cell b;  // Previous choice point
-	int_cell bp; // Encoded as a pair (clause index set id + clause no.)
-	int_cell tr; // Trail pointer
-	int_cell h;  // Heap pointer
-	int_cell b0; // Cut pointer
-        cell qr;     // Current query
-	con_cell pr; // Current predicate
-    };
-
-    static const int choice_point_num_cells = sizeof(choice_point_t) / sizeof(cell);
+    inline void set_pr(common::con_cell pr)
+    {
+        register_pr_ = pr;
+    }
 
     template<typename T> inline T * new_meta_context(meta_fn fn) {
         T *context = new T();
@@ -305,93 +647,26 @@ private:
 	meta_.pop_back();
     }
 
-    inline void set_continuation_point(const term cont)
-    {
-        register_cp_ = cont;
-    }
-
-    inline term get_continuation_point()
-    {
-	return register_cp_;
-    }
-
-    inline bool has_late_choice_point() 
-    {
-        return register_b_ > register_b0_;
-    }
-
-    inline void reset_choice_point()
-    {
-        register_b_ = register_b0_;
-    }
-
-    void unwind_to_top_choice_point();
-
-    inline void set_top_e()
-    {
-        register_top_e_ = register_e_;
-    }
-
-    inline size_t get_register_e()
-    {
-        return register_e_;
-    }
-
-    inline size_t get_top_e()
-    {
-        return register_top_e_;
-    }
-
-    inline size_t get_register_b()
-    {
-        return register_b_;
-    }
-
-    inline size_t get_top_b()
-    {
-        return register_top_b_;
-    }
-
-    inline void set_top_b()
-    {
-        register_top_b_ = register_b_;
-    }
-
-    inline void set_top_fail(bool b)
-    {
-        top_fail_ = b;
-    }
-  
-    inline bool is_top_fail() const
-    {
-        return top_fail_;
-    }
 
     void tidy_trail();
 
-    environment_t * get_environment(size_t at_index);
-    void allocate_environment();
-    void deallocate_environment();
+    choice_point_t * reset_to_choice_point(choice_point_t *b);
 
-    choice_point_t * get_choice_point(size_t at_index);
-    choice_point_t * allocate_choice_point(size_t index_id);
-    void cut_last_choice_point();
-    choice_point_t * reset_to_choice_point(size_t b);
     void unwind(size_t current_tr);
 
     inline choice_point_t * get_last_choice_point()
     {
-	return get_choice_point(register_b_);
+        return b();
     }
 
     inline void move_cut_point_to_last_choice_point()
     {
-	register_b0_ = register_b_;
+        set_b0(b());
     }
 
     bool definitely_inequal(const term a, const term b);
     common::cell first_arg_index(const term first_arg);
-    term get_first_arg(const term t);
+    term get_first_arg();
 
     void compute_matched_predicate(con_cell functor, const term first_arg,
 				   predicate &matched);
@@ -404,7 +679,7 @@ private:
 
     void execute_once();
     bool cont();
-    void dispatch(term instruction);
+    void dispatch(code_point instruction);
 
     void syntax_check();
 
@@ -430,15 +705,33 @@ private:
 
     std::vector<binding> query_vars_;
 
-    size_t stack_start_;
+    // Stack is emulated at heap offset >= 2^59 (3 bits for tag, remember!)
+    // (This conforms to the WAM standard where addr(stack) > addr(heap))
+    const size_t STACK_BASE = 0x80000000000000;
+    const size_t MAX_STACK_SIZE = 1024*1024;
+
+    word_t    *stack_;
+    size_t    stack_ptr_;
 
     bool top_fail_;
 
-    term register_cp_;   // Continuation point
-    size_t register_b_;  // Points to current choice point (0 means none)
-    size_t register_e_;  // Points to current environment
-    size_t register_b0_; // Record choice point (for neck cuts)
-    term register_qr_;   // Current query 
+    code_point register_cp_;
+
+    bool register_e_is_extended_; // If the register_e is an extended env.
+    environment_base_t *register_e_;  // Points to current environment
+    environment_base_t *register_top_e_;
+
+    choice_point_t *register_b_;
+    choice_point_t *register_b0_;
+    choice_point_t *register_top_b_;
+
+    term register_ai_[256];
+
+    size_t num_of_args_;
+
+    num_y_fn_t num_y_fn_;
+
+    term register_qr_;     // Current query 
     con_cell register_pr_; // Current predicate (for profiling)
 
     con_cell comma_;
@@ -452,8 +745,6 @@ private:
 
     arithmetics arith_;
 
-    size_t register_top_b_; // Fail if this register_b_ reaches this value.
-    size_t register_top_e_; // Check meta if 'e' reaches this value.
     std::vector<meta_entry> meta_;
 
     std::unordered_map<common::con_cell, uint64_t> profiling_;

@@ -6,10 +6,10 @@ namespace prologcoin { namespace interp {
     using namespace prologcoin::common;
     using namespace boost::logic;
 
-    tribool builtins_opt::member_2(interpreter &interp, term &caller)
+    tribool builtins_opt::member_2(interpreter &interp, size_t arity, term args[])
     {
-	term arg = interp.arg(caller, 0);
-	term lst = interp.arg(caller, 1);
+        term arg = args[0];
+        term lst = args[1];
 	if (interp.is_ground(arg) && interp.is_ground(lst)) {
 	    // Optimized version with no choice points
 	    while (interp.is_dotted_pair(lst)) {
@@ -25,10 +25,10 @@ namespace prologcoin { namespace interp {
 	}
     }
 
-    tribool builtins_opt::sort_2(interpreter &interp, term &caller)
+    tribool builtins_opt::sort_2(interpreter &interp, size_t arity, term args[])
     {
-	term arg0 = interp.arg(caller, 0);
-	term arg1 = interp.arg(caller, 1);
+        term arg0 = args[0];
+	term arg1 = args[1];
 
 	if (arg0.tag() == tag_t::REF) {
             interp.abort(interpreter_exception_not_sufficiently_instantiated("sort/2: Arguments are not sufficiently instantiated"));
