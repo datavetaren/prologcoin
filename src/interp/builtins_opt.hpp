@@ -7,17 +7,17 @@
 #include <boost/logic/tribool.hpp>
 
 namespace prologcoin { namespace interp {
-    class interpreter;
+    class interpreter_base;
 
     using namespace boost::logic;
 
-    typedef std::function<tribool (interpreter &interp, size_t arity, common::term caller[])> builtin_opt;
+    typedef std::function<tribool (interpreter_base &interp, size_t arity, common::term caller[])> builtin_opt;
 
     class builtins_opt {
     public:
 
-        static tribool member_2(interpreter &interp, size_t arity, common::term args[]);
-        static tribool sort_2(interpreter &interp, size_t arity, common::term caller[]);
+        static tribool member_2(interpreter_base &interp, size_t arity, common::term args[]);
+        static tribool sort_2(interpreter_base &interp, size_t arity, common::term caller[]);
     };
 
 }}

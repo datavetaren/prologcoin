@@ -1,5 +1,5 @@
 #include "builtins_fileio.hpp"
-#include "interpreter.hpp"
+#include "interpreter_base.hpp"
 #include <boost/filesystem.hpp>
 #include <fstream>
 
@@ -9,7 +9,7 @@ namespace prologcoin { namespace interp {
 
     static std::unordered_map<size_t, std::istream> file_map_;
 
-    bool builtins_fileio::open_3(interpreter &interp, size_t arity, term args[])
+    bool builtins_fileio::open_3(interpreter_base &interp, size_t arity, term args[])
     {
         term filename0 = args[0];
 	term mode0 = args[1];
@@ -54,7 +54,7 @@ namespace prologcoin { namespace interp {
 	return false;
     }
 
-    size_t builtins_fileio::get_stream_id(interpreter &interp, term &stream,
+    size_t builtins_fileio::get_stream_id(interpreter_base &interp, term &stream,
 					  const std::string &from_fun)
     {
 	if (!interp.is_functor(stream, con_cell("$stream", 1))) {
@@ -81,7 +81,7 @@ namespace prologcoin { namespace interp {
 	return id;
     }
 
-    bool builtins_fileio::close_1(interpreter &interp, size_t arity, term args[])
+    bool builtins_fileio::close_1(interpreter_base &interp, size_t arity, term args[])
     {
 	term stream = args[0];
 	size_t id = get_stream_id(interp, stream, "close/1");
@@ -89,7 +89,7 @@ namespace prologcoin { namespace interp {
 	return true;
     }
 
-    bool builtins_fileio::read_2(interpreter &interp, size_t arity, term args[])
+    bool builtins_fileio::read_2(interpreter_base &interp, size_t arity, term args[])
     {
 	term stream = args[0];
 	size_t id = get_stream_id(interp, stream, "read/2");
@@ -106,7 +106,7 @@ namespace prologcoin { namespace interp {
 	return r;
     }
 
-    bool builtins_fileio::at_end_of_stream_1(interpreter &interp, size_t arity, term args[])
+    bool builtins_fileio::at_end_of_stream_1(interpreter_base &interp, size_t arity, term args[])
     {
 	term stream = args[0];
 	size_t id = get_stream_id(interp, stream, "at_end_of_stream/1");
@@ -114,7 +114,7 @@ namespace prologcoin { namespace interp {
 	return fs.is_eof();
     }
 
-    bool builtins_fileio::write_1(interpreter &interp, size_t arity, term args[])
+    bool builtins_fileio::write_1(interpreter_base &interp, size_t arity, term args[])
     {
 	term arg = args[0];
 	std::string str = interp.to_string(arg);
@@ -122,7 +122,7 @@ namespace prologcoin { namespace interp {
 	return true;
     }
 
-    bool builtins_fileio::nl_0(interpreter &interp, size_t arity, term args[])
+    bool builtins_fileio::nl_0(interpreter_base &interp, size_t arity, term args[])
     {
 	std::cout << std::endl << std::flush;
 	return true;

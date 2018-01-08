@@ -6,7 +6,7 @@
 #include <istream>
 #include <vector>
 #include <iomanip>
-#include "interpreter.hpp"
+#include "interpreter_base.hpp"
 
 namespace prologcoin { namespace interp {
 
@@ -511,7 +511,7 @@ private:
     builtin bn_;
 };
 
-class wam_interpreter : public interpreter, public wam_code
+class wam_interpreter : public interpreter_base, public wam_code
 {
 public:
     wam_interpreter();
@@ -526,6 +526,11 @@ public:
 	return map;
     }
 
+    bool execute(const term query)
+    {
+        return interpreter_base::execute(query);
+    }
+
 private:
     template<wam_instruction_type I> friend class wam_instruction;
 
@@ -533,7 +538,7 @@ private:
     {
         auto after_call = e->cp.wam_code();
         if (after_call == nullptr) {
-	    return interpreter::num_y(e);
+	    return interpreter_base::num_y(e);
         } else {
 	    auto at_call = reinterpret_cast<wam_instruction<CALL> *>(
 		 reinterpret_cast<code_t *>(after_call) -

@@ -1,5 +1,5 @@
 #include "builtins.hpp"
-#include "interpreter.hpp"
+#include "interpreter_base.hpp"
 #include "arithmetics.hpp"
 
 namespace prologcoin { namespace interp {
@@ -13,17 +13,17 @@ namespace prologcoin { namespace interp {
 	return ic;
     }
 
-    term arithmetics_fn::plus_2(interpreter &interp, term *args)
+    term arithmetics_fn::plus_2(interpreter_base &interp, term *args)
     {
 	return get_int(args[0]) + get_int(args[1]);
     }
 
-    term arithmetics_fn::minus_2(interpreter &interp, term *args)
+    term arithmetics_fn::minus_2(interpreter_base &interp, term *args)
     {
 	return get_int(args[0]) - get_int(args[1]);
     }
 
-    term arithmetics_fn::times_2(interpreter &interp, term *args)
+    term arithmetics_fn::times_2(interpreter_base &interp, term *args)
     {
 	return get_int(args[0]) * get_int(args[1]);
     }

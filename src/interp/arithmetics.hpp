@@ -6,24 +6,24 @@
 #include "../common/term.hpp"
 
 namespace prologcoin { namespace interp {
-    class interpreter;
+    class interpreter_base;
 
     class arithmetics_fn {
     public:
-	static common::term plus_2(interpreter &interp, common::term *args);
-	static common::term minus_2(interpreter &interp, common::term *args);
-	static common::term times_2(interpreter &interp, common::term *args);
+	static common::term plus_2(interpreter_base &interp, common::term *args);
+	static common::term minus_2(interpreter_base &interp, common::term *args);
+	static common::term times_2(interpreter_base &interp, common::term *args);
     private:
 	static common::int_cell get_int(const common::term &t);
     };
 
 
     class arithmetics {
-        typedef std::function<common::term (interpreter &interp,
+        typedef std::function<common::term (interpreter_base &interp,
 				            common::term *args)> fn;
 
     public:
-        arithmetics(interpreter &interp) : interp_(interp), debug_(false)
+        arithmetics(interpreter_base &interp) : interp_(interp), debug_(false)
  	   { }
 
 	inline void set_debug(bool dbg) { debug_ = dbg; }
@@ -43,7 +43,7 @@ namespace prologcoin { namespace interp {
 	common::int_cell get_int_arg_type(common::term &arg,
 					  const std::string &context);
 
-	interpreter &interp_;
+	interpreter_base &interp_;
 	std::vector<common::term> args_;
 
 	std::unordered_map<common::con_cell, fn> fn_map_;

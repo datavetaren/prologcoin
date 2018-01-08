@@ -1,12 +1,12 @@
 #include "builtins_opt.hpp"
-#include "interpreter.hpp"
+#include "interpreter_base.hpp"
 
 namespace prologcoin { namespace interp {
 
     using namespace prologcoin::common;
     using namespace boost::logic;
 
-    tribool builtins_opt::member_2(interpreter &interp, size_t arity, term args[])
+    tribool builtins_opt::member_2(interpreter_base &interp, size_t arity, term args[])
     {
         term arg = args[0];
         term lst = args[1];
@@ -25,7 +25,7 @@ namespace prologcoin { namespace interp {
 	}
     }
 
-    tribool builtins_opt::sort_2(interpreter &interp, size_t arity, term args[])
+    tribool builtins_opt::sort_2(interpreter_base &interp, size_t arity, term args[])
     {
         term arg0 = args[0];
 	term arg1 = args[1];
