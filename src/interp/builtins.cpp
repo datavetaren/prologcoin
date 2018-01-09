@@ -424,7 +424,7 @@ namespace prologcoin { namespace interp {
 	interp.set_top_e();
 	interp.allocate_environment(true);
 	interp.set_top_b(interp.b());
-	interp.set_current_query(arg);
+	interp.set_qr(arg);
 	interp.set_cp(code_point(arg));
 
 	return true;

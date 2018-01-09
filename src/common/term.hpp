@@ -982,19 +982,19 @@ template<typename T> ext<T>::operator const T & () const
 
 namespace std {
     template<> struct hash<prologcoin::common::cell> {
-        size_t operator()(const prologcoin::common::cell& k) const {
+        size_t operator()(const prologcoin::common::cell k) const {
 	    return hash<uint64_t>()(k.value());
 	}
     };
 
     template<> struct hash<prologcoin::common::ref_cell> {
-        size_t operator()(const prologcoin::common::ref_cell& k) const {
+        size_t operator()(const prologcoin::common::ref_cell k) const {
 	    return hash<uint64_t>()(k.index());
 	}
     };
 
     template<> struct hash<prologcoin::common::con_cell> {
-	size_t operator()(const prologcoin::common::con_cell& k) const {
+	size_t operator()(const prologcoin::common::con_cell k) const {
 	    return hash<uint64_t>()(k.value());
 	}
     };

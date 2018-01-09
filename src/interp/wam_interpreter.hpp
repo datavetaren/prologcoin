@@ -526,11 +526,6 @@ public:
 	return map;
     }
 
-    bool execute(const term query)
-    {
-        return interpreter_base::execute(query);
-    }
-
 private:
     template<wam_instruction_type I> friend class wam_instruction;
 
@@ -608,8 +603,6 @@ private:
     enum mode_t { READ, WRITE } mode_;
 
     code_point register_p_;
-    code_point register_cp_;
-
     size_t register_s_;
 
     std::vector<wam_hash_map *> hash_maps_;
@@ -1162,8 +1155,9 @@ private:
     {
         auto b = reinterpret_cast<wam_instruction<BUILTIN> *>(p);
 	set_num_of_args(b->arity());
-        register_cp_ = register_p_;
-	next_instruction(register_cp_);
+        code_point p1 = register_p_;
+	next_instruction(p1);
+	set_cp(p1);
 	// TODO: We need to call bn here...
 	return false;
     }

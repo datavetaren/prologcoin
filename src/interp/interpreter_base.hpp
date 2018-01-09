@@ -282,36 +282,15 @@ public:
     void load_program(std::istream &is);
     void load_program(const term clauses);
 
-    const std::vector<term> & get_predicate(common::con_cell pn);
+    const predicate & get_predicate(const common::con_cell pn)
+    {
+        return program_db_[pn];
+    }
 
     void print_db() const;
     void print_db(std::ostream &out) const;
     void print_profile() const;
     void print_profile(std::ostream &out) const;
-
-    bool execute(const term query);
-
-    bool next();
-
-    class binding {
-    public:
-	binding() { }
-	binding(const std::string &name, const term value) 
-	    : name_(name), value_(value) { }
-
-	inline const std::string & name() const { return name_; }
-	inline const term value() const { return value_; }
-
-    private:
-	std::string name_;
-	term value_;
-    };
-
-    inline const std::vector<binding> & query_vars() const
-        { return query_vars_; }
-
-    std::string get_result(bool newlines = true) const;
-    void print_result(std::ostream &out) const;
 
     class list_iterator : public common::term_iterator {
     public:
@@ -331,12 +310,23 @@ public:
     {
         return builtins_[f];
     }
+
+    inline builtin_opt get_builtin_opt(con_cell f)
+    {
+        return builtins_opt_[f];
+    }
+
     inline bool is_builtin(con_cell f) const
     {
         return builtins_.find(f) != builtins_.end();
     }
 
 protected:
+    inline con_cell empty_list() const
+    {
+        return empty_list_;
+    }
+
     template<typename T> inline size_t words() const
     { return sizeof(T)/sizeof(word_t); }
 
@@ -430,6 +420,11 @@ protected:
     inline void set_top_e()
     {
         register_top_e_ = register_e_;
+    }
+
+    inline void set_top_e(environment_base_t *e)
+    {
+        register_top_e_ = e;
     }
 
     inline environment_base_t * e0()
@@ -591,44 +586,34 @@ protected:
 	set_register_hb(heap_size());
     }
 
-private:
-    void load_builtin(con_cell f, builtin b);
-    void load_builtin_opt(con_cell f, builtin_opt b);
-    void load_builtins();
-    void load_builtins_file_io();
-    void load_builtins_opt();
-    file_stream & new_file_stream(const std::string &path);
-    void close_file_stream(size_t id);
-    file_stream & get_file_stream(size_t id);
-
-    void init();
     void prepare_execution();
-    void abort(const interpreter_exception &ex);
-    void fail();
-    bool select_clause(const code_point &instruction,
-		       size_t index_id,
-		       std::vector<term> &clauses,
-		       size_t from_clause);
 
-    inline term current_query()
+    inline term qr() const
     {
-	return register_qr_;
-    }
-
-    inline void set_current_query(term qr) 
-    {
-        register_qr_ = qr;
+        return register_qr_;
     }
 
     inline void set_qr(term qr)
     {
-        set_current_query(qr);
+        register_qr_ = qr;
     }
 
     inline void set_pr(common::con_cell pr)
     {
         register_pr_ = pr;
     }
+
+    choice_point_t * reset_to_choice_point(choice_point_t *b);
+
+    void unwind(size_t current_tr);
+
+    term clause_head(const term clause);
+    term clause_body(const term clause);
+
+    term get_first_arg();
+
+    void abort(const interpreter_exception &ex);
+    bool definitely_inequal(const term a, const term b);
 
     template<typename T> inline T * new_meta_context(meta_fn fn) {
         T *context = new T();
@@ -641,18 +626,39 @@ private:
     void release_last_meta_context()
     {
         auto *context = meta_.back().first;
-        register_top_b_ = context->old_top_b;
-	register_top_e_ = context->old_top_e;
+        set_top_b(context->old_top_b);
+	set_top_e(context->old_top_e);
 	delete context;
 	meta_.pop_back();
     }
 
+    meta_context * get_last_meta_context()
+    {
+        return meta_.back().first;
+    }
 
+    meta_fn get_last_meta_function()
+    {
+        return meta_.back().second;
+    }
+
+    bool has_meta_contexts() const
+    {
+        return !meta_.empty();
+    }
+
+private:
+    void load_builtin(con_cell f, builtin b);
+    void load_builtin_opt(con_cell f, builtin_opt b);
+    void load_builtins();
+    void load_builtins_file_io();
+    void load_builtins_opt();
+    file_stream & new_file_stream(const std::string &path);
+    void close_file_stream(size_t id);
+    file_stream & get_file_stream(size_t id);
+
+    void init();
     void tidy_trail();
-
-    choice_point_t * reset_to_choice_point(choice_point_t *b);
-
-    void unwind(size_t current_tr);
 
     inline choice_point_t * get_last_choice_point()
     {
@@ -664,22 +670,7 @@ private:
         set_b0(b());
     }
 
-    bool definitely_inequal(const term a, const term b);
     common::cell first_arg_index(const term first_arg);
-    term get_first_arg();
-
-    void compute_matched_predicate(con_cell functor, const term first_arg,
-				   predicate &matched);
-    size_t matched_predicate_id(con_cell functor, const term first_arg);
-
-    inline predicate & get_predicate(size_t id)
-    {
-	return id_to_predicate_[id];
-    }
-
-    void execute_once();
-    bool cont();
-    void dispatch(code_point instruction);
 
     void syntax_check();
 
@@ -689,9 +680,6 @@ private:
     void syntax_check_body(const term body);
     void syntax_check_goal(const term goal);
 
-    term clause_head(const term clause);
-    term clause_body(const term clause);
-
     bool debug_;
 
     std::vector<std::function<void ()> > syntax_check_stack_;
@@ -700,10 +688,6 @@ private:
     std::unordered_map<common::con_cell, builtin_opt> builtins_opt_;
     std::unordered_map<common::con_cell, predicate> program_db_;
     std::vector<common::con_cell> program_predicates_;
-    std::unordered_map<functor_index, size_t> predicate_id_;
-    std::vector<predicate> id_to_predicate_;
-
-    std::vector<binding> query_vars_;
 
     // Stack is emulated at heap offset >= 2^59 (3 bits for tag, remember!)
     // (This conforms to the WAM standard where addr(stack) > addr(heap))
@@ -734,6 +718,8 @@ private:
     term register_qr_;     // Current query 
     con_cell register_pr_; // Current predicate (for profiling)
 
+    std::vector<meta_entry> meta_;
+
     con_cell comma_;
     con_cell empty_list_;
     con_cell implied_by_;
@@ -744,8 +730,6 @@ private:
     size_t file_id_count_;
 
     arithmetics arith_;
-
-    std::vector<meta_entry> meta_;
 
     std::unordered_map<common::con_cell, uint64_t> profiling_;
 };
