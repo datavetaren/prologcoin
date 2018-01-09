@@ -45,6 +45,7 @@ public:
     void test_flatten();
     void test_compile();
     void test_partition();
+    void test_compile2();
 
 private:
     wam_interpreter interp_;
@@ -116,6 +117,49 @@ void test_wam_compiler::test_compile()
 
 	seq.print(std::cout);
     }
+}
+
+void test_wam_compiler::test_compile2()
+{
+    std::string prog =
+      R"PROG(
+          [
+            (append([X|Xs],Ys,[X|Zs]) :- append(Xs,Ys,Zs)),
+             append([],Ys,Ys),
+            (nrev([X|Xs],Ys) :- nrev(Xs,Ys0), append(Ys0,[X],Ys), Ys = 123),
+             nrev([],[])
+          ].)PROG";
+
+    std::string prog2 =
+        R"PROG(
+          [
+          (call(or(X,Y)) :- call(X)),
+          (call(trace) :- trace),
+          (call(or(X,Y)) :- call(Y)),
+          (call(notrace) :- notrace),
+          (call(nl) :- nl),
+          (call(X) :- builtin(X)),
+          (call(X) :- extern(X)),
+          (call(call(X)) :- call(X)),
+          call(repeat),
+          (call(repeat) :- call(repeat)),
+          call(true)
+          ].
+
+       )PROG";
+
+    // std::cout << std::endl << "Compile append & nrev" << std::endl << std::endl;
+
+    try {
+        interp_.load_program(prog2);
+    } catch (std::runtime_error &err) {
+        std::cout << "Syntax error: " << err.what() << std::endl;
+        throw;
+    }
+
+    wam_interim_code seq(interp_);
+    comp_.compile_predicate(con_cell("call",1), seq);
+    seq.print(std::cout);
 }
 
 void test_wam_compiler::test_partition()
@@ -219,6 +263,13 @@ static void test_compile()
     test.test_compile();
 }
 
+static void test_compile2()
+{
+    header("test_compile2");
+
+    test_wam_compiler test;
+    test.test_compile2();
+}
 
 static void test_instruction_sequence()
 {
@@ -310,11 +361,13 @@ int main( int argc, char *argv[] )
 {
     test_flatten();
 
-    test_compile();
-
     test_instruction_sequence();
 
     test_partition();
+
+    test_compile();
+
+    test_compile2();
 
     return 0;
 }

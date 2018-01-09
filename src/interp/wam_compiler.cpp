@@ -32,6 +32,13 @@ void wam_interim_code::push_back(wam_instruction_base *instr)
     size_++;
 }
 
+void wam_interim_code::append(const wam_interim_code &other)
+{
+    for (auto instr : other) {
+        push_back(instr);
+    }
+}
+
 std::vector<wam_instruction_base *> wam_interim_code::get_all_reversed()
 {
     std::vector<wam_instruction_base *> instrs_rev(size_);
@@ -374,6 +381,13 @@ void wam_compiler::compile_query_or_program(wam_compiler::term t,
     }
 }
 
+common::int_cell wam_compiler::new_label()
+{
+    common::int_cell lab(label_count_);
+    label_count_++;
+    return lab;
+}
+
 std::function<uint32_t ()> wam_compiler::x_getter(wam_instruction_base *instr)
 {
     switch (instr->type()) {
@@ -688,6 +702,22 @@ void wam_compiler::remap_to_unsafe_y_registers(wam_interim_code &instrs)
     }
 }
 
+void wam_compiler::eliminate_interim(wam_interim_code &instrs)
+{
+    auto it = instrs.begin();
+    auto it_end = instrs.end();
+    auto it_prev = instrs.before_begin();
+    while (it != it_end) {
+        if (is_interim_instruction(*it)) {
+	    it = instrs.erase_after(it_prev);
+	    it_prev = it;
+        } else {
+  	    it_prev = it;
+	    ++it;
+	}
+    }
+}
+
 bool wam_compiler::clause_needs_environment(const term clause)
 {
     auto body = clause_body(clause);
@@ -750,6 +780,80 @@ void wam_compiler::compile_clause(const term clause, wam_interim_code &seq)
     remap_y_registers(seq);
     update_calls_for_environment_trimming(seq);
     remap_to_unsafe_y_registers(seq);
+    eliminate_interim(seq);
+}
+
+void wam_compiler::emit_cp(std::vector<common::int_cell> &labels, size_t index, wam_interim_code &instrs)
+{
+    size_t n = labels.size();
+    instrs.push_back(wam_interim_instruction<INTERIM_LABEL>(labels[index]));
+    if (index == 0) {
+        instrs.push_back(wam_instruction<TRY_ME_ELSE>(labels[index+1]));
+    } else if (index < n - 1) {
+        instrs.push_back(wam_instruction<RETRY_ME_ELSE>(labels[index+1]));
+    } else {
+        instrs.push_back(wam_instruction<TRUST_ME>());
+    }
+}
+
+std::vector<common::int_cell> wam_compiler::new_labels(size_t n)
+{
+    std::vector<common::int_cell> lbls;
+    lbls.reserve(n);
+    for (size_t i = 0; i < n; i++) {
+        lbls.push_back(new_label());
+    }
+    return lbls;
+}
+
+std::vector<size_t> wam_compiler::find_clauses_on_cat(const std::vector<term> &clauses, wam_compiler::first_arg_cat_t cat)
+{
+    std::vector<size_t> found;
+    size_t index = 0;
+    for (auto &clause : clauses) {
+        if (first_arg_cat(clause) == cat) {
+	    found.push_back(index);
+        }
+	index++;
+    }
+    return found;
+}
+
+void wam_compiler::compile_subsection(std::vector<term> &subsection, wam_interim_code &instrs)
+{
+    auto n = subsection.size();
+    if (n > 1) {
+        std::vector<common::int_cell> labels = new_labels(n);
+	// instrs.push_back(wam_instruction<SWITCH_ON_TERM>(labels[0]
+	for (size_t i = 0; i < n; i++) {
+	    emit_cp(labels, i, instrs);
+	    auto &clause = subsection[i];
+	    wam_interim_code clause_instrs(interp_);
+	    compile_clause(clause, clause_instrs);
+	    instrs.append(clause_instrs);
+	}
+    } else {
+        auto &clause = subsection[0];
+	wam_interim_code clause_instrs(interp_);
+	compile_clause(clause, clause_instrs);
+	instrs.append(clause_instrs);
+    }
+}
+
+void wam_compiler::compile_predicate(common::con_cell pred, wam_interim_code &instrs)
+{
+    auto &clauses = interp_.get_predicate(pred);
+    auto sections = partition_clauses_nonvar(clauses);
+    auto n = sections.size();
+    if (n > 1) {
+        std::vector<common::int_cell> labels = new_labels(n);
+	for (size_t i = 0; i < n; i++) {
+	    emit_cp(labels, i, instrs);
+	    compile_subsection(sections[i], instrs);
+	}
+    } else {
+        compile_subsection(sections[0], instrs);
+    }
 }
 
 term wam_compiler::clause_head(const term clause)
@@ -816,6 +920,26 @@ std::vector<std::vector<term> > wam_compiler::partition_clauses(const std::vecto
 term wam_compiler::first_arg(const term clause)
 {
     return env_.arg(clause_head(clause), 0);
+}
+
+wam_compiler::first_arg_cat_t wam_compiler::first_arg_cat(const term clause)
+{
+    term arg = first_arg(clause);
+
+    switch (arg.tag()) {
+    case common::tag_t::REF: return FIRST_VAR;
+    case common::tag_t::CON: return FIRST_CON;
+    case common::tag_t::INT: return FIRST_CON;
+    case common::tag_t::BIG: return FIRST_CON;
+    case common::tag_t::STR:
+      if (interp_.is_dotted_pair(arg)) {
+	  return FIRST_LST;
+      } else {
+	  return FIRST_STR;
+      }
+    }
+    assert(false);
+    return FIRST_VAR;
 }
 
 bool wam_compiler::first_arg_is_var(const term clause)

@@ -83,11 +83,37 @@ public:
     }
 };
 
+template<> class wam_interim_instruction<INTERIM_LABEL> : public wam_interim_instruction_base {
+public:
+     inline wam_interim_instruction(common::int_cell lab) :
+       wam_interim_instruction_base(&invoke, sizeof(*this), INTERIM_LABEL),
+       label_(lab) {
+        static bool init = [] {
+	  register_printer(&invoke, &print); return true; } ();
+        static_cast<void>(init);
+    }
+
+    static void invoke(wam_interpreter &interp, wam_instruction_base *self)
+    {
+        assert("this instruction should never be executed." == nullptr);
+    }
+
+    static void print(std::ostream &out, wam_interpreter &interp,
+		      wam_instruction_base *self)
+    {
+        auto self1 = reinterpret_cast<wam_interim_instruction<INTERIM_LABEL> *>(self);
+        out << "L:" << interp.to_string(self1->label_);
+    }
+private:
+    common::int_cell label_;
+};
+
 class wam_interim_code : private std::forward_list<wam_instruction_base *> {
 public:
     wam_interim_code(wam_interpreter &interp);
 
     void push_back(const wam_instruction_base &instr);
+    void append(const wam_interim_code &instrs);
 
     void print(std::ostream &out) const;
 
@@ -109,9 +135,20 @@ public:
         return std::forward_list<wam_instruction_base *>::begin();
     }
 
+    std::forward_list<wam_instruction_base *>::const_iterator before_begin() const
+    {
+        return std::forward_list<wam_instruction_base *>::before_begin();
+    }
+
     std::forward_list<wam_instruction_base *>::const_iterator end() const
     {
         return std::forward_list<wam_instruction_base *>::end();
+    }
+
+    std::forward_list<wam_instruction_base *>::iterator erase_after(
+	    std::forward_list<wam_instruction_base *>::const_iterator &it)
+    {
+        return std::forward_list<wam_instruction_base *>::erase_after(it);
     }
 
     size_t size() const
@@ -170,7 +207,7 @@ public:
     typedef common::term term;
 
     wam_compiler(wam_interpreter &interp)
-      : interp_(interp), env_(interp), regs_a_(A_REG), regs_x_(X_REG), regs_y_(Y_REG) { }
+      : interp_(interp), env_(interp), regs_a_(A_REG), regs_x_(X_REG), regs_y_(Y_REG), label_count_(0) { }
 
 private:
     friend class test_wam_compiler;
@@ -282,9 +319,17 @@ private:
     void find_unsafe_y_registers(wam_interim_code &seq,
 				 std::unordered_set<size_t> &unsafe_y_regs);
     void remap_to_unsafe_y_registers(wam_interim_code &instrs);
+    void eliminate_interim(wam_interim_code &instrs);
 
     bool clause_needs_environment(const term clause);
     void compile_clause(const term clause, wam_interim_code &seq);
+    std::vector<common::int_cell> new_labels(size_t n);
+    void emit_cp(std::vector<common::int_cell> &labels, size_t index,
+		 wam_interim_code &instrs);
+    void compile_subsection(std::vector<term> &subsection, wam_interim_code &instrs);
+    void compile_predicate(common::con_cell pred, wam_interim_code &instrs);
+
+    common::int_cell new_label();
 
     term clause_head(const term clause);
     term clause_body(const term clause);
@@ -316,6 +361,11 @@ private:
        return goals_range(env_, t);
     }
   
+    enum first_arg_cat_t {
+        FIRST_VAR, FIRST_CON, FIRST_LST, FIRST_STR
+    };
+    first_arg_cat_t first_arg_cat(const term clause);
+
     term first_arg(const term clause);
     bool first_arg_is_var(const term clause);
     bool first_arg_is_con(const term clause);
@@ -324,7 +374,7 @@ private:
     std::vector<std::vector<term> > partition_clauses(const std::vector<term> &clauses, std::function<bool (const term t1, const term t2)> pred);
     std::vector<std::vector<term> > partition_clauses_nonvar(const std::vector<term> &clauses);
     std::vector<std::vector<term> > partition_clauses_first_arg(const std::vector<term> &clauses);
-
+    std::vector<size_t> find_clauses_on_cat(const std::vector<term> &clauses, first_arg_cat_t cat);
 
     void print_partition(std::ostream &out, const std::vector<std::vector<term> > &partition);
 
@@ -338,6 +388,8 @@ private:
     size_t get_argument_index(common::ref_cell ref)
     { return argument_pos_[ref]; }
 
+    
+
     wam_interpreter &interp_;
     common::term_env &env_;
 
@@ -347,6 +399,8 @@ private:
     register_pool regs_a_;
     register_pool regs_x_;
     register_pool regs_y_;
+
+    size_t label_count_;
 };
 
 template<> inline std::pair<wam_compiler::reg,bool> wam_compiler::allocate_reg<wam_compiler::A_REG>(common::ref_cell ref)
