@@ -427,7 +427,10 @@ void interpreter::compile(common::con_cell pred)
 {
     wam_interim_code instrs(*this);
     compiler_->compile_predicate(pred, instrs);
+    size_t first_offset = next_offset();
     load_code(instrs);
+    auto *next_instr = to_code(first_offset);
+    set_predicate(pred, next_instr);
 }
 
 void interpreter::bind_code_point(std::unordered_map<size_t, size_t> &label_map, code_point &cp)
@@ -449,7 +452,8 @@ void interpreter::bind_code_point(std::unordered_map<size_t, size_t> &label_map,
 void interpreter::load_code(wam_interim_code &instrs)
 {
     std::unordered_map<size_t, size_t> label_map;
-    size_t offset = 0;
+    size_t first_offset = next_offset();
+    size_t offset = first_offset;
     // Collect labels
     for (auto *instr : instrs) {
 	if (wam_compiler::is_label_instruction(instr)) {
@@ -463,7 +467,7 @@ void interpreter::load_code(wam_interim_code &instrs)
 	}
     }
     // Update code points
-    wam_instruction_base *instr = to_code(0);
+    wam_instruction_base *instr = to_code(first_offset);
     for (size_t i = 0; i < offset;) {
 	switch (instr->type()) {
 	case TRY_ME_ELSE:

@@ -384,6 +384,11 @@ public:
 	: interp_(interp), instrs_size_(0), instrs_capacity_(initial_capacity)
     { instrs_ = new code_t[instrs_capacity_]; }
 
+    inline size_t next_offset() const
+    {
+	return instrs_size_;
+    }
+    
     inline size_t to_code_addr(code_t *p) const
     {
 	return static_cast<size_t>(p - instrs_);
@@ -399,23 +404,33 @@ public:
 	return reinterpret_cast<wam_instruction_base *>(&instrs_[addr]);
     }
 
-    size_t add(const wam_instruction_base &i)
-    {
-        size_t sz = i.size();
-	code_t *old_base = instrs_;
-        code_t *data = ensure_fit(sz);
-	code_t *new_base = instrs_;
-	auto p = reinterpret_cast<wam_instruction_base *>(data);
-	memcpy(p, &i, sz*sizeof(code_t));
-
-	if (old_base != new_base) {
-	    p->update(old_base, new_base);
-	}
-
-	return sz;
-    }
+    size_t add(const wam_instruction_base &i);
 
     void print_code(std::ostream &out);
+
+protected:
+    void set_predicate(common::con_cell predicate_name,
+		       wam_instruction_base *instr)
+    {
+	size_t predicate_offset = to_code_addr(instr);
+	predicate_map_[predicate_name] = predicate_offset;
+	predicate_rev_map_[predicate_offset] = predicate_name;
+
+	auto &offsets = calls_[predicate_name];
+	for (auto offset : offsets) {
+	    auto *cp_instr = reinterpret_cast<wam_instruction_code_point *>(to_code(offset));
+	    cp_instr->cp().set_wam_code(instr);
+	}
+    }
+
+    wam_instruction_base * resolve_predicate(common::con_cell predicate_name)
+    {
+	if (predicate_map_.count(predicate_name)) {
+	    return to_code(predicate_map_[predicate_name]);
+	} else {
+	    return nullptr;
+	}
+    }
 
 private:
     code_t * ensure_fit(size_t sz)
@@ -447,6 +462,10 @@ private:
     size_t instrs_size_;
     size_t instrs_capacity_;
     code_t *instrs_;
+
+    std::unordered_map<common::con_cell, size_t> predicate_map_;
+    std::unordered_map<size_t, common::con_cell> predicate_rev_map_;
+    std::unordered_map<common::con_cell, std::vector<size_t> > calls_;
 };
 
 template<> class wam_instruction<CALL> : public wam_instruction_code_point_reg {
@@ -2595,7 +2614,11 @@ inline void wam_instruction<CALL>::invoke(wam_interpreter &interp, wam_instructi
 inline void wam_instruction<CALL>::print(std::ostream &out, wam_interpreter &interp, wam_instruction_base *self)
 {
     auto self1 = reinterpret_cast<wam_instruction<CALL> *>(self);
-    out << "call " << interp.to_string(self1->pn()) << "/" << self1->arity() << ", " << self1->num_y();
+    out << "call " << interp.to_string(self1->pn()) << "/" << self1->arity();
+    if (self1->p().wam_code() != nullptr) {
+	out << " " << interp.to_string(self1->p());
+    }
+    out << ", " << self1->num_y();
 }
 
 inline void wam_instruction<CALL>::updater(wam_instruction_base *self, code_t *old_base, code_t *new_base)
@@ -2639,6 +2662,9 @@ public:
     {
 	auto self1 = reinterpret_cast<wam_instruction<EXECUTE> *>(self);
 	out << "execute " << interp.to_string(self1->pn()) << "/" << self1->arity();
+	if (self1->p().wam_code() != nullptr) {
+	    out << " " << interp.to_string(self1->p());
+	}
     }
 };
 
