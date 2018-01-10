@@ -1,5 +1,6 @@
 #include <boost/algorithm/string.hpp>
 #include "../../common/term_tools.hpp"
+#include "../interpreter.hpp"
 #include "../wam_interpreter.hpp"
 #include "../wam_compiler.hpp"
 
@@ -48,7 +49,7 @@ public:
     void test_compile2();
 
 private:
-    wam_interpreter interp_;
+    interpreter interp_;
     wam_compiler comp_;
 };
 
@@ -157,9 +158,8 @@ void test_wam_compiler::test_compile2()
         throw;
     }
 
-    wam_interim_code seq(interp_);
-    comp_.compile_predicate(con_cell("call",1), seq);
-    seq.print(std::cout);
+    interp_.compile(con_cell("call",1));
+    interp_.print_code(std::cout);
 }
 
 void test_wam_compiler::test_partition()

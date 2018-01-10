@@ -1,14 +1,17 @@
 #include "interpreter.hpp"
+#include "wam_compiler.hpp"
 
 namespace prologcoin { namespace interp {
 
-interpreter::interpreter()
+interpreter::interpreter() 
 {
+    compiler_ = new wam_compiler(*this);
     id_to_predicate_.push_back(predicate()); // Reserve index 0
 }
 
 interpreter::~interpreter()
 {
+    delete compiler_;
     query_vars_.clear();
     predicate_id_.clear();
     id_to_predicate_.clear();
@@ -420,7 +423,86 @@ void interpreter::print_result(std::ostream &out) const
     out << get_result();
 }
 
+void interpreter::compile(common::con_cell pred)
+{
+    wam_interim_code instrs(*this);
+    compiler_->compile_predicate(pred, instrs);
+    load_code(instrs);
+}
 
+void interpreter::bind_code_point(std::unordered_map<size_t, size_t> &label_map, code_point &cp)
+{
+    if (cp.wam_code() == nullptr) {
+	auto term = cp.term_code();
+	if (term.tag() == common::tag_t::INT) {
+	    auto lbl_int = static_cast<const int_cell &>(term);
+	    auto lbl = static_cast<size_t>(lbl_int.value());
+	    if (label_map.count(lbl)) {
+		size_t offset = label_map[lbl];
+		auto *instr = reinterpret_cast<wam_instruction_code_point *>(to_code(offset));
+		cp.set_wam_code(instr);
+	    }
+	}
+    }
+}
+
+void interpreter::load_code(wam_interim_code &instrs)
+{
+    std::unordered_map<size_t, size_t> label_map;
+    size_t offset = 0;
+    // Collect labels
+    for (auto *instr : instrs) {
+	if (wam_compiler::is_label_instruction(instr)) {
+	    auto *lbl_instr = static_cast<wam_interim_instruction<INTERIM_LABEL> *>(instr);
+	    size_t lbl = static_cast<size_t>(lbl_instr->label().value());
+	    label_map.insert(std::make_pair(lbl, offset));
+	} else {
+	    add(*instr);
+	    size_t sz = instr->size();
+	    offset += sz;
+	}
+    }
+    // Update code points
+    wam_instruction_base *instr = to_code(0);
+    for (size_t i = 0; i < offset;) {
+	switch (instr->type()) {
+	case TRY_ME_ELSE:
+	case RETRY_ME_ELSE:
+	case TRY:
+	case RETRY:
+	case TRUST:
+	case CALL:
+	case EXECUTE:
+	    {
+	    auto cp_instr = static_cast<wam_instruction_code_point *>(instr);
+	    bind_code_point(label_map, cp_instr->cp());
+	    break;
+	    }
+        case SWITCH_ON_TERM:
+	    {
+	    auto cp_instr = static_cast<wam_instruction<SWITCH_ON_TERM> *>(instr);
+	    bind_code_point(label_map, cp_instr->pv());
+	    bind_code_point(label_map, cp_instr->pc());
+	    bind_code_point(label_map, cp_instr->pl());
+	    bind_code_point(label_map, cp_instr->ps());
+	    }
+	    break;
+        case SWITCH_ON_CONSTANT:
+        case SWITCH_ON_STRUCTURE:
+	    {
+	    auto cp_instr = static_cast<wam_instruction_hash_map *>(instr);
+	    for (auto &e : cp_instr->map()) {
+		bind_code_point(label_map, e.second);
+	    }
+	    }
+	    break;
+	default:
+	    break;
+	}
+	i += instr->size();
+	instr = next_instruction(instr);
+    }
+}
 
 }}
 

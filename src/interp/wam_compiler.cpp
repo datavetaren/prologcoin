@@ -819,12 +819,113 @@ std::vector<size_t> wam_compiler::find_clauses_on_cat(const std::vector<term> &c
     return found;
 }
 
+void wam_compiler::emit_switch_on_term(std::vector<term> &subsection, std::vector<common::int_cell> &labels, wam_interim_code &instrs)
+{
+    auto on_var_cp = code_point(labels[0]);
+
+    auto on_con = find_clauses_on_cat(subsection, FIRST_CON);
+    auto on_con_cp = on_con.empty() ? code_point::fail() 
+	           : (on_con.size() == 1) ? code_point(labels[on_con[0]])
+	           : new_label();
+
+    auto on_lst = find_clauses_on_cat(subsection, FIRST_LST);
+    auto on_lst_cp = on_lst.empty() ? code_point::fail() 
+	           : (on_lst.size() == 1) ? code_point(labels[on_lst[0]])
+	           : new_label();
+
+    auto on_str = find_clauses_on_cat(subsection, FIRST_STR);
+    auto on_str_cp = on_str.empty() ? code_point::fail() 
+	           : (on_str.size() == 1) ? code_point(labels[on_str[0]])
+	           : new_label();
+
+    instrs.push_back(wam_instruction<SWITCH_ON_TERM>(on_var_cp, on_con_cp, on_lst_cp, on_str_cp));
+
+    emit_second_level_indexing(FIRST_CON,subsection,labels,on_con,on_con_cp,instrs);
+    emit_second_level_indexing(FIRST_LST,subsection,labels,on_lst,on_lst_cp,instrs);
+    emit_second_level_indexing(FIRST_STR,subsection,labels,on_str,on_str_cp,instrs);
+}
+
+void wam_compiler::emit_third_level_indexing(
+	     std::vector<size_t> &clause_indices,
+	     std::vector<common::int_cell> &labels,
+	     wam_interim_code &instrs)
+{
+    size_t n = clause_indices.size();
+    for (size_t i = 0; i < n; i++) {
+	auto ci = clause_indices[i];
+	if (i == 0) instrs.push_back(wam_instruction<TRY>(labels[ci]));
+	else if (i < n - 1) instrs.push_back(wam_instruction<RETRY>(labels[ci]));
+	else instrs.push_back(wam_instruction<TRUST>(labels[ci]));
+    }
+}
+
+void wam_compiler::emit_second_level_indexing(
+	      wam_compiler::first_arg_cat_t cat,
+	      std::vector<term> &subsection,
+	      std::vector<common::int_cell> &labels,
+	      std::vector<size_t> &clause_indices,
+	      code_point cp,
+	      wam_interim_code &instrs)
+{
+    if (clause_indices.size() < 2) {
+	return;
+    }
+    const common::int_cell &ic = static_cast<const common::int_cell &>(cp.term_code());
+    instrs.push_back(wam_interim_instruction<INTERIM_LABEL>(ic));
+
+    auto *map = interp_.new_hash_map();
+    std::vector<term> for_third_arg;
+    std::vector<std::vector<size_t> > for_third_indices;
+    for (auto clause_index : clause_indices) {
+	common::int_cell new_lbl(0);
+	auto &clause = subsection[clause_index];
+	auto arg0 = first_arg(clause);
+	// Already managed?
+	if (map->count(arg0)) {
+	    continue;
+	}
+	// Get all clauses with the same arg
+	std::vector<size_t> same_arg0;
+	for (auto ci : clause_indices) {
+	    auto &other_clause = subsection[ci];
+	    auto other_arg0 = first_arg(other_clause);
+	    if (arg0 == other_arg0) {
+		same_arg0.push_back(ci);
+	    }
+	}
+	if (same_arg0.size() == 1) {
+	    // Unique? Then direct jump
+	    map->insert(std::make_pair(arg0, code_point(labels[same_arg0[0]])));
+	} else {
+	    // Multiple, so create third level indexing
+	    new_lbl = new_label();
+	    map->insert(std::make_pair(arg0, code_point(new_lbl)));
+	    for_third_arg.push_back(arg0);
+	    for_third_indices.push_back(same_arg0);
+	}
+    }
+    switch (cat) {
+    case FIRST_CON: instrs.push_back(wam_instruction<SWITCH_ON_CONSTANT>(map)); break;
+    case FIRST_STR: instrs.push_back(wam_instruction<SWITCH_ON_STRUCTURE>(map)); break;
+    default: break;
+    }
+    size_t n = for_third_arg.size();
+    for (size_t i = 0; i < n; i++) {
+	auto arg = for_third_arg[i];
+	auto &clause_indices = for_third_indices[i];
+	auto &cp = (*map)[arg];
+	const common::int_cell &lbl = static_cast<const common::int_cell &>(cp.term_code());
+	instrs.push_back(wam_interim_instruction<INTERIM_LABEL>(lbl));
+	emit_third_level_indexing(clause_indices, labels, instrs);
+    }
+}
+
 void wam_compiler::compile_subsection(std::vector<term> &subsection, wam_interim_code &instrs)
 {
     auto n = subsection.size();
     if (n > 1) {
         std::vector<common::int_cell> labels = new_labels(n);
-	// instrs.push_back(wam_instruction<SWITCH_ON_TERM>(labels[0]
+	emit_switch_on_term(subsection, labels, instrs);
 	for (size_t i = 0; i < n; i++) {
 	    emit_cp(labels, i, instrs);
 	    auto &clause = subsection[i];
@@ -919,24 +1020,30 @@ std::vector<std::vector<term> > wam_compiler::partition_clauses(const std::vecto
 
 term wam_compiler::first_arg(const term clause)
 {
-    return env_.arg(clause_head(clause), 0);
+    auto arg = env_.arg(clause_head(clause), 0);
+    switch (arg.tag()) {
+    case common::tag_t::REF: return arg;
+    case common::tag_t::CON: return arg;
+    case common::tag_t::INT: return arg;
+    case common::tag_t::BIG: return arg;
+    case common::tag_t::STR: return env_.functor(arg);
+    default: return arg;
+    }
 }
 
 wam_compiler::first_arg_cat_t wam_compiler::first_arg_cat(const term clause)
 {
     term arg = first_arg(clause);
 
+    if (interp_.is_dotted_pair(arg)) {
+	return FIRST_LST;
+    }
+
     switch (arg.tag()) {
     case common::tag_t::REF: return FIRST_VAR;
-    case common::tag_t::CON: return FIRST_CON;
+    case common::tag_t::CON: return interp_.is_atom(arg) ? FIRST_CON : FIRST_STR;
     case common::tag_t::INT: return FIRST_CON;
     case common::tag_t::BIG: return FIRST_CON;
-    case common::tag_t::STR:
-      if (interp_.is_dotted_pair(arg)) {
-	  return FIRST_LST;
-      } else {
-	  return FIRST_STR;
-      }
     }
     assert(false);
     return FIRST_VAR;

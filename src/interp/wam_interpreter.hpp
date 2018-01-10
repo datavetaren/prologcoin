@@ -160,7 +160,11 @@ public:
     void print(std::ostream &out, wam_interpreter &interp)
     {
         print_fn_type pfn = print_fns_[fn_];
-	pfn(out, interp, this);
+	if (pfn == nullptr) {
+	    std::cout << "???";
+	} else {
+	    pfn(out, interp, this);
+	}
     }
 
 private:
@@ -376,7 +380,7 @@ class wam_code
 {
 public:
     wam_code(wam_interpreter &interp,
-  			     size_t initial_capacity = 256)
+  			     size_t initial_capacity = 1024)
 	: interp_(interp), instrs_size_(0), instrs_capacity_(initial_capacity)
     { instrs_ = new code_t[instrs_capacity_]; }
 
@@ -395,7 +399,7 @@ public:
 	return reinterpret_cast<wam_instruction_base *>(&instrs_[addr]);
     }
 
-    void add(const wam_instruction_base &i)
+    size_t add(const wam_instruction_base &i)
     {
         size_t sz = i.size();
 	code_t *old_base = instrs_;
@@ -407,6 +411,8 @@ public:
 	if (old_base != new_base) {
 	    p->update(old_base, new_base);
 	}
+
+	return sz;
     }
 
     void print_code(std::ostream &out);
@@ -526,7 +532,27 @@ public:
 	return map;
     }
 
+    inline std::string to_string(const term t,
+				 common::term_emitter::style style
+			  	    = common::term_emitter::STYLE_TERM) const
+    {
+	return interpreter_base::to_string(t, style);
+    }
+
 private:
+
+    inline std::string to_string(const code_point &cp) const
+    {
+	if (cp.wam_code() != nullptr) {
+	    size_t offset = to_code_addr(cp.wam_code());
+	    return "[" + boost::lexical_cast<std::string>(offset) + "]";
+	} else {
+	    std::string s("L:");
+	    s += to_string(cp.term_code());
+	    return s;
+	}
+    }
+
     template<wam_instruction_type I> friend class wam_instruction;
 
     static inline size_t num_y(environment_base_t *e)
@@ -1326,8 +1352,8 @@ inline void wam_code::update(code_t *old_base, code_t *new_base)
 {
     wam_instruction_base *instr = reinterpret_cast<wam_instruction_base *>(new_base);
     for (size_t i = 0; i < instrs_size_;) {
-	interp_.next_instruction(instr);
 	instr->update(old_base, new_base);
+	instr = interp_.next_instruction(instr);
 	i = static_cast<size_t>(reinterpret_cast<code_t *>(instr) - new_base);
     }
 }
@@ -2688,7 +2714,7 @@ public:
     static void print(std::ostream &out, wam_interpreter &interp, wam_instruction_base *self)
     {
 	auto self1 = reinterpret_cast<wam_instruction<TRY_ME_ELSE> *>(self);
-	out << "try_me_else L:" << interp.to_string(self1->p().term_code());
+	out << "try_me_else " << interp.to_string(self1->p());
     }
 
     static void updater(wam_instruction_base *self, code_t *old_base, code_t *new_base)
@@ -2730,7 +2756,7 @@ public:
     static void print(std::ostream &out, wam_interpreter &interp, wam_instruction_base *self)
     {
 	auto self1 = reinterpret_cast<wam_instruction<RETRY_ME_ELSE> *>(self);
-	out << "retry_me_else L:" << interp.to_string(self1->p().term_code());
+	out << "retry_me_else " << interp.to_string(self1->p());
     }
 
     static void updater(wam_instruction_base *self, code_t *old_base, code_t *new_base)
@@ -2800,7 +2826,7 @@ public:
     static void print(std::ostream &out, wam_interpreter &interp, wam_instruction_base *self)
     {
 	auto self1 = reinterpret_cast<wam_instruction<TRY> *>(self);
-	out << "try L:" << interp.to_string(self1->p().term_code());
+	out << "try " << interp.to_string(self1->p());
     }
 
     static void updater(wam_instruction_base *self, code_t *old_base, code_t *new_base)
@@ -2842,7 +2868,7 @@ public:
     static void print(std::ostream &out, wam_interpreter &interp, wam_instruction_base *self)
     {
 	auto self1 = reinterpret_cast<wam_instruction<RETRY> *>(self);
-	out << "retry L:" << interp.to_string(self1->p().term_code());
+	out << "retry " << interp.to_string(self1->p());
     }
 
     static void updater(wam_instruction_base *self, code_t *old_base, code_t *new_base)
@@ -2884,7 +2910,7 @@ public:
     static void print(std::ostream &out, wam_interpreter &interp, wam_instruction_base *self)
     {
 	auto self1 = reinterpret_cast<wam_instruction<TRUST> *>(self);
-	out << "trust L:" << interp.to_string(self1->p().term_code());
+	out << "trust " << interp.to_string(self1->p());
     }
 
     static void updater(wam_instruction_base *self, code_t *old_base, code_t *new_base)
@@ -2913,10 +2939,10 @@ public:
 	static_cast<void>(init);
     }
 
-    inline code_point pv() const { return pv_; }
-    inline code_point pc() const { return pc_; }
-    inline code_point pl() const { return pl_; }
-    inline code_point ps() const { return ps_; }
+    inline code_point & pv() { return pv_; }
+    inline code_point & pc() { return pc_; }
+    inline code_point & pl() { return pl_; }
+    inline code_point & ps() { return ps_; }
 
     inline void update(code_t *old_base, code_t *new_base)
     {
@@ -2939,25 +2965,25 @@ public:
         if (self1->pv().is_fail()) {
 	    out << "V->fail";
 	} else {
-	    out << "V->L:" << interp.to_string(self1->pv().term_code());
+	    out << "V->" << interp.to_string(self1->pv());
 	}
 	out << ", ";
 	if (self1->pc().is_fail()) {
 	    out << "C->fail";
 	} else {
-	    out << "C->L:" << interp.to_string(self1->pc().term_code());
+	    out << "C->" << interp.to_string(self1->pc());
 	}
 	out << ", ";
 	if (self1->pl().is_fail()) {
 	    out << "L->fail";
 	} else {
-  	    out << "L->L:" << interp.to_string(self1->pl().term_code());
+  	    out << "L->" << interp.to_string(self1->pl());
 	}
 	out << ", ";
 	if (self1->ps().is_fail()) {
 	    out << "S->fail";
 	} else {
-	    out << "S->L:" << interp.to_string(self1->ps().term_code());
+	    out << "S->" << interp.to_string(self1->ps());
 	}
     }
 
@@ -3001,7 +3027,7 @@ public:
 	bool first = true;
 	for (auto &v : self1->map()) {
 	    if (!first) out << ", ";
-	    out << interp.to_string(v.first) << "->L:" << interp.to_string(v.second.term_code());
+	    out << interp.to_string(v.first) << "->" << interp.to_string(v.second);
 	    first = false;
 	}
     }
@@ -3040,7 +3066,7 @@ public:
 	    if (!first) out << ", ";
 	    auto str = static_cast<const common::str_cell &>(v.first);
 	    auto f = interp.functor(str);
-	    out << interp.to_string(v.first) << "/" << f.arity() << "->L:" << interp.to_string(v.second.term_code());
+	    out << interp.to_string(v.first) << "/" << f.arity() << "->" << interp.to_string(v.second);
 	    first = false;
 	}
     }

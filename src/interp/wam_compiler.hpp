@@ -93,6 +93,11 @@ public:
         static_cast<void>(init);
     }
 
+    common::int_cell label() const
+    {
+	return label_;
+    }
+
     static void invoke(wam_interpreter &interp, wam_instruction_base *self)
     {
         assert("this instruction should never be executed." == nullptr);
@@ -209,6 +214,18 @@ public:
     wam_compiler(wam_interpreter &interp)
       : interp_(interp), env_(interp), regs_a_(A_REG), regs_x_(X_REG), regs_y_(Y_REG), label_count_(0) { }
 
+    static inline bool is_interim_instruction(wam_instruction_base *instr) {
+        return static_cast<wam_interim_instruction_type>(instr->type())
+	                         >= INTERIM_FIRST;
+    }
+
+    static inline bool is_label_instruction(wam_instruction_base *instr) {
+        return static_cast<wam_interim_instruction_type>(instr->type())
+	                         == INTERIM_LABEL;
+    }
+
+    void compile_predicate(common::con_cell pred, wam_interim_code &instrs);
+
 private:
     friend class test_wam_compiler;
 
@@ -289,11 +306,6 @@ private:
         return interp_.get_builtin(f);
     }
 
-    inline bool is_interim_instruction(wam_instruction_base *instr) const {
-        return static_cast<wam_interim_instruction_type>(instr->type())
-	                         >= INTERIM_FIRST;
-    }
-
     void compile_query_ref(reg lhsreg, common::ref_cell rhsvar,
 			   wam_interim_code &seq);
     void compile_query_str(reg lhsreg, term rhs,
@@ -327,7 +339,6 @@ private:
     void emit_cp(std::vector<common::int_cell> &labels, size_t index,
 		 wam_interim_code &instrs);
     void compile_subsection(std::vector<term> &subsection, wam_interim_code &instrs);
-    void compile_predicate(common::con_cell pred, wam_interim_code &instrs);
 
     common::int_cell new_label();
 
@@ -367,6 +378,7 @@ private:
     first_arg_cat_t first_arg_cat(const term clause);
 
     term first_arg(const term clause);
+    common::con_cell first_arg_functor(const term clause);
     bool first_arg_is_var(const term clause);
     bool first_arg_is_con(const term clause);
     bool first_arg_is_str(const term clause);
@@ -375,6 +387,18 @@ private:
     std::vector<std::vector<term> > partition_clauses_nonvar(const std::vector<term> &clauses);
     std::vector<std::vector<term> > partition_clauses_first_arg(const std::vector<term> &clauses);
     std::vector<size_t> find_clauses_on_cat(const std::vector<term> &clauses, first_arg_cat_t cat);
+    void emit_switch_on_term(std::vector<term> &subsection, std::vector<common::int_cell> &labels, wam_interim_code &instrs);
+    void emit_second_level_indexing(
+	      wam_compiler::first_arg_cat_t cat,
+	      std::vector<term> &subsection,
+	      std::vector<common::int_cell> &labels,
+	      std::vector<size_t> &clause_indices,
+	      code_point cp,
+	      wam_interim_code &instrs);
+    void emit_third_level_indexing(
+	     std::vector<size_t> &clause_indices,
+	     std::vector<common::int_cell> &labels,
+	     wam_interim_code &instrs);
 
     void print_partition(std::ostream &out, const std::vector<std::vector<term> > &partition);
 
