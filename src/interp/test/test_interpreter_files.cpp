@@ -85,6 +85,41 @@ static bool match_strings(const std::string &actual,
 }
 
 
+static bool test_run_once(interpreter &interp,
+			  size_t iteration,
+			  const term &query,
+			  std::vector<std::string> &expected)
+{
+    std::string actual;
+    bool r = false;
+    try {
+	if (iteration == 0) {
+	    r = interp.execute(query);
+	} else {
+	    r = interp.next();
+	}
+	if (!r) {
+	    if (iteration == expected.size()) {
+		return true;
+	    }
+	    if (iteration > 0) {
+		actual = "end";
+	    } else {
+		actual = "fail";
+	    }
+	} else {
+	    actual = interp.get_result(false);
+	}
+    } catch (interpreter_exception &ex) {
+	actual = ex.what();
+	r = false;
+    }	
+    std::cout << "Actual: " << actual << std::endl;
+    std::cout << "Expect: " << expected[iteration] << std::endl;
+    assert(match_strings(actual, expected[iteration]));
+    return r;
+}
+
 static bool test_interpreter_file(const std::string &filepath)
 {
     std::cout << std::endl;
@@ -209,50 +244,24 @@ static bool test_interpreter_file(const std::string &filepath)
 		first_clause = true;
 		new_block = true;
 
-		term q = interp.arg(t, 0);
-		bool r = false;
+		size_t tr_mark = interp.trail_size();
+		term query = interp.arg(t, 0);
 
-		std::string result;
-		try {
-		    r = interp.execute(q);
-		    if (!r) {
-		        if (expected.size() > 0 && expected[0] != "fail") {
-			    std::cout << "  Failed!" << std::endl;
-			    return false;
-	   	        } else {
-		    	    std::cout << "Actual: fail" << std::endl;
-			    std::cout << "Expect: fail" << std::endl;
-			    continue;
-			}
-		    }
-		} catch (interpreter_exception &ex) {
-		    result = ex.what();
+		// Run this query first
+		for (size_t i = 0; i < expected.size(); i++) {
+		    test_run_once(interp, i, query, expected);
 		}
+		interp.unwind(tr_mark);
+		interp.reset_files();
 
-		if (r) {
-		    result = interp.get_result(false);
+		// Then run this query again to check that the result is
+		// the same. I need this to be stable when I rerun this
+		// with compiled for WAM.
+		for (size_t i = 0; i < expected.size(); i++) {
+		    test_run_once(interp, i, query, expected);
 		}
-		std::cout << "Actual: " << result << std::endl;
-		std::cout << "Expect: " << expected[0] << std::endl;
-		assert(match_strings(result, expected[0]));
-
-		for (size_t i = 1; i < expected.size(); i++) {
-	  	    auto next_expect = expected[i];
-		    bool r = false;
-		    try {
-	  	        r = interp.next();
-			if (r) {
-			  result = interp.get_result(false);
-			} else {
-			  result = "end";
-			}
-		    } catch (interpreter_exception &ex) {
-		        result = ex.what();
-		    }
-		    std::cout << "Actual: " << result << std::endl;
-		    std::cout << "Expect: " << next_expect << std::endl;
-		    assert(match_strings(result, next_expect));
-		}
+		interp.unwind(tr_mark);
+		interp.reset_files();
 	    }
 	}
 

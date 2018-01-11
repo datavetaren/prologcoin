@@ -271,6 +271,7 @@ public:
     std::string get_full_path(const std::string &path) const;
     void close_all_files();
     bool is_file_id(size_t id) const;
+    void reset_files();
 
     inline arithmetics & arith() { return arith_; }
 

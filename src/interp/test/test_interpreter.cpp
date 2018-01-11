@@ -84,12 +84,12 @@ static void test_simple_interpreter()
 
     eval_check_1("[member(X,[X|_]), (member(X,[_|Xs]) :- member(X,Xs))].",
 	       "member(A,Xs).",
-	       "A = G_0, Xs = [G_0| _]" );
+	       "Xs = [A| _]" );
 
     eval_check_1("[append([], Zs, Zs),"
 	       "(append([X|Xs],Ys,[X|Zs]) :- append(Xs,Ys,Zs))].",
 	       "append(A,B,C).",
-	       "A = [], B = G_0, C = G_0");
+	       "A = [], C = B");
 }
 
 static void eval_check_n(const std::string &program,

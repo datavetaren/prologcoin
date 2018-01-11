@@ -54,6 +54,12 @@ void interpreter_base::close_all_files()
     open_files_.clear();
 }
 
+void interpreter_base::reset_files()
+{
+    close_all_files();
+    file_id_count_ = 1;
+}
+
 bool interpreter_base::is_file_id(size_t id) const
 {
     return open_files_.find(id) != open_files_.end();

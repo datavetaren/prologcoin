@@ -357,7 +357,9 @@ std::string interpreter::get_result(bool newlines) const
 		  end(qr()),
 		  [&] (const term t) {
 		    if (t.tag() == tag_t::REF) {
-		      ++count_occurrences[t];
+			if (!has_name(t)) {
+			    ++count_occurrences[t];
+			}
 		    }
 		  }
 		  );
@@ -368,9 +370,6 @@ std::string interpreter::get_result(bool newlines) const
     // '_'.
     size_t named_var_count = 0;
     for (auto v : count_occurrences) {
-        if (has_name(v.first)) {
-    	    continue;
-	}
         if (v.second == 1) {
             ii.set_name(v.first, "_");
 	} else { // v.second > 1

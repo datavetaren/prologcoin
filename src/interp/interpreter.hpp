@@ -26,6 +26,11 @@ public:
     std::string get_result(bool newlines = true) const;
     void print_result(std::ostream &out) const;
 
+    void unwind(size_t trail_mark)
+    {
+	interpreter_base::unwind(trail_mark);
+    }
+
 private:
     void load_code(wam_interim_code &code);
     void bind_code_point(std::unordered_map<size_t, size_t> &label_map,
