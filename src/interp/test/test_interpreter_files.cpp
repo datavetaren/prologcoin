@@ -84,6 +84,10 @@ static bool match_strings(const std::string &actual,
     return true;
 }
 
+static con_cell get_predicate_of(interpreter &interp, term clause)
+{
+    return interp.functor(interp.clause_head(clause));
+}
 
 static bool test_run_once(interpreter &interp,
 			  size_t iteration,
@@ -148,6 +152,7 @@ static bool test_interpreter_file(const std::string &filepath)
 	bool first_clause = true;
 	bool new_block = false;
 	bool cont = false;
+	con_cell current_predicate;
 
 	do {
 
@@ -196,6 +201,9 @@ static bool test_interpreter_file(const std::string &filepath)
 	    }
 
 	    if (!is_query && !is_action) {
+		if (first_clause) {
+		    current_predicate = get_predicate_of(interp, t);
+		}
   	        try {
 		    interp.load_clause(t);
 		} catch (syntax_exception &ex) {
@@ -307,8 +315,11 @@ static void test_interpreter_files(const char *filter = nullptr)
 
     boost::filesystem::directory_iterator it_end;
 
+    std::vector<boost::filesystem::path> files;
+
     for (boost::filesystem::directory_iterator it(files_dir); it != it_end; ++it) {
-        std::string filepath = it->path().string();
+        auto filepath = it->path().string();
+
 	if (filter != nullptr && filepath.find(filter) == std::string::npos) {
 	    continue;
 	}
@@ -320,9 +331,15 @@ static void test_interpreter_files(const char *filter = nullptr)
 
 	if (boost::starts_with(it->path().filename().string(), "ex_") &&
 	    boost::ends_with(filepath, ".pl")) {
-	    bool r = test_interpreter_file(filepath);
-	    assert(r);
+	    files.push_back(filepath);
 	}
+    }
+
+    std::sort(files.begin(), files.end());
+
+    for (auto &filepath : files) {
+	bool r = test_interpreter_file(filepath.string());
+	assert(r);
     }
 }
 

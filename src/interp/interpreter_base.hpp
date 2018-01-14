@@ -279,6 +279,9 @@ public:
     void load_clause(std::istream &is);
     void load_clause(const term t);
 
+    term clause_head(const term clause);
+    term clause_body(const term clause);
+
     void load_program(const std::string &str);
     void load_program(std::istream &is);
     void load_program(const term clauses);
@@ -607,9 +610,6 @@ protected:
     choice_point_t * reset_to_choice_point(choice_point_t *b);
 
     void unwind(size_t current_tr);
-
-    term clause_head(const term clause);
-    term clause_body(const term clause);
 
     term get_first_arg();
 
