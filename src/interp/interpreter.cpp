@@ -306,7 +306,9 @@ void interpreter::dispatch(code_point instruction)
 void interpreter::dispatch_wam(wam_instruction_base *instruction)
 {
     set_p(instruction);
-    execute_wam();
+    if (!execute_wam()) {
+	fail();
+    }
 }
 
 void interpreter::compute_matched_predicate(con_cell func,

@@ -137,7 +137,7 @@ std::vector<wam_compiler::prim_unification> wam_compiler::flatten(
 		auto found = term_map_.find(common::eq_term(env_,arg));
 		common::ref_cell ref;
 		bool is_found = found != term_map_.end();
-		if (is_found) {
+		if (is_found && !is_predicate) {
 		    ref = found->second;
 		} else {
 		    auto ref1 = env_.new_ref();
@@ -163,7 +163,9 @@ std::vector<wam_compiler::prim_unification> wam_compiler::flatten(
 	case common::tag_t::REF:
 	case common::tag_t::CON: 
 	case common::tag_t::INT: {
-	    prims.push_back(p);
+	    if (!is_predicate) {
+		prims.push_back(p);
+	    }
 	    break;
 	}
 	}
@@ -341,7 +343,7 @@ void wam_compiler::compile_program(wam_compiler::reg lhsreg, common::term rhs, w
       case common::tag_t::INT:
       case common::tag_t::CON:
       // We have X = a or X = 4711
-	instrs.push_back(wam_instruction<UNIFY_CONSTANT>(rhs));
+        instrs.push_back(wam_instruction<GET_CONSTANT>(rhs, lhsreg.num));
 	break;
       case common::tag_t::REF:
 	compile_program_ref(lhsreg, static_cast<common::ref_cell &>(rhs), instrs);
@@ -750,6 +752,8 @@ void wam_compiler::compile_clause(const term clause0, wam_interim_code &seq)
 
     compile_query_or_program(head, COMPILE_PROGRAM, seq);
 
+    common::con_cell bn_true = common::con_cell("true",0);
+
     term body = clause_body(clause);
     term last_goal;
     for (auto goal : for_all_goals(body)) {
@@ -757,7 +761,9 @@ void wam_compiler::compile_clause(const term clause0, wam_interim_code &seq)
 	    auto f = env_.functor(last_goal);
 	    bool isbn = is_builtin(f);
 	    if (isbn) {
-  	        seq.push_back(wam_instruction<BUILTIN>(f, get_builtin(f)));
+		if (f != bn_true) {
+		    seq.push_back(wam_instruction<BUILTIN>(f, get_builtin(f)));
+		}
 	    } else {
 	        seq.push_back(wam_instruction<CALL>(f, 0));
 	    }
@@ -774,7 +780,9 @@ void wam_compiler::compile_clause(const term clause0, wam_interim_code &seq)
         auto f = env_.functor(last_goal);
 	bool isbn = is_builtin(f);
 	if (isbn) {
-  	    seq.push_back(wam_instruction<BUILTIN>(f, get_builtin(f)));
+	    if (f != bn_true) {
+		seq.push_back(wam_instruction<BUILTIN>(f, get_builtin(f)));
+	    }
 	} else {
   	    if (needs_env) {
 	       seq.push_back(wam_instruction<DEALLOCATE>());
@@ -785,6 +793,7 @@ void wam_compiler::compile_clause(const term clause0, wam_interim_code &seq)
     }
     if (needs_env) {
         seq.push_back(wam_instruction<DEALLOCATE>());
+	seq.push_back(wam_instruction<PROCEED>());
     }
 
     remap_x_registers(seq);
@@ -795,17 +804,17 @@ void wam_compiler::compile_clause(const term clause0, wam_interim_code &seq)
     eliminate_interim(seq);
 }
 
-void wam_compiler::emit_cp(std::vector<common::int_cell> &labels, size_t index, wam_interim_code &instrs)
+void wam_compiler::emit_cp(std::vector<common::int_cell> &labels, size_t index, size_t n, wam_interim_code &instrs)
 {
-    size_t n = labels.size();
-    instrs.push_back(wam_interim_instruction<INTERIM_LABEL>(labels[index]));
+    instrs.push_back(wam_interim_instruction<INTERIM_LABEL>(labels[2*index]));
     if (index == 0) {
-        instrs.push_back(wam_instruction<TRY_ME_ELSE>(labels[index+1]));
+        instrs.push_back(wam_instruction<TRY_ME_ELSE>(labels[2*index+2]));
     } else if (index < n - 1) {
-        instrs.push_back(wam_instruction<RETRY_ME_ELSE>(labels[index+1]));
+        instrs.push_back(wam_instruction<RETRY_ME_ELSE>(labels[2*index+2]));
     } else {
         instrs.push_back(wam_instruction<TRUST_ME>());
     }
+    instrs.push_back(wam_interim_instruction<INTERIM_LABEL>(labels[2*index+1]));
 }
 
 std::vector<common::int_cell> wam_compiler::new_labels(size_t n)
@@ -814,6 +823,18 @@ std::vector<common::int_cell> wam_compiler::new_labels(size_t n)
     lbls.reserve(n);
     for (size_t i = 0; i < n; i++) {
         lbls.push_back(new_label());
+    }
+    return lbls;
+}
+
+std::vector<common::int_cell> wam_compiler::new_labels_dup(size_t n)
+{
+    std::vector<common::int_cell> lbls;
+    lbls.reserve(n);
+    for (size_t i = 0; i < n; i++) {
+	auto lbl = new_label();
+        lbls.push_back(lbl);
+        lbls.push_back(lbl);
     }
     return lbls;
 }
@@ -837,17 +858,17 @@ void wam_compiler::emit_switch_on_term(std::vector<term> &subsection, std::vecto
 
     auto on_con = find_clauses_on_cat(subsection, FIRST_CON);
     auto on_con_cp = on_con.empty() ? code_point::fail() 
-	           : (on_con.size() == 1) ? code_point(labels[on_con[0]])
+	           : (on_con.size() == 1) ? code_point(labels[2*on_con[0]+1])
 	           : new_label();
 
     auto on_lst = find_clauses_on_cat(subsection, FIRST_LST);
     auto on_lst_cp = on_lst.empty() ? code_point::fail() 
-	           : (on_lst.size() == 1) ? code_point(labels[on_lst[0]])
+	           : (on_lst.size() == 1) ? code_point(labels[2*on_lst[0]+1])
 	           : new_label();
 
     auto on_str = find_clauses_on_cat(subsection, FIRST_STR);
     auto on_str_cp = on_str.empty() ? code_point::fail() 
-	           : (on_str.size() == 1) ? code_point(labels[on_str[0]])
+	           : (on_str.size() == 1) ? code_point(labels[2*on_str[0]+1])
 	           : new_label();
 
     instrs.push_back(wam_instruction<SWITCH_ON_TERM>(on_var_cp, on_con_cp, on_lst_cp, on_str_cp));
@@ -936,10 +957,10 @@ void wam_compiler::compile_subsection(std::vector<term> &subsection, wam_interim
 {
     auto n = subsection.size();
     if (n > 1) {
-        std::vector<common::int_cell> labels = new_labels(n);
+        std::vector<common::int_cell> labels = new_labels(2*n);
 	emit_switch_on_term(subsection, labels, instrs);
 	for (size_t i = 0; i < n; i++) {
-	    emit_cp(labels, i, instrs);
+	    emit_cp(labels, i, n, instrs);
 	    auto &clause = subsection[i];
 	    wam_interim_code clause_instrs(interp_);
 	    compile_clause(clause, clause_instrs);
@@ -959,9 +980,9 @@ void wam_compiler::compile_predicate(common::con_cell pred, wam_interim_code &in
     auto sections = partition_clauses_nonvar(clauses);
     auto n = sections.size();
     if (n > 1) {
-        std::vector<common::int_cell> labels = new_labels(n);
+        std::vector<common::int_cell> labels = new_labels_dup(n);
 	for (size_t i = 0; i < n; i++) {
-	    emit_cp(labels, i, instrs);
+	    emit_cp(labels, i, n, instrs);
 	    compile_subsection(sections[i], instrs);
 	}
     } else {

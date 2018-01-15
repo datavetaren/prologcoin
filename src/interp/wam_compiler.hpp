@@ -212,7 +212,7 @@ public:
     typedef common::term term;
 
     wam_compiler(wam_interpreter &interp)
-      : interp_(interp), env_(interp), regs_a_(A_REG), regs_x_(X_REG), regs_y_(Y_REG), label_count_(0) { }
+      : interp_(interp), env_(interp), regs_a_(A_REG), regs_x_(X_REG), regs_y_(Y_REG), label_count_(1) { }
 
     static inline bool is_interim_instruction(wam_instruction_base *instr) {
         return static_cast<wam_interim_instruction_type>(instr->type())
@@ -336,7 +336,8 @@ private:
     bool clause_needs_environment(const term clause);
     void compile_clause(const term clause, wam_interim_code &seq);
     std::vector<common::int_cell> new_labels(size_t n);
-    void emit_cp(std::vector<common::int_cell> &labels, size_t index,
+    std::vector<common::int_cell> new_labels_dup(size_t n);
+    void emit_cp(std::vector<common::int_cell> &labels, size_t index, size_t n,
 		 wam_interim_code &instrs);
     void compile_subsection(std::vector<term> &subsection, wam_interim_code &instrs);
 

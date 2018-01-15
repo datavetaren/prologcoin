@@ -738,7 +738,7 @@ public:
         std::tie(p, index) = allocate(tag_t::STR, 2);
 	static_cast<ptr_cell &>(*p).set_index(index+1);
 	p[1] = con;
-	return str_cell(index);
+	return str_cell(index+1);
     }
 
     inline void new_cell0(cell c)

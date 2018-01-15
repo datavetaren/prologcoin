@@ -568,19 +568,24 @@ public:
         register_p_.set_wam_code(instr);
     }
 
-    inline void execute_wam()
+    inline bool execute_wam()
     {
         allocate_environment(false);
         allocate_choice_point(code_point::fail());
         while (e0() != top_e() && !is_top_fail()) {
-	    auto instr = p();
-	    if (is_debug()) {
-	        std::cout << "[WAM debug]: ";
-		instr->print(std::cout, *this);
-		std::cout << "\n";
+	    if (auto instr = p()) {
+		if (is_debug()) {
+		    std::cout << "[WAM debug]: ";
+		    instr->print(std::cout, *this);
+		    std::cout << "\n";
+		}
+		instr->invoke(*this);
+	    } else {
+		deallocate_environment();
+		return true;
 	    }
-	    instr->invoke(*this);
 	}
+	return false;
     }
 
 private:
@@ -1229,12 +1234,18 @@ private:
     inline bool builtin(wam_instruction_base *p)
     {
         auto b = reinterpret_cast<wam_instruction<BUILTIN> *>(p);
-	set_num_of_args(b->arity());
-        code_point p1 = register_p_;
-	next_instruction(p1);
-	set_cp(p1);
-	// TODO: We need to call bn here...
-	return false;
+	size_t num_args = b->arity();
+	set_num_of_args(num_args);
+	goto_next_instruction();
+	common::term args[num_args];
+	for (size_t i = 0; i < num_args; i++) {
+	    args[i] = a(i);
+	}
+	bool r = (b->bn())(*this, b->arity(), args);
+	if (!r) {
+	    backtrack();
+	}
+	return r;
     }
 
     void retry_choice_point(code_point &p_else)
