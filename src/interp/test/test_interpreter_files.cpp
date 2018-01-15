@@ -10,7 +10,7 @@
 using namespace prologcoin::common;
 using namespace prologcoin::interp;
 
-static bool do_compile = false;
+static bool do_compile = true;
 
 static void header( const std::string &str )
 {

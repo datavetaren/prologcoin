@@ -310,22 +310,26 @@ void wam_compiler::compile_program_str(wam_compiler::reg lhsreg, common::term rh
     size_t n = f.arity();
     for (size_t i = 0; i < n; i++) {
         auto arg = env_.arg(rhs, i);
-	assert(arg.tag() == common::tag_t::REF);
-	auto ref = static_cast<common::ref_cell &>(arg);
-	reg r;
-	bool isnew = false;
-	std::tie(r,isnew) = allocate_reg<X_REG>(ref);
-	if (r.type == A_REG) {
-	    if (isnew) {
-	        instrs.push_back(wam_instruction<UNIFY_VARIABLE_A>(r.num));
-	    } else {
-	        instrs.push_back(wam_instruction<UNIFY_VALUE_A>(r.num));
-	    }
+	if (arg.tag() == common::tag_t::CON) {
+	    instrs.push_back(wam_instruction<UNIFY_CONSTANT>(arg));
 	} else {
-	    if (isnew) {
-	        instrs.push_back(wam_instruction<UNIFY_VARIABLE_X>(r.num));
+	    assert(arg.tag() == common::tag_t::REF);
+	    auto ref = static_cast<common::ref_cell &>(arg);
+	    reg r;
+	    bool isnew = false;
+	    std::tie(r,isnew) = allocate_reg<X_REG>(ref);
+	    if (r.type == A_REG) {
+	        if (isnew) {
+		    instrs.push_back(wam_instruction<UNIFY_VARIABLE_A>(r.num));
+		} else {
+		    instrs.push_back(wam_instruction<UNIFY_VALUE_A>(r.num));
+		}
 	    } else {
-	        instrs.push_back(wam_instruction<UNIFY_VALUE_X>(r.num));
+	        if (isnew) {
+		    instrs.push_back(wam_instruction<UNIFY_VARIABLE_X>(r.num));
+		} else {
+		    instrs.push_back(wam_instruction<UNIFY_VALUE_X>(r.num));
+		}
 	    }
 	}
     }
@@ -725,8 +729,15 @@ bool wam_compiler::clause_needs_environment(const term clause)
     return true;
 }
 
-void wam_compiler::compile_clause(const term clause, wam_interim_code &seq)
+void wam_compiler::compile_clause(const term clause0, wam_interim_code &seq)
 {
+    // We'll make a copy of the clause to be processed.
+    // The reason is that the flattening process
+    // (inside compile_query_or_program) touches the vars as it
+    // unfolds the inner terms.
+
+    term clause = interp_.copy(clause0);
+
     // First analyze how many calls we have.
     // We only need an environment if there are more than 1 call.
 
@@ -736,6 +747,7 @@ void wam_compiler::compile_clause(const term clause, wam_interim_code &seq)
 
     term head = clause_head(clause);
     seq.push_back(wam_interim_instruction<INTERIM_HEAD>());
+
     compile_query_or_program(head, COMPILE_PROGRAM, seq);
 
     term body = clause_body(clause);

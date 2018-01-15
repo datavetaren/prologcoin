@@ -313,12 +313,22 @@ public:
 
     inline builtin get_builtin(con_cell f)
     {
-        return builtins_[f];
+        auto it = builtins_.find(f);
+        if (it == builtins_.end()) {
+	    return nullptr;
+        } else {
+	    return it->second;
+	}
     }
 
     inline builtin_opt get_builtin_opt(con_cell f)
     {
-        return builtins_opt_[f];
+        auto it = builtins_opt_.find(f);
+        if (it == builtins_opt_.end()) {
+	    return nullptr;
+        } else {
+	    return it->second;
+	}
     }
 
     inline bool is_builtin(con_cell f) const

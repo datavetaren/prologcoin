@@ -14,7 +14,7 @@ size_t wam_code::add(const wam_instruction_base &i)
     code_t *new_base = instrs_;
     auto p = reinterpret_cast<wam_instruction_base *>(data);
     memcpy(p, &i, sz*sizeof(code_t));
-    
+
     if (old_base != new_base) {
 	p->update(old_base, new_base);
     }

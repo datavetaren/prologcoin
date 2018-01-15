@@ -465,9 +465,10 @@ void interpreter::load_code(wam_interim_code &instrs)
 	    offset += sz;
 	}
     }
+
     // Update code points
     wam_instruction_base *instr = to_code(first_offset);
-    for (size_t i = 0; i < offset;) {
+    for (size_t i = first_offset; i < offset;) {
 	switch (instr->type()) {
 	case TRY_ME_ELSE:
 	case RETRY_ME_ELSE:
