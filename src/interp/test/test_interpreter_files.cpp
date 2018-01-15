@@ -10,6 +10,8 @@
 using namespace prologcoin::common;
 using namespace prologcoin::interp;
 
+static bool do_compile = false;
+
 static void header( const std::string &str )
 {
     std::cout << "\n";
@@ -84,11 +86,6 @@ static bool match_strings(const std::string &actual,
     return true;
 }
 
-static con_cell get_predicate_of(interpreter &interp, term clause)
-{
-    return interp.functor(interp.clause_head(clause));
-}
-
 static bool test_run_once(interpreter &interp,
 			  size_t iteration,
 			  const term &query,
@@ -147,12 +144,12 @@ static bool test_interpreter_file(const std::string &filepath)
     con_cell query_op("?-", 1);
     con_cell action_op(":-", 1);
 
-
     try {
 	bool first_clause = true;
 	bool new_block = false;
 	bool cont = false;
-	con_cell current_predicate;
+
+	std::vector<con_cell> predicates;
 
 	do {
 
@@ -201,8 +198,10 @@ static bool test_interpreter_file(const std::string &filepath)
 	    }
 
 	    if (!is_query && !is_action) {
-		if (first_clause) {
-		    current_predicate = get_predicate_of(interp, t);
+		auto p = interp.clause_predicate(t);
+		if (std::find(predicates.begin(), predicates.end(), p)
+		    == predicates.end()) {
+		    predicates.push_back(p);
 		}
   	        try {
 		    interp.load_clause(t);
@@ -263,8 +262,18 @@ static bool test_interpreter_file(const std::string &filepath)
 		interp.reset_files();
 
 		// Then run this query again to check that the result is
-		// the same. I need this to be stable when I rerun this
-		// with compiled for WAM.
+		// the same, when we compile using WAM the recent predicates.
+
+		// Compile recent predicates
+		if (do_compile) {
+		    for (auto p : predicates) {
+		        std::cout << "[Compile]: "<< interp.to_string(p) << "/"
+			          << p.arity() << "\n";
+	   	        interp.compile(p);
+	   	    }
+		}
+		predicates.clear();
+
 		for (size_t i = 0; i < expected.size(); i++) {
 		    test_run_once(interp, i, query, expected);
 		}

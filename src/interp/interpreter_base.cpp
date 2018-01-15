@@ -495,6 +495,11 @@ term interpreter_base::clause_body(const term clause)
     }
 }
 
+common::con_cell interpreter_base::clause_predicate(const term clause)
+{
+    return functor(clause_head(clause));
+}
+
 common::term interpreter_base::get_first_arg()
 {
     if (num_of_args_ == 0) {

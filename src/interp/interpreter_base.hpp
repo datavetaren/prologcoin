@@ -281,6 +281,7 @@ public:
 
     term clause_head(const term clause);
     term clause_body(const term clause);
+    common::con_cell clause_predicate(const term clause);
 
     void load_program(const std::string &str);
     void load_program(std::istream &is);
