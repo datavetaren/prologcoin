@@ -113,16 +113,18 @@ public class make_vcproj
        var projConfigs = project.Xml.AddItemGroup();
        projConfigs.Label = "ProjectConfigurations";
 
+       var platform = (theBit == "64") ? "x64" : "Win32";
+
        var debugConfig = projConfigs.AddItem("ProjectConfiguration",
-					     "Debug|Win32");
+					     "Debug|" + platform);
        debugConfig.AddMetadata("Configuration", "Debug");
-       debugConfig.AddMetadata("Platform", "Win32");
+       debugConfig.AddMetadata("Platform", platform);
 
 
        var releaseConfig = projConfigs.AddItem("ProjectConfiguration",
-					       "Release|Win32");
+					       "Release|" + platform);
        releaseConfig.AddMetadata("Configuration", "Release");
-       releaseConfig.AddMetadata("Platform", "Win32");
+       releaseConfig.AddMetadata("Platform", platform);
 
        //
        // Configurations (debug | release) applications
@@ -131,7 +133,7 @@ public class make_vcproj
        string name = subdir.Replace('\\', '_');
 
        var propDebug = project.Xml.AddPropertyGroup();
-       propDebug.Condition = "'$(Configuration)|$(Platform)'=='Debug|Win32'";
+       propDebug.Condition = "'$(Configuration)|$(Platform)'=='Debug|" + platform + "'";
        propDebug.Label = "Configuration";
        propDebug.SetProperty("ConfigurationType", what);
        propDebug.SetProperty("UseDebugLibraries", "true");
@@ -150,7 +152,7 @@ public class make_vcproj
        // propDebug.SetProperty("CharacterSet", "MultiByte");
 
        var propRelease = project.Xml.AddPropertyGroup();
-       propRelease.Condition = "'$(Configuration)|$(Platform)'=='Release|Win32'";
+       propRelease.Condition = "'$(Configuration)|$(Platform)'=='Release|" + platform + "'";
        propRelease.Label = "Configuration";
        propRelease.SetProperty("ConfigurationType", what);
        propRelease.SetProperty("UseDebugLibraries", "false");
@@ -265,9 +267,11 @@ public class make_vcproj
        clDef.AddMetadata("DebugInformationFormat", "ProgramDatabase");
        clDef.AddMetadata("ProgramDataBaseFileName", @"$(OutDir)" + name + ".pdb");
 
+       var platform = (theBit == "64") ? "x64" : "Win32";
+
        var linkDefGroup = project.Xml.AddItemDefinitionGroup();
        var linkDef = linkDefGroup.AddItemDefinition("Link");
-       linkDef.Condition =  "'$(Configuration)|$(Platform)'=='Debug|Win32'";
+       linkDef.Condition =  "'$(Configuration)|$(Platform)'=='Debug|" + platform + "'";
        linkDef.AddMetadata("GenerateDebugInformation", "true");
        linkDef.AddMetadata("SubSystem", "Console");
 
@@ -282,7 +286,7 @@ public class make_vcproj
        linkDef.AddMetadata("AdditionalLibraryDirectories", boostLibDir);
 
        var propDebug = project.Xml.AddPropertyGroup();
-       propDebug.Condition = "'$(Configuration)|$(Platform)'=='Debug|Win32'";
+       propDebug.Condition = "'$(Configuration)|$(Platform)'=='Debug|" + platform + "'";
        propDebug.SetProperty("BuildLinkTargets", "");
 
        /*

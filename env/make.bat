@@ -6,7 +6,7 @@ REM To set a specific VC: SET CHOOSEVC=VS110 (VS120, VS130, ...)
 SET CHOOSEVC=
 
 REM Set 32-bit or 64-bit version
-SET BIT=32
+SET BIT=64
 
 REM To set debug mode, set DEBUGMODE=1
 SET DEBUGMODE=1

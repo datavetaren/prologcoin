@@ -392,7 +392,7 @@ common::int_cell wam_compiler::new_label()
     return lab;
 }
 
-std::function<uint32_t ()> wam_compiler::x_getter(wam_instruction_base *instr)
+std::function<size_t ()> wam_compiler::x_getter(wam_instruction_base *instr)
 {
     switch (instr->type()) {
 	case PUT_VARIABLE_X:
@@ -415,30 +415,30 @@ std::function<uint32_t ()> wam_compiler::x_getter(wam_instruction_base *instr)
     }
 }
 
-std::function<void (uint32_t)> wam_compiler::x_setter(wam_instruction_base *instr)
+std::function<void (size_t)> wam_compiler::x_setter(wam_instruction_base *instr)
 {
     switch (instr->type()) {
 	case PUT_VARIABLE_X:
 	case PUT_VALUE_X:
 	case GET_VARIABLE_X:
 	case GET_VALUE_X:
-	    return [=](uint32_t xn){reinterpret_cast<wam_instruction_binary_reg *>(instr)->set_reg_1(xn);};
+	    return [=](size_t xn){reinterpret_cast<wam_instruction_binary_reg *>(instr)->set_reg_1(xn);};
 	case PUT_STRUCTURE_X:
 	case GET_STRUCTURE_X:
-	    return [=](uint32_t xn){reinterpret_cast<wam_instruction_con_reg *>(instr)->set_reg(xn);};
+	    return [=](size_t xn){reinterpret_cast<wam_instruction_con_reg *>(instr)->set_reg(xn);};
 	case SET_VARIABLE_X:
 	case SET_VALUE_X:
 	case SET_LOCAL_VALUE_X:
 	case UNIFY_VARIABLE_X:
 	case UNIFY_VALUE_X:
 	case UNIFY_LOCAL_VALUE_X:
-	    return [=](uint32_t xn){reinterpret_cast<wam_instruction_unary_reg *>(instr)->set_reg(xn);};
+	    return [=](size_t xn){reinterpret_cast<wam_instruction_unary_reg *>(instr)->set_reg(xn);};
 	default:
 	    return nullptr;
     }
 }
 
-std::function<uint32_t ()> wam_compiler::y_getter(wam_instruction_base *instr)
+std::function<size_t ()> wam_compiler::y_getter(wam_instruction_base *instr)
 {
     switch (instr->type()) {
 	case PUT_VARIABLE_Y:
@@ -461,24 +461,24 @@ std::function<uint32_t ()> wam_compiler::y_getter(wam_instruction_base *instr)
     }
 }
 
-std::function<void (uint32_t)> wam_compiler::y_setter(wam_instruction_base *instr)
+std::function<void (size_t)> wam_compiler::y_setter(wam_instruction_base *instr)
 {
     switch (instr->type()) {
 	case PUT_VARIABLE_Y:
 	case PUT_VALUE_Y:
 	case GET_VARIABLE_Y:
 	case GET_VALUE_Y:
-	    return [=](uint32_t yn){reinterpret_cast<wam_instruction_binary_reg *>(instr)->set_reg_1(yn);};
+	    return [=](size_t yn){reinterpret_cast<wam_instruction_binary_reg *>(instr)->set_reg_1(yn);};
 	case PUT_STRUCTURE_Y:
 	case GET_STRUCTURE_Y:
-	    return [=](uint32_t yn){reinterpret_cast<wam_instruction_con_reg *>(instr)->set_reg(yn);};
+	    return [=](size_t yn){reinterpret_cast<wam_instruction_con_reg *>(instr)->set_reg(yn);};
 	case SET_VARIABLE_Y:
 	case SET_VALUE_Y:
 	case SET_LOCAL_VALUE_Y:
 	case UNIFY_VARIABLE_Y:
 	case UNIFY_VALUE_Y:
 	case UNIFY_LOCAL_VALUE_Y:
-	    return [=](uint32_t yn){reinterpret_cast<wam_instruction_unary_reg *>(instr)->set_reg(yn);};
+	    return [=](size_t yn){reinterpret_cast<wam_instruction_unary_reg *>(instr)->set_reg(yn);};
 	default:
 	    return nullptr;
     }

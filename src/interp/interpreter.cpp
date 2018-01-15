@@ -233,6 +233,11 @@ void interpreter::dispatch(code_point instruction)
     }
     set_num_of_args(arity);
 
+    if (auto instr = resolve_predicate(f)) {
+        dispatch_wam(instr);
+	return;
+    }
+
     // Is this a built-in?
     auto bf = get_builtin(f);
     if (bf != nullptr) {
@@ -296,6 +301,12 @@ void interpreter::dispatch(code_point instruction)
     if (!select_clause(instruction, index_id, clauses, 0)) {
 	fail();
     }
+}
+
+void interpreter::dispatch_wam(wam_instruction_base *instruction)
+{
+    set_p(instruction);
+    execute_wam();
 }
 
 void interpreter::compute_matched_predicate(con_cell func,

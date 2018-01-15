@@ -212,19 +212,19 @@ public:
     {
     }
 
-    inline uint32_t reg_1() const {
+    inline size_t reg_1() const {
 	return data_1_;
     }
 
-    inline uint32_t reg_2() const {
+    inline size_t reg_2() const {
 	return data_2_;
     }
 
-    inline void set_reg_1(uint32_t r) {
+    inline void set_reg_1(size_t r) {
 	data_1_ = r;
     }
 
-    inline void set_reg_2(uint32_t r) {
+    inline void set_reg_2(size_t r) {
 	data_2_ = r;
     }
 
@@ -558,6 +558,31 @@ public:
 	return interpreter_base::to_string(t, style);
     }
 
+    inline wam_instruction_base * p()
+    {
+        return register_p_.wam_code();
+    }
+
+    inline void set_p(wam_instruction_base *instr)
+    {
+        register_p_.set_wam_code(instr);
+    }
+
+    inline void execute_wam()
+    {
+        allocate_environment(false);
+        allocate_choice_point(code_point::fail());
+        while (e0() != top_e() && !is_top_fail()) {
+	    auto instr = p();
+	    if (is_debug()) {
+	        std::cout << "[WAM debug]: ";
+		instr->print(std::cout, *this);
+		std::cout << "\n";
+	    }
+	    instr->invoke(*this);
+	}
+    }
+
 private:
 
     inline std::string to_string(const code_point &cp) const
@@ -601,7 +626,13 @@ private:
     {
         if (b() == top_b()) {
 	    set_top_fail(true);
+	    if (is_debug()) {
+	        std::cout << "[WAM debug]: backtrack(): Top fail\n";
+	    }
         } else {
+	    if (is_debug()) {
+	        std::cout << "[WAM debug]: backtrack(): fail\n";
+	    }
 	    set_b0(b()->b0);
 	    register_p_ = b()->bp;
 	}
@@ -644,7 +675,6 @@ private:
 	}
     }
 
-    bool top_fail_;
     enum mode_t { READ, WRITE } mode_;
 
     code_point register_p_;
@@ -673,21 +703,20 @@ private:
         next_instruction(register_p_);
     }
 
-    inline term deref_stack(common::ref_cell ref0)
+    inline term deref_stack(common::ref_cell ref)
     {
-        common::ref_cell ref;
-        do {
-	    ref = ref0;
-  	    term t = to_stack(ref)->term;
-	    if (t.tag() != common::tag_t::REF) {
-	        return t;
-	    }
-	    ref = static_cast<common::ref_cell &>(t);
+        term t1 = to_stack(ref)->term;
+        while (t1.tag() == common::tag_t::REF) {
+  	    auto &ref1 = static_cast<common::ref_cell &>(t1);
 	    if (!is_stack(ref)) {
-	        return term_env::deref(ref);
+	        return term_env::deref(t1);
 	    }
-        } while (ref0 != ref);
-	return ref;
+	    term t2 = heap_get(ref1.index());
+	    if (t1 == t2) {
+	        return t1;
+	    }
+        }
+	return t1;
     }
 
     inline term deref(term t)
@@ -824,6 +853,7 @@ private:
     inline void get_structure_a(common::con_cell f, uint32_t ai)
     {
         term t = deref(a(ai));
+
 	return get_structure(f, t);
     }
 
@@ -1177,23 +1207,23 @@ private:
 
     inline void call(code_point &p, size_t arity, uint32_t num_stack)
     {
-        set_cp(register_p_);
-        next_instruction(cp());
+        set_cp(code_point(register_p_));
+        next_instruction(cp().wam_code());
 	set_num_of_args(arity);
 	set_b0(b());
-	register_p_ = p;
+	register_p_ = p.wam_code();
     }
 
     inline void execute(code_point &p, size_t arity)
     {
         set_num_of_args(arity);
 	set_b0(b());
-	register_p_ = p;
+	register_p_ = p.wam_code();
     }
 
     inline void proceed()
     {
-        register_p_ = cp();
+        register_p_ = cp().wam_code();
     }
 
     inline bool builtin(wam_instruction_base *p)
@@ -1234,7 +1264,9 @@ private:
 	trim_trail(b()->tr);
 	trim_heap(b()->h);
 	set_b(b()->b);
-	set_register_hb(b()->h);
+	if (b() != nullptr) {
+	    set_register_hb(b()->h);
+	}
     }
 
     inline void try_me_else(code_point &L)
@@ -1283,6 +1315,7 @@ private:
 			       const code_point &ps)
     {
 	term t = deref(a(0));
+
 	switch (t.tag()) {
 	case common::tag_t::CON: case common::tag_t::INT:
 	    if (pc.is_fail()) {
@@ -1305,6 +1338,7 @@ private:
 		    register_p_ = ps;
 		}
 	    }
+	    break;
 	}
 	case common::tag_t::REF:
 	default: {
@@ -1832,7 +1866,7 @@ public:
     static void invoke(wam_interpreter &interp, wam_instruction_base *self)
     {
         auto self1 = reinterpret_cast<wam_instruction<GET_STRUCTURE_A> *>(self);
-        interp.get_structure(self1->f(), self1->ai());
+        interp.get_structure_a(self1->f(), self1->ai());
     }
 
     static void print(std::ostream &out, wam_interpreter &interp, wam_instruction_base *self)
@@ -1864,7 +1898,7 @@ public:
     static void invoke(wam_interpreter &interp, wam_instruction_base *self)
     {
         auto self1 = reinterpret_cast<wam_instruction<GET_STRUCTURE_X> *>(self);
-        interp.get_structure(self1->f(), self1->xn());
+        interp.get_structure_x(self1->f(), self1->xn());
     }
 
     static void print(std::ostream &out, wam_interpreter &interp, wam_instruction_base *self)
@@ -1894,7 +1928,7 @@ public:
     static void invoke(wam_interpreter &interp, wam_instruction_base *self)
     {
         auto self1 = reinterpret_cast<wam_instruction<GET_STRUCTURE_Y> *>(self);
-        interp.get_structure(self1->f(), self1->yn());
+        interp.get_structure_y(self1->f(), self1->yn());
     }
 
     static void print(std::ostream &out, wam_interpreter &interp, wam_instruction_base *self)

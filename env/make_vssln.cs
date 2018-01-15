@@ -200,6 +200,8 @@ public class make_vssln
        sw.WriteLine("Global");
 
        sw.WriteLine("\tGlobalSection(SolutionConfigurationPlatforms) = preSolution");
+       sw.WriteLine("\t\tDebug|x64 = Debug|x64");
+       sw.WriteLine("\t\tRelease|x64 = Release|x64");
        sw.WriteLine("\t\tDebug|x86 = Debug|x86");
        sw.WriteLine("\t\tRelease|x86 = Release|x86");
        sw.WriteLine("\tEndGlobalSection");
@@ -207,6 +209,10 @@ public class make_vssln
        sw.WriteLine("\tGlobalSection(ProjectConfigurationPlatforms) = postSolution");
        foreach (var entry in projs) {
            string projGuid = entry.Value;
+	   sw.WriteLine("\t\t" + projGuid + ".Debug|x64.ActiveCfg = Debug|x64");
+	   sw.WriteLine("\t\t" + projGuid + ".Debug|x64.Build.0 = Debug|x64");
+	   sw.WriteLine("\t\t" + projGuid + ".Release|x64.ActiveCfg = Release|x64");
+	   sw.WriteLine("\t\t" + projGuid + ".Release|x64.Build.0 = Release|x64");
 
 	   sw.WriteLine("\t\t" + projGuid + ".Debug|x86.ActiveCfg = Debug|Win32");
 	   sw.WriteLine("\t\t" + projGuid + ".Debug|x86.Build.0 = Debug|Win32");

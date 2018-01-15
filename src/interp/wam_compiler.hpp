@@ -345,11 +345,11 @@ private:
     term clause_head(const term clause);
     term clause_body(const term clause);
 
-    std::function<uint32_t ()> x_getter(wam_instruction_base *instr);
-    std::function<void (uint32_t)> x_setter(wam_instruction_base *instr);
+    std::function<size_t ()> x_getter(wam_instruction_base *instr);
+    std::function<void (size_t)> x_setter(wam_instruction_base *instr);
 
-    std::function<uint32_t ()> y_getter(wam_instruction_base *instr);
-    std::function<void (uint32_t)> y_setter(wam_instruction_base *instr);
+    std::function<size_t ()> y_getter(wam_instruction_base *instr);
+    std::function<void (size_t)> y_setter(wam_instruction_base *instr);
 
     void change_x_to_y(wam_instruction_base *instr);
 

@@ -153,6 +153,8 @@ public:
     inline code_point(const common::int_cell i) : wam_code_(nullptr), term_code_(i){}
     inline code_point(const code_point &other)
         : wam_code_(other.wam_code_), term_code_(other.term_code_) { }
+    inline code_point(wam_instruction_base *i)
+        : wam_code_(i), term_code_(common::ref_cell(0)) { }
 
     inline static code_point fail() {
         return code_point();

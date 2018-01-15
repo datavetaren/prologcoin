@@ -37,6 +37,7 @@ private:
 			 code_point &cp);
     void execute_once();
     void dispatch(code_point instruction);
+    void dispatch_wam(wam_instruction_base *instruction);
     bool select_clause(const code_point &instruction,
 		       size_t index_id,
 		       std::vector<term> &clauses,
