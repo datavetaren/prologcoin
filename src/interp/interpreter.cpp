@@ -59,6 +59,10 @@ bool interpreter::execute(const term query)
 
 bool interpreter::cont()
 {
+    if (!e_is_extended()) {
+	return continue_wam();
+    }
+
     do {
 	do {
 	    execute_once();
@@ -106,6 +110,10 @@ void interpreter::fail()
         }
 
 	auto ch = reset_to_choice_point(b());
+
+	if (!e_is_extended()) {
+	    return;
+	}
 
 	size_t bpval = static_cast<const int_cell &>(ch->bp.term_code()).value();
 

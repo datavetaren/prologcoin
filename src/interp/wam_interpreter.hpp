@@ -572,6 +572,16 @@ public:
     {
         allocate_environment(false);
         allocate_choice_point(code_point::fail());
+	if (continue_wam()) {
+	    deallocate_environment();
+	    return true;
+	} else {
+	    return false;
+	}
+    }
+
+    inline bool continue_wam()
+    {
         while (e0() != top_e() && !is_top_fail()) {
 	    if (auto instr = p()) {
 		if (is_debug()) {
@@ -581,7 +591,6 @@ public:
 		}
 		instr->invoke(*this);
 	    } else {
-		deallocate_environment();
 		return true;
 	    }
 	}
