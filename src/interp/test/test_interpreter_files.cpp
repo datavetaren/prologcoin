@@ -254,7 +254,8 @@ static bool test_interpreter_file(const std::string &filepath)
 		size_t tr_mark = interp.trail_size();
 		term query = interp.arg(t, 0);
 
-		// Run this query first
+		// Run this query first without WAM
+		interp.set_wam_enabled(false);
 		for (size_t i = 0; i < expected.size(); i++) {
 		    test_run_once(interp, i, query, expected);
 		}
@@ -263,6 +264,7 @@ static bool test_interpreter_file(const std::string &filepath)
 
 		// Then run this query again to check that the result is
 		// the same, when we compile using WAM the recent predicates.
+		interp.set_wam_enabled(true);
 
 		// Compile recent predicates
 		if (do_compile) {
@@ -271,15 +273,19 @@ static bool test_interpreter_file(const std::string &filepath)
 			          << p.arity() << "\n";
 	   	        interp.compile(p);
 	   	    }
-		    interp.print_code(std::cout);
+		    if (interp.is_debug()) {
+			interp.print_code(std::cout);
+		    }
 		}
 		predicates.clear();
 
+		interp.set_register_hb(interp.heap_size());
 		for (size_t i = 0; i < expected.size(); i++) {
 		    test_run_once(interp, i, query, expected);
 		}
 		interp.unwind(tr_mark);
 		interp.reset_files();
+		interp.set_register_hb(interp.heap_size());
 	    }
 	}
 

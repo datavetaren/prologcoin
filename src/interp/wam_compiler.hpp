@@ -224,6 +224,11 @@ public:
 	                         == INTERIM_LABEL;
     }
 
+    inline size_t get_environment_size_of(wam_interim_code &instrs)
+    {
+	return static_cast<size_t>(find_maximum_y_register(instrs) + 1);
+    }
+
     void compile_predicate(common::con_cell pred, wam_interim_code &instrs);
 
 private:
@@ -327,6 +332,7 @@ private:
     void find_x_to_y_registers(wam_interim_code &seq,
 			       std::vector<size_t> &x_to_y);
     void allocate_y_registers(wam_interim_code &seq);
+    int find_maximum_y_register(wam_interim_code &seq);
     void update_calls_for_environment_trimming(wam_interim_code &seq);
     void find_unsafe_y_registers(wam_interim_code &seq,
 				 std::unordered_set<size_t> &unsafe_y_regs);

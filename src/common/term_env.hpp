@@ -408,7 +408,7 @@ template<typename HT, typename ST, typename OT> class term_env_dock
   : public heap_dock<HT>, public stacks_dock<ST>, public ops_dock<OT>
 {
 public:
-  inline term_env_dock() : register_hb_(0) { }
+  inline term_env_dock() { }
 
   inline bool is_atom(const term t) const
       { return is_functor(t) && heap_dock<HT>::functor(t).arity() == 0; }
@@ -433,12 +433,6 @@ public:
         return true;    
      }
 
-  inline size_t get_register_hb() const
-     { return register_hb_; }
-
-  inline void set_register_hb(size_t index)
-     { register_hb_ = index; }
-  
   inline void clear_name(const term t)
      { var_naming_.erase(t); }
   inline bool has_name(const term t) const
@@ -459,7 +453,7 @@ public:
   {
       size_t i = from;
       while (i < to) {
-   	  if (stacks_dock<ST>::trail_get(i) < register_hb_) {
+   	  if (stacks_dock<ST>::trail_get(i) < stacks_dock<ST>::get_register_hb()) {
    	      // This variable recording happened before the choice point.
 	      // We can't touch it.
 	      i++;
@@ -613,7 +607,6 @@ public:
   }
 
 private:
-  size_t register_hb_;
   std::unordered_map<term, std::string> var_naming_;
 };
 

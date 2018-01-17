@@ -23,6 +23,12 @@ public:
     bool cont();
     void fail();
 
+    void set_wam_enabled(bool enabled)
+    { wam_enabled_ = enabled; }
+
+    bool is_wam_enabled() const
+    { return wam_enabled_; }
+
     std::string get_result(bool newlines = true) const;
     void print_result(std::ostream &out) const;
 
@@ -35,7 +41,6 @@ private:
     void load_code(wam_interim_code &code);
     void bind_code_point(std::unordered_map<size_t, size_t> &label_map,
 			 code_point &cp);
-    void execute_once();
     void dispatch(code_point instruction);
     void dispatch_wam(wam_instruction_base *instruction);
     bool select_clause(const code_point &instruction,
@@ -79,6 +84,7 @@ private:
     inline const std::vector<binding> & query_vars() const
         { return query_vars_; }
 
+    bool wam_enabled_;
     std::vector<binding> query_vars_;
     wam_compiler *compiler_;
 

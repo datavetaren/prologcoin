@@ -421,8 +421,8 @@ void interpreter_base::prepare_execution()
     top_fail_ = false;
     register_b_ = nullptr;
     register_e_ = nullptr;
-    register_e_is_extended_ = true;
-    set_register_hb(get_register_hb());
+    register_e_is_wam_ = false;
+    set_register_hb(heap_size());
     register_b0_ = nullptr;
     register_top_b_ = nullptr;
     register_top_e_ = nullptr;

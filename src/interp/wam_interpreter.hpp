@@ -410,7 +410,8 @@ public:
 
 protected:
     void set_predicate(common::con_cell predicate_name,
-		       wam_instruction_base *instr)
+		       wam_instruction_base *instr,
+		       size_t environment_size)
     {
 	size_t predicate_offset = to_code_addr(instr);
 	predicate_map_[predicate_name] = predicate_offset;
@@ -570,29 +571,43 @@ public:
 
     inline bool execute_wam()
     {
-        allocate_environment(false);
-        allocate_choice_point(code_point::fail());
-	if (continue_wam()) {
-	    deallocate_environment();
-	    return true;
-	} else {
-	    return false;
+        allocate_environment(true);
+	return cont_wam();
+    }
+
+protected:
+    inline void backtrack_wam()
+    {
+	backtrack();
+	if (!is_top_fail()) {
+	    set_e(b()->ce);
 	}
     }
 
-    inline bool continue_wam()
+    inline bool cont_wam()
     {
-        while (e0() != top_e() && !is_top_fail()) {
+        while (e_is_wam() && !is_top_fail()) {
 	    if (auto instr = p()) {
 		if (is_debug()) {
-		    std::cout << "[WAM debug]: ";
+		    std::cout << "[WAM debug]: [" << std::setw(5)
+			      << to_code_addr(instr) << "]: ";
 		    instr->print(std::cout, *this);
 		    std::cout << "\n";
 		}
 		instr->invoke(*this);
 	    } else {
+		if (is_debug()) {
+		    std::cout << "[WAM debug]: success\n";
+		}
+		// We assume that WAM always created an environment
+		// frame before execution.
+		deallocate_environment();
 		return true;
 	    }
+	}
+	std::cout << "[WAM debug]: fail\n";
+	if (b() != nullptr) {
+	    reset_to_choice_point(b());
 	}
 	return false;
     }
@@ -617,12 +632,17 @@ private:
     {
         auto after_call = e->cp.wam_code();
         if (after_call == nullptr) {
-	    return interpreter_base::num_y(e);
+	    // TODO: Fix proper value here...
+	    size_t n = 10;
+	    return n;
         } else {
 	    auto at_call = reinterpret_cast<wam_instruction<CALL> *>(
 		 reinterpret_cast<code_t *>(after_call) -
 		 sizeof(wam_instruction<CALL>)/sizeof(code_t));
-	    return at_call->num_y();
+
+	    (void)at_call;
+	    size_t n = 10; // at_call->num_y();
+	    return n;
 	}
     }
 
@@ -874,6 +894,7 @@ private:
     inline void get_structure_x(common::con_cell f, uint32_t xn)
     {
         term t = deref(x(xn));
+
 	return get_structure(f, t);
     }
 
@@ -1180,6 +1201,7 @@ private:
 	    case common::tag_t::CON: case common::tag_t::INT: {
 	        auto c1 = static_cast<common::term &>(t);
 		fail = c != c1;
+		break;
 	      }
 	    default:
 	      fail = true;
@@ -1221,8 +1243,7 @@ private:
 
     inline void call(code_point &p, size_t arity, uint32_t num_stack)
     {
-        set_cp(code_point(register_p_));
-        next_instruction(cp().wam_code());
+        cp().set_wam_code(next_instruction(register_p_.wam_code()));
 	set_num_of_args(arity);
 	set_b0(b());
 	register_p_ = p.wam_code();

@@ -620,20 +620,36 @@ void wam_compiler::remap_y_registers(wam_interim_code &instrs)
     }
 }
 
+int wam_compiler::find_maximum_y_register(wam_interim_code &instrs)
+{
+    int biggest_y = -1;
+
+    for (auto instr : instrs) {
+        if (auto y_get = y_getter(instr)) {
+	    auto y = y_get();
+	    if (static_cast<int>(y) > biggest_y) {
+		biggest_y = static_cast<int>(y);
+	    }
+	}	
+    }
+
+    return biggest_y;
+}
+
 void wam_compiler::update_calls_for_environment_trimming(wam_interim_code &instrs)
 {
     auto instrs_rev = instrs.get_all_reversed();
-    size_t biggest_y = 0;
+    int biggest_y = -1;
     for (auto instr : instrs_rev) {
         if (auto y_get = y_getter(instr)) {
 	    auto y = y_get();
-	    if (y > biggest_y) {
-		y = biggest_y;
+	    if (static_cast<int>(y) > biggest_y) {
+		biggest_y = static_cast<int>(y);
 	    }
 	}
 	if (instr->type() == CALL) {
 	    auto call_instr = reinterpret_cast<wam_instruction<CALL> *>(instr);
-	    call_instr->set_num_y(biggest_y+1);
+	    call_instr->set_num_y(static_cast<size_t>(biggest_y+1));
 	}
     }
 }
@@ -886,9 +902,9 @@ void wam_compiler::emit_third_level_indexing(
     size_t n = clause_indices.size();
     for (size_t i = 0; i < n; i++) {
 	auto ci = clause_indices[i];
-	if (i == 0) instrs.push_back(wam_instruction<TRY>(labels[ci]));
-	else if (i < n - 1) instrs.push_back(wam_instruction<RETRY>(labels[ci]));
-	else instrs.push_back(wam_instruction<TRUST>(labels[ci]));
+	if (i == 0) instrs.push_back(wam_instruction<TRY>(labels[2*ci+1]));
+	else if (i < n - 1) instrs.push_back(wam_instruction<RETRY>(labels[2*ci+1]));
+	else instrs.push_back(wam_instruction<TRUST>(labels[2*ci+1]));
     }
 }
 

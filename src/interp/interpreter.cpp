@@ -7,6 +7,7 @@ interpreter::interpreter()
 {
     compiler_ = new wam_compiler(*this);
     id_to_predicate_.push_back(predicate()); // Reserve index 0
+    wam_enabled_ = true;
 }
 
 interpreter::~interpreter()
@@ -15,13 +16,6 @@ interpreter::~interpreter()
     query_vars_.clear();
     predicate_id_.clear();
     id_to_predicate_.clear();
-}
-
-void interpreter::execute_once()
-{
-    auto instruction = cp();
-    set_cp(code_point(empty_list()));
-    dispatch(instruction);
 }
 
 bool interpreter::execute(const term query)
@@ -59,13 +53,15 @@ bool interpreter::execute(const term query)
 
 bool interpreter::cont()
 {
-    if (!e_is_extended()) {
-	return continue_wam();
-    }
-
     do {
 	do {
-	    execute_once();
+	    if (e_is_wam()) {
+		cont_wam();
+	    } else {
+		auto instruction = cp();
+		set_cp(code_point(empty_list()));
+		dispatch(instruction);
+	    }
 	} while (e0() != top_e() && !is_top_fail());
 	
         if (has_meta_contexts()) {
@@ -109,11 +105,12 @@ void interpreter::fail()
 	    return;
         }
 
-	auto ch = reset_to_choice_point(b());
-
-	if (!e_is_extended()) {
+	if (b_is_wam()) {
+	    backtrack_wam();
 	    return;
 	}
+
+	auto ch = reset_to_choice_point(b());
 
 	size_t bpval = static_cast<const int_cell &>(ch->bp.term_code()).value();
 
@@ -186,7 +183,7 @@ bool interpreter::select_clause(const code_point &instruction,
 		}
 	    }
 
-	    allocate_environment(true);
+	    allocate_environment(false);
 
 	    set_cp(copy_body);
 	    set_qr(copy_head);
@@ -211,9 +208,15 @@ void interpreter::dispatch(code_point instruction)
     if (f == empty_list()) {
         // Return
         if (is_debug()) {
-	    std::cout << "interpreter_base::dispatch(): exit " << to_string(ee()->qr) << "\n";
+	    std::cout << "interpreter_base::dispatch(): exit";
+	    if (!e_is_wam() && ee() != nullptr) {
+		std::cout << " " << to_string(ee()->qr);
+	    }
+	    std::cout << "\n";
         }
-        deallocate_environment();
+	if (ee() != nullptr) {
+	    deallocate_environment();
+	}
 	return;
     }
 
@@ -241,9 +244,11 @@ void interpreter::dispatch(code_point instruction)
     }
     set_num_of_args(arity);
 
-    if (auto instr = resolve_predicate(f)) {
-        dispatch_wam(instr);
-	return;
+    if (is_wam_enabled()) {
+	if (auto instr = resolve_predicate(f)) {
+	    dispatch_wam(instr);
+	    return;
+	}
     }
 
     // Is this a built-in?
@@ -447,10 +452,11 @@ void interpreter::compile(common::con_cell pred)
 {
     wam_interim_code instrs(*this);
     compiler_->compile_predicate(pred, instrs);
+    size_t yn_size = compiler_->get_environment_size_of(instrs);
     size_t first_offset = next_offset();
     load_code(instrs);
     auto *next_instr = to_code(first_offset);
-    set_predicate(pred, next_instr);
+    set_predicate(pred, next_instr, yn_size);
 }
 
 void interpreter::bind_code_point(std::unordered_map<size_t, size_t> &label_map, code_point &cp)
@@ -463,6 +469,11 @@ void interpreter::bind_code_point(std::unordered_map<size_t, size_t> &label_map,
 	    if (label_map.count(lbl)) {
 		size_t offset = label_map[lbl];
 		auto *instr = reinterpret_cast<wam_instruction_code_point *>(to_code(offset));
+		cp.set_wam_code(instr);
+	    }
+	} else if (term.tag() == common::tag_t::CON) {
+	    auto lbl_con = static_cast<const con_cell &>(term);
+	    if (auto instr = resolve_predicate(lbl_con)) {
 		cp.set_wam_code(instr);
 	    }
 	}

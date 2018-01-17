@@ -182,9 +182,9 @@ struct environment_base_t;
 struct environment_saved_t {
     uint64_t saved;
 
-    environment_saved_t(environment_base_t *e, bool is_extended)
+    environment_saved_t(environment_base_t *e, bool is_wam)
     {
-        saved = reinterpret_cast<uint64_t>(e) + (is_extended ? 1 : 0);
+        saved = reinterpret_cast<uint64_t>(e) + (is_wam ? 1 : 0);
     }
 
     environment_base_t * ce0()
@@ -192,14 +192,14 @@ struct environment_saved_t {
         return reinterpret_cast<environment_base_t *>(saved & ~0x1);
     }
 
-    bool is_extended()
+    bool is_wam()
     {
         return saved & 0x1;
     }
 
     std::pair<environment_base_t *, bool> ce()
     {
-        return std::make_pair(ce0(), is_extended());
+        return std::make_pair(ce0(), is_wam());
     }
 };
 
@@ -228,7 +228,7 @@ struct choice_point_t {
     common::term          ai[];
 };
 
-// Extended environment (for naive interpreter)
+// Standard environment (for naive interpreter)
 struct environment_ext_t : public environment_base_t {
     choice_point_t       *b0;
     common::term          qr;
@@ -459,31 +459,31 @@ protected:
         return reinterpret_cast<environment_ext_t *>(e0());
     }
 
-    inline bool e_is_extended()
+    inline bool e_is_wam()
     {
-        return register_e_is_extended_;
+        return register_e_is_wam_;
     }
 
     inline environment_saved_t save_e()
     {
-        return environment_saved_t(e0(), e_is_extended());
+        return environment_saved_t(e0(), e_is_wam());
     }
 
     inline void set_e(environment_saved_t saved)
     {
-        std::tie(register_e_, register_e_is_extended_) = saved.ce();
+        std::tie(register_e_, register_e_is_wam_) = saved.ce();
     }
 
     inline void set_e(environment_base_t *e)
     {
         register_e_ = e;
-	register_e_is_extended_ = false;
+	register_e_is_wam_ = true;
     }
 
     inline void set_ee(environment_ext_t *ee)
     {
         register_e_ = ee;
-	register_e_is_extended_ = true;
+	register_e_is_wam_ = false;
     }
 
     inline environment_base_t * top_e()
@@ -494,6 +494,16 @@ protected:
     inline choice_point_t * b()
     {
         return register_b_;
+    }
+
+    // Choice point is WAM based if continuation environment is WAM based.
+    inline bool b_is_wam()
+    {
+	if (b() == nullptr) {
+	    return false;
+	} else {
+	    return b()->ce.is_wam();
+	}
     }
 
     inline void set_b(choice_point_t *b)
@@ -531,11 +541,12 @@ protected:
         return top_fail_;
     }
 
-    void allocate_environment(bool big)
+    void allocate_environment(bool for_wam)
     {
         word_t *new_e0;
 	if (base(e0()) > base(b())) {
-	    new_e0 = base(e0()) + words<term>()*(num_y_fn()(e0())) + words<environment_base_t>();
+	    auto n = words<term>()*(num_y_fn()(e0())) + words<environment_base_t>();
+	    new_e0 = base(e0()) + n;
 	} else {
 	    if (b() == nullptr) {
 	        new_e0 = stack_;
@@ -544,7 +555,7 @@ protected:
 	    }
 	}
 
-	if (!big) {
+	if (for_wam) {
 	    environment_t *new_e = reinterpret_cast<environment_t *>(new_e0);
 	    new_e->ce = save_e();
 	    new_e->cp = cp();
@@ -563,7 +574,7 @@ protected:
 
     void deallocate_environment()
     {
-	if (e_is_extended()) {
+	if (!e_is_wam()) {
 	    environment_ext_t *ee1 = ee();
 	    set_b0(ee1->b0);
 	    set_qr(ee1->qr);
@@ -715,7 +726,7 @@ private:
 
     code_point register_cp_;
 
-    bool register_e_is_extended_; // If the register_e is an extended env.
+    bool register_e_is_wam_; // If the register_e is a WAM (compressed) env.
     environment_base_t *register_e_;  // Points to current environment
     environment_base_t *register_top_e_;
 

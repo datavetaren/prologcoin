@@ -33,7 +33,7 @@ namespace prologcoin { namespace interp {
     bool builtins::operator_comma(interpreter_base &interp, size_t arity, common::term args[])
     {
         interp.set_cp(code_point(args[1]));
-        interp.allocate_environment(true);
+        interp.allocate_environment(false);
 	interp.set_cp(code_point(args[0]));
 	return true;
     }
@@ -87,9 +87,9 @@ namespace prologcoin { namespace interp {
 	term arg0 = args[0];
 	term arg1 = args[1];
 	interp.set_cp(code_point(arg1));
-	interp.allocate_environment(true);
+	interp.allocate_environment(false);
 	interp.set_cp(code_point(cut));
-	interp.allocate_environment(true);
+	interp.allocate_environment(false);
 	interp.set_cp(code_point(arg0));
         return true;
     }
@@ -109,9 +109,9 @@ namespace prologcoin { namespace interp {
 	interp.allocate_choice_point(code_point(int_cell(1)));
 	interp.move_cut_point_to_last_choice_point();
 	interp.set_cp(code_point(iftrue));
-	interp.allocate_environment(true);
+	interp.allocate_environment(false);
 	interp.set_cp(code_point(cut_if));
-	interp.allocate_environment(true);
+	interp.allocate_environment(false);
 	interp.set_cp(code_point(cond));
         return true;
     }
@@ -422,7 +422,7 @@ namespace prologcoin { namespace interp {
 	interp.new_meta_context<meta_context>(&operator_disprove_post);
 
 	interp.set_top_e();
-	interp.allocate_environment(true);
+	interp.allocate_environment(false);
 	interp.set_top_b(interp.b());
 	interp.set_qr(arg);
 	interp.set_cp(code_point(arg));
