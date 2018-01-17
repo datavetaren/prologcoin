@@ -6,7 +6,7 @@
 #include "../common/term.hpp"
 
 namespace prologcoin { namespace interp {
-	
+
     class interpreter_base;
     struct meta_context;
 
@@ -16,6 +16,8 @@ namespace prologcoin { namespace interp {
 
     class builtins {
     public:
+        static const size_t MAX_ARGS = 32;
+
 	//
 	// Profiling
 	//

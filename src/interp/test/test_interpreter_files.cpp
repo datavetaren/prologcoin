@@ -135,7 +135,7 @@ static bool test_interpreter_file(const std::string &filepath)
     
     interp.set_current_directory(dir);
 
-    interp.set_debug(true);
+    // interp.set_debug(true);
 
     std::ifstream *infile = new std::ifstream(filepath);
     term_tokenizer *tokenizer = new term_tokenizer(*infile);

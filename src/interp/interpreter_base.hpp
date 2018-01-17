@@ -375,7 +375,7 @@ protected:
         return static_cast<size_t>(p - stack_) + STACK_BASE;
     }
 
-    typedef size_t (*num_y_fn_t)(environment_base_t *);
+    typedef size_t (*num_y_fn_t)(interpreter_base *interp, environment_base_t *);
 
     inline num_y_fn_t num_y_fn()
     {
@@ -407,7 +407,7 @@ protected:
         num_of_args_ = n;
     }
 
-    static inline size_t num_y(environment_base_t *)
+    static inline size_t num_y(interpreter_base *, environment_base_t *)
     {
         return (sizeof(environment_ext_t)-sizeof(environment_base_t))/sizeof(term);
     }
@@ -545,7 +545,7 @@ protected:
     {
         word_t *new_e0;
 	if (base(e0()) > base(b())) {
-	    auto n = words<term>()*(num_y_fn()(e0())) + words<environment_base_t>();
+	    auto n = words<term>()*(num_y_fn()(this, e0())) + words<environment_base_t>();
 	    new_e0 = base(e0()) + n;
 	} else {
 	    if (b() == nullptr) {
@@ -588,7 +588,7 @@ protected:
     {
         word_t *new_b0;
 	if (base(e0()) > base(b())) {
-	    new_b0 = base(e0()) + num_y_fn()(e0()) + words<environment_t>();
+	    new_b0 = base(e0()) + num_y_fn()(this, e0()) + words<environment_t>();
 	} else {
   	    if (e0() == nullptr) {
 	        new_b0 = stack_;
@@ -596,6 +596,7 @@ protected:
   	        new_b0 = base(b()) + b()->arity + words<choice_point_t>();
 	    }
 	}
+
 	auto *new_b = reinterpret_cast<choice_point_t *>(new_b0);
 	new_b->arity = num_of_args_;
 	for (size_t i = 0; i < num_of_args_; i++) {

@@ -628,21 +628,17 @@ private:
 
     template<wam_instruction_type I> friend class wam_instruction;
 
-    static inline size_t num_y(environment_base_t *e)
+    static inline size_t num_y(interpreter_base *interp, environment_base_t *e)
     {
-        auto after_call = e->cp.wam_code();
+        auto after_call = reinterpret_cast<wam_interpreter *>(interp)->cp().wam_code();
         if (after_call == nullptr) {
-	    // TODO: Fix proper value here...
-	    size_t n = 10;
-	    return n;
+	    return interpreter_base::num_y(interp, e);
         } else {
 	    auto at_call = reinterpret_cast<wam_instruction<CALL> *>(
 		 reinterpret_cast<code_t *>(after_call) -
 		 sizeof(wam_instruction<CALL>)/sizeof(code_t));
 
-	    (void)at_call;
-	    size_t n = 10; // at_call->num_y();
-	    return n;
+	    return at_call->num_y();
 	}
     }
 
@@ -1267,7 +1263,7 @@ private:
 	size_t num_args = b->arity();
 	set_num_of_args(num_args);
 	goto_next_instruction();
-	common::term args[num_args];
+	common::term args[builtins::MAX_ARGS];
 	for (size_t i = 0; i < num_args; i++) {
 	    args[i] = a(i);
 	}
