@@ -1,7 +1,6 @@
 %
 % Testing disprove operator
 %
-% Meta: debug off
 
 member(X, [X|_]).
 member(X, [_|Xs]) :- member(X, Xs).

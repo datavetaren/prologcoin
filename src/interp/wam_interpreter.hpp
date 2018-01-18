@@ -559,16 +559,6 @@ public:
 	return interpreter_base::to_string(t, style);
     }
 
-    inline wam_instruction_base * p()
-    {
-        return register_p_.wam_code();
-    }
-
-    inline void set_p(wam_instruction_base *instr)
-    {
-        register_p_.set_wam_code(instr);
-    }
-
     inline bool execute_wam()
     {
         allocate_environment(true);
@@ -586,8 +576,8 @@ protected:
 
     inline bool cont_wam()
     {
-        while (e_is_wam() && !is_top_fail()) {
-	    if (auto instr = p()) {
+        while (p().has_wam_code() && !is_top_fail()) {
+	    if (auto instr = p().wam_code()) {
 		if (is_debug()) {
 		    std::cout << "[WAM debug]: [" << std::setw(5)
 			      << to_code_addr(instr) << "]: ";
@@ -595,15 +585,11 @@ protected:
 		    std::cout << "\n";
 		}
 		instr->invoke(*this);
-	    } else {
-		if (is_debug()) {
-		    std::cout << "[WAM debug]: success\n";
-		}
-		// We assume that WAM always created an environment
-		// frame before execution.
-		deallocate_environment();
-		return true;
 	    }
+	}
+	if (!p().has_wam_code()) {
+	    deallocate_environment();
+	    return true;
 	}
 	std::cout << "[WAM debug]: fail\n";
 	if (b() != nullptr) {
@@ -664,7 +650,7 @@ private:
 	        std::cout << "[WAM debug]: backtrack(): fail\n";
 	    }
 	    set_b0(b()->b0);
-	    register_p_ = b()->bp;
+	    set_p(b()->bp);
 	}
     }
 
@@ -707,7 +693,6 @@ private:
 
     enum mode_t { READ, WRITE } mode_;
 
-    code_point register_p_;
     size_t register_s_;
 
     std::vector<wam_hash_map *> hash_maps_;
@@ -730,7 +715,7 @@ private:
 
     inline void goto_next_instruction()
     {
-        next_instruction(register_p_);
+        next_instruction(p());
     }
 
     inline term deref_stack(common::ref_cell ref)
@@ -1237,24 +1222,24 @@ private:
 	goto_next_instruction();
     }
 
-    inline void call(code_point &p, size_t arity, uint32_t num_stack)
+    inline void call(code_point &p1, size_t arity, uint32_t num_stack)
     {
-        cp().set_wam_code(next_instruction(register_p_.wam_code()));
+        cp().set_wam_code(next_instruction(p().wam_code()));
 	set_num_of_args(arity);
 	set_b0(b());
-	register_p_ = p.wam_code();
+        set_p(p1);
     }
 
-    inline void execute(code_point &p, size_t arity)
+    inline void execute(code_point &p1, size_t arity)
     {
         set_num_of_args(arity);
 	set_b0(b());
-	register_p_ = p.wam_code();
+	set_p(p1);
     }
 
     inline void proceed()
     {
-        register_p_ = cp().wam_code();
+        set_p(cp());
     }
 
     inline bool builtin(wam_instruction_base *p)
@@ -1326,24 +1311,24 @@ private:
 
     inline void try_(code_point &L)
     {
-        auto p = register_p_;
-	next_instruction(p);
-	allocate_choice_point(p);
-	register_p_ = L;
+        auto p1 = p();
+	next_instruction(p1);
+	allocate_choice_point(p1);
+	set_p(L);
     }
 
     inline void retry(code_point &L)
     {
-        auto p = register_p_;
-	next_instruction(p);
-	retry_choice_point(p);
-	register_p_ = L;
+        auto p1 = p();
+	next_instruction(p1);
+	retry_choice_point(p1);
+	set_p(L);
     }
 
     inline void trust(code_point &L)
     {
 	trust_choice_point();
-	register_p_ = L;
+	set_p(L);
     }
 
     inline void switch_on_term(const code_point &pv,
@@ -1358,7 +1343,7 @@ private:
 	    if (pc.is_fail()) {
 		backtrack();
 	    } else {
-		register_p_ = pc;
+		set_p(pc);
 	    }
 	    break;
 	case common::tag_t::STR: {
@@ -1366,13 +1351,13 @@ private:
 	        if (pl.is_fail()) {
 		    backtrack();
 		} else {
-		    register_p_ = pl;
+		    set_p(pl);
 		}
 	    } else {
 	        if (ps.is_fail()) {
 		    backtrack();
 		} else {
-		    register_p_ = ps;
+		    set_p(ps);
 		}
 	    }
 	    break;
@@ -1382,7 +1367,7 @@ private:
 	    if (pv.is_fail()) {
 		backtrack();
 	    } else {
-		register_p_ = pv;
+		set_p(pv);
 	    }
 	    break;
 	}
@@ -1396,7 +1381,7 @@ private:
 	if (it == map.end()) {
 	    backtrack();
 	} else {
-	    register_p_ = it->second;
+	    set_p(it->second);
 	}
     }
 
@@ -1407,7 +1392,7 @@ private:
 	if (it == map.end()) {
 	    backtrack();
 	} else {
-	    register_p_ = it->second;
+	    set_p(it->second);
 	}
     }
 

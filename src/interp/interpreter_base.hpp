@@ -164,6 +164,8 @@ public:
 
     inline bool is_fail() const { return term_code_ == fail_term_; }
 
+    inline bool has_wam_code() const { return wam_code_ != nullptr; }
+
     inline wam_instruction_base * wam_code() const { return wam_code_; }
     inline const common::cell & term_code() const { return term_code_; }
 
@@ -410,6 +412,16 @@ protected:
     static inline size_t num_y(interpreter_base *, environment_base_t *)
     {
         return (sizeof(environment_ext_t)-sizeof(environment_base_t))/sizeof(term);
+    }
+
+    inline code_point & p()
+    {
+        return register_p_;
+    }
+
+    inline void set_p(const code_point &p1)
+    {
+        register_p_ = p1;
     }
 
     inline void set_cp(const code_point &cp)
@@ -725,6 +737,7 @@ private:
 
     bool top_fail_;
 
+    code_point register_p_;
     code_point register_cp_;
 
     bool register_e_is_wam_; // If the register_e is a WAM (compressed) env.

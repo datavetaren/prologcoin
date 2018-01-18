@@ -10,7 +10,7 @@
 using namespace prologcoin::common;
 using namespace prologcoin::interp;
 
-static bool do_compile = true;
+static bool do_compile = false;
 
 static void header( const std::string &str )
 {
@@ -135,7 +135,7 @@ static bool test_interpreter_file(const std::string &filepath)
     
     interp.set_current_directory(dir);
 
-    // interp.set_debug(true);
+    interp.set_debug(true);
 
     std::ifstream *infile = new std::ifstream(filepath);
     term_tokenizer *tokenizer = new term_tokenizer(*infile);

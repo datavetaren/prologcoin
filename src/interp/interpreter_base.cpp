@@ -426,6 +426,7 @@ void interpreter_base::prepare_execution()
     register_b0_ = nullptr;
     register_top_b_ = nullptr;
     register_top_e_ = nullptr;
+    register_p_.reset();
 }
 
 

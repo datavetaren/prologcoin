@@ -45,7 +45,8 @@ bool interpreter::execute(const term query)
 		       }
 		   } );
 
-    set_cp(code_point(query));
+    set_p(code_point(query));
+    set_cp(code_point(empty_list()));
     set_qr(query);
 
     return cont();
@@ -55,12 +56,10 @@ bool interpreter::cont()
 {
     do {
 	do {
-	    if (e_is_wam()) {
+	    if (p().has_wam_code()) {
 		cont_wam();
 	    } else {
-		auto instruction = cp();
-		set_cp(code_point(empty_list()));
-		dispatch(instruction);
+		dispatch(p());
 	    }
 	} while (e0() != top_e() && !is_top_fail());
 	
@@ -97,7 +96,7 @@ void interpreter::fail()
 
     do {
 	if (is_debug()) {
-  	    std::cout << "interpreter_base::fail(): fail " << to_string(qr()) << "\n";
+  	    std::cout << "interpreter::fail(): fail " << to_string(qr()) << "\n";
 	}
 
         if (b() == top_b()) {
@@ -126,7 +125,7 @@ void interpreter::fail()
 
 	    if (is_debug()) {
 	        std::string redo_str = to_string(qr());
-		std::cout << "interpreter_base::fail(): redo " << redo_str << std::endl;
+		std::cout << "interpreter::fail(): redo " << redo_str << std::endl;
 	    }
 	    auto &clauses = get_predicate(index_id);
 	    size_t from_clause = bpval & 0xff;
@@ -154,7 +153,8 @@ bool interpreter::select_clause(const code_point &instruction,
         if (from_clause > 1) {
 	    return false;
 	}
-        set_cp(code_point(arg(qr(), from_clause)));
+        set_p(code_point(arg(qr(), from_clause)));
+	set_cp(code_point(empty_list()));
 	b()->bp = code_point(int_cell(from_clause+1));
 	return true;
     }
@@ -185,7 +185,7 @@ bool interpreter::select_clause(const code_point &instruction,
 
 	    allocate_environment(false);
 
-	    set_cp(copy_body);
+	    set_p(copy_body);
 	    set_qr(copy_head);
 
 	    return true;
@@ -199,7 +199,7 @@ bool interpreter::select_clause(const code_point &instruction,
     return false;
 }
 
-void interpreter::dispatch(code_point instruction)
+void interpreter::dispatch(const code_point &instruction)
 {
     set_qr(instruction.term_code());
 
@@ -208,7 +208,7 @@ void interpreter::dispatch(code_point instruction)
     if (f == empty_list()) {
         // Return
         if (is_debug()) {
-	    std::cout << "interpreter_base::dispatch(): exit";
+	    std::cout << "interpreter::dispatch(): exit";
 	    if (!e_is_wam() && ee() != nullptr) {
 		std::cout << " " << to_string(ee()->qr);
 	    }
@@ -217,12 +217,14 @@ void interpreter::dispatch(code_point instruction)
 	if (ee() != nullptr) {
 	    deallocate_environment();
 	}
+	set_p(cp());
+	set_cp(code_point(empty_list()));
 	return;
     }
 
     if (is_debug()) {
         // Print call
-        std::cout << "interpreter_base::dispatch(): call " << to_string(instruction.term_code()) << "\n";
+        std::cout << "interpreter::dispatch(): call " << to_string(instruction.term_code()) << "\n";
     }
 
 #if PROFILER
@@ -254,6 +256,8 @@ void interpreter::dispatch(code_point instruction)
     // Is this a built-in?
     auto bf = get_builtin(f);
     if (bf != nullptr) {
+	set_p(cp());
+	set_cp(code_point(empty_list()));
 	if (!bf(*this, arity, args())) {
 	    fail();
 	}
@@ -265,6 +269,8 @@ void interpreter::dispatch(code_point instruction)
     if (obf != nullptr) {
         tribool r = obf(*this, arity, args());
 	if (!indeterminate(r)) {
+	    set_p(cp());
+	    set_cp(code_point(empty_list()));
 	    if (!r) {
 		fail();
 	    }
@@ -275,12 +281,12 @@ void interpreter::dispatch(code_point instruction)
     auto first_arg = get_first_arg();
 
     size_t predicate_id = matched_predicate_id(f, first_arg);
-    predicate  &p = get_predicate(predicate_id);
+    predicate  &pred = get_predicate(predicate_id);
 
     set_pr(f);
 
     // Otherwise a vector of clauses
-    auto &clauses = p;
+    auto &clauses = pred;
 
     if (clauses.empty()) {
         clauses = get_predicate(f);
@@ -300,15 +306,15 @@ void interpreter::dispatch(code_point instruction)
     bool has_choices = num_clauses > 1;
     size_t index_id = predicate_id;
 
+    if (b() != nullptr && b()->bp.term_code() != int_cell(1)) {
+	set_b0(b());
+    }
+
     // More than one clause that matches? We need a choice point.
     if (has_choices) {
-        // Before making the actual call we'll remember the current choice
-        // point. This is the one we backtrack to if we encounter a cut operatio
-        set_b0(b());
-
 	int_cell index_id_int(index_id);
-	code_point cp(index_id_int);
-	allocate_choice_point(cp);
+	code_point ch(index_id_int);
+	allocate_choice_point(ch);
     }
 
     if (!select_clause(instruction, index_id, clauses, 0)) {

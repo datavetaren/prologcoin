@@ -51,7 +51,6 @@ wam_interpreter::wam_interpreter() : wam_code(*this)
 {
     mode_ = READ;
     set_num_y_fn( &num_y );
-    register_p_.reset();
     register_s_ = 0;
     memset(register_xn_, 0, sizeof(register_xn_));
 }
