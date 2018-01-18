@@ -441,6 +441,7 @@ namespace prologcoin { namespace interp {
 	// Note that this is "disprove," so its success is the reverse of
 	// the underlying expression to succeed.
 	interp.set_top_fail(!failed);
+	interp.set_p(code_point(interp.empty_list()));
     }
 
 }}

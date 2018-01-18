@@ -514,7 +514,7 @@ protected:
 	if (b() == nullptr) {
 	    return false;
 	} else {
-	    return b()->ce.is_wam();
+	    return b()->bp.has_wam_code();
 	}
     }
 

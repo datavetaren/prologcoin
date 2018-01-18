@@ -588,7 +588,10 @@ protected:
 	    }
 	}
 	if (!p().has_wam_code()) {
-	    deallocate_environment();
+	    if (is_empty_list(p().term_code())) {
+	        deallocate_environment();
+	        set_p(cp());
+	    }
 	    return true;
 	}
 	std::cout << "[WAM debug]: fail\n";

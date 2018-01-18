@@ -94,53 +94,47 @@ void interpreter::fail()
     size_t current_tr = trail_size();
     bool unbound = false;
 
-    do {
+    while (!ok) {
 	if (is_debug()) {
   	    std::cout << "interpreter::fail(): fail " << to_string(qr()) << "\n";
 	}
 
         if (b() == top_b()) {
 	    set_top_fail(true);
-	    return;
-        }
-
-	if (b_is_wam()) {
+	    ok = true;
+        } else if (b_is_wam()) {
 	    backtrack_wam();
 	    return;
-	}
+	} else {
+	    auto ch = reset_to_choice_point(b());
+	    size_t bpval = static_cast<const int_cell &>(ch->bp.term_code()).value();
+	    // Is there another clause to backtrack to?
+	    if (bpval != 0) {
+	        size_t index_id = bpval >> 8;
 
-	auto ch = reset_to_choice_point(b());
+		// Unbind variables
+		unwind(current_tr);
+		current_tr = trail_size();
 
-	size_t bpval = static_cast<const int_cell &>(ch->bp.term_code()).value();
+		unbound = true;
 
-	// Is there another clause to backtrack to?
-	if (bpval != 0) {
-	    size_t index_id = bpval >> 8;
+		if (is_debug()) {
+		    std::string redo_str = to_string(qr());
+		    std::cout << "interpreter::fail(): redo " << redo_str << std::endl;
+		}
+		auto &clauses = get_predicate(index_id);
+		size_t from_clause = bpval & 0xff;
 
-	    // Unbind variables
-	    unwind(current_tr);
-	    current_tr = trail_size();
-
-	    unbound = true;
-
-	    if (is_debug()) {
-	        std::string redo_str = to_string(qr());
-		std::cout << "interpreter::fail(): redo " << redo_str << std::endl;
+		ok = select_clause(code_point(qr()), index_id, clauses, from_clause);
 	    }
-	    auto &clauses = get_predicate(index_id);
-	    size_t from_clause = bpval & 0xff;
-
-  	    ok = select_clause(code_point(qr()), index_id, clauses, from_clause);
-
+	    if (!ok) {
+	        unbound = false;
+		set_b(ch->b);
+	    }
 	}
-	if (!ok) {
-	    unbound = false;
-	    set_b(ch->b);
-	}
-    } while (!ok);
-
+    }
     if (!unbound) {
-	unwind(current_tr);
+        unwind(current_tr);
     }
 }
 
