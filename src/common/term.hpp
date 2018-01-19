@@ -635,13 +635,14 @@ public:
 
     inline con_cell functor(const term s) const
     {
-        if (s.tag() == tag_t::CON) {
-	    return static_cast<const con_cell &>(s);
+	term ds = deref(s);
+        if (ds.tag() == tag_t::CON) {
+	    return static_cast<const con_cell &>(ds);
         }
-        if (s.tag() != tag_t::STR) {
-	    throw expected_str_cell_exception(s);
+        if (ds.tag() != tag_t::STR) {
+	    throw expected_str_cell_exception(ds);
         }
-	return functor(static_cast<const str_cell &>(s));
+	return functor(static_cast<const str_cell &>(ds));
     }
 
     inline con_cell functor(const str_cell &s) const

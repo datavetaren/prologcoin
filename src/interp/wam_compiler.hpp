@@ -290,10 +290,10 @@ private:
     public:
         register_pool(reg_type type) : reg_type_(type) { }
 
+	bool contains(common::ref_cell ref);
 	std::pair<reg,bool> allocate(common::ref_cell ref);
         std::pair<reg,bool> allocate(common::ref_cell ref, size_t index);
         void allocate(common::ref_cell ref, reg r);
-
         void deallocate(common::ref_cell ref);
 
     private:
@@ -313,15 +313,16 @@ private:
 
     void compile_query_ref(reg lhsreg, common::ref_cell rhsvar,
 			   wam_interim_code &seq);
-    void compile_query_str(reg lhsreg, term rhs,
+    void compile_query_str(reg lhsreg, common::ref_cell lhsvar, term rhs,
 			   wam_interim_code &seq);
-    void compile_query(reg lhsreg, term rhs, wam_interim_code &seq);
+    void compile_query(reg lhsreg, common::ref_cell lhsvar, term rhs,
+		       wam_interim_code &seq);
 
     void compile_program_ref(reg lhsreg, common::ref_cell rhsvar,
 			   wam_interim_code &seq);
-    void compile_program_str(reg lhsreg, term rhs,
+    void compile_program_str(reg lhsreg, common::ref_cell lhsvar, term rhs,
 			   wam_interim_code &seq);
-    void compile_program(reg lhsreg, term rhs, 
+    void compile_program(reg lhsreg, common::ref_cell lhsvar, term rhs, 
 			 wam_interim_code &seq);
 
 
@@ -409,9 +410,13 @@ private:
 
     void print_partition(std::ostream &out, const std::vector<std::vector<term> > &partition);
 
+    template<reg_type T> bool has_reg(common::ref_cell ref);
+
     template<reg_type T> std::pair<reg,bool> allocate_reg(common::ref_cell ref);
     template<reg_type T> std::pair<reg,bool> allocate_reg(common::ref_cell ref, size_t index);
     template<reg_type T> void allocate_reg(common::ref_cell ref, reg r);
+
+    template<reg_type T1, reg_type T2> std::pair<reg,bool> allocate_reg2(common::ref_cell ref);
 
     bool is_argument(common::ref_cell ref)
     { return argument_pos_.count(ref) > 0; }
@@ -434,6 +439,7 @@ private:
     size_t label_count_;
 };
 
+template<> inline bool wam_compiler::has_reg<wam_compiler::A_REG>(common::ref_cell ref) { return regs_a_.contains(ref); }
 template<> inline std::pair<wam_compiler::reg,bool> wam_compiler::allocate_reg<wam_compiler::A_REG>(common::ref_cell ref)
 { return regs_a_.allocate(ref); }
 template<> inline std::pair<wam_compiler::reg,bool> wam_compiler::allocate_reg<wam_compiler::A_REG>(common::ref_cell ref, size_t index)
@@ -441,6 +447,7 @@ template<> inline std::pair<wam_compiler::reg,bool> wam_compiler::allocate_reg<w
 template<> inline void wam_compiler::allocate_reg<wam_compiler::A_REG>(common::ref_cell ref, wam_compiler::reg r)
     { regs_a_.allocate(ref, r); }
 
+template<> inline bool wam_compiler::has_reg<wam_compiler::X_REG>(common::ref_cell ref) { return regs_x_.contains(ref); }
 template<> inline std::pair<wam_compiler::reg,bool> wam_compiler::allocate_reg<wam_compiler::X_REG>(common::ref_cell ref)
 { return regs_x_.allocate(ref); }
 template<> inline std::pair<wam_compiler::reg,bool> wam_compiler::allocate_reg<wam_compiler::X_REG>(common::ref_cell ref, size_t index)
@@ -448,6 +455,7 @@ template<> inline std::pair<wam_compiler::reg,bool> wam_compiler::allocate_reg<w
 template<> inline void wam_compiler::allocate_reg<wam_compiler::X_REG>(common::ref_cell ref, wam_compiler::reg r)
 { regs_x_.allocate(ref, r); }
 
+template<> inline bool wam_compiler::has_reg<wam_compiler::Y_REG>(common::ref_cell ref) { return regs_y_.contains(ref); }
 template<> inline std::pair<wam_compiler::reg,bool> wam_compiler::allocate_reg<wam_compiler::Y_REG>(common::ref_cell ref)
 { return regs_y_.allocate(ref); }
 template<> inline std::pair<wam_compiler::reg,bool> wam_compiler::allocate_reg<wam_compiler::Y_REG>(common::ref_cell ref, size_t index)
@@ -455,7 +463,13 @@ template<> inline std::pair<wam_compiler::reg,bool> wam_compiler::allocate_reg<w
 template<> inline void wam_compiler::allocate_reg<wam_compiler::Y_REG>(common::ref_cell ref, wam_compiler::reg r)
 { regs_y_.allocate(ref, r); }
 
-
+template<> inline std::pair<wam_compiler::reg,bool> wam_compiler::allocate_reg2<wam_compiler::A_REG, wam_compiler::X_REG>(common::ref_cell ref)
+{ if (regs_a_.contains(ref)) {
+      return regs_a_.allocate(ref); 
+   } else {
+      return regs_x_.allocate(ref);
+   }
+}
 
 }}
 

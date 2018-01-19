@@ -92,6 +92,7 @@ namespace prologcoin { namespace interp {
     bool builtins_fileio::read_2(interpreter_base &interp, size_t arity, term args[])
     {
 	term stream = args[0];
+
 	size_t id = get_stream_id(interp, stream, "read/2");
 	file_stream &fs = interp.get_file_stream(id);
 	term t;

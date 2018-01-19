@@ -65,6 +65,6 @@ merge(Xs, [], Xs).
 merge([X|Xs], [X|Ys], [X|Zs]) :-
     merge(Xs, Ys, Zs).
 merge([X|Xs], [Y|Ys], [X|Zs]) :-
-    X @=< Y, merge(Xs, [Y|Ys], Zs).
+    X @< Y, merge(Xs, [Y|Ys], Zs).
 merge([X|Xs], [Y|Ys], [Y|Zs]) :-
     X @> Y, merge([X|Xs], Ys, Zs).

@@ -107,25 +107,35 @@ void interpreter::fail()
 	    return;
 	} else {
 	    auto ch = reset_to_choice_point(b());
-	    size_t bpval = static_cast<const int_cell &>(ch->bp.term_code()).value();
-	    // Is there another clause to backtrack to?
-	    if (bpval != 0) {
-	        size_t index_id = bpval >> 8;
+	    auto bp = ch->bp;
+	    if (bp.is_fail()) {
+		// Do nothing
+	    } else if (bp.term_code().tag() != common::tag_t::INT) {
+		// Direct query
+		static std::vector<common::term> empty_clauses;
+		ok = select_clause(bp, 0, empty_clauses, 0);
+	    } else {
+		auto bpterm = bp.term_code();
+		size_t bpval = static_cast<const int_cell &>(bpterm).value();
+		// Is there another clause to backtrack to?
+		if (bpval != 0) {
+		    size_t index_id = bpval >> 8;
 
-		// Unbind variables
-		unwind(current_tr);
-		current_tr = trail_size();
+		    // Unbind variables
+		    unwind(current_tr);
+		    current_tr = trail_size();
 
-		unbound = true;
+		    unbound = true;
+		    
+		    if (is_debug()) {
+			std::string redo_str = to_string(qr());
+			std::cout << "interpreter::fail(): redo " << redo_str << std::endl;
+		    }
+		    auto &clauses = get_predicate(index_id);
+		    size_t from_clause = bpval & 0xff;
 
-		if (is_debug()) {
-		    std::string redo_str = to_string(qr());
-		    std::cout << "interpreter::fail(): redo " << redo_str << std::endl;
+		    ok = select_clause(code_point(qr()), index_id, clauses, from_clause);
 		}
-		auto &clauses = get_predicate(index_id);
-		size_t from_clause = bpval & 0xff;
-
-		ok = select_clause(code_point(qr()), index_id, clauses, from_clause);
 	    }
 	    if (!ok) {
 	        unbound = false;
@@ -147,9 +157,9 @@ bool interpreter::select_clause(const code_point &instruction,
         if (from_clause > 1) {
 	    return false;
 	}
-        set_p(code_point(arg(qr(), from_clause)));
+        set_p(instruction);
 	set_cp(code_point(empty_list()));
-	b()->bp = code_point(int_cell(from_clause+1));
+	b()->bp = code_point::fail();
 	return true;
     }
 
@@ -171,7 +181,7 @@ bool interpreter::select_clause(const code_point &instruction,
 	    if (has_choices) {
 	        auto choice_point = b();
 		if (i == num_clauses - 1) {
-	  	    choice_point->bp = code_point(int_cell(0));
+	  	    choice_point->bp = code_point::fail();
 		} else {
 		    choice_point->bp = code_point(int_cell((index_id << 8) + (i+1)));
 		}
@@ -300,7 +310,7 @@ void interpreter::dispatch(const code_point &instruction)
     bool has_choices = num_clauses > 1;
     size_t index_id = predicate_id;
 
-    if (b() != nullptr && b()->bp.term_code() != int_cell(1)) {
+    if (b() != nullptr && b()->bp.term_code().tag() == common::tag_t::INT) {
 	set_b0(b());
     }
 

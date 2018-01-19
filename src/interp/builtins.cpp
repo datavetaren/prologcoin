@@ -53,9 +53,9 @@ namespace prologcoin { namespace interp {
         if (interp.has_late_choice_point()) {
 	    interp.reset_choice_point();
 	    interp.tidy_trail();
-	    auto *ch = interp.get_last_choice_point();
-	    ch->bp = code_point(int_cell(2)); // Don't back track to false clause
 	}
+	auto *ch = interp.get_last_choice_point();
+	ch->bp = code_point::fail(); // Don't back track to false clause
         return true;
     }
 
@@ -70,7 +70,8 @@ namespace prologcoin { namespace interp {
 	    return operator_if_then_else(interp, arity, args);
 	}
 
-        interp.allocate_choice_point(code_point(int_cell(1)));
+	term arg1 = args[1];
+        interp.allocate_choice_point(code_point(arg1));
 	interp.set_p(code_point(arg0));
 	return true;
     }
@@ -80,7 +81,7 @@ namespace prologcoin { namespace interp {
     {
 	static con_cell cut_op("!",0);
 
-	interp.allocate_choice_point(code_point(int_cell(2)));
+	interp.allocate_choice_point(code_point::fail());
 	interp.move_cut_point_to_last_choice_point();
 	term cut = cut_op;
 	term arg0 = args[0];
@@ -101,13 +102,14 @@ namespace prologcoin { namespace interp {
 	term lhs = args[0];
 
 	term cond = interp.arg(lhs, 0);
-	term iftrue = interp.arg(lhs, 1);
+	term if_true = interp.arg(lhs, 1);
+	term if_false = args[1];
 	term cut_if = cut_op_if;
 
 	// Go to 'C' the false clause if ((A->B) ; C) fails
-	interp.allocate_choice_point(code_point(int_cell(1)));
+	interp.allocate_choice_point(code_point(if_false));
 	interp.move_cut_point_to_last_choice_point();
-	interp.set_cp(code_point(iftrue));
+	interp.set_cp(code_point(if_true));
 	interp.allocate_environment(false);
 	interp.set_cp(code_point(cut_if));
 	interp.allocate_environment(false);

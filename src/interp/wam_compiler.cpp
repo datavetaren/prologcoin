@@ -221,11 +221,16 @@ void wam_compiler::compile_query_ref(wam_compiler::reg lhsreg, common::ref_cell 
     }
 }
 
-void wam_compiler::compile_query_str(wam_compiler::reg lhsreg, common::term rhs, wam_interim_code &instrs)
+void wam_compiler::compile_query_str(wam_compiler::reg lhsreg, common::ref_cell lhsvar, common::term rhs, wam_interim_code &instrs)
 {
     auto f = env_.functor(rhs);
     if (lhsreg.type == A_REG) {
         instrs.push_back(wam_instruction<PUT_STRUCTURE_A>(f,lhsreg.num));
+	if (has_reg<X_REG>(lhsvar)) {
+	    wam_compiler::reg xreg;
+	    std::tie(xreg, std::ignore) = allocate_reg<X_REG>(lhsvar);
+	    instrs.push_back(wam_instruction<GET_VALUE_X>(xreg.num, lhsreg.num));
+	}
     } else {
         instrs.push_back(wam_instruction<PUT_STRUCTURE_X>(f,lhsreg.num));
     }
@@ -258,7 +263,7 @@ void wam_compiler::compile_query_str(wam_compiler::reg lhsreg, common::term rhs,
     }
 }
 
-void wam_compiler::compile_query(wam_compiler::reg lhsreg, common::term rhs, wam_interim_code &instrs)
+void wam_compiler::compile_query(wam_compiler::reg lhsreg, common::ref_cell lhsvar, common::term rhs, wam_interim_code &instrs)
 {
     switch (rhs.tag()) {
       case common::tag_t::INT:
@@ -274,7 +279,7 @@ void wam_compiler::compile_query(wam_compiler::reg lhsreg, common::term rhs, wam
 	compile_query_ref(lhsreg, static_cast<common::ref_cell &>(rhs), instrs);
 	break;
       case common::tag_t::STR:
-	compile_query_str(lhsreg, rhs, instrs);
+	compile_query_str(lhsreg, lhsvar, rhs, instrs);
 	break;
     }
 }
@@ -301,11 +306,17 @@ void wam_compiler::compile_program_ref(wam_compiler::reg lhsreg, common::ref_cel
     }
 }
 
-void wam_compiler::compile_program_str(wam_compiler::reg lhsreg, common::term rhs, wam_interim_code &instrs)
+void wam_compiler::compile_program_str(wam_compiler::reg lhsreg, common::ref_cell lhsvar, common::term rhs, wam_interim_code &instrs)
 {
     auto f = env_.functor(rhs);
     if (lhsreg.type == A_REG) {
         instrs.push_back(wam_instruction<GET_STRUCTURE_A>(f,lhsreg.num));
+	if (has_reg<X_REG>(lhsvar)) {
+	    wam_compiler::reg xreg;
+	    std::tie(xreg, std::ignore) = allocate_reg<X_REG>(lhsvar);
+	    instrs.push_back(wam_instruction<GET_VALUE_X>(xreg.num, lhsreg.num));
+	}
+
     } else {
         instrs.push_back(wam_instruction<GET_STRUCTURE_X>(f,lhsreg.num));
     }
@@ -337,7 +348,7 @@ void wam_compiler::compile_program_str(wam_compiler::reg lhsreg, common::term rh
     }
 }
 
-void wam_compiler::compile_program(wam_compiler::reg lhsreg, common::term rhs, wam_interim_code &instrs)
+void wam_compiler::compile_program(wam_compiler::reg lhsreg, common::ref_cell lhsvar, common::term rhs, wam_interim_code &instrs)
 {
     switch (rhs.tag()) {
       case common::tag_t::INT:
@@ -349,7 +360,7 @@ void wam_compiler::compile_program(wam_compiler::reg lhsreg, common::term rhs, w
 	compile_program_ref(lhsreg, static_cast<common::ref_cell &>(rhs), instrs);
 	break;
       case common::tag_t::STR:
-	compile_program_str(lhsreg, rhs, instrs);
+	compile_program_str(lhsreg, lhsvar, rhs, instrs);
 	break;
     }
 }
@@ -360,6 +371,9 @@ void wam_compiler::compile_query_or_program(wam_compiler::term t,
 
 {
     std::vector<prim_unification> prims = flatten(t, c, true);
+
+    // std::cout << "COMPILE " << env_.to_string(t) << "\n";
+    // print_prims(prims);
 
     size_t n = prims.size();
 
@@ -380,9 +394,9 @@ void wam_compiler::compile_query_or_program(wam_compiler::term t,
 	term rhs = prim.rhs();
 
 	if (c == COMPILE_QUERY) {
-	    compile_query(lhsreg, rhs, instrs);
+	    compile_query(lhsreg, lhsvar, rhs, instrs);
 	} else {
-	    compile_program(lhsreg, rhs, instrs);
+	    compile_program(lhsreg, lhsvar, rhs, instrs);
 	}
     }
 }
@@ -784,11 +798,7 @@ void wam_compiler::compile_clause(const term clause0, wam_interim_code &seq)
 	        seq.push_back(wam_instruction<CALL>(f, 0));
 	    }
         }
-	auto f = env_.functor(goal);
-	bool isbn = is_builtin(f);
-	if (!isbn) {
-	    seq.push_back(wam_interim_instruction<INTERIM_GOAL>());
-	}
+	seq.push_back(wam_interim_instruction<INTERIM_GOAL>());
 	compile_query_or_program(goal, COMPILE_QUERY, seq);
 	last_goal = goal;
     }
@@ -1177,6 +1187,12 @@ void wam_compiler::print_partition(std::ostream &out, const std::vector<std::vec
 	}
 	i++;
     }
+}
+
+bool wam_compiler::register_pool::contains(common::ref_cell ref)
+{
+    auto it = reg_map_.find(ref);
+    return it != reg_map_.end();
 }
 
 std::pair<wam_compiler::reg,bool> wam_compiler::register_pool::allocate(common::ref_cell ref)

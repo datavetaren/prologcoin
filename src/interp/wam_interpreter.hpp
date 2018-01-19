@@ -792,6 +792,7 @@ private:
     inline void put_unsafe_value_y(uint32_t yn, uint32_t ai)
     {
         term t = deref(y(yn));
+
 	if (t.tag() != common::tag_t::REF) {
 	    a(ai) = t;
 	    goto_next_instruction();
@@ -1247,15 +1248,15 @@ private:
 
     inline bool builtin(wam_instruction_base *p)
     {
-        auto b = reinterpret_cast<wam_instruction<BUILTIN> *>(p);
-	size_t num_args = b->arity();
+        auto bn = reinterpret_cast<wam_instruction<BUILTIN> *>(p);
+	size_t num_args = bn->arity();
 	set_num_of_args(num_args);
 	goto_next_instruction();
 	common::term args[builtins::MAX_ARGS];
 	for (size_t i = 0; i < num_args; i++) {
 	    args[i] = a(i);
 	}
-	bool r = (b->bn())(*this, b->arity(), args);
+	bool r = (bn->bn())(*this, bn->arity(), args);
 	if (!r) {
 	    backtrack();
 	}
