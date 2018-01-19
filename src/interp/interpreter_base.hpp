@@ -155,6 +155,8 @@ public:
         : wam_code_(other.wam_code_), term_code_(other.term_code_) { }
     inline code_point(wam_instruction_base *i)
         : wam_code_(i), term_code_(common::ref_cell(0)) { }
+    inline code_point(const common::term t, builtin b)
+        : term_code_(t), bn_(b) { }
 
     inline static code_point fail() {
         return code_point();
@@ -167,6 +169,7 @@ public:
     inline bool has_wam_code() const { return wam_code_ != nullptr; }
 
     inline wam_instruction_base * wam_code() const { return wam_code_; }
+    inline builtin bn() const { return bn_; }
     inline const common::cell & term_code() const { return term_code_; }
 
     inline void set_wam_code(wam_instruction_base *p) { wam_code_ = p; }
@@ -175,7 +178,10 @@ public:
 private:
     static const common::cell fail_term_;
 
-    wam_instruction_base *wam_code_;
+    union {
+        wam_instruction_base *wam_code_;
+        builtin bn_;
+    };
     common::cell term_code_;
 };
 
@@ -582,6 +588,8 @@ protected:
 
 	    set_ee(new_ee);
 	}
+
+	std::cout << "allocate_environment: e=" << new_e0 << "\n";
     }
 
     void deallocate_environment()
@@ -594,6 +602,7 @@ protected:
 	}
         set_cp(e0()->cp);
         set_e(e0()->ce);
+	std::cout << "deallocate_environment: e=" << e() << "\n";
     }
 
     inline void allocate_choice_point(const code_point &cont)

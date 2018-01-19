@@ -62,7 +62,7 @@ bool interpreter::cont()
 		dispatch(p());
 	    }
 	} while (e0() != top_e() && !is_top_fail());
-	
+
         if (has_meta_contexts()) {
 	    meta_context *mc = get_last_meta_context();
 	    meta_fn fn = get_last_meta_function();
@@ -73,7 +73,7 @@ bool interpreter::cont()
 	    }
         }
 	
-    } while (e0() != nullptr && !is_top_fail());
+    } while (e0() != top_e() && !is_top_fail());
 
     return !is_top_fail();
 }
@@ -218,7 +218,7 @@ void interpreter::dispatch(const code_point &instruction)
 	    }
 	    std::cout << "\n";
         }
-	if (ee() != nullptr) {
+	if (ee() != top_e()) {
 	    deallocate_environment();
 	}
 	set_p(cp());

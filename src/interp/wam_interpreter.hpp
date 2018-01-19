@@ -510,11 +510,11 @@ public:
     static void updater(wam_instruction_base *self, code_t *old_base, code_t *new_base);
 };
 
-template<> class wam_instruction<BUILTIN> : public wam_instruction_base {
+template<> class wam_instruction<BUILTIN> : public wam_instruction_code_point_reg {
 public:
-    inline wam_instruction(common::con_cell f, builtin b) :
-      wam_instruction_base(&invoke, sizeof(*this), BUILTIN),
-      f_(f), bn_(b) {
+    inline wam_instruction(common::con_cell f, builtin b, uint32_t num_y) :
+       wam_instruction_code_point_reg(&invoke, sizeof(*this), BUILTIN,
+				      code_point(f,b), num_y) {
        init();
     }
 
@@ -525,16 +525,20 @@ public:
 	static_cast<void>(init_);
     }
 
-    inline common::con_cell f() const { return f_; }
-    inline builtin bn() const { return bn_; }
+    inline common::con_cell f() const {
+        const common::con_cell &fc = static_cast<const common::con_cell &>(
+            cp().term_code()); return fc;
+    }
+    inline builtin bn() const { return cp().bn(); }
     inline size_t arity() const { return f().arity(); }
+
+    inline size_t num_y() const { return reg(); }
+    inline void set_num_y(size_t n) { set_reg(n); }
 
     static void invoke(wam_interpreter &interp, wam_instruction_base *self);
 
     static void print(std::ostream &out, wam_interpreter &interp, wam_instruction_base *self);
 private:
-    common::con_cell f_;
-    builtin bn_;
 };
 
 class wam_interpreter : public interpreter_base, public wam_code
@@ -565,7 +569,16 @@ public:
 	return cont_wam();
     }
 
+  /*
+    inline void print_env()
+    {
+        std::cout << "e0: " << e0() << "\n";
+	std::cout << "te: " << top_e() << "\n";
+    }
+  */
+
 protected:
+
     inline void backtrack_wam()
     {
 	backtrack();
@@ -589,13 +602,17 @@ protected:
 	}
 	if (!p().has_wam_code()) {
 	    if (is_empty_list(p().term_code())) {
-	        deallocate_environment();
-	        set_p(cp());
+	        if (e0 () != top_e()) {
+	            deallocate_environment();
+	            set_p(cp());
+		}
 	    }
 	    return true;
 	}
-	std::cout << "[WAM debug]: fail\n";
-	if (b() != nullptr) {
+	if (is_debug()) {
+	    std::cout << "[WAM debug]: fail\n";
+	}
+	if (b() != top_b()) {
 	    reset_to_choice_point(b());
 	}
 	return false;
@@ -623,11 +640,25 @@ private:
         if (after_call == nullptr) {
 	    return interpreter_base::num_y(interp, e);
         } else {
-	    auto at_call = reinterpret_cast<wam_instruction<CALL> *>(
+	    auto at_call = reinterpret_cast<wam_instruction_code_point_reg *>(
 		 reinterpret_cast<code_t *>(after_call) -
-		 sizeof(wam_instruction<CALL>)/sizeof(code_t));
+		 sizeof(wam_instruction_code_point_reg)/sizeof(code_t));
 
-	    return at_call->num_y();
+	    size_t n = at_call->reg();
+	    std::cout << "Reserve y registers=" << n << "\n";
+
+	    static environment_t *ee1 = nullptr;
+
+	    if (ee1 == nullptr && n == 1) {
+	      environment_base_t *ee = static_cast<wam_interpreter *>(interp)->e();
+	      ee1 = reinterpret_cast<environment_t *>(ee);
+	    }
+	    if (ee1 != nullptr) {
+	      term y0 = ee1->yn[0];
+	      std::cout << "prev e=" << ee1 << " y(0)=" << interp->to_string(y0) << "\n";
+	    }
+
+	    return n;
 	}
     }
 
@@ -636,6 +667,7 @@ private:
         return register_xn_[i];
     }
 
+public:
     inline term & y(size_t i)
     {
         return e()->yn[i];
@@ -785,6 +817,7 @@ private:
 
     inline void put_value_y(uint32_t yn, uint32_t ai)
     {
+        std::cout << "put_value_y e=" << e() << " y="<< to_string(y(yn)) << "\n";
         a(ai) = y(yn);
 	goto_next_instruction();
     }
@@ -848,6 +881,7 @@ private:
     inline void get_variable_y(uint32_t yn, uint32_t ai)
     {
         y(yn) = a(ai);
+        std::cout << "get_variable_y " << to_string(y(yn)) << "\n";
 	goto_next_instruction();
     }
 
@@ -1222,7 +1256,11 @@ private:
 
     inline void deallocate()
     {
-        deallocate_environment();
+        if (e0() == top_e()) {
+	    set_cp(code_point(empty_list()));
+        } else {
+	    deallocate_environment();
+	}
 	goto_next_instruction();
     }
 
@@ -2765,7 +2803,7 @@ inline void wam_instruction<BUILTIN>::invoke(wam_interpreter &interp, wam_instru
 inline void wam_instruction<BUILTIN>::print(std::ostream &out, wam_interpreter &interp, wam_instruction_base *self)
 {
     auto self1 = reinterpret_cast<wam_instruction<BUILTIN> *>(self);
-    out << "builtin " << interp.to_string(self1->f()) << "/" << self1->arity();
+    out << "builtin " << interp.to_string(self1->f()) << "/" << self1->arity() << ", " << self1->num_y();
 }
 
 template<> class wam_instruction<TRY_ME_ELSE> : public wam_instruction_code_point {
