@@ -421,15 +421,12 @@ namespace prologcoin { namespace interp {
 
     bool builtins::operator_disprove(interpreter_base &interp, size_t arity, common::term args[])
     {
-        std::cout << "y(0)=" << interp.to_string(static_cast<wam_interpreter &>(interp).y(0)) << "\n";
-
 	term arg = args[0];
 	interp.new_meta_context<meta_context>(&operator_disprove_post);
 
-	interp.set_cp(interp.p());
 	interp.set_top_e();
-	interp.allocate_environment(false);
 	interp.set_top_b(interp.b());
+	interp.allocate_environment(false);
 	interp.set_qr(arg);
 	interp.set_p(code_point(arg));
 
@@ -437,7 +434,6 @@ namespace prologcoin { namespace interp {
 	environment_base_t *ee = es.ce0();
 	environment_t *ee1 = reinterpret_cast<environment_t *>(ee);
 	term y0 = ee1->yn[0];
-	std::cout << "prev y(0)=" << interp.to_string(y0) << "\n";
 
 	return true;
     }
@@ -446,18 +442,17 @@ namespace prologcoin { namespace interp {
 					  meta_context *context)
     {
         bool failed = interp.is_top_fail();
-	std::cout << "failed: " << failed << "\n";
+
         interp.deallocate_environment();
-	if (!failed) {
-	    interp.unwind_to_top_choice_point();
-	}
-        std::cout << "A disprove post e=" << interp.e() << " top=" << interp.top_e() << "\n";
+	interp.unwind_to_top_choice_point();
 	interp.release_last_meta_context();
-        std::cout << "B disprove post e=" << interp.e() << " top=" << interp.top_e() << "\n";
+
 	// Note that this is "disprove," so its success is the reverse of
 	// the underlying expression to succeed.
 	interp.set_top_fail(!failed);
-	interp.set_p(interp.cp()); // code_point(interp.empty_list()));
+	if (!failed) {
+	    interp.set_p(code_point(interp.empty_list()));
+        }
     }
 
 }}

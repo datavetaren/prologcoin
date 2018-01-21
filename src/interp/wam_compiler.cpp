@@ -115,6 +115,9 @@ std::vector<wam_compiler::prim_unification> wam_compiler::flatten(
 
     bool is_predicate = is_predicate_call;
 
+    term_map_.clear();
+    argument_pos_.clear();
+
     while (!worklist.empty()) {
 	prim_unification p = worklist.front();
 	worklist.pop();
@@ -137,6 +140,7 @@ std::vector<wam_compiler::prim_unification> wam_compiler::flatten(
 		auto found = term_map_.find(common::eq_term(env_,arg));
 		common::ref_cell ref;
 		bool is_found = found != term_map_.end();
+
 		if (is_found && !is_predicate) {
 		    ref = found->second;
 		} else {

@@ -156,7 +156,7 @@ public:
     inline code_point(wam_instruction_base *i)
         : wam_code_(i), term_code_(common::ref_cell(0)) { }
     inline code_point(const common::term t, builtin b)
-        : term_code_(t), bn_(b) { }
+        : bn_(b), term_code_(t) { }
 
     inline static code_point fail() {
         return code_point();
@@ -250,9 +250,17 @@ typedef union {
     common::term term;
 } word_t;
 
+//
+// The purpose of the meta context is to store environments &
+// choice points upon recursive invocation of the interpreter.
+//
 struct meta_context {
     choice_point_t *old_top_b;
+    choice_point_t *old_b;
     environment_base_t *old_top_e;
+    environment_base_t *old_e;
+    code_point old_p;
+    code_point old_cp;
 };
 
 typedef std::function<void (interpreter_base &, meta_context *)> meta_fn;
@@ -588,8 +596,6 @@ protected:
 
 	    set_ee(new_ee);
 	}
-
-	std::cout << "allocate_environment: e=" << new_e0 << "\n";
     }
 
     void deallocate_environment()
@@ -602,7 +608,6 @@ protected:
 	}
         set_cp(e0()->cp);
         set_e(e0()->ce);
-	std::cout << "deallocate_environment: e=" << e() << "\n";
     }
 
     inline void allocate_choice_point(const code_point &cont)
@@ -665,7 +670,11 @@ protected:
     template<typename T> inline T * new_meta_context(meta_fn fn) {
         T *context = new T();
 	context->old_top_b = register_top_b_;
+	context->old_b = register_b_;
 	context->old_top_e = register_top_e_;
+	context->old_e = register_e_;
+	context->old_p = register_p_;
+	context->old_cp = register_cp_;
 	meta_.push_back(std::make_pair(context, fn));
 	return context;
     }
@@ -674,7 +683,11 @@ protected:
     {
         auto *context = meta_.back().first;
         set_top_b(context->old_top_b);
+	set_b(context->old_b);
 	set_top_e(context->old_top_e);
+	set_e(context->old_e);
+	set_p(context->old_p);
+	set_cp(context->old_cp);
 	delete context;
 	meta_.pop_back();
     }

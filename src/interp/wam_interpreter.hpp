@@ -645,7 +645,6 @@ private:
 		 sizeof(wam_instruction_code_point_reg)/sizeof(code_t));
 
 	    size_t n = at_call->reg();
-	    std::cout << "Reserve y registers=" << n << "\n";
 
 	    static environment_t *ee1 = nullptr;
 
@@ -655,7 +654,6 @@ private:
 	    }
 	    if (ee1 != nullptr) {
 	      term y0 = ee1->yn[0];
-	      std::cout << "prev e=" << ee1 << " y(0)=" << interp->to_string(y0) << "\n";
 	    }
 
 	    return n;
@@ -817,7 +815,6 @@ public:
 
     inline void put_value_y(uint32_t yn, uint32_t ai)
     {
-        std::cout << "put_value_y e=" << e() << " y="<< to_string(y(yn)) << "\n";
         a(ai) = y(yn);
 	goto_next_instruction();
     }
@@ -881,7 +878,6 @@ public:
     inline void get_variable_y(uint32_t yn, uint32_t ai)
     {
         y(yn) = a(ai);
-        std::cout << "get_variable_y " << to_string(y(yn)) << "\n";
 	goto_next_instruction();
     }
 
