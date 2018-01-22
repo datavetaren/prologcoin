@@ -158,7 +158,6 @@ bool interpreter::select_clause(const code_point &instruction,
 	    return false;
 	}
         set_p(instruction);
-	set_cp(code_point(empty_list()));
 	b()->bp = code_point::fail();
 	return true;
     }
@@ -190,6 +189,7 @@ bool interpreter::select_clause(const code_point &instruction,
 	    allocate_environment(false);
 
 	    set_p(copy_body);
+	    set_cp(empty_list());
 	    set_qr(copy_head);
 
 	    return true;
@@ -199,6 +199,7 @@ bool interpreter::select_clause(const code_point &instruction,
 	}
     }
 
+    set_p(empty_list());
     // None found.
     return false;
 }
@@ -212,17 +213,14 @@ void interpreter::dispatch(const code_point &instruction)
     if (f == empty_list()) {
         // Return
         if (is_debug()) {
-	    std::cout << "interpreter::dispatch(): exit";
-	    if (!e_is_wam() && ee() != nullptr) {
-		std::cout << " " << to_string(ee()->qr);
-	    }
-	    std::cout << "\n";
+	    std::cout << "interpreter::dispatch(): exit\n";
         }
+	set_p(cp());
 	if (ee() != top_e()) {
 	    deallocate_environment();
+	} else {
+	    set_cp(code_point(empty_list()));
 	}
-	set_p(cp());
-	set_cp(code_point(empty_list()));
 	return;
     }
 
@@ -252,6 +250,7 @@ void interpreter::dispatch(const code_point &instruction)
 
     if (is_wam_enabled()) {
 	if (auto instr = resolve_predicate(f)) {
+	    set_p(empty_list());
 	    dispatch_wam(instr);
 	    return;
 	}
@@ -260,8 +259,7 @@ void interpreter::dispatch(const code_point &instruction)
     // Is this a built-in?
     auto bf = get_builtin(f);
     if (bf != nullptr) {
-	set_p(cp());
-	set_cp(code_point(empty_list()));
+        set_p(empty_list());
 	if (!bf(*this, arity, args())) {
 	    fail();
 	}
@@ -273,8 +271,7 @@ void interpreter::dispatch(const code_point &instruction)
     if (obf != nullptr) {
         tribool r = obf(*this, arity, args());
 	if (!indeterminate(r)) {
-	    set_p(cp());
-	    set_cp(code_point(empty_list()));
+	    set_p(empty_list());
 	    if (!r) {
 		fail();
 	    }
@@ -300,7 +297,7 @@ void interpreter::dispatch(const code_point &instruction)
 	    abort(interpreter_exception_undefined_predicate(msg.str()));
 	    return;
 	}
-
+	set_p(empty_list());
 	fail();
 	return;
     }

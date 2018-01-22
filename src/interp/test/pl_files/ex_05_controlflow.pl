@@ -41,6 +41,14 @@ mydisj1(X) :- (X = 1 ; X = 2).
 % Expect: Q4 = 2
 % Expect: end
 
+mydisj1b(X,Y,Z) :- (X = 1 ; X = 2), (Y = 10 ; Y = 20), Z = 42.
+?- mydisj1b(Q4B1, Q4B2, Q4B3).
+% Expect: Q4B1 = 1, Q4B2 = 10, Q4B3 = 42
+% Expect: Q4B1 = 1, Q4B2 = 20, Q4B3 = 42
+% Expect: Q4B1 = 2, Q4B2 = 10, Q4B3 = 42
+% Expect: Q4B1 = 2, Q4B2 = 20, Q4B3 = 42
+% Expect: end
+
 mydisj2(X) :- (X = 1, myfail2(X) ; X = 2).
 myfail2(X) :- X = 123.
 ?- mydisj2(Q5).

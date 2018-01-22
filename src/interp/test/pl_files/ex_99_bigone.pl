@@ -637,7 +637,6 @@ all_next_symbols([_|Items], SymbolsIn, SymbolsOut) :-
 closure(Grammar,KernelItems,Closure) :-
     write('-------- closure '), nl,
     closure_kernel(KernelItems,Grammar,[],Closure1),
-    blablabla,
     % profile,
     write('-------- closure done'), nl,
     sort(Closure1, Closure2),
@@ -650,16 +649,28 @@ closure_kernel([KernelItem|KernelItems],Grammar,ClosureIn,ClosureOut) :-
     closure_kernel(KernelItems,Grammar,ClosureIn1,ClosureOut).
 
 closure(Grammar,Item,ClosureIn,ClosureOut) :-
+    write('we are here...'), nl,
+    write(Item), nl,
+    write(ClosureIn), nl,
     \+ member(Item, ClosureIn), % We have not seen this before
+    write('not seen'), nl,
     !, % Do not backtrack.
     copy_term(Item, ItemCopy),
+    write('Copy '), write(ItemCopy), nl,
     (item_move_next(ItemCopy, ItemCopyNext),
+     write('Move next '), write(ItemCopyNext), nl,
      lookahead(Grammar, ItemCopyNext, LA),
+     write('Lookahead '), write(LA), nl,
      ! ; LA = []),
+    write('Here!!!'), nl,
     % length(ClosureIn, N), write('ClosureIn '), write(N), nl,
+    write('Match 1'), nl,
     match(Grammar, ItemCopy, MatchedItems),
+    write('Match 2'), nl,
     ClosureIn1 = [Item | ClosureIn],
+    write('>>> ClosureIn1 '), write(ClosureIn1), nl,
     add_lookaheads(MatchedItems, LA, NewItems),
+    write('>>> new items '), write(NewItems), nl,
     closure_list(NewItems, Grammar, ClosureIn1, ClosureOut).
 closure(_,_,Closure,Closure).
 

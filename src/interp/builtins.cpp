@@ -33,6 +33,7 @@ namespace prologcoin { namespace interp {
     // TODO: This needs to be modified to use callbacks.
     bool builtins::operator_comma(interpreter_base &interp, size_t arity, common::term args[])
     {
+	interp.allocate_environment(false);
         interp.set_cp(code_point(args[1]));
 	interp.set_p(code_point(args[0]));
 	return true;
@@ -72,6 +73,8 @@ namespace prologcoin { namespace interp {
 	}
 
 	term arg1 = args[1];
+	interp.allocate_environment(false);
+	interp.set_cp(interp.p());
         interp.allocate_choice_point(code_point(arg1));
 	interp.set_p(code_point(arg0));
 	return true;
@@ -87,6 +90,7 @@ namespace prologcoin { namespace interp {
 	term cut = cut_op;
 	term arg0 = args[0];
 	term arg1 = args[1];
+	interp.allocate_environment(false);
 	interp.set_cp(code_point(arg1));
 	interp.allocate_environment(false);
 	interp.set_cp(code_point(cut));
@@ -110,6 +114,7 @@ namespace prologcoin { namespace interp {
 	// Go to 'C' the false clause if ((A->B) ; C) fails
 	interp.allocate_choice_point(code_point(if_false));
 	interp.move_cut_point_to_last_choice_point();
+	interp.allocate_environment(false);
 	interp.set_cp(code_point(if_true));
 	interp.allocate_environment(false);
 	interp.set_cp(code_point(cut_if));
@@ -425,6 +430,7 @@ namespace prologcoin { namespace interp {
 	interp.new_meta_context<meta_context>(&operator_disprove_post);
 
 	interp.set_top_e();
+	interp.allocate_choice_point(code_point::fail());
 	interp.set_top_b(interp.b());
 	interp.allocate_environment(false);
 	interp.set_qr(arg);

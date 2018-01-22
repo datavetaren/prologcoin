@@ -601,12 +601,6 @@ protected:
 	    }
 	}
 	if (!p().has_wam_code()) {
-	    if (is_empty_list(p().term_code())) {
-	        if (e0 () != top_e()) {
-	            deallocate_environment();
-	            set_p(cp());
-		}
-	    }
 	    return true;
 	}
 	if (is_debug()) {
@@ -1280,9 +1274,9 @@ public:
         set_p(cp());
     }
 
-    inline bool builtin(wam_instruction_base *p)
+    inline bool builtin(wam_instruction_base *p0)
     {
-        auto bn = reinterpret_cast<wam_instruction<BUILTIN> *>(p);
+        auto bn = reinterpret_cast<wam_instruction<BUILTIN> *>(p0);
 	size_t num_args = bn->arity();
 	set_num_of_args(num_args);
 	goto_next_instruction();
