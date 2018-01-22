@@ -261,6 +261,7 @@ struct meta_context {
     environment_base_t *old_e;
     code_point old_p;
     code_point old_cp;
+    size_t old_hb;
 };
 
 typedef std::function<void (interpreter_base &, meta_context *)> meta_fn;
@@ -675,6 +676,7 @@ protected:
 	context->old_e = register_e_;
 	context->old_p = register_p_;
 	context->old_cp = register_cp_;
+	context->old_hb = get_register_hb();
 	meta_.push_back(std::make_pair(context, fn));
 	return context;
     }
@@ -688,6 +690,7 @@ protected:
 	set_e(context->old_e);
 	set_p(context->old_p);
 	set_cp(context->old_cp);
+	set_register_hb(context->old_hb);
 	delete context;
 	meta_.pop_back();
     }

@@ -40,8 +40,6 @@ static void eval_check_1(const std::string &program,
 {
     interpreter interp;
 
-    // interp.set_debug(true);
-
     term prog = interp.parse(program);
 
     // interp.set_debug(true);

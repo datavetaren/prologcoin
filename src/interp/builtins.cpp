@@ -34,6 +34,8 @@ namespace prologcoin { namespace interp {
     bool builtins::operator_comma(interpreter_base &interp, size_t arity, common::term args[])
     {
 	interp.allocate_environment(false);
+	interp.set_cp(interp.p());
+	interp.allocate_environment(false);
         interp.set_cp(code_point(args[1]));
 	interp.set_p(code_point(args[0]));
 	return true;
@@ -91,6 +93,8 @@ namespace prologcoin { namespace interp {
 	term arg0 = args[0];
 	term arg1 = args[1];
 	interp.allocate_environment(false);
+	interp.set_cp(interp.p());
+	interp.allocate_environment(false);
 	interp.set_cp(code_point(arg1));
 	interp.allocate_environment(false);
 	interp.set_cp(code_point(cut));
@@ -111,6 +115,8 @@ namespace prologcoin { namespace interp {
 	term if_false = args[1];
 	term cut_if = cut_op_if;
 
+	interp.allocate_environment(false);
+	interp.set_cp(interp.p());
 	// Go to 'C' the false clause if ((A->B) ; C) fails
 	interp.allocate_choice_point(code_point(if_false));
 	interp.move_cut_point_to_last_choice_point();

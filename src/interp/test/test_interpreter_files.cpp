@@ -55,18 +55,19 @@ static std::vector<std::string> parse_meta(std::string &comments)
     return parse_x("Meta:", comments);
 }
 
-static void process_meta(interpreter &interp, std::string &comments)
+static void process_meta(interpreter &interp, std::string &comments,
+			 std::unordered_map<std::string, int> &opt)
 {
     auto meta = parse_meta(comments);
     for (auto cmd : meta) {
         if (cmd == "debug on") {
-  	  interp.set_debug(true);
-        }
-	if (cmd == "debug off") {
-	  interp.set_debug(false);
-	}
-	if (cmd == "fileio on") {
-	  interp.enable_file_io();
+  	    interp.set_debug(true);
+        } else if (cmd == "debug off") {
+	    interp.set_debug(false);
+	} else if (cmd == "fileio on") {
+	    interp.enable_file_io();
+	} else if (cmd == "WAM-only") {
+            opt["WAM-only"] = 1;
 	}
     }
 }
@@ -135,7 +136,7 @@ static bool test_interpreter_file(const std::string &filepath)
     
     interp.set_current_directory(dir);
 
-    interp.set_debug(true);
+    // interp.set_debug(true);
 
     std::ifstream *infile = new std::ifstream(filepath);
     term_tokenizer *tokenizer = new term_tokenizer(*infile);
@@ -151,6 +152,8 @@ static bool test_interpreter_file(const std::string &filepath)
 
 	std::vector<con_cell> predicates;
 
+	std::unordered_map<std::string, int> opt;
+
 	do {
 
 	while (!infile->eof()) {
@@ -160,7 +163,7 @@ static bool test_interpreter_file(const std::string &filepath)
 
 	    // interp.sync_with_heap();
 
-	    process_meta(interp, comments);
+	    process_meta(interp, comments, opt);
 
 	    bool is_query = interp.is_functor(t, query_op);
 	    bool is_action = interp.is_functor(t, action_op);
@@ -254,13 +257,16 @@ static bool test_interpreter_file(const std::string &filepath)
 		size_t tr_mark = interp.trail_size();
 		term query = interp.arg(t, 0);
 
-		// Run this query first without WAM
-		interp.set_wam_enabled(false);
-		for (size_t i = 0; i < expected.size(); i++) {
-		    test_run_once(interp, i, query, expected);
+		// Skip the ordinary run if we have the option WAM-only
+		if (opt.count("WAM-only") == 0) {
+		    // Run this query first without WAM
+		    interp.set_wam_enabled(false);
+		    for (size_t i = 0; i < expected.size(); i++) {
+			test_run_once(interp, i, query, expected);
+		    }
+		    interp.unwind(tr_mark);
+		    interp.reset_files();
 		}
-		interp.unwind(tr_mark);
-		interp.reset_files();
 
 		// Then run this query again to check that the result is
 		// the same, when we compile using WAM the recent predicates.

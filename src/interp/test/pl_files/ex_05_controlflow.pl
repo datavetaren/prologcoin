@@ -132,3 +132,9 @@ myifthenelse4(A,B) :- myit(A), (myit2(Y), Y = 3 -> B = 42 ; B = 4711).
 % Expect: Q19 = 2, Q20 = 4711
 % Expect: end
 
+myifthenelse5(A,B,C) :- myit(A), (myit2(Y), Y = 3 -> B = 42 ; B = 4711), C = 17.
+?- myifthenelse5(Q21,Q22,Q23).
+% Expect: Q21 = 1, Q22 = 4711, Q23 = 17
+% Expect: Q21 = 2, Q22 = 4711, Q23 = 17
+% Expect: end
+

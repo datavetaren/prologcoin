@@ -1280,6 +1280,7 @@ public:
 	size_t num_args = bn->arity();
 	set_num_of_args(num_args);
 	goto_next_instruction();
+
 	common::term args[builtins::MAX_ARGS];
 	for (size_t i = 0; i < num_args; i++) {
 	    args[i] = a(i);

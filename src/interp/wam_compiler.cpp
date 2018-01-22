@@ -682,7 +682,7 @@ void wam_compiler::find_unsafe_y_registers(wam_interim_code &instrs,
     // We need at least one call instruction.
     size_t num_calls = 0;
     for (auto instr : instrs) {
-        if (instr->type() == CALL) {
+        if (instr->type() == CALL || instr->type() == BUILTIN) {
 	    num_calls++;
 	}
     }
