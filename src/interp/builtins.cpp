@@ -298,7 +298,7 @@ namespace prologcoin { namespace interp {
 
 	switch (t.tag()) {
   	  case tag_t::REF:
-            interp.abort(interpreter_exception_not_sufficiently_instantiated("funtor/3: Arguments are not sufficiently instantiated"));
+            interp.abort(interpreter_exception_not_sufficiently_instantiated("functor/3: Arguments are not sufficiently instantiated"));
 	    return false;
 	  case tag_t::INT:
  	  case tag_t::BIG: {
@@ -441,11 +441,7 @@ namespace prologcoin { namespace interp {
 	interp.allocate_environment(false);
 	interp.set_qr(arg);
 	interp.set_p(code_point(arg));
-
-	environment_saved_t &es = interp.e()->ce;
-	environment_base_t *ee = es.ce0();
-	environment_t *ee1 = reinterpret_cast<environment_t *>(ee);
-	term y0 = ee1->yn[0];
+	interp.set_cp(interp.empty_list());
 
 	return true;
     }

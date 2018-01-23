@@ -1,5 +1,5 @@
 % Meta: fileio on
-% Meta: debug off
+% Meta: debug on
 % Meta: WAM-only
 
 % Read in standard library

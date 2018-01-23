@@ -600,7 +600,7 @@ protected:
 		instr->invoke(*this);
 	    }
 	}
-	if (!p().has_wam_code()) {
+	if (!is_top_fail() && !p().has_wam_code()) {
 	    return true;
 	}
 	if (is_debug()) {
@@ -660,10 +660,6 @@ private:
     }
 
 public:
-    inline term & y(size_t i)
-    {
-        return e()->yn[i];
-    }
 
     inline void backtrack()
     {
@@ -896,7 +892,6 @@ public:
     inline void get_structure_a(common::con_cell f, uint32_t ai)
     {
         term t = deref(a(ai));
-
 	return get_structure(f, t);
     }
 
@@ -1283,8 +1278,9 @@ public:
 
 	common::term args[builtins::MAX_ARGS];
 	for (size_t i = 0; i < num_args; i++) {
-	    args[i] = a(i);
+	    args[i] = deref(a(i));
 	}
+	set_cp(p());
 	bool r = (bn->bn())(*this, bn->arity(), args);
 	if (!r) {
 	    backtrack();
@@ -1420,7 +1416,8 @@ public:
 
     inline void switch_on_structure(wam_hash_map &map)
     {
-	term t = deref(a(0));
+	term t = functor(deref(a(0)));
+
 	auto it = map.find(t);
 	if (it == map.end()) {
 	    backtrack();
@@ -2718,16 +2715,22 @@ inline void wam_instruction<CALL>::updater(wam_instruction_base *self, code_t *o
 
 template<> class wam_instruction<EXECUTE> : public wam_instruction_code_point {
 public:
-    inline wam_instruction(code_point p) :
-        wam_instruction_code_point(&invoke, sizeof(*this), EXECUTE, p) {
+    inline wam_instruction(common::con_cell l) :
+        wam_instruction_code_point(&invoke, sizeof(*this), EXECUTE, l) {
         init();
     }
 
     static inline void init() {
 	static bool init_ = [] {
 	    register_printer(&invoke, &print);
+	    register_updater(&invoke, &updater);
 	    return true; } ();
 	static_cast<void>(init_);
+    }
+
+    inline void update(code_t *old_base, code_t *new_base)
+    {
+	update_ptr(p(), old_base, new_base);
     }
 
     inline const code_point & p() const { return cp(); }
@@ -2745,6 +2748,12 @@ public:
     {
 	auto self1 = reinterpret_cast<wam_instruction<EXECUTE> *>(self);
 	interp.execute(self1->p(), self1->arity());
+    }
+
+    static void updater(wam_instruction_base *self, code_t *old_base, code_t *new_base)
+    {
+	auto self1 = reinterpret_cast<wam_instruction<EXECUTE> *>(self);
+	self1->update(old_base, new_base);	
     }
 
     static void print(std::ostream &out, wam_interpreter &interp, wam_instruction_base *self)

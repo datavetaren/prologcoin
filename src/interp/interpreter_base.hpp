@@ -409,6 +409,11 @@ protected:
         return register_ai_[i];    
     }
 
+    inline term & y(size_t i)
+    {
+        return e()->yn[i];
+    }
+
     inline term * args()
     {
         return &register_ai_[0];

@@ -754,7 +754,6 @@ void wam_compiler::eliminate_interim(wam_interim_code &instrs)
     while (it != it_end) {
         if (is_interim_instruction(*it)) {
 	    it = instrs.erase_after(it_prev);
-	    it_prev = it;
         } else {
   	    it_prev = it;
 	    ++it;
@@ -937,6 +936,7 @@ void wam_compiler::emit_second_level_indexing(
     if (clause_indices.size() < 2) {
 	return;
     }
+
     const common::int_cell &ic = static_cast<const common::int_cell &>(cp.term_code());
     instrs.push_back(wam_interim_instruction<INTERIM_LABEL>(ic));
 
@@ -946,11 +946,14 @@ void wam_compiler::emit_second_level_indexing(
     for (auto clause_index : clause_indices) {
 	common::int_cell new_lbl(0);
 	auto &clause = subsection[clause_index];
+
 	auto arg0 = first_arg(clause);
+
 	// Already managed?
 	if (map->count(arg0)) {
 	    continue;
 	}
+
 	// Get all clauses with the same arg
 	std::vector<size_t> same_arg0;
 	for (auto ci : clause_indices) {
