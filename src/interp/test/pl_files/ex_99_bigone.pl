@@ -619,10 +619,9 @@ all_next_symbols(Items, Symbols) :-
 all_next_symbols([], SymbolsOut, SymbolsOut).
 all_next_symbols([Item|Items], SymbolsIn, SymbolsOut) :-
     item_next_symbol(Item, Symbol),
-    !,
     (member(Symbol, SymbolsIn) ->
 	 SymbolsIn1 = SymbolsIn
-       ; SymbolsIn1 = [Symbol | SymbolsIn]
+       ; SymbolsIn1 = [Symbol | SymbolsIn],
     ),
     all_next_symbols(Items, SymbolsIn1, SymbolsOut).
 all_next_symbols([_|Items], SymbolsIn, SymbolsOut) :-
