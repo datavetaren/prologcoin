@@ -141,7 +141,7 @@ myifthenelse5(A,B,C) :- myit(A), (myit2(Y), Y = 3 -> B = 42 ; B = 4711), C = 17.
 %
 % If-then-else with member as condition
 %
-% Meta: debug on
+
 myifthenelse6(A,B,C) :- (member(A, [1,2,3,4,5]) -> B = 1 ; B = 42), C = 4711.
 member(X,Xs) :- member0(Xs,X).
 member0([X|_],X).
@@ -151,4 +151,20 @@ member0([_|Xs],X) :- member0(Xs,X).
 % Expect: Q24 = 42, Q25 = 4711
 % Expect: end
 
+?- myifthenelse6(3, Q26, Q27).
+% Expect: Q26 = 1, Q27 = 4711
+% Expect: end
 
+%
+% If-then-else with committed condition
+%
+% Meta: debug on
+
+myifthenelse7(A,B,C) :- (A = 4711 -> foo(B) ; foo2(B)), foo3(C).
+foo(42).
+foo2(4711).
+foo3(123).
+
+?- myifthenelse7(4711, Q28, Q29).
+% Expect: Q28 = 42, Q29 = 123
+% Expect: end

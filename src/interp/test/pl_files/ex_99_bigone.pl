@@ -1,5 +1,5 @@
 % Meta: fileio on
-% Meta: debug on
+% Meta: debug off
 % Meta: WAM-only
 
 % Read in standard library
@@ -583,6 +583,7 @@ state_add_action(state(N,KernelItems,Actions), Action,
 
 select_items([], _, []).
 select_items([Item|Items], Symbol, KernelItems) :-
+    write('select items'), nl,
     (item_next_symbol(Item, Symbol0), match_heads(Symbol0, Symbol) ->
 	item_move_next(Item, NewItem),
 	KernelItems = [NewItem|KernelItems0]
@@ -621,7 +622,7 @@ all_next_symbols([Item|Items], SymbolsIn, SymbolsOut) :-
     item_next_symbol(Item, Symbol),
     (member(Symbol, SymbolsIn) ->
 	 SymbolsIn1 = SymbolsIn
-       ; SymbolsIn1 = [Symbol | SymbolsIn],
+       ; SymbolsIn1 = [Symbol | SymbolsIn]
     ),
     all_next_symbols(Items, SymbolsIn1, SymbolsOut).
 all_next_symbols([_|Items], SymbolsIn, SymbolsOut) :-
@@ -756,6 +757,7 @@ item_move_to_end(Item, NewItem) :-
     item_move_next(Item, Item1), item_move_to_end(Item1, NewItem).
 
 item_move_next((Head :- Body), (Head :- NewBody)) :-
+    write('item_move_next...'), nl,
     item_move_next_body(Body, NewBody).
 
 item_move_next_body(('DOT', A, B), (A, 'DOT', B)) :-
@@ -833,11 +835,12 @@ match_symbol([_ | Cs], Symbol, Matched) :-
          match_symbol(Cs, Symbol, Matched).
 
 match_heads(X, Y) :-
-%	write('match_heads '), write(X), write( ' '), write(Y), nl,
+	write('match_heads '), write(X), write( ' '), write(Y), nl,
 	X =.. [XF|XArgs],
 	Y =.. [YF|YArgs],
 	XF = YF,
-	match_args(XArgs, YArgs).
+	match_args(XArgs, YArgs),
+	write('match heads done'), nl.
 
 match_args([], []).
 match_args([X|Xs], [Y|Ys]) :-

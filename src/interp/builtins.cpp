@@ -60,6 +60,9 @@ namespace prologcoin { namespace interp {
 	}
 	auto *ch = interp.get_last_choice_point();
 	ch->bp = code_point::fail(); // Don't back track to false clause
+
+	interp.set_cp(interp.p());
+
         return true;
     }
 

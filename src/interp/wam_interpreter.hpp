@@ -579,16 +579,15 @@ public:
 
 protected:
 
-    inline void backtrack_wam()
+    inline bool backtrack_wam()
     {
 	backtrack();
-	if (!is_top_fail()) {
-	    set_e(b()->ce);
-	}
+	return !fail_;
     }
 
     inline bool cont_wam()
     {
+        fail_ = false;
         while (p().has_wam_code() && !is_top_fail()) {
 	    if (auto instr = p().wam_code()) {
 		if (is_debug()) {
@@ -600,19 +599,16 @@ protected:
 		instr->invoke(*this);
 	    }
 	}
-	if (!is_top_fail() && !p().has_wam_code()) {
-	    return true;
-	}
 	if (is_debug()) {
-	    std::cout << "[WAM debug]: fail\n";
+  	    if (fail_) {
+	        std::cout << "[WAM debug]: fail\n";
+	    }
 	}
-	if (b() != top_b()) {
-	    reset_to_choice_point(b());
-	}
-	return false;
+	return !fail_;
     }
 
 private:
+    bool fail_;
 
     inline std::string to_string(const code_point &cp) const
     {
@@ -659,8 +655,6 @@ private:
         return register_xn_[i];
     }
 
-public:
-
     inline void backtrack()
     {
         if (b() == top_b()) {
@@ -674,6 +668,9 @@ public:
 	    }
 	    set_b0(b()->b0);
 	    set_p(b()->bp);
+	    if (!p().has_wam_code()) {
+	      fail_ = true;
+	    }
 	}
     }
 

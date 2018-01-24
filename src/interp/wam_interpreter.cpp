@@ -49,6 +49,7 @@ void wam_code::print_code(std::ostream &out)
 
 wam_interpreter::wam_interpreter() : wam_code(*this)
 {
+    fail_ = false;
     mode_ = READ;
     set_num_y_fn( &num_y );
     register_s_ = 0;

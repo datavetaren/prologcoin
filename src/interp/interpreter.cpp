@@ -57,7 +57,9 @@ bool interpreter::cont()
     do {
 	do {
 	    if (p().has_wam_code()) {
-		cont_wam();
+	        if (!cont_wam()) {
+	  	    fail();
+	        }
 	    } else {
 		dispatch(p());
 	    }
@@ -103,8 +105,7 @@ void interpreter::fail()
 	    set_top_fail(true);
 	    ok = true;
         } else if (b_is_wam()) {
-	    backtrack_wam();
-	    return;
+	    ok = backtrack_wam();
 	} else {
 	    auto ch = reset_to_choice_point(b());
 	    auto bp = ch->bp;
