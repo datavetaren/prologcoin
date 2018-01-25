@@ -2,6 +2,7 @@
 #include "interpreter_base.hpp"
 #include "builtins_fileio.hpp"
 #include "builtins_opt.hpp"
+#include "wam_interpreter.hpp"
 #include <boost/filesystem.hpp>
 #include <boost/timer/timer.hpp>
 
@@ -44,6 +45,19 @@ interpreter_base::~interpreter_base()
     builtins_opt_.clear();
     program_db_.clear();
     program_predicates_.clear();
+}
+
+std::string code_point::to_string(interpreter_base &interp) const
+{
+    if (has_wam_code()) {
+	std::stringstream ss;
+	wam_code()->print(ss, static_cast<wam_interpreter &>(interp));
+	return ss.str();
+    } else if (is_fail()) {
+	return "fail";
+    } else {
+	return interp.to_string(term_code());
+    }
 }
 
 void interpreter_base::close_all_files()

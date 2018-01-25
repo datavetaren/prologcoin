@@ -1,6 +1,7 @@
 %
 % Cut operator
 %
+% Meta: debug on
 
 mycut(X) :- X = 1, !.
 mycut(X) :- X = 2.
@@ -158,7 +159,6 @@ member0([_|Xs],X) :- member0(Xs,X).
 %
 % If-then-else with committed condition
 %
-% Meta: debug on
 
 myifthenelse7(A,B,C) :- (A = 4711 -> foo(B) ; foo2(B)), foo3(C).
 foo(42).

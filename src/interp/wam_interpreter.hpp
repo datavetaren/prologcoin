@@ -1248,7 +1248,8 @@ private:
 
     inline void call(code_point &p1, size_t arity, uint32_t num_stack)
     {
-        cp().set_wam_code(next_instruction(p().wam_code()));
+        set_cp(p());
+	next_instruction(cp());
 	set_num_of_args(arity);
 	set_b0(b());
         set_p(p1);

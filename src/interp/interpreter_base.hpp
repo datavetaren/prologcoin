@@ -161,7 +161,6 @@ public:
     inline static code_point fail() {
         return code_point();
     }
-
     inline void reset() { wam_code_ = nullptr; term_code_ = fail_term_; }
 
     inline bool is_fail() const { return term_code_ == fail_term_; }
@@ -174,6 +173,8 @@ public:
 
     inline void set_wam_code(wam_instruction_base *p) { wam_code_ = p; }
     inline void set_term_code(const common::term t) { term_code_ = t; }
+
+    std::string to_string(interpreter_base &interp) const;
 
 private:
     static const common::cell fail_term_;
@@ -309,6 +310,11 @@ public:
     const predicate & get_predicate(const common::con_cell pn)
     {
         return program_db_[pn];
+    }
+
+    std::string to_string_cp(const code_point &cp)
+    {
+	return cp.to_string(*this);
     }
 
     void print_db() const;
@@ -602,10 +608,12 @@ protected:
 
 	    set_ee(new_ee);
 	}
+	// std::cout << "allocate_environment: e=" << new_e0 << " cp=" << to_string_cp(cp()) << "\n";
     }
 
     void deallocate_environment()
     {
+	// std::cout << "[before] deallocate_environment: e=" << e() << "\n";
 	if (!e_is_wam()) {
 	    environment_ext_t *ee1 = ee();
 	    set_b0(ee1->b0);
@@ -614,6 +622,7 @@ protected:
 	}
         set_cp(e0()->cp);
         set_e(e0()->ce);
+	// std::cout << "[after]  deallocate_environment: e=" << e() << " p=" << to_string_cp(p()) << " cp=" << to_string_cp(cp()) << "\n";
     }
 
     inline void allocate_choice_point(const code_point &cont)
