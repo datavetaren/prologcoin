@@ -602,6 +602,10 @@ protected:
 	if (is_debug()) {
   	    if (fail_) {
 	        std::cout << "[WAM debug]: fail\n";
+	    } else {
+	        std::cout << "[WAM debug]: exit\n";
+		// std::cout << "[WAM debug]:  p=" << to_string_cp(p()) << "\n";
+		// std::cout << "[WAM debug]: cp=" << to_string_cp(cp()) << "\n";
 	    }
 	}
 	return !fail_;
@@ -1278,7 +1282,6 @@ private:
 	for (size_t i = 0; i < num_args; i++) {
 	    args[i] = deref(a(i));
 	}
-	set_cp(p());
 	bool r = (bn->bn())(*this, bn->arity(), args);
 	if (!r) {
 	    backtrack();

@@ -161,6 +161,7 @@ void interpreter_base::load_builtins()
     load_builtin(con_cell(",",2), &builtins::operator_comma);
     load_builtin(con_cell("!",0), &builtins::operator_cut);
     load_builtin(con_cell("_!",0), &builtins::operator_cut_if);
+    load_builtin(con_cell("_#",0), &builtins::operator_deallocate_and_proceed);
     load_builtin(con_cell(";",2), &builtins::operator_disjunction);
     load_builtin(con_cell("->",2), &builtins::operator_if_then);
 

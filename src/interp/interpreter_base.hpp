@@ -613,7 +613,7 @@ protected:
 
     void deallocate_environment()
     {
-	// std::cout << "[before] deallocate_environment: e=" << e() << "\n";
+        // std::cout << "[before] deallocate_environment: e=" << e() << "\n";
 	if (!e_is_wam()) {
 	    environment_ext_t *ee1 = ee();
 	    set_b0(ee1->b0);

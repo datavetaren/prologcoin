@@ -228,6 +228,7 @@ void interpreter::dispatch(const code_point &instruction)
     if (is_debug()) {
         // Print call
         std::cout << "interpreter::dispatch(): call " << to_string(instruction.term_code()) << "\n";
+        std::cout << "interpreter::dispatch():   cp=" << to_string_cp(cp()) << "\n";
     }
 
 #if PROFILER

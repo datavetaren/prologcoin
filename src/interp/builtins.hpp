@@ -37,6 +37,7 @@ namespace prologcoin { namespace interp {
         static bool operator_comma(interpreter_base &interp, size_t arity, common::term args[]);
         static bool operator_cut(interpreter_base &interp, size_t arity, common::term args[]);
         static bool operator_cut_if(interpreter_base &interp, size_t arity, common::term args[]);
+        static bool operator_deallocate_and_proceed(interpreter_base &interp, size_t arity, common::term args[]);
         static bool operator_disjunction(interpreter_base &interp, size_t arity, common::term args[]);
 	static bool operator_arrow(interpreter_base &interp, size_t arity, common::term args[]);
         static bool operator_if_then(interpreter_base &interp, size_t arity, common::term args[]);

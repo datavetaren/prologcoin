@@ -34,8 +34,6 @@ namespace prologcoin { namespace interp {
     bool builtins::operator_comma(interpreter_base &interp, size_t arity, common::term args[])
     {
 	interp.allocate_environment(false);
-	interp.set_cp(interp.p());
-	interp.allocate_environment(false);
         interp.set_cp(code_point(args[1]));
 	interp.set_p(code_point(args[0]));
 	return true;
@@ -61,7 +59,13 @@ namespace prologcoin { namespace interp {
 	auto *ch = interp.get_last_choice_point();
 	ch->bp = code_point::fail(); // Don't back track to false clause
 
-	interp.set_cp(interp.p());
+        return true;
+    }
+
+    bool builtins::operator_deallocate_and_proceed(interpreter_base &interp, size_t arity, common::term args[])
+    {
+	interp.set_p(interp.cp());
+        interp.deallocate_environment();
 
         return true;
     }
@@ -110,6 +114,7 @@ namespace prologcoin { namespace interp {
     bool builtins::operator_if_then_else(interpreter_base &interp, size_t arity, common::term args[])
     {
 	static con_cell cut_op_if("_!",0);
+	static con_cell deallocate_and_proceed_op("_#",0);
 
 	term lhs = args[0];
 
@@ -118,8 +123,13 @@ namespace prologcoin { namespace interp {
 	term if_false = args[1];
 	term cut_if = cut_op_if;
 
+	std::cout << "operator_if_then_else:  p=" << interp.to_string_cp(interp.p()) << "\n";
+	std::cout << "operator_if_then_else: cp=" << interp.to_string_cp(interp.cp()) << "\n";
+
 	interp.allocate_environment(false);
 	interp.set_cp(interp.p());
+	interp.allocate_environment(false);
+	interp.set_cp(code_point(deallocate_and_proceed_op));
 	// Go to 'C' the false clause if ((A->B) ; C) fails
 	interp.allocate_choice_point(code_point(if_false));
 	interp.move_cut_point_to_last_choice_point();
@@ -127,7 +137,6 @@ namespace prologcoin { namespace interp {
 	interp.set_cp(code_point(if_true));
 	interp.allocate_environment(false);
 	interp.set_cp(code_point(cut_if));
-	interp.allocate_environment(false);
 	interp.set_p(code_point(cond));
         return true;
     }
