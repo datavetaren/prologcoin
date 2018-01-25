@@ -1,7 +1,6 @@
 %
 % Cut operator
 %
-% Meta: debug on
 
 mycut(X) :- X = 1, !.
 mycut(X) :- X = 2.
@@ -134,6 +133,7 @@ myifthenelse4(A,B) :- myit(A), (myit2(Y), Y = 3 -> B = 42 ; B = 4711).
 % Expect: end
 
 myifthenelse5(A,B,C) :- myit(A), (myit2(Y), Y = 3 -> B = 42 ; B = 4711), C = 17.
+
 ?- myifthenelse5(Q21,Q22,Q23).
 % Expect: Q21 = 1, Q22 = 4711, Q23 = 17
 % Expect: Q21 = 2, Q22 = 4711, Q23 = 17
@@ -160,11 +160,18 @@ member0([_|Xs],X) :- member0(Xs,X).
 % If-then-else with committed condition
 %
 
-myifthenelse7(A,B,C) :- (A = 4711 -> foo(B) ; foo2(B)), foo3(C).
+myifthenelse7(A,B,C) :- (member(A, [1,2,foo,baz,foo]), matchit(A,foo) -> foo(B) ; foo2(B)), foo3(C).
+matchit(A,B) :-
+%    write('matchit '), write(A), write(' '), write(B), nl,
+    A = B.
+
 foo(42).
 foo2(4711).
 foo3(123).
 
-?- myifthenelse7(4711, Q28, Q29).
+% Meta: fileio on
+% Meta: debug on
+
+?- myifthenelse7(foo, Q28, Q29).
 % Expect: Q28 = 42, Q29 = 123
 % Expect: end
