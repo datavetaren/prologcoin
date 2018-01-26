@@ -572,11 +572,22 @@ protected:
     inline void set_top_fail(bool b)
     {
         top_fail_ = b;
+	set_complete(true);
     }
   
     inline bool is_top_fail() const
     {
         return top_fail_;
+    }
+
+    inline void set_complete(bool b)
+    {
+        complete_ = b;
+    }
+
+    inline bool is_complete() const
+    {
+        return complete_;
     }
 
     void allocate_environment(bool for_wam)
@@ -631,7 +642,7 @@ protected:
 	if (base(e0()) > base(b())) {
 	    new_b0 = base(e0()) + num_y_fn()(this, e0()) + words<environment_t>();
 	} else {
-  	    if (e0() == nullptr) {
+  	    if (b() == nullptr) {
 	        new_b0 = stack_;
 	    } else {
   	        new_b0 = base(b()) + b()->arity + words<choice_point_t>();
@@ -654,6 +665,7 @@ protected:
 	new_b->pr = register_pr_;
 	register_b_ = new_b;
 	set_register_hb(heap_size());
+        // std::cout << "allocate_choice_point b=" << new_b << " (prev=" << new_b->b << ")\n";
     }
 
     void prepare_execution();
@@ -775,6 +787,7 @@ private:
     size_t    stack_ptr_;
 
     bool top_fail_;
+    bool complete_;
 
     code_point register_p_;
     code_point register_cp_;

@@ -162,15 +162,11 @@ member0([_|Xs],X) :- member0(Xs,X).
 
 myifthenelse7(A,B,C) :- (member(A, [1,2,foo,baz,foo]), matchit(A,foo) -> foo(B) ; foo2(B)), foo3(C).
 matchit(A,B) :-
-%    write('matchit '), write(A), write(' '), write(B), nl,
     A = B.
 
 foo(42).
 foo2(4711).
 foo3(123).
-
-% Meta: fileio on
-% Meta: debug on
 
 ?- myifthenelse7(foo, Q28, Q29).
 % Expect: Q28 = 42, Q29 = 123

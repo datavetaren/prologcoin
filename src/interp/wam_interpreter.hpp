@@ -565,7 +565,6 @@ public:
 
     inline bool execute_wam()
     {
-        allocate_environment(true);
 	return cont_wam();
     }
 
@@ -604,8 +603,6 @@ protected:
 	        std::cout << "[WAM debug]: fail\n";
 	    } else {
 	        std::cout << "[WAM debug]: exit\n";
-		// std::cout << "[WAM debug]:  p=" << to_string_cp(p()) << "\n";
-		// std::cout << "[WAM debug]: cp=" << to_string_cp(cp()) << "\n";
 	    }
 	}
 	return !fail_;
@@ -673,7 +670,7 @@ private:
 	    set_b0(b()->b0);
 	    set_p(b()->bp);
 	    if (!p().has_wam_code()) {
-	      fail_ = true;
+	        fail_ = true;
 	    }
 	}
     }
@@ -1269,6 +1266,9 @@ private:
     inline void proceed()
     {
         set_p(cp());
+	if (!p().has_wam_code()) {
+	    set_cp(empty_list());
+	}
     }
 
     inline bool builtin(wam_instruction_base *p0)
@@ -1315,7 +1315,8 @@ private:
 	unwind_trail(b()->tr, trail_size());
 	trim_trail(b()->tr);
 	trim_heap(b()->h);
-	set_b(b()->b);
+        // std::cout << "deallocate_choice_point: b=" << b()->b << " e=" << e() << " (old_b=" << b() << ")\n";
+        set_b(b()->b);
 	if (b() != nullptr) {
 	    set_register_hb(b()->h);
 	}

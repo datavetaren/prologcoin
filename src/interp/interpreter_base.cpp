@@ -434,6 +434,7 @@ void interpreter_base::prepare_execution()
     num_of_args_= 0;
     memset(register_ai_, 0, sizeof(register_ai_));
     top_fail_ = false;
+    complete_ = false;
     register_b_ = nullptr;
     register_e_ = nullptr;
     register_e_is_wam_ = false;

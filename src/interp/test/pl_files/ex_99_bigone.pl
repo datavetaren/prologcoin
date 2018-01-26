@@ -583,8 +583,8 @@ state_add_action(state(N,KernelItems,Actions), Action,
 
 select_items([], _, []).
 select_items([Item|Items], Symbol, KernelItems) :-
-    write('select items'), nl,
     (item_next_symbol(Item, Symbol0), match_heads(Symbol0, Symbol) ->
+        write('here we are'), nl,
 	item_move_next(Item, NewItem),
 	KernelItems = [NewItem|KernelItems0]
       ; KernelItems0 = KernelItems
@@ -835,12 +835,13 @@ match_symbol([_ | Cs], Symbol, Matched) :-
          match_symbol(Cs, Symbol, Matched).
 
 match_heads(X, Y) :-
-	write('match_heads '), write(X), write( ' '), write(Y), nl,
+        write('match_heads '), write(X), write(' '), write(Y), nl,
 	X =.. [XF|XArgs],
 	Y =.. [YF|YArgs],
 	XF = YF,
+        write('match_args'), nl,
 	match_args(XArgs, YArgs),
-	write('match heads done'), nl.
+        write('match_heads done'), nl.
 
 match_args([], []).
 match_args([X|Xs], [Y|Ys]) :-

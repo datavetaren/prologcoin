@@ -74,6 +74,7 @@ namespace prologcoin { namespace interp {
     bool builtins::operator_disjunction(interpreter_base &interp, size_t arity, common::term args[])
     {
 	static con_cell arrow("->", 2);
+	static con_cell deallocate_and_proceed_op("_#",0);
 
 	// Check if this is an if-then-else
 	term arg0 = args[0];
@@ -84,6 +85,8 @@ namespace prologcoin { namespace interp {
 	term arg1 = args[1];
 	interp.allocate_environment(false);
 	interp.set_cp(interp.p());
+	interp.allocate_environment(false);
+	interp.set_cp(code_point(deallocate_and_proceed_op));
         interp.allocate_choice_point(code_point(arg1));
 	interp.set_p(code_point(arg0));
 	return true;
@@ -122,9 +125,6 @@ namespace prologcoin { namespace interp {
 	term if_true = interp.arg(lhs, 1);
 	term if_false = args[1];
 	term cut_if = cut_op_if;
-
-	std::cout << "operator_if_then_else:  p=" << interp.to_string_cp(interp.p()) << "\n";
-	std::cout << "operator_if_then_else: cp=" << interp.to_string_cp(interp.cp()) << "\n";
 
 	interp.allocate_environment(false);
 	interp.set_cp(interp.p());

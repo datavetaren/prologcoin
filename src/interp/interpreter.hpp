@@ -41,7 +41,7 @@ private:
     void load_code(wam_interim_code &code);
     void bind_code_point(std::unordered_map<size_t, size_t> &label_map,
 			 code_point &cp);
-    void dispatch(const code_point &instruction);
+    void dispatch();
     void dispatch_wam(wam_instruction_base *instruction);
     bool select_clause(const code_point &instruction,
 		       size_t index_id,

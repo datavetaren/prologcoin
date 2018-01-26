@@ -49,23 +49,29 @@ bool interpreter::execute(const term query)
     set_cp(code_point(empty_list()));
     set_qr(query);
 
-    return cont();
+    bool b = cont();
+
+    set_qr(query);
+
+    return b;
 }
 
 bool interpreter::cont()
 {
-    do {
-	do {
+    set_complete(false);
+    while (!is_complete()) {
+        while (!is_complete()) {
 	    if (p().has_wam_code()) {
 	        if (!cont_wam()) {
 	  	    fail();
 	        }
 	    } else {
-		dispatch(p());
+		dispatch();
 	    }
-	} while (e0() != top_e() && !is_top_fail());
+	}
 
         if (has_meta_contexts()) {
+  	    set_complete(false);
 	    meta_context *mc = get_last_meta_context();
 	    meta_fn fn = get_last_meta_function();
 	    fn(*this, mc);
@@ -74,18 +80,21 @@ bool interpreter::cont()
 	        fail();
 	    }
         }
-	
-    } while (e0() != top_e() && !is_top_fail());
+    }
 
     return !is_top_fail();
 }
 
 bool interpreter::next()
 {
+    term old_qr = qr();
+
     fail();
     if (!is_top_fail()) {
 	cont();
     }
+
+    set_qr(old_qr);
     return !is_top_fail();
 }
 
@@ -135,7 +144,7 @@ void interpreter::fail()
 		    auto &clauses = get_predicate(index_id);
 		    size_t from_clause = bpval & 0xff;
 
-		    ok = select_clause(code_point(qr()), index_id, clauses, from_clause);
+		    ok = select_clause(qr(), index_id, clauses, from_clause);
 		}
 	    }
 	    if (!ok) {
@@ -205,30 +214,33 @@ bool interpreter::select_clause(const code_point &instruction,
     return false;
 }
 
-void interpreter::dispatch(const code_point &instruction)
+void interpreter::dispatch()
 {
-    set_qr(instruction.term_code());
-
+    set_qr(p().term_code());
     con_cell f = functor(qr());
 
     if (f == empty_list()) {
         // Return
-        if (is_debug()) {
-	    std::cout << "interpreter::dispatch(): exit\n";
-        }
 	set_p(cp());
 	if (ee() != top_e()) {
-	    deallocate_environment();
+            if (is_debug()) {
+                std::cout << "interpreter::dispatch(): exit\n";
+            }
+            deallocate_environment();
 	} else {
+            if (is_debug()) {
+                std::cout << "interpreter::dispatch(): complete\n";
+            }
 	    set_cp(code_point(empty_list()));
+	    set_complete(true);
 	}
 	return;
     }
 
     if (is_debug()) {
         // Print call
-        std::cout << "interpreter::dispatch(): call " << to_string(instruction.term_code()) << "\n";
-        std::cout << "interpreter::dispatch():   cp=" << to_string_cp(cp()) << "\n";
+        std::cout << "interpreter::dispatch(): call " << to_string_cp(p()) << "\n";
+        // std::cout << "interpreter::dispatch():   cp=" << to_string_cp(cp()) << "\n";
     }
 
 #if PROFILER
@@ -246,13 +258,12 @@ void interpreter::dispatch(const code_point &instruction)
 
     size_t arity = f.arity();
     for (size_t i = 0; i < arity; i++) {
-        a(i) = arg(instruction.term_code(), i);
+        a(i) = arg(p().term_code(), i);
     }
     set_num_of_args(arity);
 
     if (is_wam_enabled()) {
 	if (auto instr = resolve_predicate(f)) {
-	    set_p(empty_list());
 	    dispatch_wam(instr);
 	    return;
 	}
@@ -320,7 +331,7 @@ void interpreter::dispatch(const code_point &instruction)
 	allocate_choice_point(ch);
     }
 
-    if (!select_clause(instruction, index_id, clauses, 0)) {
+    if (!select_clause(p().term_code(), index_id, clauses, 0)) {
 	fail();
     }
 }
