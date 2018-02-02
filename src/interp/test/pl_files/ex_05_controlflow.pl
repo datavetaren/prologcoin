@@ -1,4 +1,12 @@
 %
+% If-then-else with committed condition
+%
+
+member(X,Xs) :- member0(Xs,X).
+member0([X|_],X).
+member0([_|Xs],X) :- member0(Xs,X).
+
+%
 % Cut operator
 %
 
@@ -144,9 +152,6 @@ myifthenelse5(A,B,C) :- myit(A), (myit2(Y), Y = 3 -> B = 42 ; B = 4711), C = 17.
 %
 
 myifthenelse6(A,B,C) :- (member(A, [1,2,3,4,5]) -> B = 1 ; B = 42), C = 4711.
-member(X,Xs) :- member0(Xs,X).
-member0([X|_],X).
-member0([_|Xs],X) :- member0(Xs,X).
 
 ?- myifthenelse6(10, Q24, Q25).
 % Expect: Q24 = 42, Q25 = 4711
@@ -156,9 +161,6 @@ member0([_|Xs],X) :- member0(Xs,X).
 % Expect: Q26 = 1, Q27 = 4711
 % Expect: end
 
-%
-% If-then-else with committed condition
-%
 
 myifthenelse7(A,B,C) :- (member(A, [1,2,foo,baz,foo]), matchit(A,foo) -> foo(B) ; foo2(B)), foo3(C).
 matchit(A,B) :-

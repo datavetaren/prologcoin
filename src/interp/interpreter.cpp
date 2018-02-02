@@ -45,9 +45,11 @@ bool interpreter::execute(const term query)
 		       }
 		   } );
 
-    set_p(code_point(query));
+    set_p(code_point(empty_list()));
     set_cp(code_point(empty_list()));
     set_qr(query);
+
+    set_p(code_point(query));
 
     bool b = cont();
 
@@ -62,21 +64,23 @@ bool interpreter::cont()
     while (!is_complete()) {
         while (!is_complete()) {
 	    if (p().has_wam_code()) {
-	        if (!cont_wam()) {
+	        bool ok = cont_wam();
+		if (!ok) {
 	  	    fail();
-	        }
+		}
 	    } else {
 		dispatch();
 	    }
 	}
 
-        if (has_meta_contexts()) {
+        while (is_complete() && has_meta_contexts()) {
   	    set_complete(false);
 	    meta_context *mc = get_last_meta_context();
 	    meta_fn fn = get_last_meta_function();
 	    fn(*this, mc);
 	    if (is_top_fail()) {
   	        set_top_fail(false);
+		set_complete(false);
 	        fail();
 	    }
         }
@@ -118,6 +122,7 @@ void interpreter::fail()
 	} else {
 	    auto ch = reset_to_choice_point(b());
 	    auto bp = ch->bp;
+
 	    if (bp.is_fail()) {
 		// Do nothing
 	    } else if (bp.term_code().tag() != common::tag_t::INT) {
@@ -158,6 +163,43 @@ void interpreter::fail()
     }
 }
 
+bool interpreter::unify_args(term head, const code_point &p)
+{
+    if (p.term_code().tag() == common::tag_t::STR) {
+	return unify(head, p.term_code());
+    } else {
+	// Otherwise this is an already disected call with
+	// args. So unify with arguments.
+
+	size_t start_trail = trail_size();
+	size_t start_stack = stack_size();
+	size_t old_register_hb = get_register_hb();
+
+	// Record all bindings so we can undo them in case
+	// unification fails.
+	set_register_hb(heap_size());
+
+	size_t n = num_of_args();
+	bool fail = false;
+	for (size_t i = 0; i < n; i++) {
+	    auto arg_i = arg(head, i);
+	    if (!unify(arg_i, a(i))) {
+		fail = true;
+		break;
+	    }
+	}
+	
+	if (fail) {
+	    interpreter_base::unwind_trail(start_trail, trail_size());
+	    trim_trail(start_trail);
+	    trim_stack(start_stack);
+	}
+	
+	set_register_hb(old_register_hb);
+	return !fail;
+    }
+}
+
 bool interpreter::select_clause(const code_point &instruction,
 				size_t index_id,
 				std::vector<term> &clauses,
@@ -185,7 +227,7 @@ bool interpreter::select_clause(const code_point &instruction,
 	term copy_head = clause_head(copy_clause);
 	term copy_body = clause_body(copy_clause);
 
-	if (unify(copy_head, instruction.term_code())) { // Heads match?
+	if (unify_args(copy_head, instruction.term_code())) { // Heads match?
 	    // Update choice point (where to continue on fail...)
 	    if (has_choices) {
 	        auto choice_point = b();
@@ -197,9 +239,8 @@ bool interpreter::select_clause(const code_point &instruction,
 	    }
 
 	    allocate_environment(false);
-
-	    set_p(copy_body);
 	    set_cp(empty_list());
+	    set_p(copy_body);
 	    set_qr(copy_head);
 
 	    return true;
@@ -217,30 +258,26 @@ bool interpreter::select_clause(const code_point &instruction,
 void interpreter::dispatch()
 {
     set_qr(p().term_code());
+
     con_cell f = functor(qr());
 
     if (f == empty_list()) {
         // Return
-	set_p(cp());
-	if (ee() != top_e()) {
-            if (is_debug()) {
-                std::cout << "interpreter::dispatch(): exit\n";
-            }
-            deallocate_environment();
-	} else {
-            if (is_debug()) {
-                std::cout << "interpreter::dispatch(): complete\n";
-            }
-	    set_cp(code_point(empty_list()));
-	    set_complete(true);
+	if (is_debug()) {
+	    std::cout << "interpreter::dispatch(): pop\n";
+	}
+	deallocate_and_proceed();
+	if (e0() == top_e()) {
+	    if (!p().has_wam_code() && p().term_code() == empty_list()) {
+		set_complete(true);
+	    }
 	}
 	return;
     }
 
     if (is_debug()) {
         // Print call
-        std::cout << "interpreter::dispatch(): call " << to_string_cp(p()) << "\n";
-        // std::cout << "interpreter::dispatch():   cp=" << to_string_cp(cp()) << "\n";
+        std::cout << "interpreter::dispatch(): call " << to_string_cp(p()) << " cp=" << to_string_cp(cp()) << "\n";
     }
 
 #if PROFILER
@@ -257,10 +294,16 @@ void interpreter::dispatch()
 #endif
 
     size_t arity = f.arity();
-    for (size_t i = 0; i < arity; i++) {
-        a(i) = arg(p().term_code(), i);
+
+    // If this a call from WAM (fast code to slow code) then its call
+    // instruction has already initialized the arguments and arity and
+    // the term_code() is just a constant (not a compound STR.)
+    if (p().term_code().tag() == common::tag_t::STR) {
+	for (size_t i = 0; i < arity; i++) {
+	    a(i) = arg(p().term_code(), i);
+	}
+	set_num_of_args(arity);
     }
-    set_num_of_args(arity);
 
     if (is_wam_enabled()) {
 	if (auto instr = resolve_predicate(f)) {
@@ -271,26 +314,34 @@ void interpreter::dispatch()
 
     // Is this a built-in?
     auto bf = get_builtin(f);
-    if (bf != nullptr) {
-        set_p(empty_list());
-	if (!bf(*this, arity, args())) {
+    if (!bf.is_empty()) {
+	set_p(cp());
+	if (!bf.is_recursive()) {
+	    // This enforces eventually a pop up the stack and
+	    // P becomes CP.
+	    set_cp(empty_list());
+	}
+	if (!(bf.fn())(*this, arity, args())) {
 	    fail();
 	}
 	return;
     }
 
     // Is there a successful optimized built-in?
+    /*
     auto obf = get_builtin_opt(f);
     if (obf != nullptr) {
         tribool r = obf(*this, arity, args());
 	if (!indeterminate(r)) {
-	    set_p(empty_list());
+	    set_p(cp());
+	    set_cp(empty_list());
 	    if (!r) {
 		fail();
 	    }
 	    return;
 	}
     }
+    */
 
     auto first_arg = get_first_arg();
 
@@ -315,14 +366,11 @@ void interpreter::dispatch()
 	return;
     }
 
-    size_t num_clauses = clauses.size();
+    set_b0(b());
 
+    size_t num_clauses = clauses.size();
     bool has_choices = num_clauses > 1;
     size_t index_id = predicate_id;
-
-    if (b() != nullptr && b()->bp.term_code().tag() == common::tag_t::INT) {
-	set_b0(b());
-    }
 
     // More than one clause that matches? We need a choice point.
     if (has_choices) {
@@ -339,9 +387,6 @@ void interpreter::dispatch()
 void interpreter::dispatch_wam(wam_instruction_base *instruction)
 {
     set_p(instruction);
-    if (!execute_wam()) {
-	fail();
-    }
 }
 
 void interpreter::compute_matched_predicate(con_cell func,

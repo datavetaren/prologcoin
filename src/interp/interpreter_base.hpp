@@ -155,8 +155,8 @@ public:
         : wam_code_(other.wam_code_), term_code_(other.term_code_) { }
     inline code_point(wam_instruction_base *i)
         : wam_code_(i), term_code_(common::ref_cell(0)) { }
-    inline code_point(const common::term t, builtin b)
-        : bn_(b), term_code_(t) { }
+    inline code_point(const common::term t, builtin_fn f)
+        : bn_(f), term_code_(t) { }
 
     inline static code_point fail() {
         return code_point();
@@ -168,7 +168,7 @@ public:
     inline bool has_wam_code() const { return wam_code_ != nullptr; }
 
     inline wam_instruction_base * wam_code() const { return wam_code_; }
-    inline builtin bn() const { return bn_; }
+    inline builtin_fn bn() { return bn_; }
     inline const common::cell & term_code() const { return term_code_; }
 
     inline void set_wam_code(wam_instruction_base *p) { wam_code_ = p; }
@@ -181,7 +181,7 @@ private:
 
     union {
         wam_instruction_base *wam_code_;
-        builtin bn_;
+        builtin_fn bn_;
     };
     common::cell term_code_;
 };
@@ -262,6 +262,7 @@ struct meta_context {
     environment_base_t *old_e;
     code_point old_p;
     code_point old_cp;
+    common::term old_qr;
     size_t old_hb;
 };
 
@@ -336,11 +337,13 @@ public:
 	}
     };
 
-    inline builtin get_builtin(con_cell f)
+    inline builtin & get_builtin(con_cell f)
     {
+	static builtin empty_bn_;
+
         auto it = builtins_.find(f);
         if (it == builtins_.end()) {
-	    return nullptr;
+	    return empty_bn_;
         } else {
 	    return it->second;
 	}
@@ -590,7 +593,7 @@ protected:
         return complete_;
     }
 
-    void allocate_environment(bool for_wam)
+    environment_base_t * allocate_environment(bool for_wam)
     {
         word_t *new_e0;
 	if (base(e0()) > base(b())) {
@@ -620,11 +623,14 @@ protected:
 	    set_ee(new_ee);
 	}
 	// std::cout << "allocate_environment: e=" << new_e0 << " cp=" << to_string_cp(cp()) << "\n";
+	// std::cout << "allocate_environment: qr=" << to_string(qr()) << " " << qr().tag() << " " << qr().raw_value() << "\n";
+
+	return e0();
     }
 
     void deallocate_environment()
     {
-        // std::cout << "[before] deallocate_environment: e=" << e() << "\n";
+        // std::cout << "[before] deallocate_environment: e=" << e() << " p=" << to_string_cp(p()) << " cp=" << to_string_cp(cp()) << "\n";
 	if (!e_is_wam()) {
 	    environment_ext_t *ee1 = ee();
 	    set_b0(ee1->b0);
@@ -634,6 +640,22 @@ protected:
         set_cp(e0()->cp);
         set_e(e0()->ce);
 	// std::cout << "[after]  deallocate_environment: e=" << e() << " p=" << to_string_cp(p()) << " cp=" << to_string_cp(cp()) << "\n";
+    }
+
+    void protect_environment()
+    {
+	static con_cell deallocate2_and_proceed_op("__#",0);
+
+	// This environment assumes p() is the return address, but at some
+	// point into the future. Therefore, we need to set cp() to p()
+	// before allocating the environment (so the we get the number of
+	// slots to protect), but we later patch the environments cp().
+	code_point old_cp = cp();
+	set_cp(p());
+	allocate_environment(false);
+	set_cp(old_cp);
+	allocate_environment(false);
+	set_cp(code_point(deallocate2_and_proceed_op));
     }
 
     inline void allocate_choice_point(const code_point &cont)
@@ -666,6 +688,38 @@ protected:
 	register_b_ = new_b;
 	set_register_hb(heap_size());
         // std::cout << "allocate_choice_point b=" << new_b << " (prev=" << new_b->b << ")\n";
+	// std::cout << "allocate_choice_point saved qr=" << to_string(register_qr_) << "\n";
+    }
+
+    void deallocate_and_proceed()
+    {
+	if (e0() != top_e()) {
+	    deallocate_environment();
+	} else {
+	    set_cp(empty_list());
+	}
+	set_p(cp());
+	set_cp(empty_list());
+    }
+    
+    void proceed_and_deallocate()
+    {
+        set_p(cp());
+	if (e0() != top_e()) {
+	    deallocate_environment();
+	    if (is_debug()) {
+		std::cout << "interpreter_base::proceed_and_deallocate(): p="
+			  << to_string_cp(p()) << " cp="
+			  << to_string_cp(cp()) << " e=" << e0() << "\n";
+	    }
+	} else {
+	    set_cp(empty_list());
+	    if (is_debug()) {
+		std::cout << "interpreter_base::proceed_and_deallocate(): p="
+			  << to_string_cp(p()) << " cp="
+			  << to_string_cp(cp()) << " e=" << e0() << "\n";
+	    }
+	}
     }
 
     void prepare_execution();
@@ -702,8 +756,14 @@ protected:
 	context->old_e = register_e_;
 	context->old_p = register_p_;
 	context->old_cp = register_cp_;
+	context->old_qr = register_qr_;
 	context->old_hb = get_register_hb();
 	meta_.push_back(std::make_pair(context, fn));
+
+	if (is_debug()) {
+	    std::cout << "interpreter_base::new_meta_context(): ---- e=" << context->old_e << " ----\n";
+	}
+
 	return context;
     }
 
@@ -716,9 +776,14 @@ protected:
 	set_e(context->old_e);
 	set_p(context->old_p);
 	set_cp(context->old_cp);
+	set_qr(context->old_qr);
 	set_register_hb(context->old_hb);
 	delete context;
 	meta_.pop_back();
+
+	if (is_debug()) {
+	    std::cout << "interpreter_base::release_meta_context(): ---- e=" << e() << " ----\n";
+	}
     }
 
     meta_context * get_last_meta_context()

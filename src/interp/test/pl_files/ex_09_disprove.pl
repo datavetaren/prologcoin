@@ -1,22 +1,13 @@
 %
 % Testing disprove operator
 %
-% Meta: debug off
-
-member(X, [X|_]).
-member(X, [_|Xs]) :- member(X, Xs).
-
-dp5(A) :-
-    \+ member(3, [1,2,3,4,5]).
-dp5(A) :-
-    A = 100.
-?- dp5(Q7).
-% Expect: Q7 = 100
-% Expect: end
 
 %
 % Check that something is not true
 %
+
+member(X, [X|_]).
+member(X, [_|Xs]) :- member(X, Xs).
 
 dp1(X, Y) :-
     X = 3, \+ member(X, [1,2,4,6,9]), Y = 2.
@@ -51,6 +42,36 @@ dp4(X, Y) :-
 ?- dp4(3, Q6).
 % Expect: fail
 
+dp5(X, Y) :-
+    dp5_get(X, Y),
+    \+ member0([1,2,3,4,5], X),
+    !,
+    dp5_doit(X, Y),
+    dp5_doit(X, Y).
 
+dp5_get(10, 10).
+dp5_doit(X, Y) :-
+    X = Y.
 
-    
+?- dp5(10, Q7).
+% Expect: Q7 = 10
+% Expect: end
+
+%
+% Double disprove
+%
+dp6(X) :-
+    (\+ \+ X = foo -> X = 1 ; X = 2).
+
+?- dp6(X).
+% Expect: X = 1
+% Expect: end
+
+dp7(A) :-
+    \+ member(3, [1,2,3,4,5]).
+dp7(A) :-
+    A = 100.
+?- dp7(Q7).
+% Expect: Q7 = 100
+% Expect: end
+

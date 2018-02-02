@@ -34,8 +34,11 @@ namespace prologcoin { namespace interp {
     bool builtins::operator_comma(interpreter_base &interp, size_t arity, common::term args[])
     {
 	interp.allocate_environment(false);
-        interp.set_cp(code_point(args[1]));
+	interp.set_cp(code_point(args[1]));
+	interp.allocate_environment(false);
 	interp.set_p(code_point(args[0]));
+	interp.set_cp(interp.empty_list());
+
 	return true;
     }
 
@@ -52,6 +55,10 @@ namespace prologcoin { namespace interp {
     // TODO: This needs to be modified to use callbacks. Cut should be a primitive.
     bool builtins::operator_cut_if(interpreter_base &interp, size_t arity, common::term args[])
     {
+	interp.deallocate_environment();
+	interp.set_p(interp.cp());
+	interp.set_cp(interp.e0()->cp);
+
         if (interp.has_late_choice_point()) {
 	    interp.reset_choice_point();
 	    interp.tidy_trail();
@@ -62,19 +69,10 @@ namespace prologcoin { namespace interp {
         return true;
     }
 
-    bool builtins::operator_deallocate_and_proceed(interpreter_base &interp, size_t arity, common::term args[])
-    {
-	interp.set_p(interp.cp());
-        interp.deallocate_environment();
-
-        return true;
-    }
-
     // TODO: This needs to be modified to use callbacks. 
     bool builtins::operator_disjunction(interpreter_base &interp, size_t arity, common::term args[])
     {
 	static con_cell arrow("->", 2);
-	static con_cell deallocate_and_proceed_op("_#",0);
 
 	// Check if this is an if-then-else
 	term arg0 = args[0];
@@ -84,9 +82,6 @@ namespace prologcoin { namespace interp {
 
 	term arg1 = args[1];
 	interp.allocate_environment(false);
-	interp.set_cp(interp.p());
-	interp.allocate_environment(false);
-	interp.set_cp(code_point(deallocate_and_proceed_op));
         interp.allocate_choice_point(code_point(arg1));
 	interp.set_p(code_point(arg0));
 	return true;
@@ -95,19 +90,18 @@ namespace prologcoin { namespace interp {
     // TODO: This needs to be modified to use callbacks.
     bool builtins::operator_if_then(interpreter_base &interp, size_t arity, common::term args[])
     {
-	static con_cell cut_op("!",0);
+	static con_cell cut_op_if("_!",0);
 
 	interp.allocate_choice_point(code_point::fail());
 	interp.move_cut_point_to_last_choice_point();
-	term cut = cut_op;
+	term cut_if = cut_op_if;
 	term arg0 = args[0];
 	term arg1 = args[1];
-	interp.allocate_environment(false);
-	interp.set_cp(interp.p());
+	// interp.protect_environment();
 	interp.allocate_environment(false);
 	interp.set_cp(code_point(arg1));
 	interp.allocate_environment(false);
-	interp.set_cp(code_point(cut));
+	interp.set_cp(code_point(cut_if));
 	interp.allocate_environment(false);
 	interp.set_p(code_point(arg0));
         return true;
@@ -117,7 +111,6 @@ namespace prologcoin { namespace interp {
     bool builtins::operator_if_then_else(interpreter_base &interp, size_t arity, common::term args[])
     {
 	static con_cell cut_op_if("_!",0);
-	static con_cell deallocate_and_proceed_op("_#",0);
 
 	term lhs = args[0];
 
@@ -126,10 +119,6 @@ namespace prologcoin { namespace interp {
 	term if_false = args[1];
 	term cut_if = cut_op_if;
 
-	interp.allocate_environment(false);
-	interp.set_cp(interp.p());
-	interp.allocate_environment(false);
-	interp.set_cp(code_point(deallocate_and_proceed_op));
 	// Go to 'C' the false clause if ((A->B) ; C) fails
 	interp.allocate_choice_point(code_point(if_false));
 	interp.move_cut_point_to_last_choice_point();
@@ -137,6 +126,7 @@ namespace prologcoin { namespace interp {
 	interp.set_cp(code_point(if_true));
 	interp.allocate_environment(false);
 	interp.set_cp(code_point(cut_if));
+	interp.allocate_environment(false);
 	interp.set_p(code_point(cond));
         return true;
     }
@@ -450,8 +440,6 @@ namespace prologcoin { namespace interp {
 	interp.set_top_e();
 	interp.allocate_choice_point(code_point::fail());
 	interp.set_top_b(interp.b());
-	interp.allocate_environment(false);
-	interp.set_qr(arg);
 	interp.set_p(code_point(arg));
 	interp.set_cp(interp.empty_list());
 
@@ -463,16 +451,17 @@ namespace prologcoin { namespace interp {
     {
         bool failed = interp.is_top_fail();
 
-        interp.deallocate_environment();
 	interp.unwind_to_top_choice_point();
 	interp.release_last_meta_context();
 
 	// Note that this is "disprove," so its success is the reverse of
 	// the underlying expression to succeed.
 	interp.set_top_fail(!failed);
-	if (!failed) {
-	    interp.set_p(code_point(interp.empty_list()));
-        }
+	interp.set_complete(false);
+
+	interp.deallocate_environment();
+	interp.set_p(interp.cp());
+	interp.set_cp(interp.empty_list());
     }
 
 }}

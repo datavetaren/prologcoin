@@ -1,5 +1,5 @@
 % Meta: fileio on
-% Meta: debug off
+% Meta: debug on
 % Meta: WAM-only
 
 % Read in standard library
@@ -499,18 +499,23 @@ states_list([State|States], Grammar, StatesIn, StatesOut) :-
 state_transitions([], _, _, FromState, States, States, FromState, []).
 state_transitions([Symbol|Symbols], Grammar, Closure,
 		  FromState, StatesIn, StatesOut, UpdatedFromState, NewStates) :-
+    write('Hello '), write(Symbol), nl,
     select_items(Closure, Symbol, KernelItems),
 %    compact_items(KernelItems1, KernelItems),
     (\+ has_state(StatesIn, KernelItems) ->
 	 NewStates = [state(N,KernelItems,Actions)|NewStates0]
        ; NewStates = NewStates0),
+    write('before add state'), nl,
     add_state(StatesIn, KernelItems, StatesOut1, state(N,KernelItems,Actions)),
-%    write('shift \''), write(Symbol), write('\' --> goto '), write(N), nl,
+    write('after add state'), nl,
+    write(N), nl,
+    write('shift \''), write(Symbol), write('\' --> goto '), write(N), nl,
 %    lookahead_list(Grammar, KernelItems, ShiftLA),
     (terminal(Grammar, Symbol) ->
 	state_add_action(FromState, shift(Symbol, N), FromState1)
      ;  state_add_action(FromState, goto(Symbol, N), FromState1)
     ),
+    write('continue here'), nl,
     state_transitions(Symbols, Grammar, Closure, FromState1, StatesOut1,
 		      StatesOut, UpdatedFromState, NewStates0).
 
@@ -562,12 +567,15 @@ add_state(StatesIn, KernelItems, StatesOut, State) :-
     add_state(StatesIn, 0, KernelItems, StatesOut, State).
 
 add_state([], Cnt, KernelItems, [State], State) :-
-%    write('new state '), write(Cnt), nl,
+    write('new state '), write(Cnt), nl,
     State = state(Cnt, KernelItems, []).
 add_state([State|States], Cnt, KernelItems, [State|StatesOut], Found) :-
+    write('old state'), nl,
     State = state(_N,StateKernelItems,_StateActions),
+    write(StateKernelItems), nl,
+    write(KernelItems), nl,
     (\+ \+ KernelItems = StateKernelItems ->
-	 Found = State,
+	 write('Here...'), nl, Found = State,
 	 States = StatesOut
    ; Cnt1 is Cnt + 1,
      add_state(States, Cnt1, KernelItems, StatesOut, Found)).
@@ -579,6 +587,7 @@ replace_state([State|States], UpdatedState, [State|NewStates]) :-
 
 state_add_action(state(N,KernelItems,Actions), Action,
 		 state(N,KernelItems,NewActions)) :-
+    write('state_add_action '), write(Action), nl,
     append(Actions, [Action], NewActions).
 
 select_items([], _, []).
@@ -766,8 +775,9 @@ item_move_next_body(('DOT', A), (A, 'DOT')) :- !, functor(A, F, _), F \= {}.
 item_move_next_body((A, B), (A, NewB)) :-
     item_move_next_body(B, NewB).
 
-terminal([], _).
+terminal([], _) :- write('terminal done'), nl.
 terminal([(Head :- _) | Clauses], Symbol) :-
+        write('terminal '), write(Symbol), nl,
 	functor(Symbol, F1, N1),
         functor(Head, F2, N2),
         (F1 \= F2 ; N1 \= N2),

@@ -158,12 +158,11 @@ void interpreter_base::load_builtins()
     load_builtin(con_cell("true",0), &builtins::true_0);
 
     // Control flow
-    load_builtin(con_cell(",",2), &builtins::operator_comma);
+    load_builtin(con_cell(",",2), builtin(&builtins::operator_comma,true));
     load_builtin(con_cell("!",0), &builtins::operator_cut);
     load_builtin(con_cell("_!",0), &builtins::operator_cut_if);
-    load_builtin(con_cell("_#",0), &builtins::operator_deallocate_and_proceed);
-    load_builtin(con_cell(";",2), &builtins::operator_disjunction);
-    load_builtin(con_cell("->",2), &builtins::operator_if_then);
+    load_builtin(con_cell(";",2), builtin(&builtins::operator_disjunction,true));
+    load_builtin(con_cell("->",2), builtin(&builtins::operator_if_then, true));
 
     // Standard order, equality and unification
 
@@ -197,7 +196,7 @@ void interpreter_base::load_builtins()
     load_builtin(con_cell("=..", 2), &builtins::operator_deconstruct);
 
     // Meta
-    load_builtin(con_cell("\\+", 1), &builtins::operator_disprove);
+    load_builtin(con_cell("\\+", 1), builtin(&builtins::operator_disprove,true));
 }
 
 void interpreter_base::load_builtins_opt()

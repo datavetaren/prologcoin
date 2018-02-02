@@ -669,8 +669,8 @@ void wam_compiler::update_calls_for_environment_trimming(wam_interim_code &instr
 	    auto call_instr = reinterpret_cast<wam_instruction<CALL> *>(instr);
 	    call_instr->set_num_y(static_cast<size_t>(biggest_y+1));
 	}
-	if (instr->type() == BUILTIN) {
-	    auto bn_instr = reinterpret_cast<wam_instruction<BUILTIN> *>(instr);
+	if (instr->type() == BUILTIN_R) {
+	    auto bn_instr = reinterpret_cast<wam_instruction<BUILTIN_R> *>(instr);
 	    bn_instr->set_num_y(static_cast<size_t>(biggest_y+1));
 	}
     }
@@ -682,7 +682,7 @@ void wam_compiler::find_unsafe_y_registers(wam_interim_code &instrs,
     // We need at least one call instruction.
     size_t num_calls = 0;
     for (auto instr : instrs) {
-        if (instr->type() == CALL || instr->type() == BUILTIN) {
+        if (instr->type() == CALL || instr->type() == BUILTIN_R) {
 	    num_calls++;
 	}
     }
@@ -799,7 +799,12 @@ void wam_compiler::compile_clause(const term clause0, wam_interim_code &seq)
 	    bool isbn = is_builtin(f);
 	    if (isbn) {
 		if (f != bn_true) {
-		    seq.push_back(wam_instruction<BUILTIN>(f, get_builtin(f), 0));
+		    auto &bn = get_builtin(f);
+		    if (bn.is_recursive()) {
+			seq.push_back(wam_instruction<BUILTIN_R>(f, bn.fn(), 0));
+		    } else {
+			seq.push_back(wam_instruction<BUILTIN>(f, bn.fn()));
+		    }
 		}
 	    } else {
 	        seq.push_back(wam_instruction<CALL>(f, 0));
@@ -814,7 +819,12 @@ void wam_compiler::compile_clause(const term clause0, wam_interim_code &seq)
 	bool isbn = is_builtin(f);
 	if (isbn) {
 	    if (f != bn_true) {
-	        seq.push_back(wam_instruction<BUILTIN>(f, get_builtin(f), 0));
+		auto &bn = get_builtin(f);
+		if (bn.is_recursive()) {
+		    seq.push_back(wam_instruction<BUILTIN_R>(f, bn.fn(), 0));
+		} else {
+		    seq.push_back(wam_instruction<BUILTIN>(f, bn.fn()));
+		}
 	    }
 	} else {
   	    if (needs_env) {

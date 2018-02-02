@@ -306,7 +306,7 @@ private:
         return interp_.is_builtin(f);
     }
 
-    inline builtin get_builtin(common::con_cell f) const
+    inline builtin & get_builtin(common::con_cell f) const
     {
         return interp_.get_builtin(f);
     }

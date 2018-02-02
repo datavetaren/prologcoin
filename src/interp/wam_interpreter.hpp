@@ -69,6 +69,7 @@ enum wam_instruction_type {
   EXECUTE,
   PROCEED,
   BUILTIN,
+  BUILTIN_R, // Recursive built-in (saves number of Y slots)
  
   TRY_ME_ELSE,
   RETRY_ME_ELSE,
@@ -510,10 +511,38 @@ public:
     static void updater(wam_instruction_base *self, code_t *old_base, code_t *new_base);
 };
 
-template<> class wam_instruction<BUILTIN> : public wam_instruction_code_point_reg {
+template<> class wam_instruction<BUILTIN> : public wam_instruction_code_point {
 public:
-    inline wam_instruction(common::con_cell f, builtin b, uint32_t num_y) :
-       wam_instruction_code_point_reg(&invoke, sizeof(*this), BUILTIN,
+    inline wam_instruction(common::con_cell f, builtin_fn b) :
+       wam_instruction_code_point(&invoke, sizeof(*this), BUILTIN,
+				  code_point(f,b)) {
+       init();
+    }
+
+    inline static void init() {
+	static bool init_ = [] {
+	    register_printer(&invoke, &print);
+	    return true; } ();
+	static_cast<void>(init_);
+    }
+
+    inline common::con_cell f() const {
+        const common::con_cell &fc = static_cast<const common::con_cell &>(
+            cp().term_code()); return fc;
+    }
+    inline builtin_fn bn() { return cp().bn(); }
+    inline size_t arity() const { return f().arity(); }
+
+    static void invoke(wam_interpreter &interp, wam_instruction_base *self);
+
+    static void print(std::ostream &out, wam_interpreter &interp, wam_instruction_base *self);
+private:
+};
+
+template<> class wam_instruction<BUILTIN_R> : public wam_instruction_code_point_reg {
+public:
+    inline wam_instruction(common::con_cell f, builtin_fn b, uint32_t num_y) :
+       wam_instruction_code_point_reg(&invoke, sizeof(*this), BUILTIN_R,
 				      code_point(f,b), num_y) {
        init();
     }
@@ -529,7 +558,7 @@ public:
         const common::con_cell &fc = static_cast<const common::con_cell &>(
             cp().term_code()); return fc;
     }
-    inline builtin bn() const { return cp().bn(); }
+    inline builtin_fn bn() { return cp().bn(); }
     inline size_t arity() const { return f().arity(); }
 
     inline size_t num_y() const { return reg(); }
@@ -540,6 +569,7 @@ public:
     static void print(std::ostream &out, wam_interpreter &interp, wam_instruction_base *self);
 private:
 };
+
 
 class wam_interpreter : public interpreter_base, public wam_code
 {
@@ -563,19 +593,6 @@ public:
 	return interpreter_base::to_string(t, style);
     }
 
-    inline bool execute_wam()
-    {
-	return cont_wam();
-    }
-
-  /*
-    inline void print_env()
-    {
-        std::cout << "e0: " << e0() << "\n";
-	std::cout << "te: " << top_e() << "\n";
-    }
-  */
-
 protected:
 
     inline bool backtrack_wam()
@@ -591,7 +608,7 @@ protected:
 	    if (auto instr = p().wam_code()) {
 		if (is_debug()) {
 		    std::cout << "[WAM debug]: [" << std::setw(5)
-			      << to_code_addr(instr) << "]: ";
+			      << to_code_addr(instr) << "]: e=" << e0() << " ";
 		    instr->print(std::cout, *this);
 		    std::cout << "\n";
 		}
@@ -948,6 +965,7 @@ private:
     {
         bool fail = false;
         term t = deref(a(ai));
+
 	switch (t.tag()) {
 	case common::tag_t::REF: {
 	  auto ref = static_cast<common::ref_cell &>(t);
@@ -1251,9 +1269,16 @@ private:
     {
         set_cp(p());
 	next_instruction(cp());
-	set_num_of_args(arity);
-	set_b0(b());
         set_p(p1);
+	set_num_of_args(arity);
+
+	if (!p1.has_wam_code()) {
+	    allocate_environment(false);
+	    set_cp(empty_list());
+	    return; // Go back to simple interpreter
+	}
+
+	set_b0(b());
     }
 
     inline void execute(code_point &p1, size_t arity)
@@ -1263,17 +1288,16 @@ private:
 	set_p(p1);
     }
 
+protected:
     inline void proceed()
     {
         set_p(cp());
-	if (!p().has_wam_code()) {
-	    set_cp(empty_list());
-	}
     }
+private:
 
-    inline bool builtin(wam_instruction_base *p0)
+    inline bool builtin_r(wam_instruction_base *p0)
     {
-        auto bn = reinterpret_cast<wam_instruction<BUILTIN> *>(p0);
+        auto bn = reinterpret_cast<wam_instruction<BUILTIN_R> *>(p0);
 	size_t num_args = bn->arity();
 	set_num_of_args(num_args);
 	goto_next_instruction();
@@ -1282,7 +1306,31 @@ private:
 	for (size_t i = 0; i < num_args; i++) {
 	    args[i] = deref(a(i));
 	}
-	bool r = (bn->bn())(*this, bn->arity(), args);
+	prologcoin::interp::builtin_fn fn = bn->bn();
+	// A recursive predicate will return to the next instruction
+	set_cp(p());
+	allocate_environment(false);
+	set_cp(empty_list());
+	bool r = fn(*this, bn->arity(), args);
+	if (!r) {
+	    backtrack();
+	}
+	return r;
+    }
+
+    inline bool builtin(wam_instruction_base *p0)
+    {
+        auto bn = reinterpret_cast<wam_instruction<BUILTIN_R> *>(p0);
+	size_t num_args = bn->arity();
+	set_num_of_args(num_args);
+	goto_next_instruction();
+
+	common::term args[builtins::MAX_ARGS];
+	for (size_t i = 0; i < num_args; i++) {
+	    args[i] = deref(a(i));
+	}
+	prologcoin::interp::builtin_fn fn = bn->bn();
+	bool r = fn(*this, bn->arity(), args);
 	if (!r) {
 	    backtrack();
 	}
@@ -1315,7 +1363,6 @@ private:
 	unwind_trail(b()->tr, trail_size());
 	trim_trail(b()->tr);
 	trim_heap(b()->h);
-        // std::cout << "deallocate_choice_point: b=" << b()->b << " e=" << e() << " (old_b=" << b() << ")\n";
         set_b(b()->b);
 	if (b() != nullptr) {
 	    set_register_hb(b()->h);
@@ -2805,7 +2852,19 @@ inline void wam_instruction<BUILTIN>::invoke(wam_interpreter &interp, wam_instru
 inline void wam_instruction<BUILTIN>::print(std::ostream &out, wam_interpreter &interp, wam_instruction_base *self)
 {
     auto self1 = reinterpret_cast<wam_instruction<BUILTIN> *>(self);
-    out << "builtin " << interp.to_string(self1->f()) << "/" << self1->arity() << ", " << self1->num_y();
+    out << "builtin " << interp.to_string(self1->f()) << "/" << self1->arity();
+}
+
+inline void wam_instruction<BUILTIN_R>::invoke(wam_interpreter &interp, wam_instruction_base *self)
+{
+    auto self1 = reinterpret_cast<wam_instruction<BUILTIN_R> *>(self);
+    interp.builtin_r(self1);
+}
+
+inline void wam_instruction<BUILTIN_R>::print(std::ostream &out, wam_interpreter &interp, wam_instruction_base *self)
+{
+    auto self1 = reinterpret_cast<wam_instruction<BUILTIN_R> *>(self);
+    out << "builtin_r " << interp.to_string(self1->f()) << "/" << self1->arity() << ", " << self1->num_y();
 }
 
 template<> class wam_instruction<TRY_ME_ELSE> : public wam_instruction_code_point {

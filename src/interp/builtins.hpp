@@ -12,7 +12,34 @@ namespace prologcoin { namespace interp {
 
     // We avoid std::function, because it is not as efficient as a
     // "raw" C function pointer.
-    typedef bool (*builtin)(interpreter_base &interp, size_t arity, common::term args[]);
+    typedef bool (*builtin_fn)(interpreter_base &interp, size_t arity, common::term args[]);
+
+    class builtin {
+    public:
+	builtin()
+	    : fn_(nullptr), recursive_(false) { }
+	builtin(const builtin &other)
+	    : fn_(other.fn_), recursive_(other.recursive_) { }
+
+	builtin(builtin_fn fn, bool is_rec = false)
+            : fn_(fn), recursive_(is_rec) { }
+	
+	bool is_empty() const {
+	    return fn_ == nullptr;
+	}
+
+	bool is_recursive() const {
+	    return recursive_;
+	}
+
+	builtin_fn fn() const {
+	    return fn_;
+	}
+	
+    private:
+	builtin_fn fn_;
+	bool recursive_;
+    };
 
     class builtins {
     public:
@@ -37,7 +64,6 @@ namespace prologcoin { namespace interp {
         static bool operator_comma(interpreter_base &interp, size_t arity, common::term args[]);
         static bool operator_cut(interpreter_base &interp, size_t arity, common::term args[]);
         static bool operator_cut_if(interpreter_base &interp, size_t arity, common::term args[]);
-        static bool operator_deallocate_and_proceed(interpreter_base &interp, size_t arity, common::term args[]);
         static bool operator_disjunction(interpreter_base &interp, size_t arity, common::term args[]);
 	static bool operator_arrow(interpreter_base &interp, size_t arity, common::term args[]);
         static bool operator_if_then(interpreter_base &interp, size_t arity, common::term args[]);

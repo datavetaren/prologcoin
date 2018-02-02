@@ -68,6 +68,11 @@ static void process_meta(interpreter &interp, std::string &comments,
 	    interp.enable_file_io();
 	} else if (cmd == "WAM-only") {
             opt["WAM-only"] = 1;
+	} else if (boost::algorithm::starts_with(cmd, "dont-compile ")) {
+	    opt[cmd] = 1;
+	} else {
+	    std::cout << "Error. Unknown command/option: " << cmd << "\n";
+	    assert("Unknown command/option" == "");
 	}
     }
 }
@@ -274,10 +279,16 @@ static bool test_interpreter_file(const std::string &filepath)
 
 		// Compile recent predicates
 		if (do_compile) {
+		    std::unordered_set<std::string> dont_compile_set;
 		    for (auto p : predicates) {
-		        std::cout << "[Compile]: "<< interp.to_string(p) << "/"
-			          << p.arity() << "\n";
-	   	        interp.compile(p);
+			auto p_name = interp.to_string(p) + "/"
+			       + boost::lexical_cast<std::string>(p.arity());
+			if (opt.count("dont-compile " + p_name) > 0) {
+	    	            std::cout << "[DONT compile]: "<< p_name << "\n";
+			} else {
+	    	            std::cout << "[Compile]: "<< p_name << "\n";
+			    interp.compile(p);
+			}
 	   	    }
 		    if (interp.is_debug()) {
 			interp.print_code(std::cout);

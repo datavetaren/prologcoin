@@ -43,6 +43,7 @@ private:
 			 code_point &cp);
     void dispatch();
     void dispatch_wam(wam_instruction_base *instruction);
+    bool unify_args(term clause_head, const code_point &p);
     bool select_clause(const code_point &instruction,
 		       size_t index_id,
 		       std::vector<term> &clauses,
