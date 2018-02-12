@@ -225,6 +225,36 @@ static void test_dfs_iterator()
     assert(it_expected == std::end(expected));
 }
 
+static void test_copy_term_heaps()
+{
+    header( "test_copy_term_heaps()" );
+
+    term_env src_env;
+    term_env dst_env;
+
+    std::string s = "foo(bar(1,baz(X,Y,2),fun),[1,2,3,X],end).";
+    auto t_src = src_env.parse(s);
+
+    auto src_str = src_env.to_string(t_src);
+    std::cout << "Source     : " << src_str << "\n";
+
+    auto t_dst = dst_env.copy(t_src, src_env);
+
+    std::cout << "Destination: " << dst_env.to_string(t_dst) << "\n";
+
+    auto t_src2 = src_env.copy(t_dst, dst_env);
+
+    std::cout << "Back       : " << src_env.to_string(t_src2) << "\n";
+
+    src_env.unify(t_src, t_src2);
+
+    auto unify_str = src_env.to_string(t_src2);
+
+    std::cout << "Unify      : " << unify_str << "\n";
+
+    assert(src_str == unify_str);
+}
+
 int main( int argc, char *argv[] )
 {
     test_simple_env();
@@ -234,6 +264,7 @@ int main( int argc, char *argv[] )
     test_unify_append();
     test_copy_term();
     test_dfs_iterator();
+    test_copy_term_heaps();
 
     return 0;
 }
