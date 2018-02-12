@@ -51,11 +51,16 @@ namespace prologcoin { namespace interp {
 
         static bool profile_0(interpreter_base &interp, size_t arity, common::term args []);
 
+	static bool debug_on_0(interpreter_base &interp, size_t arity, common::term args []);
+	static bool debug_check_0(interpreter_base &interp, size_t arity, common::term args[]);
+
 	//
 	// Simple
 	//
 
 	static bool true_0(interpreter_base &interp, size_t arity, common::term args[]);
+
+	static bool fail_0(interpreter_base &interp, size_t arity, common::term args[]);
 
         //
         // Control flow
@@ -130,7 +135,16 @@ namespace prologcoin { namespace interp {
 
 	// acyclic_term/1
 	static bool acyclic_term(interpreter_base &interp, size_t arity, common::term args[]);
-	
+
+	// is_list/1
+	static bool is_list_1(interpreter_base &interp, size_t arity, common::term args[]);
+
+
+	//
+	// Character properties
+	//
+
+	static bool upcase_atom_2(interpreter_base &interp, size_t arity, common::term args[]);
 
 	//
 	// Arithmetics
@@ -160,7 +174,9 @@ namespace prologcoin { namespace interp {
 	//
 	
 	static bool operator_disprove(interpreter_base &interp, size_t arity, common::term args[]);
-	static void operator_disprove_post(interpreter_base &interp, meta_context *context);
+	static bool operator_disprove_post(interpreter_base &interp, meta_context *context);
+	static bool findall_3(interpreter_base &interp, size_t arity, common::term args[]);
+	static bool findall_3_post(interpreter_base &interp, meta_context *context);
     };
 
 }}

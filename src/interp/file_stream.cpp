@@ -15,8 +15,14 @@ file_stream::~file_stream()
     if (tokenizer_) {
         delete tokenizer_;
     }
-    if (in_) {
+    if (emitter_) {
+	delete emitter_;
+    }
+    if (in_ && in_owner_) {
         delete in_;
+    }
+    if (out_ && out_owner_) {
+	delete out_;
     }
 }
 
@@ -27,8 +33,12 @@ size_t file_stream::get_id() const
 
 bool file_stream::is_eof()
 {
-    ensure_parser();
-    return parser_->is_eof();
+    if (in_) {
+	ensure_parser();
+	return parser_->is_eof();
+    } else {
+	return false;
+    }
 }
 
 void file_stream::open(mode_t mode)
@@ -38,10 +48,22 @@ void file_stream::open(mode_t mode)
         return;
     }
 
-    assert(mode == READ);
-
-    in_ = new std::ifstream(path_);
     mode_ = mode;
+    switch (mode) {
+    case READ:
+	in_ = new std::ifstream(path_); in_owner_ = true; break;
+    case WRITE:
+	out_ = new std::ofstream(path_); out_owner_ = true; break;
+    default:
+	assert(mode == READ || mode == WRITE);
+    }
+}
+
+void file_stream::open(std::ostream &out)
+{
+    mode_ = WRITE;
+    out_ = &out;
+    out_owner_ = false;
 }
 
 void file_stream::close()
@@ -54,10 +76,18 @@ void file_stream::close()
         delete tokenizer_;
 	tokenizer_ = nullptr;
     }
-    if (in_) {
-        delete in_;
-	in_ = nullptr;
+    if (emitter_) {
+	delete emitter_;
+	emitter_ = nullptr;
     }
+    if (in_ && in_owner_) {
+        delete in_;
+    }
+    in_ = nullptr;
+    if (out_ && out_owner_) {
+	delete out_;
+    }
+    out_ = nullptr;
 }
 
 term file_stream::read_term()
@@ -72,6 +102,39 @@ term file_stream::read_term()
     parser_->clear_var_names();
 
     return r;
+}
+
+void file_stream::ensure_emitter()
+{
+    if (mode_ != WRITE) {
+	return;
+    }
+
+    if (emitter_ == nullptr) {
+	emitter_ = new term_emitter(*out_, env_, env_);
+        emitter_->set_style(term_emitter::STYLE_TERM);
+	emitter_->set_option_quoted(false);
+	emitter_->set_option_nl(false);
+        emitter_->set_var_naming(env_.var_naming());
+    }
+}
+
+void file_stream::write_term(const term t)
+{
+    ensure_emitter();
+
+    emitter_->reset();
+    emitter_->print(t);
+}
+
+void file_stream::write(const std::string &s)
+{
+    *out_ << s;
+}
+
+void file_stream::nl()
+{
+    *out_ << std::endl;
 }
 
 void file_stream::ensure_parser()

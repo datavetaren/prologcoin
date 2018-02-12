@@ -46,14 +46,14 @@ length([_|Xs], N) :- length(Xs, N0), N is N0 + 1.
 % sort/2 (merge sort)
 %
 
-sort([],[]).
-sort([A],[A]).
-sort([A,B|Xs0], Ys) :-
-    Xs = [A,B|Xs0],
-    split(Xs, As, Bs),
-    sort(As, As1),
-    sort(Bs, Bs1),
-    merge(As1, Bs1, Ys).
+%sort([],[]).
+%sort([A],[A]).
+%sort([A,B|Xs0], Ys) :-
+%    Xs = [A,B|Xs0],
+%    split(Xs, As, Bs),
+%    sort(As, As1),
+%    sort(Bs, Bs1),
+%    merge(As1, Bs1, Ys).
 
 split([], [], []).
 split([A], [A], []).
@@ -68,3 +68,17 @@ merge([X|Xs], [Y|Ys], [X|Zs]) :-
     X @< Y, merge(Xs, [Y|Ys], Zs).
 merge([X|Xs], [Y|Ys], [Y|Zs]) :-
     X @> Y, merge([X|Xs], Ys, Zs).
+
+%
+% flatten/2 
+%
+flatten(X, Y) :- \+ var(X), X == [], X = Y.
+flatten(A, Ys) :- \+ var(A), A = [X|Xs],
+    !,
+    flatten(X, F1),
+    flatten(Xs, F2),
+    append(F1, F2, Ys), !.
+flatten(X, [X]).
+
+    
+

@@ -63,4 +63,29 @@ wam_interpreter::~wam_interpreter()
     }
 }
 
+bool wam_interpreter::cont_wam()
+{
+    fail_ = false;
+    while (p().has_wam_code() && !is_top_fail()) {
+	if (auto instr = p().wam_code()) {
+	    if (is_debug()) {
+		std::cout << "[WAM debug]: tr=" << trail_size() << " [" << std::setw(5)
+			  << to_code_addr(instr) << "]: e=" << e0() << " ";
+		instr->print(std::cout, *this);
+		std::cout << "\n";
+	    }
+	    instr->invoke(*this);
+	    cnt++;
+	}
+    }
+    if (is_debug()) {
+	if (fail_) {
+	    std::cout << "[WAM debug]: fail\n";
+	} else {
+	    std::cout << "[WAM debug]: exit\n";
+	}
+    }
+    return !fail_;
+}
+
 }}

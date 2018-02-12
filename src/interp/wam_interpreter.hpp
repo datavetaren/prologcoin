@@ -601,30 +601,9 @@ protected:
 	return !fail_;
     }
 
-    inline bool cont_wam()
-    {
-        fail_ = false;
-        while (p().has_wam_code() && !is_top_fail()) {
-	    if (auto instr = p().wam_code()) {
-		if (is_debug()) {
-		    std::cout << "[WAM debug]: [" << std::setw(5)
-			      << to_code_addr(instr) << "]: e=" << e0() << " ";
-		    instr->print(std::cout, *this);
-		    std::cout << "\n";
-		}
-		instr->invoke(*this);
-	    }
-	}
-	if (is_debug()) {
-  	    if (fail_) {
-	        std::cout << "[WAM debug]: fail\n";
-	    } else {
-	        std::cout << "[WAM debug]: exit\n";
-	    }
-	}
-	return !fail_;
-    }
+    int cnt = 0;
 
+    bool cont_wam();
 private:
     bool fail_;
 
@@ -676,6 +655,9 @@ private:
     inline void backtrack()
     {
         if (b() == top_b()) {
+	    if (b() != nullptr) {
+		set_b0(b()->b0);
+	    }
 	    set_top_fail(true);
 	    if (is_debug()) {
 	        std::cout << "[WAM debug]: backtrack(): Top fail\n";
@@ -694,9 +676,10 @@ private:
 
     inline void tidy_trail()
     {
-        size_t i = b()->tr;
+        size_t i = (b() != nullptr) ? b()->tr: 0;
 	size_t tr = trail_size();
 	size_t bb = to_stack_addr(base(b()));
+
 	while (i < tr) {
 	    if (trail_get(i) < get_register_hb() ||
 		(heap_size() < trail_get(i) && trail_get(i) < bb)) {
@@ -706,6 +689,7 @@ private:
 		tr--;
 	    }
 	}
+	trim_trail(tr);
     }
 
     inline void unwind_trail(size_t a1, size_t a2)
@@ -1236,6 +1220,7 @@ private:
 	if (fail) {
 	    backtrack();
 	} else {
+	    register_s_++;
 	    goto_next_instruction();
 	}
     }
@@ -1271,14 +1256,16 @@ private:
 	next_instruction(cp());
         set_p(p1);
 	set_num_of_args(arity);
+	set_b0(b());
 
 	if (!p1.has_wam_code()) {
+	    for (size_t i = 0; i < arity; i++) {
+		a(i) = deref(a(i));
+	    }
 	    allocate_environment(false);
 	    set_cp(empty_list());
 	    return; // Go back to simple interpreter
 	}
-
-	set_b0(b());
     }
 
     inline void execute(code_point &p1, size_t arity)
@@ -1496,7 +1483,10 @@ private:
 	     to_stack(static_cast<common::int_cell &>(y(yn)).value()));
 	if (b() > b0) {
 	    set_b(b0);
+	    if (b() != nullptr) set_register_hb(b()->h);
+	    tidy_trail();
 	}
+	goto_next_instruction();
     }
 
     friend class test_wam_interpreter;
@@ -3334,6 +3324,7 @@ public:
     }
 
     inline uint32_t yn() const { return reg(); }
+    void set_yn(uint32_t yn) { set_reg(yn); }
 
     static void invoke(wam_interpreter &interp, wam_instruction_base *self)
     {

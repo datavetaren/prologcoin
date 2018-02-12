@@ -71,3 +71,42 @@ perm(Xs, [X|Ys]) :-
 % Expect: Q13 = [3,1,2]
 % Expect: Q13 = [3,2,1]
 % Expect: end
+
+%
+% Check structure indexing
+%
+
+actions([], Out, Out).
+actions([A|As], In, Out) :-
+    action(A, In, Out1),
+    actions(As, Out1, Out).
+
+action(shift(Symbol,N), In, Out) :- append(In, [shift(Symbol,N)], Out).
+action(goto(Symbol,N), In, Out) :- append(In, [goto(Symbol,N)], Out).
+action(reduce(LAs,Cond,Rule), In, Out) :- append(In, [reduce(LAs,Cond,Rule)],Out).
+
+?- actions([shift(a,1),goto(b,2),reduce([x,y,z],cond,rule)], [], Q14).
+% Expect: Q14 = [shift(a, 1),goto(b, 2),reduce([x,y,z], cond, rule)]
+% Expect: end
+
+%
+% Move dot
+%
+
+move_dot( ('DOT', X), Symbol ) :-
+	!, functor(X, F, _), F \= {}, move_dot_found(X, Symbol).
+move_dot( (_, R), Symbol ) :-
+	move_dot(R, Symbol).
+
+move_dot_found((Symbol, _), Symbol) :-
+	!, functor(Symbol,F,_), F \= {}, \+ is_list(Symbol).
+move_dot_found(Symbol, Symbol) :-
+	functor(Symbol,F,_), F \= {}, \+ is_list(Symbol).
+
+?- move_dot( ('DOT', subterm_1200, full_stop), Q15).
+% Expect: Q15 = subterm_1200
+% Expect: end
+
+
+
+

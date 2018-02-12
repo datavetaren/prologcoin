@@ -5,6 +5,7 @@
 
 #include <istream>
 #include <vector>
+#include <stack>
 #include "../common/term_env.hpp"
 #include "builtins.hpp"
 #include "builtins_opt.hpp"
@@ -84,6 +85,13 @@ public:
 	: std::runtime_error(msg) { }
 };
 
+class interpreter_exception_stack_overflow : public interpreter_exception
+{
+public:
+    interpreter_exception_stack_overflow(const std::string &msg)
+	: interpreter_exception(msg) { }
+};
+
 class interpreter_exception_undefined_predicate : public interpreter_exception
 {
 public:
@@ -102,6 +110,13 @@ class interpreter_exception_file_not_found : public interpreter_exception
 {
 public:
       interpreter_exception_file_not_found(const std::string &msg)
+	: interpreter_exception(msg) { }
+};
+
+class interpreter_exception_nothing_told : public interpreter_exception
+{
+public:
+    interpreter_exception_nothing_told(const std::string &msg)
 	: interpreter_exception(msg) { }
 };
 
@@ -266,7 +281,7 @@ struct meta_context {
     size_t old_hb;
 };
 
-typedef std::function<void (interpreter_base &, meta_context *)> meta_fn;
+typedef std::function<bool (interpreter_base &, meta_context *)> meta_fn;
 typedef std::pair<meta_context *, meta_fn> meta_entry;
 
 class interpreter_base : public common::term_env {
@@ -286,7 +301,11 @@ public:
 
     inline bool is_debug() const { return debug_; }
     inline void set_debug(bool dbg) { debug_ = dbg; arith_.set_debug(dbg); }
+    inline void debug_check() { debug_check_fn_(); }
+    inline void set_debug_check_fn(std::function<void ()> fn)
+        { debug_check_fn_ = fn; }
 
+    void set_debug_enabled();
     void enable_file_io();
     void set_current_directory(const std::string &dir);
     std::string get_full_path(const std::string &path) const;
@@ -400,6 +419,10 @@ protected:
     {
         return static_cast<size_t>(p - stack_) + STACK_BASE;
     }
+    inline size_t to_stack_relative_addr(word_t *p)
+    {
+        return static_cast<size_t>(p - stack_);
+    }
 
     typedef size_t (*num_y_fn_t)(interpreter_base *interp, environment_base_t *);
 
@@ -468,9 +491,17 @@ protected:
         return b() > b0();
     }
 
-    inline void reset_choice_point()
+    inline void cut_direct()
     {
-        set_b(b0());
+	set_b(b0());
+	if (b() != nullptr) set_register_hb(b()->h);
+	tidy_trail();
+    }
+    inline void cut()
+    {
+	if (b() > b0()) {
+	    cut_direct();
+	}
     }
 
     void unwind_to_top_choice_point();
@@ -607,6 +638,11 @@ protected:
 	    }
 	}
 
+	if (to_stack_relative_addr(new_e0) + MAX_STACK_FRAME_WORDS
+	    >= MAX_STACK_SIZE_WORDS) {
+	    throw interpreter_exception_stack_overflow("Exceeded maximum stack size (" + boost::lexical_cast<std::string>(MAX_STACK_SIZE) + " bytes.)");
+	}
+
 	if (for_wam) {
 	    environment_t *new_e = reinterpret_cast<environment_t *>(new_e0);
 	    new_e->ce = save_e();
@@ -642,22 +678,6 @@ protected:
 	// std::cout << "[after]  deallocate_environment: e=" << e() << " p=" << to_string_cp(p()) << " cp=" << to_string_cp(cp()) << "\n";
     }
 
-    void protect_environment()
-    {
-	static con_cell deallocate2_and_proceed_op("__#",0);
-
-	// This environment assumes p() is the return address, but at some
-	// point into the future. Therefore, we need to set cp() to p()
-	// before allocating the environment (so the we get the number of
-	// slots to protect), but we later patch the environments cp().
-	code_point old_cp = cp();
-	set_cp(p());
-	allocate_environment(false);
-	set_cp(old_cp);
-	allocate_environment(false);
-	set_cp(code_point(deallocate2_and_proceed_op));
-    }
-
     inline void allocate_choice_point(const code_point &cont)
     {
         word_t *new_b0;
@@ -669,6 +689,11 @@ protected:
 	    } else {
   	        new_b0 = base(b()) + b()->arity + words<choice_point_t>();
 	    }
+	}
+
+	if (to_stack_relative_addr(new_b0) + MAX_STACK_FRAME_WORDS
+	            >= MAX_STACK_SIZE_WORDS) {
+	    throw interpreter_exception_stack_overflow("Exceeded maximum stack size (" + boost::lexical_cast<std::string>(MAX_STACK_SIZE) + " bytes.)");
 	}
 
 	auto *new_b = reinterpret_cast<choice_point_t *>(new_b0);
@@ -687,6 +712,9 @@ protected:
 	new_b->pr = register_pr_;
 	register_b_ = new_b;
 	set_register_hb(heap_size());
+
+	// std::cout << cnt << ": allocate_choice_point(): b=" << new_b << " trail_size=" << trail_size() << "\n";
+
         // std::cout << "allocate_choice_point b=" << new_b << " (prev=" << new_b->b << ")\n";
 	// std::cout << "allocate_choice_point saved qr=" << to_string(register_qr_) << "\n";
     }
@@ -791,6 +819,11 @@ protected:
         return meta_.back().first;
     }
 
+    template<typename T> T * get_last_meta_context()
+    {
+	return reinterpret_cast<T *>(get_last_meta_context());
+    }
+
     meta_fn get_last_meta_function()
     {
         return meta_.back().second;
@@ -799,6 +832,11 @@ protected:
     bool has_meta_contexts() const
     {
         return !meta_.empty();
+    }
+
+    term_env & secondary_env()
+    {
+	return secondary_env_;
     }
 
 private:
@@ -810,6 +848,10 @@ private:
     file_stream & new_file_stream(const std::string &path);
     void close_file_stream(size_t id);
     file_stream & get_file_stream(size_t id);
+    file_stream & standard_output();
+    void tell_standard_output(file_stream &fs);
+    void told_standard_output();
+    bool has_told_standard_outputs();
 
     void init();
     void tidy_trail();
@@ -834,8 +876,11 @@ private:
     void syntax_check_body(const term body);
     void syntax_check_goal(const term goal);
 
-    bool debug_;
+    // Useful for meta predicates as scratch area to temporarily
+    // copy terms.
+    term_env secondary_env_;
 
+    bool debug_;
     std::vector<std::function<void ()> > syntax_check_stack_;
 
     std::unordered_map<common::con_cell, builtin> builtins_;
@@ -846,10 +891,11 @@ private:
     // Stack is emulated at heap offset >= 2^59 (3 bits for tag, remember!)
     // (This conforms to the WAM standard where addr(stack) > addr(heap))
     const size_t STACK_BASE = 0x80000000000000;
-    const size_t MAX_STACK_SIZE = 1024*1024;
+    const size_t MAX_STACK_SIZE = 1024*1024*1024;
+    const size_t MAX_STACK_SIZE_WORDS = MAX_STACK_SIZE / sizeof(word_t);
+    const size_t MAX_STACK_FRAME_WORDS = 4096 / sizeof(word_t);
 
     word_t    *stack_;
-    size_t    stack_ptr_;
 
     bool top_fail_;
     bool complete_;
@@ -884,10 +930,17 @@ private:
 
     std::unordered_map<size_t, file_stream *> open_files_;
     size_t file_id_count_;
+    file_stream * standard_output_;
+    std::stack<file_stream *> standard_output_stack_;
 
     arithmetics arith_;
 
     std::unordered_map<common::con_cell, uint64_t> profiling_;
+
+    std::function<void ()> debug_check_fn_;
+
+protected:
+    size_t tidy_size;
 };
 
 }}

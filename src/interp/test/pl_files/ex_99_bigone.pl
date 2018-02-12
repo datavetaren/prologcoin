@@ -1,5 +1,5 @@
 % Meta: fileio on
-% Meta: debug on
+% Meta: debug enabled
 % Meta: WAM-only
 
 % Read in standard library
@@ -32,19 +32,23 @@ main :-
 %    assert(log_cnt(0)),
     !,
     read_grammar_and_properties('term_grammar.pl', G),
-    write('------------------------------------------------'),
+    write('------------------------------------------------'), nl,
     write(G), nl,
-    write('------------------------------------------------'),
+    write('------------------------------------------------'), nl,
     extract_properties(G, Properties, Grammar),
     StartItem = [(start :- 'DOT', subterm_1200, full_stop)],
     Start = state(0, StartItem, []),
     states(Grammar, Start, States),
     % resolve_conflicts(States, Properties, States1),
+    %write('xxx 1 '), debug_check,
     sort_actions(States, NewStates),
+    %write('xxx 2 '), debug_check,
     emit(Grammar, Properties, NewStates),
+    %write('xxx 3 '), debug_check,
     tell('states.txt'),
     print_states(NewStates),
-    told.
+    told,
+    true.
 
 %
 % read_grammar(-G)
@@ -80,11 +84,11 @@ get_property(Properties, Name, Value) :-
 
 emit(Grammar, Properties, States) :-
     get_property(Properties, filename, FileName),
-    tell(FileName),
+%    tell(FileName),
     emit_begin(Grammar, Properties, States),
     emit_states(States, Properties),
     emit_end(Properties),
-    told,
+%    told,
     true.
 
 emit_begin(Grammar, Properties, States) :-
@@ -482,9 +486,14 @@ states(Grammar, InitState, StatesOut) :-
     replace_state(StatesOut1, AcceptingState, StatesOut).
 
 states(Grammar, StatesIn, State, StatesOut) :-
-    State = state(_, KernelItems, _Actions),
+    State = state(N, KernelItems, _Actions),
+%    write('---- Kernel '), write(N), write(' --- '), write(KernelItems), nl,
+%    write('closure      '), nl,
     closure(Grammar, KernelItems, Closure),
-    all_next_symbols(Closure, Symbols),
+    all_next_symbols(Closure, Symbols), 
+%    write('closure done '), nl,
+%    write('    ---- Symbols '), write(Symbols), nl,
+%    checkit(Symbols),
     state_transitions(Symbols, Grammar, Closure, State, StatesIn, StatesOut1,
 		      UpdatedState, NewStates),
     state_reductions(KernelItems, UpdatedState, UpdatedState1),
@@ -499,23 +508,19 @@ states_list([State|States], Grammar, StatesIn, StatesOut) :-
 state_transitions([], _, _, FromState, States, States, FromState, []).
 state_transitions([Symbol|Symbols], Grammar, Closure,
 		  FromState, StatesIn, StatesOut, UpdatedFromState, NewStates) :-
-    write('Hello '), write(Symbol), nl,
+%    write('--- Check transition '), write(Symbol), nl,
     select_items(Closure, Symbol, KernelItems),
+%    write('  --> got '), write(KernelItems), nl, 
 %    compact_items(KernelItems1, KernelItems),
     (\+ has_state(StatesIn, KernelItems) ->
 	 NewStates = [state(N,KernelItems,Actions)|NewStates0]
        ; NewStates = NewStates0),
-    write('before add state'), nl,
     add_state(StatesIn, KernelItems, StatesOut1, state(N,KernelItems,Actions)),
-    write('after add state'), nl,
-    write(N), nl,
-    write('shift \''), write(Symbol), write('\' --> goto '), write(N), nl,
 %    lookahead_list(Grammar, KernelItems, ShiftLA),
     (terminal(Grammar, Symbol) ->
 	state_add_action(FromState, shift(Symbol, N), FromState1)
      ;  state_add_action(FromState, goto(Symbol, N), FromState1)
     ),
-    write('continue here'), nl,
     state_transitions(Symbols, Grammar, Closure, FromState1, StatesOut1,
 		      StatesOut, UpdatedFromState, NewStates0).
 
@@ -567,33 +572,29 @@ add_state(StatesIn, KernelItems, StatesOut, State) :-
     add_state(StatesIn, 0, KernelItems, StatesOut, State).
 
 add_state([], Cnt, KernelItems, [State], State) :-
-    write('new state '), write(Cnt), nl,
-    State = state(Cnt, KernelItems, []).
+    State = state(Cnt, KernelItems, []),
+    write('New state '), write(Cnt), write(' '), nl. % debug_check. % nl.
+%    write(KernelItems), nl.
 add_state([State|States], Cnt, KernelItems, [State|StatesOut], Found) :-
-    write('old state'), nl,
-    State = state(_N,StateKernelItems,_StateActions),
-    write(StateKernelItems), nl,
-    write(KernelItems), nl,
+    State = state(N,StateKernelItems,_StateActions),
     (\+ \+ KernelItems = StateKernelItems ->
-	 write('Here...'), nl, Found = State,
+	 Found = State,
 	 States = StatesOut
    ; Cnt1 is Cnt + 1,
      add_state(States, Cnt1, KernelItems, StatesOut, Found)).
 
 replace_state([state(N,_,_)|States], state(N,KernelItems,Actions),
-	      [state(N,KernelItems,Actions)|States]).
+	      [state(N,KernelItems,Actions)|States]) :- !.
 replace_state([State|States], UpdatedState, [State|NewStates]) :-
     replace_state(States, UpdatedState, NewStates).
 
 state_add_action(state(N,KernelItems,Actions), Action,
 		 state(N,KernelItems,NewActions)) :-
-    write('state_add_action '), write(Action), nl,
     append(Actions, [Action], NewActions).
 
 select_items([], _, []).
 select_items([Item|Items], Symbol, KernelItems) :-
     (item_next_symbol(Item, Symbol0), match_heads(Symbol0, Symbol) ->
-        write('here we are'), nl,
 	item_move_next(Item, NewItem),
 	KernelItems = [NewItem|KernelItems0]
       ; KernelItems0 = KernelItems
@@ -629,6 +630,7 @@ all_next_symbols(Items, Symbols) :-
 all_next_symbols([], SymbolsOut, SymbolsOut).
 all_next_symbols([Item|Items], SymbolsIn, SymbolsOut) :-
     item_next_symbol(Item, Symbol),
+    !,
     (member(Symbol, SymbolsIn) ->
 	 SymbolsIn1 = SymbolsIn
        ; SymbolsIn1 = [Symbol | SymbolsIn]
@@ -645,10 +647,8 @@ all_next_symbols([_|Items], SymbolsIn, SymbolsOut) :-
 %
 
 closure(Grammar,KernelItems,Closure) :-
-    write('-------- closure '), nl,
     closure_kernel(KernelItems,Grammar,[],Closure1),
     % profile,
-    write('-------- closure done'), nl,
     sort(Closure1, Closure2),
     closure_compact(Closure2, Closure3),
     reverse(Closure3, Closure).
@@ -661,7 +661,7 @@ closure_kernel([KernelItem|KernelItems],Grammar,ClosureIn,ClosureOut) :-
 closure(Grammar,Item,ClosureIn,ClosureOut) :-
     \+ member(Item, ClosureIn), % We have not seen this before
     !, % Do not backtrack.
-    copy_term(Item, ItemCopy),
+    Item = ItemCopy, % copy_term(Item, ItemCopy),
     (item_move_next(ItemCopy, ItemCopyNext),
      lookahead(Grammar, ItemCopyNext, LA),
      ! ; LA = []),
@@ -719,7 +719,7 @@ lookahead(Grammar, Item, VisitedIn, VisitedOut, LA) :-
 	Visited1 = [Item | VisitedIn],
 	(terminal(Grammar, Symbol) ->
 	  LA = [Symbol], VisitedOut = VisitedIn
-        ; copy_term(Item, ItemCopy),
+        ; Item = ItemCopy, % copy_term(Item, ItemCopy),
 	  match(Grammar, ItemCopy, MatchedItems),
 	  lookahead_list(MatchedItems, Grammar, Visited1, Visited2, LA1),
 	  (LA1 = [] ->
@@ -761,12 +761,11 @@ item_lookahead_body((_,B), LA) :-
     !, item_lookahead_body(B, LA).
 item_lookahead_body(_, []).
 
-item_move_to_end(Item, Item) :- item_at_end(Item), !.
+item_move_to_end(Item, Item) :- item_at_end(Item).
 item_move_to_end(Item, NewItem) :-
     item_move_next(Item, Item1), item_move_to_end(Item1, NewItem).
 
 item_move_next((Head :- Body), (Head :- NewBody)) :-
-    write('item_move_next...'), nl,
     item_move_next_body(Body, NewBody).
 
 item_move_next_body(('DOT', A, B), (A, 'DOT', B)) :-
@@ -775,9 +774,8 @@ item_move_next_body(('DOT', A), (A, 'DOT')) :- !, functor(A, F, _), F \= {}.
 item_move_next_body((A, B), (A, NewB)) :-
     item_move_next_body(B, NewB).
 
-terminal([], _) :- write('terminal done'), nl.
+terminal([], _).
 terminal([(Head :- _) | Clauses], Symbol) :-
-        write('terminal '), write(Symbol), nl,
 	functor(Symbol, F1, N1),
         functor(Head, F2, N2),
         (F1 \= F2 ; N1 \= N2),
@@ -832,11 +830,14 @@ item_next_symbol_found(Symbol, Symbol) :-
 
 match_symbol([], _, []).
 match_symbol([C | Cs], Symbol, [Match | Matched]) :-
-	C = (Head :- _),
+	C = (Head :- Body),
 	match_heads(Head, Symbol),
 	!,
-	copy_term(C, (HeadCopy :- BodyCopy)),
-	copy_term(Symbol, CopySymbol),
+	%copy_term(C, (HeadCopy :- BodyCopy)),
+	%copy_term(Symbol, CopySymbol),
+        HeadCopy = Head,
+        BodyCopy = Body,
+        Symbol = CopySymbol,
 	unify_heads(HeadCopy, CopySymbol),
 	Match1 = (HeadCopy :- 'DOT', BodyCopy),
 	process_arithmetics(Match1, Match),
@@ -845,13 +846,10 @@ match_symbol([_ | Cs], Symbol, Matched) :-
          match_symbol(Cs, Symbol, Matched).
 
 match_heads(X, Y) :-
-        write('match_heads '), write(X), write(' '), write(Y), nl,
 	X =.. [XF|XArgs],
 	Y =.. [YF|YArgs],
 	XF = YF,
-        write('match_args'), nl,
-	match_args(XArgs, YArgs),
-        write('match_heads done'), nl.
+	match_args(XArgs, YArgs).
 
 match_args([], []).
 match_args([X|Xs], [Y|Ys]) :-
@@ -930,6 +928,9 @@ follow_body((_, Y), Symbol) :- follow_body(Y, Symbol).
 follow_found((A,_), A) :- !.
 follow_found(A, A).
 
+%checkit([std|_]) :- xyzzy.
+%checkit([_|Xs]) :- checkit(Xs).
+%checkit([]).
 
 ?- main.
 % Expect: true

@@ -20,17 +20,19 @@ interpreter_base::interpreter_base() : register_pr_("", 0), comma_(",",2), empty
 
     load_builtins();
     load_builtins_opt();
+
+    tidy_size = 0;
 }
 
 void interpreter_base::init()
 {
     debug_ = false;
-    file_id_count_ = 1;
+    file_id_count_ = 3;
     num_of_args_= 0;
     memset(register_ai_, 0, sizeof(register_ai_));
     stack_ = reinterpret_cast<word_t *>(new char[MAX_STACK_SIZE]);
-    stack_ptr_ = 0;
     num_y_fn_ = &num_y;
+    standard_output_ = nullptr;
     prepare_execution();
 }
 
@@ -63,7 +65,7 @@ std::string code_point::to_string(interpreter_base &interp) const
 void interpreter_base::close_all_files()
 {
     for (auto f : open_files_) {
-	delete f.second;
+    	delete f.second;
     }
     open_files_.clear();
 }
@@ -71,7 +73,7 @@ void interpreter_base::close_all_files()
 void interpreter_base::reset_files()
 {
     close_all_files();
-    file_id_count_ = 1;
+    file_id_count_ = 3;
 }
 
 bool interpreter_base::is_file_id(size_t id) const
@@ -101,6 +103,32 @@ void interpreter_base::close_file_stream(size_t id)
 file_stream & interpreter_base::get_file_stream(size_t id)
 {
     return *open_files_[id];
+}
+
+file_stream & interpreter_base::standard_output()
+{
+    if (standard_output_ == nullptr) {
+	standard_output_ = new file_stream(*this, 0, "<stdout>");
+	standard_output_->open(std::cout);
+    }
+    return *standard_output_;
+}
+
+void interpreter_base::tell_standard_output(file_stream &fs)
+{
+    standard_output_stack_.push(standard_output_);
+    standard_output_ = &fs;
+}
+
+void interpreter_base::told_standard_output()
+{
+    standard_output_ = standard_output_stack_.top();
+    standard_output_stack_.pop();
+}
+
+bool interpreter_base::has_told_standard_outputs()
+{
+    return !standard_output_stack_.empty();
 }
 
 void interpreter_base::syntax_check()
@@ -149,6 +177,12 @@ void interpreter_base::load_builtin_opt(con_cell f, builtin_opt b)
     }    
 }
 
+void interpreter_base::set_debug_enabled()
+{
+    load_builtin(functor("debug_on",0), &builtins::debug_on_0);
+    load_builtin(functor("debug_check",0), &builtins::debug_check_0);
+}
+
 void interpreter_base::load_builtins()
 {
     // Profiling
@@ -156,6 +190,7 @@ void interpreter_base::load_builtins()
 
     // Simple
     load_builtin(con_cell("true",0), &builtins::true_0);
+    load_builtin(con_cell("fail",0), &builtins::fail_0);
 
     // Control flow
     load_builtin(con_cell(",",2), builtin(&builtins::operator_comma,true));
@@ -186,6 +221,10 @@ void interpreter_base::load_builtins()
     load_builtin(functor("compound",1), &builtins::compound_1);
     load_builtin(functor("callable",1), &builtins::callable_1);
     load_builtin(con_cell("ground", 1), &builtins::ground_1);
+    load_builtin(con_cell("is_list",1), &builtins::is_list_1);
+
+    // Character properties
+    load_builtin(functor("upcase_atom",2), &builtins::upcase_atom_2);
 
     // Arithmetics
     load_builtin(con_cell("is",2), &builtins::is_2);
@@ -197,12 +236,12 @@ void interpreter_base::load_builtins()
 
     // Meta
     load_builtin(con_cell("\\+", 1), builtin(&builtins::operator_disprove,true));
+    load_builtin(con_cell("findall",3), builtin(&builtins::findall_3,true));
 }
 
 void interpreter_base::load_builtins_opt()
 {
-    // Profiling
-    load_builtin_opt(con_cell("member", 2), &builtins_opt::member_2);
+    // load_builtin_opt(con_cell("member", 2), &builtins_opt::member_2);
     load_builtin_opt(con_cell("sort", 2), &builtins_opt::sort_2);
 }
 
@@ -231,6 +270,8 @@ void interpreter_base::load_builtins_file_io()
     load_builtin(functor("at_end_of_stream", 1), &builtins_fileio::at_end_of_stream_1);
     load_builtin(con_cell("write", 1), &builtins_fileio::write_1);
     load_builtin(con_cell("nl", 0), &builtins_fileio::nl_0);
+    load_builtin(con_cell("tell",1), &builtins_fileio::tell_1);
+    load_builtin(con_cell("told",0), &builtins_fileio::told_0);
 }
 
 void interpreter_base::load_program(const term t)
@@ -429,7 +470,6 @@ void interpreter_base::abort(const interpreter_exception &ex)
 
 void interpreter_base::prepare_execution()
 {
-    stack_ptr_ = 0;
     num_of_args_= 0;
     memset(register_ai_, 0, sizeof(register_ai_));
     top_fail_ = false;
@@ -449,6 +489,21 @@ void interpreter_base::tidy_trail()
 {
     size_t from = (b() == nullptr) ? 0 : b()->tr;
     size_t to = trail_size();
+
+    static size_t avg[16] = {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0};
+    static size_t idx = 0;
+
+    avg[idx] = to - from;
+    idx = (idx + 1) % 16;
+    size_t sum = 0;
+    for (size_t i = 0; i < 16; i++) {
+	sum += avg[i];
+    }
+    tidy_size = sum / 16;
+
+    // if (to - from > max) {
+	// }
+
     term_env::tidy_trail(from, to);
 }
 
@@ -553,7 +608,6 @@ choice_point_t * interpreter_base::reset_to_choice_point(choice_point_t *b)
 
 void interpreter_base::unwind(size_t from_tr)
 {
-    // Unbind variables
     unwind_trail(from_tr, trail_size());
     trim_trail(from_tr);
 }

@@ -8,6 +8,14 @@ interpreter::interpreter()
     compiler_ = new wam_compiler(*this);
     id_to_predicate_.push_back(predicate()); // Reserve index 0
     wam_enabled_ = true;
+
+    set_debug_check_fn(
+       [&] {
+	   size_t n1 = to_stack_relative_addr((word_t *)e0());
+	   size_t n2 = to_stack_relative_addr((word_t *)b());
+	   size_t n = (n1 > n2) ? n1 : n2;
+	   std::cout << "STACK: " << n << " " << ((n2 > n1) ? "B" : "E") << " HEAP: " << heap_size() << " TRAIL: " << trail_size() << " TIDY: " << tidy_size << "\n";
+       });
 }
 
 interpreter::~interpreter()
@@ -77,10 +85,7 @@ bool interpreter::cont()
   	    set_complete(false);
 	    meta_context *mc = get_last_meta_context();
 	    meta_fn fn = get_last_meta_function();
-	    fn(*this, mc);
-	    if (is_top_fail()) {
-  	        set_top_fail(false);
-		set_complete(false);
+	    if (!fn(*this, mc)) {
 	        fail();
 	    }
         }
@@ -105,9 +110,6 @@ bool interpreter::next()
 void interpreter::fail()
 {
     bool ok = false;
-
-    size_t current_tr = trail_size();
-    bool unbound = false;
 
     while (!ok) {
 	if (is_debug()) {
@@ -135,12 +137,6 @@ void interpreter::fail()
 		// Is there another clause to backtrack to?
 		if (bpval != 0) {
 		    size_t index_id = bpval >> 8;
-
-		    // Unbind variables
-		    unwind(current_tr);
-		    current_tr = trail_size();
-
-		    unbound = true;
 		    
 		    if (is_debug()) {
 			std::string redo_str = to_string(qr());
@@ -153,13 +149,10 @@ void interpreter::fail()
 		}
 	    }
 	    if (!ok) {
-	        unbound = false;
 		set_b(ch->b);
+		if (b() != nullptr) set_register_hb(b()->h);
 	    }
 	}
-    }
-    if (!unbound) {
-        unwind(current_tr);
     }
 }
 
@@ -206,11 +199,11 @@ bool interpreter::select_clause(const code_point &instruction,
 				size_t from_clause)
 {
     if (index_id == 0) {
+	set_b(b()->b);
         if (from_clause > 1) {
 	    return false;
 	}
         set_p(instruction);
-	b()->bp = code_point::fail();
 	return true;
     }
 
@@ -257,6 +250,13 @@ bool interpreter::select_clause(const code_point &instruction,
 
 void interpreter::dispatch()
 {
+    /*
+    if (p().is_fail()) {
+	next();
+	return;
+	}
+    */
+
     set_qr(p().term_code());
 
     con_cell f = functor(qr());
@@ -305,13 +305,6 @@ void interpreter::dispatch()
 	set_num_of_args(arity);
     }
 
-    if (is_wam_enabled()) {
-	if (auto instr = resolve_predicate(f)) {
-	    dispatch_wam(instr);
-	    return;
-	}
-    }
-
     // Is this a built-in?
     auto bf = get_builtin(f);
     if (!bf.is_empty()) {
@@ -328,7 +321,6 @@ void interpreter::dispatch()
     }
 
     // Is there a successful optimized built-in?
-    /*
     auto obf = get_builtin_opt(f);
     if (obf != nullptr) {
         tribool r = obf(*this, arity, args());
@@ -341,7 +333,13 @@ void interpreter::dispatch()
 	    return;
 	}
     }
-    */
+
+    if (is_wam_enabled()) {
+	if (auto instr = resolve_predicate(f)) {
+	    dispatch_wam(instr);
+	    return;
+	}
+    }
 
     auto first_arg = get_first_arg();
 
@@ -374,7 +372,7 @@ void interpreter::dispatch()
 
     // More than one clause that matches? We need a choice point.
     if (has_choices) {
-	int_cell index_id_int(index_id);
+	int_cell index_id_int(index_id << 8);
 	code_point ch(index_id_int);
 	allocate_choice_point(ch);
     }

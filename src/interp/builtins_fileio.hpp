@@ -16,6 +16,8 @@ namespace prologcoin { namespace interp {
         static bool at_end_of_stream_1(interpreter_base &interp, size_t arity, common::term args[]);
 	static bool write_1(interpreter_base &interp, size_t arity, common::term args[]);
 	static bool nl_0(interpreter_base &interp, size_t arity, common::term args[]);
+	static bool tell_1(interpreter_base &interp, size_t arity, common::term args[]);
+	static bool told_0(interpreter_base &interp, size_t arity, common::term args[]);
     private:
         static size_t get_stream_id(interpreter_base &interp, common::term &stream,
 		  		    const std::string &from_fun);

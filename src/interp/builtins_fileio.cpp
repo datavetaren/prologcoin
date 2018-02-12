@@ -118,15 +118,44 @@ namespace prologcoin { namespace interp {
     bool builtins_fileio::write_1(interpreter_base &interp, size_t arity, term args[])
     {
 	term arg = args[0];
-	std::string str = interp.to_string(arg);
-	std::cout << str << std::flush;
+	interp.standard_output().write_term(arg);
 	return true;
     }
-
+    
     bool builtins_fileio::nl_0(interpreter_base &interp, size_t arity, term args[])
     {
-	std::cout << std::endl << std::flush;
+	interp.standard_output().nl();
 	return true;
     }
 
+    bool builtins_fileio::tell_1(interpreter_base &interp, size_t arity, term args[])
+    {
+        term arg = args[0];
+
+	if (!interp.is_atom(arg)) {
+	    interp.abort(interpreter_exception_wrong_arg_type(
+		      "tell/1: Argument must be an atom; was: "
+		      + interp.to_string(arg)));
+	}
+
+	std::string full_path = interp.get_full_path(interp.atom_name(arg));
+	file_stream &fs = interp.new_file_stream(full_path);
+	fs.open(file_stream::WRITE);
+	interp.tell_standard_output(fs);
+
+	return true;
+    }
+
+    bool builtins_fileio::told_0(interpreter_base &interp, size_t arity, term args[])
+    {
+	if (!interp.has_told_standard_outputs()) {
+	    interp.abort(interpreter_exception_nothing_told(
+	        "told/0: Missing 'tell' for this 'told' operation"));
+	}
+	int id = interp.standard_output().get_id();
+	interp.told_standard_output();
+	interp.close_file_stream(id);
+
+	return true;
+    }
 }}

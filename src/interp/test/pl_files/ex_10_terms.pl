@@ -93,6 +93,23 @@ ex14(T) :-
 % Expect: T = {1, {2, 3}, 4}
 % Expect: end
 
+%
+% Test unification 
+%
+
+ex15(Q) :-
+   T = {foo}, F = {},
+   functor(T, F1, A1),
+   A1 = 1,
+   F1 = F,
+   Q = F1-A1.
+?- ex15(Q).
+% Expect: Q = {}-1
+% Expect: end
+
+
+
+
 
 
 

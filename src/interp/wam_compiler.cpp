@@ -1,6 +1,7 @@
 #include <queue>
 #include <algorithm>
 #include "wam_compiler.hpp"
+#include "wam_interpreter.hpp"
 
 namespace prologcoin { namespace interp {
 
@@ -14,10 +15,16 @@ wam_interim_code::wam_interim_code(wam_interpreter &interp) : interp_(interp), s
 {
 }
 
-void wam_interim_code::push_back(const wam_instruction_base &instr)
+wam_instruction_base * wam_interim_code::new_instruction(const wam_instruction_base &instr)
 {
     wam_instruction_base *i = reinterpret_cast<wam_instruction_base *>(new char[instr.size_in_bytes()]);
     memcpy(i, &instr, instr.size_in_bytes());
+    return i;
+}
+
+void wam_interim_code::push_back(const wam_instruction_base &instr)
+{
+    auto *i = new_instruction(instr);
     push_back(i);
 }
 
@@ -26,10 +33,10 @@ void wam_interim_code::push_back(wam_instruction_base *instr)
     if (empty()) {
         push_front(instr);
 	end_ = begin();
+	size_++;
     } else {
         end_ = insert_after(end_, instr);
     }
-    size_++;
 }
 
 void wam_interim_code::append(const wam_interim_code &other)
@@ -247,9 +254,14 @@ void wam_compiler::compile_query_str(wam_compiler::reg lhsreg, common::ref_cell 
 	} else {
 	    assert(arg.tag() == common::tag_t::REF);
 	    auto ref = static_cast<common::ref_cell &>(arg);
+
 	    reg r;
 	    bool isnew = false;
-	    std::tie(r,isnew) = allocate_reg<X_REG>(ref);
+	    if (has_reg<A_REG>(ref)) {
+		std::tie(r,std::ignore) = allocate_reg<A_REG>(ref);
+	    } else {
+		std::tie(r,isnew) = allocate_reg<X_REG>(ref);
+	    }
 	    if (r.type == A_REG) {
 	        if (isnew) {
 		    instrs.push_back(wam_instruction<SET_VARIABLE_A>(r.num));
@@ -327,14 +339,19 @@ void wam_compiler::compile_program_str(wam_compiler::reg lhsreg, common::ref_cel
     size_t n = f.arity();
     for (size_t i = 0; i < n; i++) {
         auto arg = env_.arg(rhs, i);
-	if (arg.tag() == common::tag_t::CON) {
+	if (arg.tag() == common::tag_t::CON ||
+	    arg.tag() == common::tag_t::INT) {
 	    instrs.push_back(wam_instruction<UNIFY_CONSTANT>(arg));
 	} else {
 	    assert(arg.tag() == common::tag_t::REF);
 	    auto ref = static_cast<common::ref_cell &>(arg);
 	    reg r;
 	    bool isnew = false;
-	    std::tie(r,isnew) = allocate_reg<X_REG>(ref);
+	    if (has_reg<A_REG>(ref)) {
+		std::tie(r,std::ignore) = allocate_reg<A_REG>(ref);
+	    } else {
+		std::tie(r,isnew) = allocate_reg<X_REG>(ref);
+	    }
 	    if (r.type == A_REG) {
 	        if (isnew) {
 		    instrs.push_back(wam_instruction<UNIFY_VARIABLE_A>(r.num));
@@ -429,6 +446,8 @@ std::function<size_t ()> wam_compiler::x_getter(wam_instruction_base *instr)
 	case UNIFY_VARIABLE_X:
 	case UNIFY_VALUE_X:
 	case UNIFY_LOCAL_VALUE_X:
+        case GET_LEVEL:
+        case CUT:
 	    return [=]{return reinterpret_cast<wam_instruction_unary_reg *>(instr)->reg();};
 	default:
 	    return nullptr;
@@ -452,6 +471,8 @@ std::function<void (size_t)> wam_compiler::x_setter(wam_instruction_base *instr)
 	case UNIFY_VARIABLE_X:
 	case UNIFY_VALUE_X:
 	case UNIFY_LOCAL_VALUE_X:
+        case GET_LEVEL:
+        case CUT:
 	    return [=](size_t xn){reinterpret_cast<wam_instruction_unary_reg *>(instr)->set_reg(xn);};
 	default:
 	    return nullptr;
@@ -475,6 +496,8 @@ std::function<size_t ()> wam_compiler::y_getter(wam_instruction_base *instr)
 	case UNIFY_VARIABLE_Y:
 	case UNIFY_VALUE_Y:
 	case UNIFY_LOCAL_VALUE_Y:
+        case GET_LEVEL:
+        case CUT:
 	    return [=]{return reinterpret_cast<wam_instruction_unary_reg *>(instr)->reg();};
 	default:
 	    return nullptr;
@@ -498,6 +521,8 @@ std::function<void (size_t)> wam_compiler::y_setter(wam_instruction_base *instr)
 	case UNIFY_VARIABLE_Y:
 	case UNIFY_VALUE_Y:
 	case UNIFY_LOCAL_VALUE_Y:
+        case GET_LEVEL:
+        case CUT:
 	    return [=](size_t yn){reinterpret_cast<wam_instruction_unary_reg *>(instr)->set_reg(yn);};
 	default:
 	    return nullptr;
@@ -519,6 +544,8 @@ void wam_compiler::change_x_to_y(wam_instruction_base *instr)
         case UNIFY_VARIABLE_X: instr->set_type<UNIFY_VARIABLE_Y>(); break;
         case UNIFY_VALUE_X: instr->set_type<UNIFY_VALUE_Y>(); break;
         case UNIFY_LOCAL_VALUE_X: instr->set_type<UNIFY_LOCAL_VALUE_Y>(); break;
+        case GET_LEVEL:
+        case CUT: break;
 	default:
 	    break;
     }
@@ -568,16 +595,21 @@ void wam_compiler::find_x_to_y_registers(wam_interim_code &instrs,
 	        goal_number++;
 	    }
 	}
+
 	// Map goal number 0 and 1 to the same ID 1 (as head and goal should be
 	// unified into the same set)
 	if (auto x_get = x_getter(instr)) {
-	    size_t id = (goal_number <= 1) ? 1 : goal_number;
 	    size_t xn = x_get();
-	    auto it = first_occur.find(xn);
-	    if (it == first_occur.end()) {
-	        first_occur[xn] = id;
-	    } else if (it->second != id) {
-	        x_to_y.push_back(xn);
+	    if (instr->type() == GET_LEVEL) {
+		x_to_y.push_back(xn);
+	    } else {
+		size_t id = (goal_number <= 1) ? 1 : goal_number;
+		auto it = first_occur.find(xn);
+		if (it == first_occur.end()) {
+		    first_occur[xn] = id;
+		} else if (it->second != id) {
+		    x_to_y.push_back(xn);
+		}
 	    }
         }
     }
@@ -605,6 +637,7 @@ void wam_compiler::allocate_y_registers(wam_interim_code &instrs)
 	    if (it != map.end()) {
 	        change_x_to_y(instr);
 		auto y_set = y_setter(instr);
+
 		y_set(it->second);
 	    }
         }
@@ -753,7 +786,9 @@ void wam_compiler::eliminate_interim(wam_interim_code &instrs)
     auto it_prev = instrs.before_begin();
     while (it != it_end) {
         if (is_interim_instruction(*it)) {
+	    auto *instr = *it;
 	    it = instrs.erase_after(it_prev);
+	    delete instr;
         } else {
   	    it_prev = it;
 	    ++it;
@@ -761,11 +796,120 @@ void wam_compiler::eliminate_interim(wam_interim_code &instrs)
     }
 }
 
+bool wam_compiler::has_cut(wam_interim_code &instrs)
+{
+    for (auto instr : instrs) {
+	if (instr->type() == CUT) {
+	    return true;
+	}
+    }
+    return false;
+}
+
+wam_compiler::reg wam_compiler::allocate_cut(wam_interim_code &instrs)
+{
+    reg levreg;
+
+    auto it = instrs.begin();
+    auto it_end = instrs.end();
+
+    while (it != it_end) {
+        if ((*it)->type() == ALLOCATE) {
+	    term t = env_.new_ref();
+	    auto &v = reinterpret_cast<common::ref_cell &>(t);
+	    std::tie(levreg, std::ignore) = allocate_reg<X_REG>(v);
+	    const wam_instruction<GET_LEVEL>getlev(levreg.num);
+	    it =instrs.insert_after(it,getlev);
+        } else if ((*it)->type() == CUT) {
+	    auto *cut_instr = reinterpret_cast<wam_instruction<CUT> *>(*it);
+	    cut_instr->set_yn(levreg.num);
+	    ++it;
+	} else {
+	    ++it;
+	}
+    }
+    return levreg;
+}
+
 bool wam_compiler::clause_needs_environment(const term clause)
 {
     auto body = clause_body(clause);
     (void)body;
     return true;
+}
+
+void wam_compiler::compile_builtin(common::con_cell f, wam_interim_code &seq)
+{
+    static const common::con_cell bn_true = common::con_cell("true",0);
+
+    if (f != bn_true) {
+	auto &bn = get_builtin(f);
+	if (bn.is_recursive()) {
+	    seq.push_back(wam_instruction<BUILTIN_R>(f, bn.fn(), 0));
+	} else {
+	    if (bn.fn() == builtins::operator_cut) {
+		seq.push_back(wam_instruction<CUT>(0));
+	    } else {
+		seq.push_back(wam_instruction<BUILTIN>(f, bn.fn()));
+	    }
+	}
+    }
+}
+
+void wam_compiler::compile_goal(const term goal, wam_interim_code &seq)
+{
+    static const common::con_cell bn_disj = common::con_cell(";",2);
+
+    (void)bn_disj;
+
+    auto f = env_.functor(goal);
+    bool isbn = is_builtin(f);
+    // if (isbn && f == bn_disj) {
+	    // compile_disjunction(goal, seq);
+	// }
+    compile_query_or_program(goal, COMPILE_QUERY, seq);
+    if (isbn) {
+	compile_builtin(f, seq);
+    } else {
+	seq.push_back(wam_instruction<CALL>(f, 0));
+    }
+}
+
+void wam_compiler::peephole_opt_execute(wam_interim_code &seq)
+{
+    auto it = seq.begin();
+
+    // CALL + DEALLOCATE + PROCEED => EXECUTE
+
+    while (it != seq.end()) {
+	auto it_0 = it; ++it_0;
+	auto it_1 = it_0; if (it_1 != seq.end()) ++it_1;
+	auto it_2 = it_1; if (it_2 != seq.end()) ++it_2;
+
+	// Find pattern CALL + DEALLOCATE + PROCEED
+	if (seq.is_at_type(it_0,CALL) &&
+	    seq.is_at_type(it_1,DEALLOCATE) &&
+	    seq.is_at_type(it_2,PROCEED)) {
+	    auto it_3 = it_2; ++it_3;
+
+	    // Memorize CALL and extract predicate (saved as 'f')
+	    wam_instruction<CALL> *call_instr
+	       = reinterpret_cast<wam_instruction<CALL> *>(*it_0);
+	    common::con_cell f = call_instr->pn();
+	    delete *it_0;
+	    delete *it_1;
+	    delete *it_2;
+
+	    // Remove all instructions
+	    seq.erase_after(it, it_3);
+
+	    // Add these new ones
+	    it = seq.insert_after(it, wam_instruction<DEALLOCATE>());
+	    it = seq.insert_after(it, wam_instruction<EXECUTE>(f));
+	} else {
+	    ++it;
+	}
+    }
 }
 
 void wam_compiler::compile_clause(const term clause0, wam_interim_code &seq)
@@ -782,63 +926,32 @@ void wam_compiler::compile_clause(const term clause0, wam_interim_code &seq)
 
     bool needs_env = clause_needs_environment(clause);
 
-    if (needs_env) seq.push_back(wam_instruction<ALLOCATE>());
+    if (needs_env) {
+	seq.push_back(wam_instruction<ALLOCATE>());
+    }
 
     term head = clause_head(clause);
     seq.push_back(wam_interim_instruction<INTERIM_HEAD>());
 
     compile_query_or_program(head, COMPILE_PROGRAM, seq);
 
-    common::con_cell bn_true = common::con_cell("true",0);
-
     term body = clause_body(clause);
-    term last_goal;
     for (auto goal : for_all_goals(body)) {
-        if (last_goal) {
-	    auto f = env_.functor(last_goal);
-	    bool isbn = is_builtin(f);
-	    if (isbn) {
-		if (f != bn_true) {
-		    auto &bn = get_builtin(f);
-		    if (bn.is_recursive()) {
-			seq.push_back(wam_instruction<BUILTIN_R>(f, bn.fn(), 0));
-		    } else {
-			seq.push_back(wam_instruction<BUILTIN>(f, bn.fn()));
-		    }
-		}
-	    } else {
-	        seq.push_back(wam_instruction<CALL>(f, 0));
-	    }
-        }
 	seq.push_back(wam_interim_instruction<INTERIM_GOAL>());
-	compile_query_or_program(goal, COMPILE_QUERY, seq);
-	last_goal = goal;
-    }
-    if (last_goal) {
-        auto f = env_.functor(last_goal);
-	bool isbn = is_builtin(f);
-	if (isbn) {
-	    if (f != bn_true) {
-		auto &bn = get_builtin(f);
-		if (bn.is_recursive()) {
-		    seq.push_back(wam_instruction<BUILTIN_R>(f, bn.fn(), 0));
-		} else {
-		    seq.push_back(wam_instruction<BUILTIN>(f, bn.fn()));
-		}
-	    }
-	} else {
-  	    if (needs_env) {
-	       seq.push_back(wam_instruction<DEALLOCATE>());
-	       needs_env = false;
-	    }
-	    seq.push_back(wam_instruction<EXECUTE>(f));
-	}
+	compile_goal(goal, seq);
     }
     if (needs_env) {
-        seq.push_back(wam_instruction<DEALLOCATE>());
-	seq.push_back(wam_instruction<PROCEED>());
+	seq.push_back(wam_instruction<DEALLOCATE>());
     }
+    seq.push_back(wam_instruction<PROCEED>());
 
+    peephole_opt_execute(seq);
+
+    seq.print(std::cout);
+    
+    if (has_cut(seq)) {
+	allocate_cut(seq);
+    }
     remap_x_registers(seq);
     allocate_y_registers(seq);
     remap_y_registers(seq);
@@ -975,7 +1088,7 @@ void wam_compiler::emit_second_level_indexing(
 	}
 	if (same_arg0.size() == 1) {
 	    // Unique? Then direct jump
-	    map->insert(std::make_pair(arg0, code_point(labels[same_arg0[0]])));
+	    map->insert(std::make_pair(arg0, code_point(labels[2*same_arg0[0]+1])));
 	} else {
 	    // Multiple, so create third level indexing
 	    new_lbl = new_label();

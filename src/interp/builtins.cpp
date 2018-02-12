@@ -2,6 +2,7 @@
 #include "interpreter_base.hpp"
 #include "wam_interpreter.hpp"
 #include <stdarg.h>
+#include <boost/algorithm/string.hpp>
 
 namespace prologcoin { namespace interp {
 
@@ -18,12 +19,35 @@ namespace prologcoin { namespace interp {
     }
 
     //
+    // debug_on/0
+    //
+    bool builtins::debug_on_0(interpreter_base &interp, size_t arity, common::term args[])
+    {
+	interp.set_debug(true);
+	return true;
+    }
+
+    //
+    // debug_check/0
+    //
+    bool builtins::debug_check_0(interpreter_base &interp, size_t arity, common::term args[])
+    {
+	interp.debug_check();
+	return true;
+    }	
+
+    //
     // Simple
     //
 
     bool builtins::true_0(interpreter_base &interp, size_t arity, common::term args[])
     {
 	return true;
+    }
+
+    bool builtins::fail_0(interpreter_base &interp, size_t arity, common::term args[])
+    {
+	return false;
     }
 
     //
@@ -45,10 +69,7 @@ namespace prologcoin { namespace interp {
     // TODO: This needs to be modified to use callbacks. Cut should be a primitive.
     bool builtins::operator_cut(interpreter_base &interp, size_t arity, common::term args[])
     {
-        if (interp.has_late_choice_point()) {
-	    interp.reset_choice_point();
-	    interp.tidy_trail();
-	}
+	interp.cut();
         return true;
     }
 
@@ -59,12 +80,9 @@ namespace prologcoin { namespace interp {
 	interp.set_p(interp.cp());
 	interp.set_cp(interp.e0()->cp);
 
-        if (interp.has_late_choice_point()) {
-	    interp.reset_choice_point();
-	    interp.tidy_trail();
-	}
-	auto *ch = interp.get_last_choice_point();
-	ch->bp = code_point::fail(); // Don't back track to false clause
+	interp.cut_direct();
+	auto *ch = interp.b();
+	interp.set_b(ch->b);
 
         return true;
     }
@@ -81,8 +99,8 @@ namespace prologcoin { namespace interp {
 	}
 
 	term arg1 = args[1];
-	interp.allocate_environment(false);
         interp.allocate_choice_point(code_point(arg1));
+	interp.allocate_environment(false);
 	interp.set_p(code_point(arg0));
 	return true;
     }
@@ -97,7 +115,6 @@ namespace prologcoin { namespace interp {
 	term cut_if = cut_op_if;
 	term arg0 = args[0];
 	term arg1 = args[1];
-	// interp.protect_environment();
 	interp.allocate_environment(false);
 	interp.set_cp(code_point(arg1));
 	interp.allocate_environment(false);
@@ -195,6 +212,7 @@ namespace prologcoin { namespace interp {
     {
 	term lhs = args[0];
 	term rhs = args[1];
+
 	size_t current_tr = interp.trail_size();
 	bool r = interp.unify(lhs, rhs);
 	if (r) {
@@ -266,7 +284,59 @@ namespace prologcoin { namespace interp {
 	return interp.is_ground(arg);
     }
 
+    //
+    // Character properties
+    //
+
+   bool builtins::upcase_atom_2(interpreter_base &interp, size_t arity, common::term args[])
+   {
+       term from = args[0];
+       term to = args[1];
+
+       std::string s;
+       switch (from.tag()) {
+         case tag_t::REF:
+	     interp.abort(interpreter_exception_not_sufficiently_instantiated("upcase_atom/2: Arguments are not sufficiently instantiated"));
+	     return false;
+         case tag_t::INT: {
+	     int_cell &ic = static_cast<int_cell &>(from);
+	     s = boost::lexical_cast<std::string>(ic.value());
+	     break;
+         }
+         case tag_t::CON:
+         case tag_t::STR: {
+	     auto f = interp.functor(from);
+	     if (f.arity() != 0) {
+		 std::string msg = "upcase_atom/2: "
+		     "First argument was not 'atomic', found '"
+		     + interp.to_string(from) + "'";
+		 interp.abort(interpreter_exception_wrong_arg_type(msg));
+	     }
+	     s = interp.atom_name(f);
+	     break;
+         }
+         default: {
+	     std::string msg = "upcase_atom/2: "
+		 "Unexpected first argument, found '"
+		 + interp.to_string(from) + "'";
+	     interp.abort(interpreter_exception_wrong_arg_type(msg));
+	 }
+       }
+       boost::to_upper(s);
+       term r = interp.atom(s);
+       return interp.unify(to, r);
+   }
+
     // TODO: cyclic_term/1 and acyclic_term/1
+
+    bool builtins::is_list_1(interpreter_base &interp, size_t arity, common::term args[])
+    {
+	term t = args[0];
+	while (interp.is_dotted_pair(t)) {
+	    t = interp.arg(t, 1);
+	}
+	return interp.is_empty_list(t);
+    }
 
     //
     // Arithmetics
@@ -310,7 +380,7 @@ namespace prologcoin { namespace interp {
 	  case tag_t::STR:
   	  case tag_t::CON: {
 	      con_cell tf = interp.functor(t);
-	      term fun = tf;
+	      term fun = interp.to_atom(tf);
 	      term arity = int_cell(tf.arity());
 	      return interp.unify(f, fun) && interp.unify(a, arity);
 	    }
@@ -446,7 +516,7 @@ namespace prologcoin { namespace interp {
 	return true;
     }
 
-    void builtins::operator_disprove_post(interpreter_base &interp,
+    bool builtins::operator_disprove_post(interpreter_base &interp,
 					  meta_context *context)
     {
         bool failed = interp.is_top_fail();
@@ -454,14 +524,90 @@ namespace prologcoin { namespace interp {
 	interp.unwind_to_top_choice_point();
 	interp.release_last_meta_context();
 
-	// Note that this is "disprove," so its success is the reverse of
-	// the underlying expression to succeed.
-	interp.set_top_fail(!failed);
-	interp.set_complete(false);
-
-	interp.deallocate_environment();
+	if (interp.e0() != interp.top_e()) {
+	    interp.deallocate_environment();
+	}
 	interp.set_p(interp.cp());
 	interp.set_cp(interp.empty_list());
+
+	interp.set_top_fail(false);
+	interp.set_complete(false);
+
+	// Note that this is "disprove," so its success is the reverse of
+	// the underlying expression to succeed.
+	return failed;
+    }
+
+    struct meta_context_findall : public meta_context {
+	size_t secondary_hb_;
+        term template_;
+	term result_;
+	term interim_;
+	term tail_;
+    };
+
+
+    bool builtins::findall_3(interpreter_base &interp, size_t arity, common::term args[])
+    {
+	term qr = args[1];
+	auto *mc = interp.new_meta_context<meta_context_findall>(&findall_3_post);
+	mc->template_ = args[0];
+	mc->result_ = args[2];
+	mc->interim_ = interp.secondary_env().empty_list();
+	mc->tail_ = interp.secondary_env().empty_list();
+	mc->secondary_hb_ = interp.secondary_env().get_register_hb();
+	interp.secondary_env().set_register_hb(interp.secondary_env().heap_size());
+	interp.set_top_e();
+	interp.allocate_choice_point(code_point::fail());
+	interp.set_top_b(interp.b());
+	interp.set_p(code_point(qr));
+	interp.set_cp(interp.empty_list());
+	
+	return true;
+    }
+
+    bool builtins::findall_3_post(interpreter_base &interp, meta_context *context)
+    {
+	bool failed = interp.is_top_fail();
+
+	auto *mc = interp.get_last_meta_context<meta_context_findall>();
+
+	interp.set_complete(false);
+
+	if (failed) {
+	    interp.unwind_to_top_choice_point();
+	    term result = interp.copy(mc->interim_, interp.secondary_env());
+	    term output = mc->result_;
+	    interp.secondary_env().trim_heap(interp.secondary_env().get_register_hb());
+	    interp.secondary_env().set_register_hb(mc->secondary_hb_);
+	    interp.release_last_meta_context();
+	    if (interp.e0() != interp.top_e()) {
+		interp.deallocate_environment();
+	    }
+	    interp.set_p(interp.cp());
+	    interp.set_cp(interp.empty_list());
+
+	    interp.set_top_fail(false);
+	    interp.set_complete(false);
+
+	    return interp.unify(result, output);
+	}
+
+	auto elem = interp.secondary_env().copy(mc->template_, interp);
+	auto newtail = interp.secondary_env().new_dotted_pair(
+			      elem, interp.secondary_env().empty_list());
+	if (interp.secondary_env().is_empty_list(mc->interim_)) {
+	    mc->interim_ = newtail;
+	    mc->tail_ = mc->interim_;
+	} else {
+	    interp.secondary_env().set_arg(mc->tail_, 1, newtail);
+	    mc->tail_ = newtail;
+	}
+
+	interp.set_p(common::con_cell("fail",0));
+	interp.set_cp(interp.empty_list());
+
+	return true;
     }
 
 }}

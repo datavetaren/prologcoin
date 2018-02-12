@@ -2,7 +2,6 @@
 % Test mixing compiled with non-comiled
 %
 
-% Meta: debug off
 % Meta: dont-compile simple_interp/3
 % Meta: dont-compile more_simple/2
 

@@ -1,6 +1,6 @@
 property('namespace', ['prologcoin', 'common']).
 property('classname', 'term_parser_gen').
-property('filename', '../src/common/term_parser_gen.hpp').
+property('filename', 'term_parser_gen.hpp').
 % property(prefer, reduce).
 
 start :- subterm_1200, full_stop.

@@ -117,6 +117,7 @@ class wam_interim_code : private std::forward_list<wam_instruction_base *> {
 public:
     wam_interim_code(wam_interpreter &interp);
 
+    wam_instruction_base * new_instruction(const wam_instruction_base &instr);
     void push_back(const wam_instruction_base &instr);
     void append(const wam_interim_code &instrs);
 
@@ -150,10 +151,70 @@ public:
         return std::forward_list<wam_instruction_base *>::end();
     }
 
+    bool is_at_type(std::forward_list<wam_instruction_base *>::iterator &it,
+		    wam_instruction_type t) const {
+	if (it == end()) {
+	    return false;
+	}
+	return (*it)->type() == t;
+    }
+
+    size_t compute_size() const
+    {
+	size_t n = 0;
+	for (auto instr : *this) {
+	    (void)instr;
+	    n++;
+	}
+	return n;
+    }
+
+    std::forward_list<wam_instruction_base *>::iterator erase_after(
+	    std::forward_list<wam_instruction_base *>::iterator &it)
+    {
+	size_--;
+	bool at_end = it == end_;
+        auto it1 = std::forward_list<wam_instruction_base *>::erase_after(it);
+	if (at_end) end_ = it1;
+	return it1;
+    }
+
+    std::forward_list<wam_instruction_base *>::iterator erase_after(
+	    std::forward_list<wam_instruction_base *>::iterator &it,
+	    std::forward_list<wam_instruction_base *>::iterator &it_last)
+    {
+	auto n = std::distance(it, it_last) - 1;
+	size_ -= n;
+	bool at_end = it_last == end_;
+        auto it1 = std::forward_list<wam_instruction_base *>::erase_after(it, it_last);
+	if (at_end) end_ = it1;
+	return it1;
+    }
+
     std::forward_list<wam_instruction_base *>::iterator erase_after(
 	    std::forward_list<wam_instruction_base *>::const_iterator &it)
     {
-        return std::forward_list<wam_instruction_base *>::erase_after(it);
+	size_--;
+	bool at_end = it == end_;
+        auto it1 = std::forward_list<wam_instruction_base *>::erase_after(it);
+	if (at_end) end_ = it1;
+	return it1;
+    }
+
+    std::forward_list<wam_instruction_base *>::iterator insert_after(
+	    std::forward_list<wam_instruction_base *>::iterator &it,
+	    const wam_instruction_base &e)
+    {
+	auto *i = new_instruction(e);
+        return insert_after(it,i);
+    }       								     
+
+    std::forward_list<wam_instruction_base *>::iterator insert_after(
+	    std::forward_list<wam_instruction_base *>::iterator &it,
+	    wam_instruction_base *i)
+    {
+	size_++;
+        return std::forward_list<wam_instruction_base *>::insert_after(it,i);
     }
 
     size_t size() const
@@ -325,6 +386,8 @@ private:
     void compile_program(reg lhsreg, common::ref_cell lhsvar, term rhs, 
 			 wam_interim_code &seq);
 
+    void compile_builtin(common::con_cell f, wam_interim_code &seq);
+
 
     void compile_query_or_program(term t, compile_type c,
 			          wam_interim_code &seq);
@@ -340,7 +403,11 @@ private:
     void remap_to_unsafe_y_registers(wam_interim_code &instrs);
     void eliminate_interim(wam_interim_code &instrs);
 
+    bool has_cut(wam_interim_code &seq);
+    reg allocate_cut(wam_interim_code &seq);
     bool clause_needs_environment(const term clause);
+    void compile_goal(const term goal, wam_interim_code &seq);
+    void peephole_opt_execute(wam_interim_code &seq);
     void compile_clause(const term clause, wam_interim_code &seq);
     std::vector<common::int_cell> new_labels(size_t n);
     std::vector<common::int_cell> new_labels_dup(size_t n);
