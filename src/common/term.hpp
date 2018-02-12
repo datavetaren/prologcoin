@@ -11,7 +11,9 @@
 #include <unordered_set>
 #include <unordered_map>
 #include <boost/lexical_cast.hpp>
+
 #include <boost/noncopyable.hpp>
+#include <iostream>
 
 // #define DEBUG_TERM
 
@@ -714,7 +716,7 @@ public:
 	size_t arity = con.arity();
 	cell *p;
 	size_t index;
-	std::tie(p, index) = allocate(tag_t::STR, arity + 2);
+	std::tie(p, index) = allocate(tag_t::STR, 2+ arity);
 	static_cast<ptr_cell &>(*p).set_index(index+1);
 	p[1] = con;
 	for (size_t i = 0; i < arity; i++) {
@@ -727,6 +729,8 @@ public:
     {
         cell *p;
 	size_t index;
+	size_t arity = con.arity();
+	ensure_allocate(1+arity);
         std::tie(p, index) = allocate(tag_t::CON, 1);
 	*p = con;
 	return str_cell(index);
@@ -736,6 +740,8 @@ public:
     {
         cell *p;
         size_t index;
+	size_t arity = con.arity();
+	ensure_allocate(2+arity);
         std::tie(p, index) = allocate(tag_t::STR, 2);
 	static_cast<ptr_cell &>(*p).set_index(index+1);
 	p[1] = con;
@@ -844,18 +850,21 @@ private:
 	return addr < size();
     }
 
-    inline std::pair<cell *, size_t> allocate(tag_t::kind_t tag, size_t n) {
-	if (head_block_->can_allocate(n)) {
-	    heap_block *block = head_block_;
-	    size_t addr = block->allocate(n);
-	    ptr_cell new_cell(tag, addr);
-	    cell *p = &(*block)[addr];
-	    *p = new_cell;
-	    size_ = addr + n;
-	    return std::make_pair(p, addr);
+    inline void ensure_allocate(size_t n) {
+	if (!head_block_->can_allocate(n)) {
+	    new_block();
 	}
-	new_block();
-	return allocate(tag, n);
+    }
+
+    inline std::pair<cell *, size_t> allocate(tag_t::kind_t tag, size_t n) {
+	ensure_allocate(n);
+	heap_block *block = head_block_;
+	size_t addr = block->allocate(n);
+	ptr_cell new_cell(tag, addr);
+	cell *p = &(*block)[addr];
+	*p = new_cell;
+	size_ = addr + n;
+	return std::make_pair(p, addr);
     }
 
     inline const cell & get(size_t addr) const

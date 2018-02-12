@@ -110,8 +110,9 @@ heap::~heap()
 
 void heap::trim(size_t new_size)
 {
-    size_t block_index = find_block_index(new_size-1);
-    auto &block = find_block(new_size-1);
+    size_t heap_end = new_size > 0 ? new_size - 1 : 0;
+    size_t block_index = find_block_index(heap_end);
+    auto &block = find_block(heap_end);
     block.trim(new_size - block.offset());
     size_ = new_size;
     if (block_index+1 < blocks_.size()) {
