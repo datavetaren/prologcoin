@@ -349,6 +349,7 @@ public:
 
     bool unify(term a, term b);
     term copy(const term t);
+    term copy(const term t, heap &src);
     bool equal(const term a, const term b);
     uint64_t hash(const term t);
 
@@ -433,6 +434,8 @@ public:
         return true;    
      }
 
+  inline std::unordered_map<term, std::string> & var_naming()
+     { return var_naming_; }
   inline void clear_name(const term t)
      { var_naming_.erase(t); }
   inline bool has_name(const term t) const
@@ -478,7 +481,13 @@ public:
   inline term copy(term t)
   {
       term_utils utils(heap_dock<HT>::get_heap(), stacks_dock<ST>::get_stacks());
-      return utils.copy(t);
+      return utils.copy(t, heap_dock<HT>::get_heap());
+  }
+
+  inline term copy(term t, heap &src)
+  {
+      term_utils utils(heap_dock<HT>::get_heap(), stacks_dock<ST>::get_stacks());
+      return utils.copy(t, src);
   }
 
   inline uint64_t hash(term t)

@@ -322,13 +322,13 @@ int term_utils::standard_order(term a, term b)
     return 0;
 }
 
-term term_utils::copy(term c)
+term term_utils::copy(term c, heap &src)
 {
     std::unordered_map<term, term> var_map;
 
     size_t current_stack = stack_size();
 
-    push(c);
+    push(src.deref(c));
     push(int_cell(0));
 
     while (stack_size() > current_stack) {
@@ -354,7 +354,7 @@ term term_utils::copy(term c)
 	  break;
 
 	case tag_t::STR:
-	  { con_cell f = functor(c);
+	  { con_cell f = src.functor(c);
 	    size_t num_args = f.arity();
 	    if (processed) {
 	      // Arguments on temp are the new arguments of STR cell
@@ -370,7 +370,7 @@ term term_utils::copy(term c)
 	      // Then the arguments to be processed (argN-1 ... arg0)
 	      // We want to process arg0 first (that's why it is pushed last.)
 	      for (size_t i = 0; i < num_args; i++) {
-		push(arg(c, num_args-i-1));
+		push(src.arg(c, num_args-i-1));
 		push(int_cell(0));
 	      }
 	    }
