@@ -14,6 +14,7 @@ namespace prologcoin { namespace common {
 //
 // This class emits a term into a sequence of ASCII characters.
 //
+
 class term_emitter {
 public:
   enum style { STYLE_TERM, STYLE_PROGRAM };
@@ -23,10 +24,17 @@ public:
 
     void set_style( style s );
 
+    void set_option_quoted( bool q );
+    bool is_option_quoted() const;
+
+    void set_option_nl( bool n);
+    bool is_option_nl() const;
+
     void set_var_naming(const std::unordered_map<term, std::string> &var_naming);
 
     void set_var_name(const term &cell, const std::string &name);
 
+    void reset();
     void print(cell c);
     void nl();
 
@@ -157,6 +165,9 @@ private:
     bool var_naming_owned_;
 
     style style_;
+
+    bool option_quoted_;
+    bool option_nl_;
 };
 
 }}

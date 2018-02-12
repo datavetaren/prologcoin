@@ -16,7 +16,9 @@ term_emitter::term_emitter(std::ostream &out, const heap &h, const term_ops &ops
 	  empty_list_("[]", 0),
 	  var_naming_(nullptr),
 	  var_naming_owned_(false),
-	  style_(STYLE_TERM)
+	  style_(STYLE_TERM),
+	  option_quoted_(true),
+	  option_nl_(true)
 {
     set_max_column(78);
 }
@@ -31,6 +33,34 @@ term_emitter::~term_emitter()
 void term_emitter::set_style(term_emitter::style st)
 {
     style_ = st;
+}
+
+void term_emitter::set_option_quoted(bool q)
+{
+    option_quoted_ = q;
+}
+
+bool term_emitter::is_option_quoted() const
+{
+    return option_quoted_;
+}
+
+void term_emitter::set_option_nl(bool n)
+{
+    option_nl_ = n;
+}
+
+bool term_emitter::is_option_nl() const
+{
+    return option_nl_;
+}
+
+void term_emitter::reset()
+{
+    column_ = 0;
+    line_ = 0;
+    last_char_ = '\0';
+    scan_mode_ = false;
 }
 
 void term_emitter::print(cell c)
@@ -73,6 +103,9 @@ void term_emitter::set_max_column(size_t max_column)
 
 void term_emitter::indent()
 {
+    if (!option_nl_) {
+	return;
+    }
     if (indent_level_ == 0) {
 	return;
     }
@@ -119,6 +152,9 @@ void term_emitter::mark_indent_column()
 
 bool term_emitter::will_wrap(size_t len) const
 {
+    if (!option_nl_) {
+	return false;
+    }
     return column_ + len >= max_column_;
 }
 
@@ -138,6 +174,9 @@ bool term_emitter::at_beginning() const
 
 size_t term_emitter::get_emit_length(cell c)
 {
+    if (!option_nl_) {
+	return 0;
+    }
     size_t current_column = column_;
     size_t current_indent_level = indent_level_;
     char current_last_char = last_char_;
@@ -352,6 +391,9 @@ void term_emitter::wrap_curly(const term_emitter::elem &e)
 
 bool term_emitter::atom_name_needs_quotes(const std::string &name) const
 {
+    if (!option_quoted_) {
+	return false;
+    }
     auto first = name[0];
     if (token_chars::is_capital_letter(first) ||
 	token_chars::is_underline_char(first) ||
