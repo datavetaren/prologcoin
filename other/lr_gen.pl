@@ -563,7 +563,7 @@ add_state([State|States], Cnt, KernelItems, [State|StatesOut], Found) :-
      add_state(States, Cnt1, KernelItems, StatesOut, Found)).
 
 replace_state([state(N,_,_)|States], state(N,KernelItems,Actions),
-	      [state(N,KernelItems,Actions)|States]).
+	      [state(N,KernelItems,Actions)|States]) :- !.
 replace_state([State|States], UpdatedState, [State|NewStates]) :-
     replace_state(States, UpdatedState, NewStates).
 
