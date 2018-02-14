@@ -164,8 +164,8 @@ public:
 
     inline int64_t value_signed() const { return static_cast<int64_t>(raw_value_) >> 3; }
 
-    inline bool operator == (const cell other) const { return value() == other.value(); }
-    inline bool operator != (const cell other) const { return value() != other.value(); }
+    inline bool operator == (const cell other) const { return raw_value() == other.raw_value(); }
+    inline bool operator != (const cell other) const { return raw_value() != other.raw_value(); }
 
     inline operator bool () const { return raw_value_ != 0; }
 
@@ -378,6 +378,10 @@ public:
 
     inline bool operator == (const int other) const {
 	return value() == other;
+    }
+
+    inline bool operator == (const int_cell &other) const {
+	return value() == other.value();
     }
 
     inline std::string str () const {
@@ -1001,6 +1005,12 @@ namespace std {
     template<> struct hash<prologcoin::common::ref_cell> {
         size_t operator()(const prologcoin::common::ref_cell k) const {
 	    return hash<uint64_t>()(k.index());
+	}
+    };
+
+    template<> struct hash<prologcoin::common::int_cell> {
+        size_t operator()(const prologcoin::common::int_cell k) const {
+	    return hash<uint64_t>()(k.value());
 	}
     };
 
