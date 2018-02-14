@@ -255,6 +255,11 @@ void interpreter_base::set_current_directory(const std::string &dir)
     current_dir_ = dir;
 }
 
+const std::string & interpreter_base::get_current_directory() const
+{
+    return current_dir_;
+}
+
 std::string interpreter_base::get_full_path(const std::string &path) const
 {
     boost::filesystem::path p(current_dir_);

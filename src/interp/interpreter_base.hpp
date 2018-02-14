@@ -185,6 +185,7 @@ public:
     inline wam_instruction_base * wam_code() const { return wam_code_; }
     inline builtin_fn bn() { return bn_; }
     inline const common::cell & term_code() const { return term_code_; }
+    inline const common::int_cell & label() const { return static_cast<const common::int_cell &>(term_code_); }
 
     inline void set_wam_code(wam_instruction_base *p) { wam_code_ = p; }
     inline void set_term_code(const common::term t) { term_code_ = t; }
@@ -307,6 +308,7 @@ public:
 
     void set_debug_enabled();
     void enable_file_io();
+    const std::string & get_current_directory() const;
     void set_current_directory(const std::string &dir);
     std::string get_full_path(const std::string &path) const;
     void close_all_files();

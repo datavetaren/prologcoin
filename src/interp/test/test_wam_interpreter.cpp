@@ -47,6 +47,7 @@ public:
     void test_compile();
     void test_partition();
     void test_compile2();
+    void test_varset();
 
 private:
     interpreter interp_;
@@ -357,17 +358,96 @@ static void test_partition()
     test.test_partition();
 }
 
+static int find_index(const std::string src[], size_t n,
+		      const std::string &search)
+{
+    for (size_t i = 0; i < n; i += 2) {
+	std::stringstream in1(src[i]);
+	std::stringstream in2(search);
+	term_token_diff d(in1, in2);
+	if (d.check()) {
+	    return static_cast<int>(i);
+	}
+    }
+    return -1;
+}
+
+void test_wam_compiler::test_varset()
+{
+    static const size_t N = 26;
+    static std::string EXPECT[N] =
+	{ "foo(X, Y) :- A = 1 ; B = X, C = Y ; foo(X, A, B), bar(B, Q, W) ; baz(boo(W, D, E))", "[C,Y,X,A,B,Q,W,D,E]",
+	  "(B = X, C = Y)", "[C,Y,X,B]",
+	  "foo(X, A, B), bar(B, Q, W) ; baz(boo(W, D, E))", "[X,A,B,Q,W,D,E]",
+	  "C = Y", "[C,Y]",
+	  "(foo(X, A, B), bar(B, Q, W))", "[X,A,B,Q,W]",
+	  "B = X", "[X,B]",
+	  "bar(B, Q, W)", "[B,Q,W]",
+	  "baz(boo(W, D, E))", "[W,D,E]",
+	  "foo(X, A, B)", "[X,A,B]",
+	  "B = X, C = Y ; foo(X, A, B), bar(B, Q, W) ; baz(boo(W, D, E))", "[C,Y,X,A,B,Q,W,D,E]",
+	  "A = 1 ; B = X, C = Y ; foo(X, A, B), bar(B, Q, W) ; baz(boo(W, D, E))", "[C,Y,X,A,B,Q,W,D,E]",
+	  "A = 1", "[A]",
+	  "foo(X, Y)", "[Y,X]"
+	};
+
+    std::vector<size_t> match;
+
+    auto t = interp_.parse("foo(X,Y) :- (A = 1 ; (B = X, C = Y) ; (foo(X,A,B), bar(B,Q,W) ; baz(boo(W,D,E)))).");
+    comp_.compute_varsets(t);
+
+    for (auto ts : comp_.varsets_) {
+	auto t = ts.first;
+	auto s = ts.second;
+
+	auto actual = interp_.to_string(t);
+	auto index = find_index(EXPECT, N, actual);
+
+	if (index == -1) {
+	    std::cout << "Error: Did not find this in expected table:\n";
+	    std::cout << "    " << actual << "\n";
+	    assert(index != -1);
+	}
+
+	auto actual_set = comp_.varset_to_string(s);
+
+	if (actual_set != EXPECT[index+1]) {
+	    std::cout << "The term: " << actual << "\n";
+	    std::cout << "Error: Did not match the expected set:\n";
+	    std::cout << "   ACTUAL: " << actual_set << "\n";
+	    std::cout << "   EXPECT: " << EXPECT[index+1] << "\n";
+	    assert(actual_set == EXPECT[index+1]);
+	}
+
+	std::cout << std::setw(32) << std::setiosflags(std::ios::left) << interp_.to_string(t) << ": " << comp_.varset_to_string(s) << "\n";
+	match.push_back(index);
+    }
+
+    for (size_t i = 0; i < N; i += 2) {
+	if (std::find(match.begin(), match.end(), i) == match.end()) {
+	    std::cout << "Error: Did not find entry:\n";
+	    std::cout << EXPECT[i] << ": " << EXPECT[i+1] << "\n";
+	    assert(std::find(match.begin(), match.end(), i) != match.end());
+	}
+    }
+}
+
+static void test_varset()
+{
+    header("test_varset");
+    
+    test_wam_compiler test;
+    test.test_varset();
+}
+
 int main( int argc, char *argv[] )
 {
     test_flatten();
-
     test_instruction_sequence();
-
     test_partition();
-
     test_compile();
-
     test_compile2();
+    test_varset();
 
     return 0;
 }

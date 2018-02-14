@@ -298,11 +298,26 @@ void interpreter::dispatch()
     // If this a call from WAM (fast code to slow code) then its call
     // instruction has already initialized the arguments and arity and
     // the term_code() is just a constant (not a compound STR.)
-    if (p().term_code().tag() == common::tag_t::STR) {
+
+
+    common::tag_t ptag = p().term_code().tag();
+    switch (ptag) {
+    case common::tag_t::STR: {
 	for (size_t i = 0; i < arity; i++) {
 	    a(i) = arg(p().term_code(), i);
 	}
 	set_num_of_args(arity);
+	break;
+        } 
+    case common::tag_t::CON: {
+	for (size_t i = 0; i < arity; i++) {
+	    a(i) = interpreter_base::deref(a(i));
+	}
+	set_num_of_args(arity);
+	break;
+        }
+    default:
+	break;
     }
 
     // Is this a built-in?
@@ -572,6 +587,7 @@ void interpreter::load_code(wam_interim_code &instrs)
 	case TRUST:
 	case CALL:
 	case EXECUTE:
+	case GOTO:
 	    {
 	    auto cp_instr = static_cast<wam_instruction_code_point *>(instr);
 	    bind_code_point(label_map, cp_instr->cp());

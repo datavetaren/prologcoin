@@ -45,9 +45,22 @@ static std::vector<std::string> parse_x(const std::string &key, std::string &com
     return matched;
 }
 
-static std::vector<std::string> parse_expected(std::string &comments)
+static void parse_expected(std::string &comments,
+			   std::vector<std::string> &expected,
+			   std::vector<std::pair<std::string, std::string> >
+			        &expected_files)
 {
-    return parse_x("Expect:", comments);
+    expected = parse_x("Expect:", comments);
+    std::vector<std::string> files = parse_x("Expect-file:", comments);
+    expected_files.clear();
+    for (auto f : files) {
+	if (boost::starts_with(f, "compare ")) {
+	    f = f.substr(8);
+	    auto gen_file = f.substr(0, f.find(' '));
+	    auto gold_file = f.substr(f.find(' ')+1);
+	    expected_files.push_back(make_pair(gen_file, gold_file));
+	}
+    }
 }
 
 static std::vector<std::string> parse_meta(std::string &comments)
@@ -94,10 +107,50 @@ static bool match_strings(const std::string &actual,
     return true;
 }
 
+static bool compare_files(const std::string &gen_path,
+			  const std::string &gold_path)
+{
+    if (!boost::filesystem::exists(gen_path)) {
+	std::cout << "Missing file '" << gen_path << "' (supposed to be generated)\n";
+	return false;
+    }
+    if (!boost::filesystem::exists(gold_path)) {
+	std::cout << "Missing file '" << gold_path << "' (gold file missing?)\n";
+	return false;
+    }
+    
+
+    std::ifstream in_actual(gen_path);
+    std::ifstream in_expect(gold_path);
+
+    std::string actual;
+    std::string expect;
+
+    size_t line_no = 1;
+    while (!in_expect.eof()) {
+	std::getline(in_actual, actual);
+	std::getline(in_expect, expect);
+	if (actual != expect) {
+	    std::cout << "Error while comparing '" << gen_path << "' and '"
+		      << gold_path << "' at line " << line_no << "\n";
+	    std::cout << "Actual: " << actual << "\n";
+	    std::cout << "Expect: " << expect << "\n";
+	    return false;
+	}
+
+	line_no++;
+    }
+    in_actual.close();
+    in_expect.close();
+
+    return true;
+}
+
 static bool test_run_once(interpreter &interp,
-			  size_t iteration,
-			  const term &query,
-			  std::vector<std::string> &expected)
+	  size_t iteration,
+	  const term &query,
+	  std::vector<std::string> &expected,
+	  std::vector<std::pair<std::string,std::string> > &expected_files)
 {
     std::string actual;
     bool r = false;
@@ -126,6 +179,14 @@ static bool test_run_once(interpreter &interp,
     std::cout << "Actual: " << actual << std::endl;
     std::cout << "Expect: " << expected[iteration] << std::endl;
     assert(match_strings(actual, expected[iteration]));
+
+    for (auto files : expected_files) {
+	auto gen_file = files.first;
+	auto gold_file = files.second;
+	assert(compare_files(interp.get_full_path(gen_file),
+			     interp.get_full_path(gold_file)));
+    }
+
     return r;
 }
 
@@ -196,9 +257,10 @@ static bool test_interpreter_file(const std::string &filepath)
 		      << "\n";
 
 	    std::vector<std::string> expected;
+	    std::vector<std::pair<std::string, std::string> > expected_files;
 
 	    if (is_query) {
-		expected = parse_expected(comments);
+		parse_expected(comments, expected, expected_files);
 		if (expected.size() == 0) {
 		    std::cout << "Error. Found no expected results for this query. "
 		              << "At line " << parser->get_comments()[0].pos().line()
@@ -269,7 +331,7 @@ static bool test_interpreter_file(const std::string &filepath)
 		    // Run this query first without WAM
 		    interp.set_wam_enabled(false);
 		    for (size_t i = 0; i < expected.size(); i++) {
-			test_run_once(interp, i, query, expected);
+			test_run_once(interp, i, query, expected, expected_files);
 		    }
 		    interp.unwind(tr_mark);
 		    interp.reset_files();
@@ -300,7 +362,7 @@ static bool test_interpreter_file(const std::string &filepath)
 
 		interp.set_register_hb(interp.heap_size());
 		for (size_t i = 0; i < expected.size(); i++) {
-		    test_run_once(interp, i, query, expected);
+		    test_run_once(interp, i, query, expected, expected_files);
 		}
 		interp.unwind(tr_mark);
 		interp.reset_files();
@@ -357,11 +419,6 @@ static void test_interpreter_files(const char *filter = nullptr)
 
 	if (filter != nullptr && filepath.find(filter) == std::string::npos) {
 	    continue;
-	}
-
-	if (filter == nullptr &&
-	    it->path().filename().string() == "ex_99_bigone.pl") {
-	    continue; // Skip it for now...
 	}
 
 	if (boost::starts_with(it->path().filename().string(), "ex_") &&

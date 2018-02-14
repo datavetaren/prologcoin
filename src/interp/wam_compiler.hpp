@@ -13,8 +13,20 @@ namespace prologcoin { namespace interp {
 enum wam_interim_instruction_type {
     INTERIM_FIRST = LAST + 1,
     INTERIM_LABEL,
-    INTERIM_HEAD,
-    INTERIM_GOAL
+    INTERIM_MERGE
+};
+
+class wam_exception : public std::runtime_error
+{
+public:
+    wam_exception(const std::string &msg) : std::runtime_error(msg) { }
+};
+
+class wam_exception_too_many_vars_in_clause : public wam_exception
+{
+public:
+    wam_exception_too_many_vars_in_clause(const std::string &msg)
+	: wam_exception(msg) { }
 };
 
 class wam_interim_instruction_base : public wam_instruction_base {
@@ -35,52 +47,6 @@ template<wam_interim_instruction_type I> class wam_interim_instruction : public 
 public:
     inline wam_interim_instruction(fn_type fn, uint64_t sz_bytes, wam_interim_instruction_type t)
       : wam_interim_instruction_base(fn, sz_bytes, I) { }
-};
-
-template<> class wam_interim_instruction<INTERIM_HEAD> : public wam_interim_instruction_base {
-public:
-    inline wam_interim_instruction() :
-      wam_interim_instruction_base(&invoke, sizeof(*this), INTERIM_HEAD) {
-        static bool init = [] {
-	  register_printer(&invoke, &print); return true; } ();
-        static_cast<void>(init);
-    }
-
-    static void invoke(wam_interpreter &interp, wam_instruction_base *self)
-    {
-        assert("this instruction should never be executed." == nullptr);
-    }
-
-    static void print(std::ostream &out, wam_interpreter &interp,
-		      wam_instruction_base *self)
-    {
-        auto self1 = reinterpret_cast<wam_interim_instruction<INTERIM_HEAD> *>(self);
-	(void)self1;
-        out << "interim_head";
-    }
-};
-
-template<> class wam_interim_instruction<INTERIM_GOAL> : public wam_interim_instruction_base {
-public:
-    inline wam_interim_instruction() :
-      wam_interim_instruction_base(&invoke, sizeof(*this), INTERIM_GOAL) {
-        static bool init = [] {
-	  register_printer(&invoke, &print); return true; } ();
-        static_cast<void>(init);
-    }
-
-    static void invoke(wam_interpreter &interp, wam_instruction_base *self)
-    {
-        assert("this instruction should never be executed." == nullptr);
-    }
-
-    static void print(std::ostream &out, wam_interpreter &interp,
-		      wam_instruction_base *self)
-    {
-        auto self1 = reinterpret_cast<wam_interim_instruction<INTERIM_GOAL> *>(self);
-	(void)self1;
-        out << "interim_goal";
-    }
 };
 
 template<> class wam_interim_instruction<INTERIM_LABEL> : public wam_interim_instruction_base {
@@ -113,18 +79,88 @@ private:
     common::int_cell label_;
 };
 
+class wam_compiler;
+
+template<> class wam_interim_instruction<INTERIM_MERGE> : public wam_interim_instruction_base {
+public:
+     wam_interim_instruction(wam_compiler &compiler, const std::initializer_list<code_point> &cps);
+
+    static inline void init() {
+	static bool init = [] {
+	    register_printer(&invoke, &print);
+	    register_updater(&invoke, &updater);
+	    return true; } ();
+	static_cast<void>(init);
+    }
+
+    inline void update(code_t *old_base, code_t *new_base)
+    {
+	for (auto &p : *from_) {
+	    update_ptr(p, old_base, new_base);
+	}
+    }
+
+    static void invoke(wam_interpreter &interp, wam_instruction_base *self)
+    {
+        assert("this instruction should never be executed." == nullptr);
+    }
+
+    static void print(std::ostream &out, wam_interpreter &interp,
+		      wam_instruction_base *self)
+    {
+        auto self1 = reinterpret_cast<wam_interim_instruction<INTERIM_MERGE> *>(self);
+        out << "interim_merge [";
+	bool first = true;
+	for (code_point &cp : *self1->from_) {
+	    if (!first) out << ",";
+	    first = false;
+	    out << interp.to_string(cp);
+	}
+	out << "]";
+    }
+
+    static void updater(wam_instruction_base *self, code_t *old_base, code_t *new_base)
+    {
+	auto self1 = reinterpret_cast<wam_interim_instruction<INTERIM_MERGE> *>(self);
+	self1->update(old_base, new_base);
+    }
+
+    const std::vector<code_point> & sources() const {
+	return *from_;
+    }
+
+private:
+    std::vector<code_point> *from_;
+};
+
 class wam_interim_code : private std::forward_list<wam_instruction_base *> {
 public:
     wam_interim_code(wam_interpreter &interp);
 
     wam_instruction_base * new_instruction(const wam_instruction_base &instr);
-    void push_back(const wam_instruction_base &instr);
+    wam_instruction_base * push_back(const wam_instruction_base &instr);
     void append(const wam_interim_code &instrs);
 
     void print(std::ostream &out) const;
 
-    std::vector<wam_instruction_base *> get_all();
-    std::vector<wam_instruction_base *> get_all_reversed();
+    void get_all(std::vector<wam_instruction_base *> &all,
+		 std::unordered_map<common::int_cell, size_t> &labels);
+
+    void get_destinations(
+	    std::vector<wam_instruction_base *> &instrs,
+	    std::unordered_map<common::int_cell, size_t> &labels,
+	    size_t index,
+	    std::vector<size_t> &continuations);
+
+    void get_topological_sort(
+	    std::vector<wam_instruction_base *> &instrs,
+	    std::unordered_map<common::int_cell, size_t> &labels,
+	    std::vector<size_t> &sorted);
+
+    void get_reversed_topological_sort(
+	    std::vector<wam_instruction_base *> &instrs,
+	    std::unordered_map<common::int_cell, size_t> &labels,
+	    std::vector<size_t> &sorted);
 
     std::forward_list<wam_instruction_base *>::iterator begin()
     {
@@ -273,7 +309,9 @@ public:
     typedef common::term term;
 
     wam_compiler(wam_interpreter &interp)
-      : interp_(interp), env_(interp), regs_a_(A_REG), regs_x_(X_REG), regs_y_(Y_REG), label_count_(1) { }
+        : interp_(interp), env_(interp), regs_a_(A_REG), regs_x_(X_REG), regs_y_(Y_REG), label_count_(1), goal_count_(0), level_count_(0) { }
+
+    ~wam_compiler();
 
     static inline bool is_interim_instruction(wam_instruction_base *instr) {
         return static_cast<wam_interim_instruction_type>(instr->type())
@@ -285,6 +323,11 @@ public:
 	                         == INTERIM_LABEL;
     }
 
+    static inline bool is_merge_instruction(wam_instruction_base *instr) {
+        return static_cast<wam_interim_instruction_type>(instr->type())
+	                         == INTERIM_MERGE;
+    }
+
     inline size_t get_environment_size_of(wam_interim_code &instrs)
     {
 	return static_cast<size_t>(find_maximum_y_register(instrs) + 1);
@@ -294,6 +337,8 @@ public:
 
 private:
     friend class test_wam_compiler;
+
+    friend class wam_interim_instruction<INTERIM_MERGE>;
 
     class prim_unification {
     public:
@@ -335,6 +380,9 @@ private:
 	size_t num;
 	reg_type type;
     };
+
+    static const size_t MAX_VARS = 256;
+    typedef std::bitset<MAX_VARS> varset_t;
 
     friend inline std::ostream & operator << (std::ostream &out, reg &r)
     {
@@ -391,8 +439,10 @@ private:
 
     void compile_query_or_program(term t, compile_type c,
 			          wam_interim_code &seq);
+    bool is_boundary_instruction(wam_instruction_base *i);
     void remap_x_registers(wam_interim_code &seq);
     void remap_y_registers(wam_interim_code &seq);
+
     void find_x_to_y_registers(wam_interim_code &seq,
 			       std::vector<size_t> &x_to_y);
     void allocate_y_registers(wam_interim_code &seq);
@@ -401,13 +451,27 @@ private:
     void find_unsafe_y_registers(wam_interim_code &seq,
 				 std::unordered_set<size_t> &unsafe_y_regs);
     void remap_to_unsafe_y_registers(wam_interim_code &instrs);
-    void eliminate_interim(wam_interim_code &instrs);
+    void eliminate_interim_but_labels(wam_interim_code &instrs);
 
     bool has_cut(wam_interim_code &seq);
-    reg allocate_cut(wam_interim_code &seq);
+    void allocate_cut(wam_interim_code &seq);
     bool clause_needs_environment(const term clause);
+    bool is_conjunction(const term goal);
+    bool is_disjunction(const term goal);
+    bool is_if_then_else(const term goal);
+    void insert_phi_nodes(const term goal_a, const term goal_b,
+			  wam_interim_code &code);
+    void compile_conjunction(const term conj, wam_interim_code &code);
+    void compile_if_then_else(const term disj, wam_interim_code &code);
+    void compile_disjunction(const term disj, wam_interim_code &code);
     void compile_goal(const term goal, wam_interim_code &seq);
     void peephole_opt_execute(wam_interim_code &seq);
+    void reset_clause_temps();
+    bool is_relevant_varset_op(const term t);
+    void compute_var_indices(const term t);
+    void compute_varsets(const term t);
+    void find_vars(const term t, varset_t &varset);
+    size_t new_level();
     void compile_clause(const term clause, wam_interim_code &seq);
     std::vector<common::int_cell> new_labels(size_t n);
     std::vector<common::int_cell> new_labels_dup(size_t n);
@@ -491,8 +555,6 @@ private:
     size_t get_argument_index(common::ref_cell ref)
     { return argument_pos_[ref]; }
 
-    
-
     wam_interpreter &interp_;
     common::term_env &env_;
 
@@ -504,6 +566,20 @@ private:
     register_pool regs_y_;
 
     size_t label_count_;
+    size_t goal_count_;
+    size_t level_count_;
+
+    std::unordered_map<common::term, size_t> var_index_;
+    std::vector<common::ref_cell> index_var_;
+    varset_t seen_vars_;
+    std::unordered_map<common::term, varset_t> varsets_;
+    std::vector<common::term> stack_;
+
+    std::string varset_to_string(varset_t &t);
+    common::term find_var(size_t var_index);
+
+    std::vector<code_point> * new_merge();
+    std::vector<std::vector<code_point> *> merges_;
 };
 
 template<> inline bool wam_compiler::has_reg<wam_compiler::A_REG>(common::ref_cell ref) { return regs_a_.contains(ref); }
@@ -537,6 +613,16 @@ template<> inline std::pair<wam_compiler::reg,bool> wam_compiler::allocate_reg2<
       return regs_x_.allocate(ref);
    }
 }
+
+inline wam_interim_instruction<INTERIM_MERGE>::wam_interim_instruction(wam_compiler &compiler, const std::initializer_list<code_point> &cps) :
+    wam_interim_instruction_base(&invoke, sizeof(*this), INTERIM_MERGE) {
+    init();
+    from_ = compiler.new_merge();
+    for (auto &cp : cps) {
+	from_->push_back(cp);
+    }
+}
+
 
 }}
 

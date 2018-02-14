@@ -1,5 +1,5 @@
 % Meta: fileio on
-% Meta: debug enabled
+% Meta: debug off
 % Meta: WAM-only
 
 % Read in standard library
@@ -39,13 +39,9 @@ main :-
     StartItem = [(start :- 'DOT', subterm_1200, full_stop)],
     Start = state(0, StartItem, []),
     states(Grammar, Start, States),
-    % resolve_conflicts(States, Properties, States1),
-    %write('xxx 1 '), debug_check,
     sort_actions(States, NewStates),
-    %write('xxx 2 '), debug_check,
     emit(Grammar, Properties, NewStates),
-    %write('xxx 3 '), debug_check,
-    tell('states.txt'),
+    tell('../../../../bin/test/interp/states.txt'),
     print_states(NewStates),
     told,
     true.
@@ -84,11 +80,11 @@ get_property(Properties, Name, Value) :-
 
 emit(Grammar, Properties, States) :-
     get_property(Properties, filename, FileName),
-%    tell(FileName),
+    tell(FileName),
     emit_begin(Grammar, Properties, States),
     emit_states(States, Properties),
     emit_end(Properties),
-%    told,
+    told,
     true.
 
 emit_begin(Grammar, Properties, States) :-
@@ -509,6 +505,7 @@ state_transitions([], _, _, FromState, States, States, FromState, []).
 state_transitions([Symbol|Symbols], Grammar, Closure,
 		  FromState, StatesIn, StatesOut, UpdatedFromState, NewStates) :-
 %    write('--- Check transition '), write(Symbol), nl,
+%    write('--- Closure'), nl, write(Closure), nl,
     select_items(Closure, Symbol, KernelItems),
 %    write('  --> got '), write(KernelItems), nl, 
 %    compact_items(KernelItems1, KernelItems),
@@ -572,8 +569,8 @@ add_state(StatesIn, KernelItems, StatesOut, State) :-
     add_state(StatesIn, 0, KernelItems, StatesOut, State).
 
 add_state([], Cnt, KernelItems, [State], State) :-
-    State = state(Cnt, KernelItems, []),
-    write('New state '), write(Cnt), write(' '), nl. % debug_check. % nl.
+    State = state(Cnt, KernelItems, []).
+%    write('New state '), write(Cnt), write(' '), nl. % debug_check. % nl.
 %    write(KernelItems), nl.
 add_state([State|States], Cnt, KernelItems, [State|StatesOut], Found) :-
     State = state(N,StateKernelItems,_StateActions),
@@ -928,10 +925,12 @@ follow_body((_, Y), Symbol) :- follow_body(Y, Symbol).
 follow_found((A,_), A) :- !.
 follow_found(A, A).
 
+
 %checkit([std|_]) :- xyzzy.
 %checkit([_|Xs]) :- checkit(Xs).
 %checkit([]).
 
 ?- main.
 % Expect: true
-
+% Expect-file: compare ../../../../bin/test/interp/states.txt states.txt.gold
+% Expect-file: compare ../../../../bin/test/interp/term_parser_gen.hpp term_parser_gen.hpp.gold

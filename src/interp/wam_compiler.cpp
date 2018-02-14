@@ -22,10 +22,11 @@ wam_instruction_base * wam_interim_code::new_instruction(const wam_instruction_b
     return i;
 }
 
-void wam_interim_code::push_back(const wam_instruction_base &instr)
+wam_instruction_base * wam_interim_code::push_back(const wam_instruction_base &instr)
 {
     auto *i = new_instruction(instr);
     push_back(i);
+    return i;
 }
 
 void wam_interim_code::push_back(wam_instruction_base *instr)
@@ -46,28 +47,99 @@ void wam_interim_code::append(const wam_interim_code &other)
     }
 }
 
-std::vector<wam_instruction_base *> wam_interim_code::get_all_reversed()
+void wam_interim_code::get_all(std::vector<wam_instruction_base *> &instrs_array,
+			       std::unordered_map<common::int_cell, size_t> &labels)
 {
-    std::vector<wam_instruction_base *> instrs_rev(size_);
-    size_t i = size_-1;
-
-    for (auto instr : *this) {
-        instrs_rev[i] = instr;
-	i--;
-    }
-    return instrs_rev;
-}
-
-std::vector<wam_instruction_base *> wam_interim_code::get_all()
-{
-    std::vector<wam_instruction_base *> instrs(size_);
+    instrs_array.resize(size_);
     size_t i = 0;
 
     for (auto instr : *this) {
-        instrs[i] = instr;
+        instrs_array[i] = instr;
+	if (wam_compiler::is_label_instruction(instr)) {
+	    auto *lbl = reinterpret_cast<wam_interim_instruction<INTERIM_LABEL> *>(instr);
+	    labels[lbl->label()] = i;
+	}
 	i++;
     }
-    return instrs;
+}
+
+void wam_interim_code::get_destinations(
+	    std::vector<wam_instruction_base *> &instrs,
+	    std::unordered_map<common::int_cell, size_t> &labels,
+	    size_t index,
+	    std::vector<size_t> &continuations)
+{
+    continuations.clear();
+    auto *instr = instrs[index];
+    size_t n = instrs.size();
+
+    switch (instr->type()) {
+    case GOTO: {
+	auto *goto_instr = reinterpret_cast<wam_instruction<GOTO> *>(instr);
+	continuations.push_back(labels[goto_instr->p().label()]);
+	break;
+        }
+    case TRY:
+    case RETRY:
+    case TRY_ME_ELSE:
+    case RETRY_ME_ELSE: {
+	auto *cp_instr = reinterpret_cast<wam_instruction_code_point *>(instr);
+	continuations.push_back(labels[cp_instr->cp().label()]);
+	if (index+1 < n) continuations.push_back(index+1);
+	break;
+	}
+    default: {
+	if (index+1 < n) continuations.push_back(index+1);
+	break;
+        }
+    }
+}
+
+void wam_interim_code::get_topological_sort(
+	    std::vector<wam_instruction_base *> &instrs,
+	    std::unordered_map<common::int_cell, size_t> &labels,
+	    std::vector<size_t> &sorted)
+{
+    std::vector<size_t> worklist;
+
+    auto pop_back = [&] { auto r = worklist.back();
+			  worklist.pop_back();
+			  return r; };
+
+    sorted.clear();
+
+    size_t n = instrs.size();
+    std::vector<bool> expanded(n);
+
+    worklist.push_back(0); // First instruction
+
+    std::vector<size_t> cont;
+
+    while (!worklist.empty()) {
+	auto index = pop_back();
+	if (!expanded[index]) {
+	    get_destinations(instrs, labels, index, cont);
+	    worklist.push_back(index); // Revisited when expanded
+	    for (auto c : cont) {
+		if (!expanded[c]) {
+		    worklist.push_back(c);
+		}
+	    }
+	    expanded[index] = true;
+	} else {
+	    // We've processed all successors and we're back.
+	    sorted.push_back(index);
+	}
+    }
+}
+
+void wam_interim_code::get_reversed_topological_sort(
+	    std::vector<wam_instruction_base *> &instrs,
+	    std::unordered_map<common::int_cell, size_t> &labels,
+	    std::vector<size_t> &sorted)
+{
+    get_topological_sort(instrs, labels, sorted);
+    std::reverse(sorted.begin(), sorted.end());
 }
 
 void wam_interim_code::print(std::ostream &out) const
@@ -108,6 +180,20 @@ void wam_goal_iterator::advance()
 // --------------------------------------------------------------
 //  wam_compiler
 // --------------------------------------------------------------
+
+std::vector<code_point> * wam_compiler::new_merge()
+{
+    auto *merge = new std::vector<code_point>();
+    merges_.push_back(merge);
+    return merge;
+}
+
+wam_compiler::~wam_compiler()
+{
+    for (auto *merge : merges_) {
+	delete merge;
+    }
+}
 
 std::vector<wam_compiler::prim_unification> wam_compiler::flatten(
 	  const term t,
@@ -577,37 +663,80 @@ void wam_compiler::remap_x_registers(wam_interim_code &instrs)
     }
 }
 
+bool wam_compiler::is_boundary_instruction(wam_instruction_base *instr)
+{
+    return instr->type() == CALL || instr->type() == BUILTIN_R ||
+	   instr->type() == TRUST_ME;
+}
+
 void wam_compiler::find_x_to_y_registers(wam_interim_code &instrs,
 					 std::vector<size_t> &x_to_y)
 {
-    std::unordered_map<size_t, size_t> first_occur;
-    bool head_found = false;
-    size_t goal_number = 0;
-    for (auto instr : instrs) {
-        if (is_interim_instruction(instr)) {
-	    auto interim = reinterpret_cast<wam_interim_instruction_base *>(instr);
-	    if (interim->type() == INTERIM_HEAD) {
-	        head_found = true;
-	    } else if (!head_found) {
-	        continue;
-	    }
-	    if (interim->type() == INTERIM_GOAL) {
-	        goal_number++;
+    //
+    // Get instructions as array
+    //
+    std::vector<wam_instruction_base *> instrs1;
+    std::unordered_map<common::int_cell, size_t> labels;
+    instrs.get_all(instrs1, labels);
+    std::vector<size_t> boundary_count(instrs1.size());
+
+    // 
+    // Because of the presence of GOTO and internal TRY_ME_ELSE instructions
+    // we don't have straight control flow. This means every instruction has
+    // its own "boundary count," i.e. how many boundary instructions
+    // (CALL or BUILTIN_R) are crossed in its control flow path.
+    // This also means we have to be conservative. If there are two paths
+    // to this instruction, then we'll take the maximum boundary count of
+    // each path. Also, because of this, we need to process the instructions
+    // in reversed topological order. This means that predecessors are
+    // always processed before getting to the merge.
+    //
+
+    std::vector<size_t> sorted;
+    instrs.get_reversed_topological_sort(instrs1, labels, sorted);
+
+    std::vector<size_t> dest;
+
+    for (auto index : sorted) {
+	auto *instr = instrs1[index];
+
+	if (is_boundary_instruction(instr)) {
+	    boundary_count[index]++;
+	}
+	instrs.get_destinations(instrs1, labels, index, dest);
+	size_t max = boundary_count[index];
+	for (auto d : dest) {
+	    if (max > boundary_count[d]) {
+		boundary_count[d] = max;
 	    }
 	}
+    }
 
-	// Map goal number 0 and 1 to the same ID 1 (as head and goal should be
-	// unified into the same set)
+    //
+    // At this point every instruction has a proper boundary count.
+    // Now we need to sweep through to see if a register lives across
+    // boundaries.
+    //
+
+    std::unordered_map<size_t, size_t> some_occur;
+
+    size_t n = instrs1.size();
+    for (size_t i = 0; i < n; i++) {
+	auto *instr = instrs1[i];
 	if (auto x_get = x_getter(instr)) {
 	    size_t xn = x_get();
+	    // GET_LEVEL should always use Y registers!
 	    if (instr->type() == GET_LEVEL) {
 		x_to_y.push_back(xn);
 	    } else {
-		size_t id = (goal_number <= 1) ? 1 : goal_number;
-		auto it = first_occur.find(xn);
-		if (it == first_occur.end()) {
-		    first_occur[xn] = id;
-		} else if (it->second != id) {
+		size_t count = boundary_count[i];
+		auto it = some_occur.find(xn);
+		if (it == some_occur.end()) {
+		    some_occur[xn] = count;
+		} else if (it->second != count) {
+		    // We've found another register access on an instruction
+		    // with a different boundary count, so it needs to be
+		    // a Y register.
 		    x_to_y.push_back(xn);
 		}
 	    }
@@ -646,7 +775,9 @@ void wam_compiler::allocate_y_registers(wam_interim_code &instrs)
 
 void wam_compiler::remap_y_registers(wam_interim_code &instrs)
 {
-    auto instrs_rev = instrs.get_all_reversed();
+    std::vector<wam_instruction_base *> instrs1;
+    std::unordered_map<common::int_cell, size_t> labels;
+    instrs.get_all(instrs1, labels);
 
     std::unordered_map<size_t, size_t> map;
     size_t cnt = 0;
@@ -657,13 +788,24 @@ void wam_compiler::remap_y_registers(wam_interim_code &instrs)
       }
     };
 
-    for (auto instr : instrs_rev) {
+    //
+    // We need to walk in topological order to get the most
+    // efficient renaming of Y registers.
+    //
+
+    std::vector<size_t> sorted;
+    instrs.get_topological_sort(instrs1, labels, sorted);
+
+    for (auto index : sorted) {
+	auto *instr = instrs1[index];
+
         if (auto y_get = y_getter(instr)) {
 	    mapit(y_get());
 	}
     }
 
-    for (auto instr : instrs_rev) {
+    // Sweep through all instructions and update to renamed Y registers
+    for (auto *instr : instrs) {
 	if (auto y_set = y_setter(instr)) {
 	    auto y_get = y_getter(instr);
 	    y_set(map[y_get()]);
@@ -689,22 +831,56 @@ int wam_compiler::find_maximum_y_register(wam_interim_code &instrs)
 
 void wam_compiler::update_calls_for_environment_trimming(wam_interim_code &instrs)
 {
-    auto instrs_rev = instrs.get_all_reversed();
-    int biggest_y = -1;
-    for (auto instr : instrs_rev) {
+    //
+    // Walk backwards through control flow graph in topological
+    // order (= reversed control flow.) Keep track of maximum Y
+    // for each instruction.
+    //
+
+    std::vector<wam_instruction_base *> instrs1;
+    std::unordered_map<common::int_cell, size_t> labels;
+    instrs.get_all(instrs1, labels);
+
+    std::vector<size_t> sorted;
+    instrs.get_topological_sort(instrs1, labels, sorted);
+
+    std::vector<int> y_max(instrs1.size(), -1);
+
+    std::vector<size_t> dest;
+    
+    for (auto index : sorted) {
+	auto *instr = instrs1[index];
+
+	int y = -1;
         if (auto y_get = y_getter(instr)) {
-	    auto y = y_get();
-	    if (static_cast<int>(y) > biggest_y) {
-		biggest_y = static_cast<int>(y);
+	    y = static_cast<int>(y_get());
+	}
+	instrs.get_destinations(instrs1, labels, index, dest);
+	for (auto d : dest) {
+	    y = std::max(y_max[d], y);
+	}
+	y_max[index] = y;
+
+    }
+
+    //
+    // At this point every instruction has the proper y_max count.
+    // Now we need to update all call instructions.
+    //
+
+    size_t n = instrs1.size();
+    for (size_t i = 0; i < n; i++) {
+	auto *instr = instrs1[i];
+	switch (instr->type()) {
+	case CALL:
+	case BUILTIN_R:
+	case RESET_LEVEL: {
+	    auto ii= reinterpret_cast<wam_instruction_code_point_reg *>(instr);
+	    ii->set_reg(y_max[i]+1);
+	    break;
 	    }
-	}
-	if (instr->type() == CALL) {
-	    auto call_instr = reinterpret_cast<wam_instruction<CALL> *>(instr);
-	    call_instr->set_num_y(static_cast<size_t>(biggest_y+1));
-	}
-	if (instr->type() == BUILTIN_R) {
-	    auto bn_instr = reinterpret_cast<wam_instruction<BUILTIN_R> *>(instr);
-	    bn_instr->set_num_y(static_cast<size_t>(biggest_y+1));
+	default:
+	    break;
 	}
     }
 }
@@ -713,35 +889,64 @@ void wam_compiler::find_unsafe_y_registers(wam_interim_code &instrs,
 					   std::unordered_set<size_t> &unsafe_y_regs)
 {
     // We need at least one call instruction.
-    size_t num_calls = 0;
+    size_t boundary_count = 0;
     for (auto instr : instrs) {
-        if (instr->type() == CALL || instr->type() == BUILTIN_R) {
-	    num_calls++;
+        if (is_boundary_instruction(instr)) {
+	    boundary_count++;
 	}
     }
 
     // There can't be unsafe variables if we dont' have call instructions
-    if (num_calls == 0) {
+    if (boundary_count == 0) {
         return;
     }
 
-    auto instrs_rev = instrs.get_all_reversed();
+    //
+    // We don't have straight control flow, so we walk backwards
+    // in bread first order. We stop if we encounter a CALL instruction
+    // as there's no point going further.
+    //
 
-    for (auto instr : instrs_rev) {
+    std::vector<wam_instruction_base *> instrs1;
+    std::unordered_map<common::int_cell, size_t> labels;
+    instrs.get_all(instrs1, labels);
+    std::queue<size_t> worklist;
+    std::vector<bool> visited(instrs1.size());
+    worklist.push(instrs1.size()-1); // Push last instruction
+
+    while (!worklist.empty()) {
+	size_t index = worklist.front();
+	worklist.pop();
+	if (visited[index]) {
+	    continue;
+	}
+	visited[index] = true;
+
+	auto *instr = instrs1[index];
         // Don't search further when we've found the last call.
-        // All Y variables after last call are in "unsafe" state.
-        if (is_interim_instruction(instr)) {
-	    auto interim_instr = reinterpret_cast<wam_interim_instruction_base *>(instr);
-	    if (interim_instr->type() == INTERIM_GOAL) {
-	        // No point in going beyond the last call
-	        break;
-	    }
-        }
+	if (is_boundary_instruction(instr)) {
+	    continue;
+	}
+
 	if (instr->type() == PUT_VALUE_Y) {
 	    auto y_get = y_getter(instr);
 	    size_t yn = y_get();
 	    unsafe_y_regs.insert(yn);
         }
+
+	// Push predecessors (only merge nodes have multiple
+	// predecessors.)
+	if (is_merge_instruction(instr)) {
+	    auto *merge = reinterpret_cast<
+		wam_interim_instruction<INTERIM_MERGE> *>(instr);
+	    for (auto source : merge->sources()) {
+		worklist.push(labels[source.label()]);
+	    }
+	} else {
+	    if (index > 0 && instr->type() != GOTO) {
+		worklist.push(index-1);
+	    }
+	}
     }
 }
 
@@ -752,23 +957,23 @@ void wam_compiler::remap_to_unsafe_y_registers(wam_interim_code &instrs)
     if (unsafe_y_regs.empty()) {
         return;
     }
-    auto all = instrs.get_all();
-    auto n = all.size();
-    size_t last_goal_index = 0;
-    for (size_t i = 0; i < n; i++) {
-        size_t j = n - i - 1;
-        auto instr = all[j];
-	if (is_interim_instruction(instr)) {
-	    auto interim_instr = reinterpret_cast<wam_interim_instruction_base *>(instr);
-	    if (interim_instr->type() == INTERIM_GOAL) {
-	        last_goal_index = j;
-	        break;
-	    }
-	}
-    }
 
-    for (size_t i = last_goal_index; i < n; i++) {
-        auto instr = all[i];
+    //
+    // Find the first PUT_VALUE_Y instruction if Y is unsafe.
+    // As we don't have linear control flow, we need visit nodes
+    // in reversed sorted topological order (= in control flow order.)
+    //
+
+    std::vector<wam_instruction_base *> instrs1;
+    std::unordered_map<common::int_cell, size_t> labels;
+    instrs.get_all(instrs1, labels);
+
+    std::vector<size_t> sorted;
+    // Reversed topological sorted order starts with the first instruction
+    instrs.get_reversed_topological_sort(instrs1, labels, sorted);
+
+    for (auto index : sorted) {
+	auto *instr = instrs1[index];
 	if (instr->type() == PUT_VALUE_Y) {
 	    size_t yn = y_getter(instr)();
 	    if (unsafe_y_regs.find(yn) != unsafe_y_regs.end()) {
@@ -779,13 +984,13 @@ void wam_compiler::remap_to_unsafe_y_registers(wam_interim_code &instrs)
     }
 }
 
-void wam_compiler::eliminate_interim(wam_interim_code &instrs)
+void wam_compiler::eliminate_interim_but_labels(wam_interim_code &instrs)
 {
     auto it = instrs.begin();
     auto it_end = instrs.end();
     auto it_prev = instrs.before_begin();
     while (it != it_end) {
-        if (is_interim_instruction(*it)) {
+        if (is_interim_instruction(*it) && !is_label_instruction(*it)) {
 	    auto *instr = *it;
 	    it = instrs.erase_after(it_prev);
 	    delete instr;
@@ -800,35 +1005,36 @@ bool wam_compiler::has_cut(wam_interim_code &instrs)
 {
     for (auto instr : instrs) {
 	if (instr->type() == CUT) {
-	    return true;
+	    auto *cut_instr = reinterpret_cast<wam_instruction<CUT> *>(instr);
+	    return cut_instr->yn() == 0;
 	}
     }
     return false;
 }
 
-wam_compiler::reg wam_compiler::allocate_cut(wam_interim_code &instrs)
+void wam_compiler::allocate_cut(wam_interim_code &instrs)
 {
-    reg levreg;
+    size_t lvl;
 
     auto it = instrs.begin();
     auto it_end = instrs.end();
 
     while (it != it_end) {
         if ((*it)->type() == ALLOCATE) {
-	    term t = env_.new_ref();
-	    auto &v = reinterpret_cast<common::ref_cell &>(t);
-	    std::tie(levreg, std::ignore) = allocate_reg<X_REG>(v);
-	    const wam_instruction<GET_LEVEL>getlev(levreg.num);
-	    it =instrs.insert_after(it,getlev);
+	    lvl = new_level();
+	    const wam_instruction<GET_LEVEL>getlev(lvl);
+	    it = instrs.insert_after(it,getlev);
         } else if ((*it)->type() == CUT) {
 	    auto *cut_instr = reinterpret_cast<wam_instruction<CUT> *>(*it);
-	    cut_instr->set_yn(levreg.num);
+	    // Only touch user cuts (not other internal cuts by if-then-else)
+	    if (cut_instr->yn() == 0) {
+		cut_instr->set_yn(lvl);
+	    }
 	    ++it;
 	} else {
 	    ++it;
 	}
     }
-    return levreg;
 }
 
 bool wam_compiler::clause_needs_environment(const term clause)
@@ -856,17 +1062,192 @@ void wam_compiler::compile_builtin(common::con_cell f, wam_interim_code &seq)
     }
 }
 
-void wam_compiler::compile_goal(const term goal, wam_interim_code &seq)
+bool wam_compiler::is_if_then_else(const term goal)
+{
+    static const common::con_cell bn_impl = common::con_cell("->",2);
+
+    if (!is_disjunction(goal)) {
+	return false;
+    }
+    auto f = env_.functor(env_.arg(goal, 0));
+    return f == bn_impl;
+}
+
+bool wam_compiler::is_conjunction(const term goal)
+{
+    static const common::con_cell bn_conj = common::con_cell(",",2);
+
+    auto f = env_.functor(goal);
+    return f == bn_conj;
+}
+
+bool wam_compiler::is_disjunction(const term goal)
 {
     static const common::con_cell bn_disj = common::con_cell(";",2);
 
-    (void)bn_disj;
+    auto f = env_.functor(goal);
+    return f == bn_disj;
+}
+
+void wam_compiler::insert_phi_nodes(const term goal_a, const term goal_b,
+				    wam_interim_code &seq)
+{
+    //
+    // Find vars that we haven't seen, but occurs either in A or B?
+    // In that case we insert X = X (PHI node) to indicate that
+    // the variable needs to be alive before entering the disjunction.
+    //
+
+    varset_t new_vars = (varsets_[goal_a] | varsets_[goal_b]) & (~seen_vars_);
+
+    for (size_t i = 0; i < new_vars.size(); i++) {
+	if (new_vars[i]) {
+	    auto new_var = index_var_[i];
+	    reg new_reg;
+	    std::tie(new_reg, std::ignore) = allocate_reg<X_REG>(new_var);
+	    seq.push_back(wam_instruction<SET_VARIABLE_X>(new_reg.num));
+	}
+    }
+}
+
+void wam_compiler::compile_if_then_else(const term goal, wam_interim_code &seq)
+{
+    // Compile (A -> B ; C)
+    // into
+    //
+    //     try_me_else L1
+    //        [A]
+    //     cut
+    //        [B]
+    // LX:
+    //     goto L2
+    // L1: trust_me
+    //        [C]
+    // L2: merge LX
+    //
+
+    const term goal_a = env_.arg(env_.arg(goal, 0),0);
+    const term goal_b = env_.arg(env_.arg(goal, 0),1);
+    const term goal_c = env_.arg(goal,1);
+    common::int_cell l1 = new_label();
+    common::int_cell l2 = new_label();
+    common::int_cell to_merge_0 = new_label();
+    common::int_cell to_merge_1 = new_label();
+
+    insert_phi_nodes(env_.arg(goal, 0), goal_c, seq);
+
+    varset_t old_seen = seen_vars_;
+
+    size_t lvl = new_level();
+    seq.push_back(wam_instruction<RESET_LEVEL>());
+
+    seq.push_back(wam_instruction<TRY_ME_ELSE>(l1));
+    seq.push_back(wam_interim_instruction<INTERIM_LABEL>(to_merge_0));
+    seq.push_back(wam_instruction<GET_LEVEL>(static_cast<uint32_t>(lvl)));
+    compile_goal(goal_a, seq);
+
+    seq.push_back(wam_instruction<CUT>(static_cast<uint32_t>(lvl)));
+    compile_goal(goal_b, seq);
+    seq.push_back(wam_instruction<GOTO>(l2));
+    seq.push_back(wam_interim_instruction<INTERIM_LABEL>(l1));
+    seq.push_back(wam_interim_instruction<INTERIM_LABEL>(to_merge_1));
+    seq.push_back(wam_instruction<TRUST_ME>());
+
+    varset_t seen_vars_0 = seen_vars_;
+    seen_vars_ = old_seen;
+
+    compile_goal(goal_c, seq);
+    seq.push_back(wam_interim_instruction<INTERIM_LABEL>(l2));
+    seq.push_back(wam_interim_instruction<INTERIM_MERGE>(*this, {l2, to_merge_0, to_merge_1}));
+
+    seen_vars_ |= seen_vars_0;
+} 
+
+void wam_compiler::compile_conjunction(const term conj, wam_interim_code &seq)
+{
+    // Compile (A , B)
+    // into
+    //     [A]
+    //     [B]
+
+    const term goal_a = env_.arg(conj, 0);
+    const term goal_b = env_.arg(conj, 1);
+
+    compile_goal(goal_a, seq);
+    seen_vars_ |= varsets_[goal_a];
+    compile_goal(goal_b, seq);
+    seen_vars_ |= varsets_[goal_b];
+}
+
+void wam_compiler::compile_disjunction(const term disj, wam_interim_code &seq)
+{
+    // Compile (A ; B)
+    // into
+    //
+    //     try_me_else L1
+    //        [A]
+    // LX:
+    //     goto L2
+    // L1: trust_me
+    //        [B]
+    // L2: merge LX
+    
+    const term goal_a = env_.arg(disj, 0);
+    const term goal_b = env_.arg(disj, 1);
+    common::int_cell l1 = new_label();
+    common::int_cell l2 = new_label();
+    common::int_cell to_merge = new_label();
+
+    insert_phi_nodes(goal_a, goal_b, seq);
+
+    varset_t old_seen = seen_vars_;
+
+    // Even though there are no internal cuts, we need the RESET_LEVEL
+    // instruction to ensure that the correct stack space is reserved
+    // by following TRY_ME_ELSE
+    seq.push_back(wam_instruction<RESET_LEVEL>());
+
+    seq.push_back(wam_instruction<TRY_ME_ELSE>(l1));
+    compile_goal(goal_a, seq);
+
+    seq.push_back(wam_interim_instruction<INTERIM_LABEL>(to_merge));
+    seq.push_back(wam_instruction<GOTO>(l2));
+    seq.push_back(wam_interim_instruction<INTERIM_LABEL>(l1));
+    seq.push_back(wam_instruction<TRUST_ME>());
+
+    varset_t seen_vars_a = seen_vars_;
+    seen_vars_ = old_seen;
+    compile_goal(goal_b, seq);
+    seq.push_back(wam_interim_instruction<INTERIM_LABEL>(l2));
+    seq.push_back(wam_interim_instruction<INTERIM_MERGE>(*this, {to_merge,l2}));
+
+    seen_vars_ |= seen_vars_a;
+}
+
+size_t wam_compiler::new_level()
+{
+    reg levreg;
+    term t = env_.new_ref();
+    auto &v = reinterpret_cast<common::ref_cell &>(t);
+    std::tie(levreg, std::ignore) = allocate_reg<X_REG>(v);
+    return levreg.num;
+}
+
+void wam_compiler::compile_goal(const term goal, wam_interim_code &seq)
+{
+    if (is_if_then_else(goal)) {
+	compile_if_then_else(goal, seq);
+	return;
+    } else if (is_disjunction(goal)) {
+	compile_disjunction(goal, seq);
+	return;
+    } else if (is_conjunction(goal)) {
+	compile_conjunction(goal, seq);
+	return;
+    }
 
     auto f = env_.functor(goal);
     bool isbn = is_builtin(f);
-    // if (isbn && f == bn_disj) {
-	    // compile_disjunction(goal, seq);
-	// }
     compile_query_or_program(goal, COMPILE_QUERY, seq);
     if (isbn) {
 	compile_builtin(f, seq);
@@ -912,6 +1293,122 @@ void wam_compiler::peephole_opt_execute(wam_interim_code &seq)
     }
 }
 
+void wam_compiler::reset_clause_temps()
+{
+    goal_count_ = 0;
+    level_count_ = 0;
+    seen_vars_.reset();
+    varsets_.clear();
+    index_var_.clear();
+    var_index_.clear();
+}
+
+void wam_compiler::compute_var_indices(const term clause)
+{
+    size_t index = 0;
+    for (auto t : env_.iterate_over(clause)) {
+	if (t.tag() == common::tag_t::REF) {
+	    if (index == 256) {
+		std::string msg = "Number of vars in clause exceeded the maximum of " + boost::lexical_cast<std::string>(seen_vars_.size());
+		throw wam_exception_too_many_vars_in_clause(msg);
+	    }
+	    auto &v = reinterpret_cast<common::ref_cell &>(t);
+	    index_var_.push_back(v);
+	    var_index_[t] = index++;
+	}
+    }
+}
+
+void wam_compiler::find_vars(const term t0, varset_t &varset)
+{
+    varset.reset();
+    for (auto t : env_.iterate_over(t0)) {
+	if (t.tag() == common::tag_t::REF) {
+	    varset.set(var_index_[t]);
+	}
+    }
+}
+
+bool wam_compiler::is_relevant_varset_op(const term t)
+{
+    static const common::con_cell bn_left = common::con_cell(":-",2);
+    static const common::con_cell bn_disj = common::con_cell(";",2);
+    static const common::con_cell bn_conj = common::con_cell(",",2);
+    static const common::con_cell bn_impl = common::con_cell("->",2);
+
+
+    if (t.tag() != common::tag_t::STR) {
+	return false;
+    }
+    auto f = env_.functor(t);
+    return f == bn_left || f == bn_disj || f == bn_conj || f == bn_impl;
+}
+
+common::term wam_compiler::find_var(size_t var_index)
+{
+    for (auto p : var_index_) {
+	if (p.second == var_index) {
+	    return p.first;
+	}
+    }
+    return common::term();
+}
+
+std::string wam_compiler::varset_to_string(wam_compiler::varset_t &varset)
+{
+    std::string str = "[";
+    bool first = true;
+    for (size_t index = 0; index < MAX_VARS; index++) {
+	if (varset[index]) {
+	    if (!first) str += ",";
+	    first = false;
+	    str += env_.to_string(find_var(index));
+	}
+    }
+    return str + "]";
+}
+
+void wam_compiler::compute_varsets(const term t0)
+{
+    compute_var_indices(t0);
+    varsets_.clear();
+    stack_.clear();
+    stack_.push_back(t0);
+    while (!stack_.empty()) {
+	auto t = stack_.back();
+	stack_.pop_back();
+
+	switch (t.tag()) {
+	case common::tag_t::INT: {
+	    // Post processing on a term: Take union of the child varsets
+	    auto parent = stack_.back();
+	    stack_.pop_back();
+	    auto child_0 = env_.arg(parent, 0);
+	    auto child_1 = env_.arg(parent, 1);
+	    varsets_[parent] = varsets_[child_0] | varsets_[child_1];
+	    break;
+	    }
+	case common::tag_t::STR: {
+	    if (is_relevant_varset_op(t)) {
+		stack_.push_back(t);
+		stack_.push_back(common::int_cell(0));
+		for (size_t i = 0; i < 2; i++) {
+		    auto arg = env_.arg(t, i);
+		    if (is_relevant_varset_op(arg)) {
+			stack_.push_back(arg);
+		    } else {
+			find_vars(arg, varsets_[arg]);
+		    }
+		}
+	    }
+	    break;
+	    }
+	default: // Do nothing on all other
+	    break;
+	}
+    }
+}
+
 void wam_compiler::compile_clause(const term clause0, wam_interim_code &seq)
 {
     // We'll make a copy of the clause to be processed.
@@ -920,6 +1417,9 @@ void wam_compiler::compile_clause(const term clause0, wam_interim_code &seq)
     // unfolds the inner terms.
 
     term clause = interp_.copy(clause0);
+
+    reset_clause_temps();
+    compute_varsets(clause);
 
     // First analyze how many calls we have.
     // We only need an environment if there are more than 1 call.
@@ -931,14 +1431,14 @@ void wam_compiler::compile_clause(const term clause0, wam_interim_code &seq)
     }
 
     term head = clause_head(clause);
-    seq.push_back(wam_interim_instruction<INTERIM_HEAD>());
 
     compile_query_or_program(head, COMPILE_PROGRAM, seq);
+    seen_vars_ |= varsets_[head];
 
     term body = clause_body(clause);
     for (auto goal : for_all_goals(body)) {
-	seq.push_back(wam_interim_instruction<INTERIM_GOAL>());
 	compile_goal(goal, seq);
+	seen_vars_ |= varsets_[goal];
     }
     if (needs_env) {
 	seq.push_back(wam_instruction<DEALLOCATE>());
@@ -947,17 +1447,16 @@ void wam_compiler::compile_clause(const term clause0, wam_interim_code &seq)
 
     peephole_opt_execute(seq);
 
-    seq.print(std::cout);
-    
     if (has_cut(seq)) {
 	allocate_cut(seq);
     }
+
     remap_x_registers(seq);
     allocate_y_registers(seq);
     remap_y_registers(seq);
     update_calls_for_environment_trimming(seq);
     remap_to_unsafe_y_registers(seq);
-    eliminate_interim(seq);
+    eliminate_interim_but_labels(seq);
 }
 
 void wam_compiler::emit_cp(std::vector<common::int_cell> &labels, size_t index, size_t n, wam_interim_code &instrs)

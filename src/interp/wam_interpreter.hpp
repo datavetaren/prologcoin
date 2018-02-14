@@ -86,6 +86,9 @@ enum wam_instruction_type {
   GET_LEVEL,
   CUT,
 
+  GOTO,        // Non-standard WAM, but so we can compile (A ; B) efficiently
+  RESET_LEVEL, // --- "" ---
+
   LAST
 };
 
@@ -593,6 +596,18 @@ public:
 	return interpreter_base::to_string(t, style);
     }
 
+    inline std::string to_string(const code_point &cp) const
+    {
+	if (cp.wam_code() != nullptr) {
+	    size_t offset = to_code_addr(cp.wam_code());
+	    return "[" + boost::lexical_cast<std::string>(offset) + "]";
+	} else {
+	    std::string s("L:");
+	    s += to_string(cp.term_code());
+	    return s;
+	}
+    }
+
 protected:
 
     inline bool backtrack_wam()
@@ -606,18 +621,6 @@ protected:
     bool cont_wam();
 private:
     bool fail_;
-
-    inline std::string to_string(const code_point &cp) const
-    {
-	if (cp.wam_code() != nullptr) {
-	    size_t offset = to_code_addr(cp.wam_code());
-	    return "[" + boost::lexical_cast<std::string>(offset) + "]";
-	} else {
-	    std::string s("L:");
-	    s += to_string(cp.term_code());
-	    return s;
-	}
-    }
 
     template<wam_instruction_type I> friend class wam_instruction;
 
@@ -1487,6 +1490,19 @@ private:
 	    tidy_trail();
 	}
 	goto_next_instruction();
+    }
+
+    inline void goto_(code_point &L)
+    {
+	set_p(L);
+    }
+
+    inline void reset_level()
+    {
+	set_b0(b());
+	goto_next_instruction();
+	set_cp(p()); // This means a try_me_else will get the reset_level
+	             // instruction to get the current size of the environment
     }
 
     friend class test_wam_interpreter;
@@ -3336,6 +3352,80 @@ public:
     {
         auto self1 = reinterpret_cast<wam_instruction<CUT> *>(self);
         out << "cut y" << self1->yn();
+    }
+};
+
+template<> class wam_instruction<GOTO> : public wam_instruction_code_point {
+public:
+    inline wam_instruction(code_point p) :
+	  wam_instruction_code_point(&invoke, sizeof(*this), GOTO, p) {
+        init();
+    }
+
+    static inline void init() {
+	static bool init = [] {
+ 	    register_printer(&invoke, &print);
+ 	    register_updater(&invoke, &updater);
+	    return true; } ();
+	static_cast<void>(init);
+    }
+
+    inline const code_point & p() const { return cp(); }
+    inline code_point & p() { return cp(); }
+
+    inline void update(code_t *old_base, code_t *new_base)
+    {
+	update_ptr(p(), old_base, new_base);
+    }
+
+    static void invoke(wam_interpreter &interp, wam_instruction_base *self)
+    {
+	auto self1 = reinterpret_cast<wam_instruction<GOTO> *>(self);
+	interp.goto_(self1->p());
+    }
+
+    static void print(std::ostream &out, wam_interpreter &interp, wam_instruction_base *self)
+    {
+	auto self1 = reinterpret_cast<wam_instruction<GOTO> *>(self);
+	out << "goto " << interp.to_string(self1->p());
+    }
+
+    static void updater(wam_instruction_base *self, code_t *old_base, code_t *new_base)
+    {
+	auto self1 = reinterpret_cast<wam_instruction<GOTO> *>(self);
+	self1->update(old_base, new_base);
+    }
+};
+
+template<> class wam_instruction<RESET_LEVEL> : public wam_instruction_code_point_reg {
+public:
+    inline wam_instruction() :
+	wam_instruction_code_point_reg(&invoke, sizeof(*this), RESET_LEVEL,
+				       code_point(), 0) {
+      init();
+    }
+
+    static inline void init() {
+	static bool init = [] {
+ 	    register_printer(&invoke, &print);
+	    return true; } ();
+	static_cast<void>(init);
+    }
+
+    inline size_t num_y() const { return reg(); }
+    inline void set_num_y(size_t n) { set_reg(n); }
+
+    static void invoke(wam_interpreter &interp, wam_instruction_base *self)
+    {
+	static_cast<void>(self);
+        interp.reset_level();
+    }
+
+    static void print(std::ostream &out, wam_interpreter &interp, wam_instruction_base *self)
+    {
+	static_cast<void>(interp);
+	auto self1 = reinterpret_cast<wam_instruction<RESET_LEVEL> *>(self);
+        out << "reset_level, " << self1->num_y();
     }
 };
 

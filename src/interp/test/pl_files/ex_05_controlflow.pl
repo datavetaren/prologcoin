@@ -88,6 +88,14 @@ mydisj5b(X) :- X = 3 ; X = 4.
 % Expect: Q8 = 4
 % Expect: end
 
+mydisj6(X) :- (mydisj6a(A) ; mydisj6b(B,X)), A = B, B = X.
+mydisj6a(A) :- A = 42.
+mydisj6b(B,X) :- B = 4711.
+?- mydisj6(Q8B).
+% Expect: Q8B = 42
+% Expect: Q8B = 4711
+% Expect: end
+
 %
 % Combination of ; and !
 %
@@ -161,6 +169,9 @@ myifthenelse6(A,B,C) :- (member(A, [1,2,3,4,5]) -> B = 1 ; B = 42), C = 4711.
 % Expect: Q26 = 1, Q27 = 4711
 % Expect: end
 
+%
+% If-then-else with calls
+%
 
 myifthenelse7(A,B,C) :- (member(A, [1,2,foo,baz,foo]), matchit(A,foo) -> foo(B) ; foo2(B)), foo3(C).
 matchit(A,B) :-
@@ -173,3 +184,14 @@ foo3(123).
 ?- myifthenelse7(foo, Q28, Q29).
 % Expect: Q28 = 42, Q29 = 123
 % Expect: end
+
+%
+% If-then-else with calls before merge
+%
+
+myifthenelse8(A,B,C) :- (member(A, [1,2,foo,baz,foo]), matchit(A,foo) -> foo(B), C = 123 ; foo2(B), C = 123), foo3(C).
+
+?- myifthenelse8(foo, Q28, Q29).
+% Expect: Q28 = 42, Q29 = 123
+% Expect: end
+
