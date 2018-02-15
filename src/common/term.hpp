@@ -760,6 +760,11 @@ public:
 	*p = c;
     }
 
+    inline con_cell dotted_pair()
+    {
+	return dotted_pair_;
+    }
+
     inline term new_dotted_pair()
     {
         term t = new_str0(dotted_pair_);
@@ -789,7 +794,7 @@ public:
 	cell *p;
 	std::tie(p, index) = allocate(tag_t::REF, cnt);
 	for (size_t i = 0; i < cnt; i++) {
-	    static_cast<ref_cell &>(*p).set_index(index+i);
+	    static_cast<ref_cell &>(p[i]).set_index(index+i);
 	}
     }
 

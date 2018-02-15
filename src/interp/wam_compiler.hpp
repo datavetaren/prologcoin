@@ -434,7 +434,8 @@ private:
     void compile_program(reg lhsreg, common::ref_cell lhsvar, term rhs, 
 			 wam_interim_code &seq);
 
-    void compile_builtin(common::con_cell f, wam_interim_code &seq);
+    void compile_builtin(common::con_cell f, bool first_goal,
+			 wam_interim_code &seq);
 
 
     void compile_query_or_program(term t, compile_type c,
@@ -451,6 +452,7 @@ private:
     void find_unsafe_y_registers(wam_interim_code &seq,
 				 std::unordered_set<size_t> &unsafe_y_regs);
     void remap_to_unsafe_y_registers(wam_interim_code &instrs);
+    void fix_unsafe_set_unify(wam_interim_code &instr);
     void eliminate_interim_but_labels(wam_interim_code &instrs);
 
     bool has_cut(wam_interim_code &seq);
@@ -464,8 +466,9 @@ private:
     void compile_conjunction(const term conj, wam_interim_code &code);
     void compile_if_then_else(const term disj, wam_interim_code &code);
     void compile_disjunction(const term disj, wam_interim_code &code);
-    void compile_goal(const term goal, wam_interim_code &seq);
+    void compile_goal(const term goal, bool first_goal, wam_interim_code &seq);
     void peephole_opt_execute(wam_interim_code &seq);
+    void peephole_opt_void(wam_interim_code &instr);
     void reset_clause_temps();
     bool is_relevant_varset_op(const term t);
     void compute_var_indices(const term t);
@@ -491,6 +494,8 @@ private:
     std::function<void (size_t)> y_setter(wam_instruction_base *instr);
 
     void change_x_to_y(wam_instruction_base *instr);
+
+    std::pair<size_t, size_t> get_num_x_and_y(wam_interim_code &instrs);
 
     class goals_range {
     public:

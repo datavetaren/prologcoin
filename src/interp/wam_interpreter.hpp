@@ -28,7 +28,9 @@ enum wam_instruction_type {
   PUT_STRUCTURE_A,
   PUT_STRUCTURE_X,
   PUT_STRUCTURE_Y,
-  PUT_LIST,
+  PUT_LIST_A,
+  PUT_LIST_X,
+  PUT_LIST_Y,
   PUT_CONSTANT,
   
   GET_VARIABLE_X,
@@ -38,7 +40,9 @@ enum wam_instruction_type {
   GET_STRUCTURE_A,
   GET_STRUCTURE_X,
   GET_STRUCTURE_Y,
-  GET_LIST,
+  GET_LIST_A,
+  GET_LIST_X,
+  GET_LIST_Y,
   GET_CONSTANT,
 
   SET_VARIABLE_A,
@@ -849,9 +853,21 @@ private:
 	goto_next_instruction();
     }
   
-    inline void put_list(uint32_t ai)
+    inline void put_list_a(uint32_t ai)
     {
         a(ai) = new_dotted_pair();
+	goto_next_instruction();
+    }
+
+    inline void put_list_x(uint32_t xn)
+    {
+        x(xn) = new_dotted_pair();
+	goto_next_instruction();
+    }
+
+    inline void put_list_y(uint32_t yn)
+    {
+        y(yn) = new_dotted_pair();
 	goto_next_instruction();
     }
 
@@ -943,9 +959,19 @@ private:
 	}
     }
 
-    inline void get_list(uint32_t ai)
+    inline void get_list_a(uint32_t ai)
     {
-        get_structure_a(empty_list_con(), ai);
+        get_structure_a(dotted_pair(), ai);
+    }
+
+    inline void get_list_x(uint32_t xn)
+    {
+        get_structure_x(dotted_pair(), xn);
+    }
+
+    inline void get_list_y(uint32_t yn)
+    {
+        get_structure_y(dotted_pair(), yn);
     }
 
     inline void get_constant(common::term c, uint32_t ai)
@@ -1769,10 +1795,10 @@ public:
     }
 };
 
-template<> class wam_instruction<PUT_LIST> : public wam_instruction_unary_reg {
+template<> class wam_instruction<PUT_LIST_A> : public wam_instruction_unary_reg {
 public:
     inline wam_instruction(uint32_t ai) :
-	wam_instruction_unary_reg(&invoke, sizeof(*this), PUT_LIST, ai) {
+	wam_instruction_unary_reg(&invoke, sizeof(*this), PUT_LIST_A, ai) {
         init();
     }
 
@@ -1787,14 +1813,72 @@ public:
 
     static void invoke(wam_interpreter &interp, wam_instruction_base *self)
     {
-        auto self1 = reinterpret_cast<wam_instruction<PUT_LIST> *>(self);
-        interp.put_list(self1->ai());
+        auto self1 = reinterpret_cast<wam_instruction<PUT_LIST_A> *>(self);
+        interp.put_list_a(self1->ai());
     }
 
     static void print(std::ostream &out, wam_interpreter &interp, wam_instruction_base *self)
     {
-        auto self1 = reinterpret_cast<wam_instruction<PUT_LIST> *>(self);
+        auto self1 = reinterpret_cast<wam_instruction<PUT_LIST_A> *>(self);
         out << "put_list " << "a" << self1->ai();
+    }
+};
+
+template<> class wam_instruction<PUT_LIST_X> : public wam_instruction_unary_reg {
+public:
+    inline wam_instruction(uint32_t xn) :
+	wam_instruction_unary_reg(&invoke, sizeof(*this), PUT_LIST_X, xn) {
+        init();
+    }
+
+    static inline void init() {
+	static bool init_ = [] {
+	    register_printer(&invoke, &print);
+	    return true; } ();
+	static_cast<void>(init_);
+    }
+
+    inline uint32_t xn() const { return reg(); }
+
+    static void invoke(wam_interpreter &interp, wam_instruction_base *self)
+    {
+        auto self1 = reinterpret_cast<wam_instruction<PUT_LIST_X> *>(self);
+        interp.put_list_x(self1->xn());
+    }
+
+    static void print(std::ostream &out, wam_interpreter &interp, wam_instruction_base *self)
+    {
+        auto self1 = reinterpret_cast<wam_instruction<PUT_LIST_X> *>(self);
+        out << "put_list " << "x" << self1->xn();
+    }
+};
+
+template<> class wam_instruction<PUT_LIST_Y> : public wam_instruction_unary_reg {
+public:
+    inline wam_instruction(uint32_t xn) :
+	wam_instruction_unary_reg(&invoke, sizeof(*this), PUT_LIST_Y, xn) {
+        init();
+    }
+
+    static inline void init() {
+	static bool init_ = [] {
+	    register_printer(&invoke, &print);
+	    return true; } ();
+	static_cast<void>(init_);
+    }
+
+    inline uint32_t yn() const { return reg(); }
+
+    static void invoke(wam_interpreter &interp, wam_instruction_base *self)
+    {
+        auto self1 = reinterpret_cast<wam_instruction<PUT_LIST_Y> *>(self);
+        interp.put_list_y(self1->yn());
+    }
+
+    static void print(std::ostream &out, wam_interpreter &interp, wam_instruction_base *self)
+    {
+        auto self1 = reinterpret_cast<wam_instruction<PUT_LIST_Y> *>(self);
+        out << "put_list " << "y" << self1->yn();
     }
 };
 
@@ -2045,10 +2129,10 @@ public:
     }
 };
 
-template<> class wam_instruction<GET_LIST> : public wam_instruction_unary_reg {
+template<> class wam_instruction<GET_LIST_A> : public wam_instruction_unary_reg {
 public:
     inline wam_instruction(uint32_t ai) :
-	wam_instruction_unary_reg(&invoke, sizeof(*this), GET_LIST,ai) {
+	wam_instruction_unary_reg(&invoke, sizeof(*this), GET_LIST_A,ai) {
         init();
     }
 
@@ -2063,14 +2147,72 @@ public:
 
     static void invoke(wam_interpreter &interp, wam_instruction_base *self)
     {
-        auto self1 = reinterpret_cast<wam_instruction<GET_LIST> *>(self);
-        interp.get_list(self1->ai());
+        auto self1 = reinterpret_cast<wam_instruction<GET_LIST_A> *>(self);
+        interp.get_list_a(self1->ai());
     }
 
     static void print(std::ostream &out, wam_interpreter &interp, wam_instruction_base *self)
     {
-        auto self1 = reinterpret_cast<wam_instruction<GET_LIST> *>(self);
+        auto self1 = reinterpret_cast<wam_instruction<GET_LIST_A> *>(self);
         out << "get_list " << "a" << self1->ai();
+    }
+};
+
+template<> class wam_instruction<GET_LIST_X> : public wam_instruction_unary_reg {
+public:
+    inline wam_instruction(uint32_t xn) :
+	wam_instruction_unary_reg(&invoke, sizeof(*this), GET_LIST_X, xn) {
+        init();
+    }
+
+    static inline void init() {
+	static bool init_ = [] {
+	    register_printer(&invoke, &print);
+	    return true; } ();
+	static_cast<void>(init_);
+    }
+
+    inline uint32_t xn() const { return reg(); }
+
+    static void invoke(wam_interpreter &interp, wam_instruction_base *self)
+    {
+        auto self1 = reinterpret_cast<wam_instruction<GET_LIST_X> *>(self);
+        interp.get_list_x(self1->xn());
+    }
+
+    static void print(std::ostream &out, wam_interpreter &interp, wam_instruction_base *self)
+    {
+        auto self1 = reinterpret_cast<wam_instruction<GET_LIST_X> *>(self);
+        out << "get_list " << "x" << self1->xn();
+    }
+};
+
+template<> class wam_instruction<GET_LIST_Y> : public wam_instruction_unary_reg {
+public:
+    inline wam_instruction(uint32_t yn) :
+	wam_instruction_unary_reg(&invoke, sizeof(*this), GET_LIST_Y, yn) {
+        init();
+    }
+
+    static inline void init() {
+	static bool init_ = [] {
+	    register_printer(&invoke, &print);
+	    return true; } ();
+	static_cast<void>(init_);
+    }
+
+    inline uint32_t yn() const { return reg(); }
+
+    static void invoke(wam_interpreter &interp, wam_instruction_base *self)
+    {
+        auto self1 = reinterpret_cast<wam_instruction<GET_LIST_Y> *>(self);
+        interp.get_list_y(self1->yn());
+    }
+
+    static void print(std::ostream &out, wam_interpreter &interp, wam_instruction_base *self)
+    {
+        auto self1 = reinterpret_cast<wam_instruction<GET_LIST_Y> *>(self);
+        out << "get_list " << "y" << self1->yn();
     }
 };
 

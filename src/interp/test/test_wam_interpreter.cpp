@@ -48,6 +48,7 @@ public:
     void test_partition();
     void test_compile2();
     void test_varset();
+    void test_unsafe_set_unify();
 
 private:
     interpreter interp_;
@@ -286,7 +287,9 @@ static void test_instruction_sequence()
     interp.add(wam_instruction<PUT_STRUCTURE_A>(con_cell("f",2), 12));
     interp.add(wam_instruction<PUT_STRUCTURE_X>(con_cell("f",2), 11));
     interp.add(wam_instruction<PUT_STRUCTURE_Y>(con_cell("f",2), 10));
-    interp.add(wam_instruction<PUT_LIST>(13));
+    interp.add(wam_instruction<PUT_LIST_A>(13));
+    interp.add(wam_instruction<PUT_LIST_X>(14));
+    interp.add(wam_instruction<PUT_LIST_Y>(15));
     interp.add(wam_instruction<PUT_CONSTANT>(con_cell("foo",0), 14));
     interp.add(wam_instruction<PUT_CONSTANT>(int_cell(4711), 15));
     interp.add(wam_instruction<GET_VARIABLE_X>(16,17));
@@ -296,7 +299,9 @@ static void test_instruction_sequence()
     interp.add(wam_instruction<GET_STRUCTURE_A>(con_cell("ga",2), 22));
     interp.add(wam_instruction<GET_STRUCTURE_X>(con_cell("gx",2), 21));
     interp.add(wam_instruction<GET_STRUCTURE_Y>(con_cell("gy",2), 20));
-    interp.add(wam_instruction<GET_LIST>(23));
+    interp.add(wam_instruction<GET_LIST_A>(23));
+    interp.add(wam_instruction<GET_LIST_X>(24));
+    interp.add(wam_instruction<GET_LIST_Y>(25));
     interp.add(wam_instruction<GET_CONSTANT>(con_cell("bar",0), 24));
     interp.add(wam_instruction<GET_CONSTANT>(int_cell(-123), 25));
     interp.add(wam_instruction<SET_VARIABLE_X>(26));
@@ -440,6 +445,23 @@ static void test_varset()
     test.test_varset();
 }
 
+void test_wam_compiler::test_unsafe_set_unify()
+{
+    term t = interp_.parse("a(X) :- b(f(X)).");
+    wam_interim_code seq(interp_);
+    comp_.compile_clause(t, seq);
+
+    seq.print(std::cout);
+}
+
+static void test_unsafe_set_unify()
+{
+    header("test_unsafe_set_unify");
+
+    test_wam_compiler test;
+    test.test_unsafe_set_unify();
+}
+
 int main( int argc, char *argv[] )
 {
     test_flatten();
@@ -448,6 +470,7 @@ int main( int argc, char *argv[] )
     test_compile();
     test_compile2();
     test_varset();
+    test_unsafe_set_unify();
 
     return 0;
 }

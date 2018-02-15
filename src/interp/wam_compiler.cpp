@@ -329,7 +329,11 @@ void wam_compiler::compile_query_str(wam_compiler::reg lhsreg, common::ref_cell 
 	    instrs.push_back(wam_instruction<GET_VALUE_X>(xreg.num, lhsreg.num));
 	}
     } else {
-        instrs.push_back(wam_instruction<PUT_STRUCTURE_X>(f,lhsreg.num));
+	if (f == interp_.dotted_pair()) {
+	    instrs.push_back(wam_instruction<PUT_LIST_X>(lhsreg.num));
+	} else {
+	    instrs.push_back(wam_instruction<PUT_STRUCTURE_X>(f,lhsreg.num));
+	}
     }
     size_t n = f.arity();
     for (size_t i = 0; i < n; i++) {
@@ -412,7 +416,11 @@ void wam_compiler::compile_program_str(wam_compiler::reg lhsreg, common::ref_cel
 {
     auto f = env_.functor(rhs);
     if (lhsreg.type == A_REG) {
-        instrs.push_back(wam_instruction<GET_STRUCTURE_A>(f,lhsreg.num));
+	if (f == interp_.dotted_pair()) {
+	    instrs.push_back(wam_instruction<GET_LIST_A>(lhsreg.num));
+	} else {
+	    instrs.push_back(wam_instruction<GET_STRUCTURE_A>(f,lhsreg.num));
+	}
 	if (has_reg<X_REG>(lhsvar)) {
 	    wam_compiler::reg xreg;
 	    std::tie(xreg, std::ignore) = allocate_reg<X_REG>(lhsvar);
@@ -420,7 +428,11 @@ void wam_compiler::compile_program_str(wam_compiler::reg lhsreg, common::ref_cel
 	}
 
     } else {
-        instrs.push_back(wam_instruction<GET_STRUCTURE_X>(f,lhsreg.num));
+	if (f == interp_.dotted_pair()) {
+	    instrs.push_back(wam_instruction<GET_LIST_X>(lhsreg.num));
+	} else {
+	    instrs.push_back(wam_instruction<GET_STRUCTURE_X>(f,lhsreg.num));
+	}
     }
     size_t n = f.arity();
     for (size_t i = 0; i < n; i++) {
@@ -526,6 +538,8 @@ std::function<size_t ()> wam_compiler::x_getter(wam_instruction_base *instr)
 	case PUT_STRUCTURE_X:
 	case GET_STRUCTURE_X:
 	    return [=]{return reinterpret_cast<wam_instruction_con_reg *>(instr)->reg();};
+        case GET_LIST_X:
+        case PUT_LIST_X:
 	case SET_VARIABLE_X:
 	case SET_VALUE_X:
 	case SET_LOCAL_VALUE_X:
@@ -551,6 +565,8 @@ std::function<void (size_t)> wam_compiler::x_setter(wam_instruction_base *instr)
 	case PUT_STRUCTURE_X:
 	case GET_STRUCTURE_X:
 	    return [=](size_t xn){reinterpret_cast<wam_instruction_con_reg *>(instr)->set_reg(xn);};
+        case GET_LIST_X:
+        case PUT_LIST_X:
 	case SET_VARIABLE_X:
 	case SET_VALUE_X:
 	case SET_LOCAL_VALUE_X:
@@ -576,6 +592,8 @@ std::function<size_t ()> wam_compiler::y_getter(wam_instruction_base *instr)
 	case PUT_STRUCTURE_Y:
 	case GET_STRUCTURE_Y:
 	    return [=]{return reinterpret_cast<wam_instruction_con_reg *>(instr)->reg();};
+        case GET_LIST_Y:
+        case PUT_LIST_Y:
 	case SET_VARIABLE_Y:
 	case SET_VALUE_Y:
 	case SET_LOCAL_VALUE_Y:
@@ -601,6 +619,8 @@ std::function<void (size_t)> wam_compiler::y_setter(wam_instruction_base *instr)
 	case PUT_STRUCTURE_Y:
 	case GET_STRUCTURE_Y:
 	    return [=](size_t yn){reinterpret_cast<wam_instruction_con_reg *>(instr)->set_reg(yn);};
+        case GET_LIST_Y:
+        case PUT_LIST_Y:
 	case SET_VARIABLE_Y:
 	case SET_VALUE_Y:
 	case SET_LOCAL_VALUE_Y:
@@ -624,6 +644,8 @@ void wam_compiler::change_x_to_y(wam_instruction_base *instr)
         case GET_VALUE_X: instr->set_type<GET_VALUE_Y>(); break;
         case PUT_STRUCTURE_X: instr->set_type<PUT_STRUCTURE_Y>(); break;
         case GET_STRUCTURE_X: instr->set_type<GET_STRUCTURE_Y>(); break;
+        case GET_LIST_X: instr->set_type<GET_LIST_Y>(); break;
+        case PUT_LIST_X: instr->set_type<PUT_LIST_Y>(); break;
         case SET_VARIABLE_X: instr->set_type<SET_VARIABLE_Y>(); break;
         case SET_VALUE_X: instr->set_type<SET_VALUE_Y>(); break;
         case SET_LOCAL_VALUE_X: instr->set_type<SET_LOCAL_VALUE_Y>(); break;
@@ -635,6 +657,21 @@ void wam_compiler::change_x_to_y(wam_instruction_base *instr)
 	default:
 	    break;
     }
+}
+
+std::pair<size_t, size_t> wam_compiler::get_num_x_and_y(wam_interim_code &instrs)
+{
+    int max_x = -1, max_y = -1;
+    for (auto *instr : instrs) {
+	if (auto x_get = x_getter(instr)) {
+	    max_x = std::max(static_cast<int>(x_get()),max_x);
+	}
+	if (auto y_get = y_getter(instr)) {
+	    max_y = std::max(static_cast<int>(y_get()),max_y);
+	}
+    }
+    return std::make_pair(static_cast<size_t>(max_x+1),
+			  static_cast<size_t>(max_y+1));
 }
 
 void wam_compiler::remap_x_registers(wam_interim_code &instrs)
@@ -984,6 +1021,128 @@ void wam_compiler::remap_to_unsafe_y_registers(wam_interim_code &instrs)
     }
 }
 
+void wam_compiler::fix_unsafe_set_unify(wam_interim_code &instrs)
+{
+    // set_value and unify_value on a register that is not initialized
+    // with a set_variable or unify_variable are unsafe and must be
+    // translated to set_local_value and unify_local_value respectively.
+
+    std::vector<wam_instruction_base *> instrs1;
+    std::unordered_map<common::int_cell, size_t> labels;
+    instrs.get_all(instrs1, labels);
+
+    std::vector<size_t> sorted;
+    instrs.get_reversed_topological_sort(instrs1, labels, sorted);
+
+    size_t num_x = 0, num_y = 0;
+    std::tie(num_x, num_y) = get_num_x_and_y(instrs);
+
+    std::vector<bool> seen_x_regs(num_x);
+    std::vector<bool> seen_y_regs(num_y);
+    std::vector<bool> unsafe_x_regs(num_x);
+    std::vector<bool> unsafe_y_regs(num_y);
+
+    for (auto index : sorted) {
+
+	auto *instr = instrs1[index];
+	switch (instr->type()) {
+	case PUT_STRUCTURE_X:
+	case GET_STRUCTURE_X:
+	    {
+		auto *instr1 =
+		    reinterpret_cast<wam_instruction_con_reg *>(instr);
+		auto xn = instr1->reg();
+		seen_x_regs[xn] = true;
+		break;
+	    }
+	case GET_LIST_X:
+	case PUT_LIST_X:
+	    {
+		auto *instr1 =
+		    reinterpret_cast<wam_instruction_unary_reg *>(instr);
+		auto xn = instr1->reg();
+		seen_x_regs[xn] = true;
+		break;
+	    }
+	case PUT_STRUCTURE_Y:
+	case GET_STRUCTURE_Y:
+	case GET_LIST_Y:
+	case PUT_LIST_Y:
+	    {
+		auto *instr1 =
+		    reinterpret_cast<wam_instruction_unary_reg *>(instr);
+		auto yn = instr1->reg();
+		seen_y_regs[yn] = true;
+		break;
+	    }
+
+	case PUT_VARIABLE_X:
+	case GET_VARIABLE_X:
+	    {
+		auto *instr1 =
+		    reinterpret_cast<wam_instruction_unary_reg *>(instr);
+		auto xn = instr1->reg();
+		if (!seen_x_regs[xn]) {
+		    unsafe_x_regs[xn] = true;
+		}
+		seen_x_regs[xn] = true;
+		break;
+	    }
+	case PUT_VARIABLE_Y:
+	case GET_VARIABLE_Y:
+	    {
+		auto *instr1 =
+		    reinterpret_cast<wam_instruction_unary_reg *>(instr);
+		auto yn = instr1->reg();
+		if (!seen_y_regs[yn]) {
+		    unsafe_y_regs[yn] = true;
+		}
+		seen_y_regs[yn] = true;
+		break;
+	    }
+	case SET_VALUE_X:
+	    {
+		auto *instr1 =
+		    reinterpret_cast<wam_instruction_unary_reg *>(instr);
+		if (unsafe_x_regs[instr1->reg()]) {
+		    instr->set_type<SET_LOCAL_VALUE_X>();
+		}
+		break;
+	    }
+	case SET_VALUE_Y:
+	    {
+		auto *instr1 =
+		    reinterpret_cast<wam_instruction_unary_reg *>(instr);
+		if (unsafe_y_regs[instr1->reg()]) {
+		    instr->set_type<SET_LOCAL_VALUE_Y>();
+		}
+		break;
+	    }
+	case UNIFY_VALUE_X:
+	    {
+		auto *instr1 =
+		    reinterpret_cast<wam_instruction_unary_reg *>(instr);
+		if (unsafe_x_regs[instr1->reg()]) {
+		    instr->set_type<UNIFY_LOCAL_VALUE_X>();
+		}
+		break;
+	    }
+	case UNIFY_VALUE_Y:
+	    {
+		auto *instr1 =
+		    reinterpret_cast<wam_instruction_unary_reg *>(instr);
+		if (unsafe_y_regs[instr1->reg()]) {
+		    instr->set_type<UNIFY_LOCAL_VALUE_Y>();
+		}
+		break;
+	    }
+
+	default:
+	    break;
+	}
+    }
+}
+
 void wam_compiler::eliminate_interim_but_labels(wam_interim_code &instrs)
 {
     auto it = instrs.begin();
@@ -1039,12 +1198,49 @@ void wam_compiler::allocate_cut(wam_interim_code &instrs)
 
 bool wam_compiler::clause_needs_environment(const term clause)
 {
+    static const common::con_cell cut_op("!", 0);
+    static const term none = common::int_cell(0);
+
     auto body = clause_body(clause);
-    (void)body;
+    bool has_calls = false;
+    term last_call = none;
+    term last_goal = none;
+    for (auto goal : for_all_goals(body)) {
+	auto f = env_.functor(goal);
+	bool isbn = is_builtin(f);
+	if (!isbn) {
+	    if (has_calls) {
+		// Multiple calls! We need an environment.
+		return true;
+	    }
+	    has_calls = true;
+	    last_call = goal;
+	} else if (f == cut_op) {
+	    return true;
+	} else {
+	    auto &bn = get_builtin(f);
+	    if (bn.is_recursive()) {
+		return true;
+	    }
+	}
+	last_goal = goal;
+    }
+
+    if (!has_calls) {
+	return false;
+    }
+
+    // If the last goal is the last call, then it will be mapped
+    // to "execute", so no need for an environment
+    if (last_call == last_goal) {
+	return false;
+    }
+
     return true;
 }
 
-void wam_compiler::compile_builtin(common::con_cell f, wam_interim_code &seq)
+void wam_compiler::compile_builtin(common::con_cell f, bool first_goal,
+				   wam_interim_code &seq)
 {
     static const common::con_cell bn_true = common::con_cell("true",0);
 
@@ -1054,7 +1250,11 @@ void wam_compiler::compile_builtin(common::con_cell f, wam_interim_code &seq)
 	    seq.push_back(wam_instruction<BUILTIN_R>(f, bn.fn(), 0));
 	} else {
 	    if (bn.fn() == builtins::operator_cut) {
-		seq.push_back(wam_instruction<CUT>(0));
+		if (first_goal) {
+		    seq.push_back(wam_instruction<NECK_CUT>());
+		} else {
+		    seq.push_back(wam_instruction<CUT>(0));
+		}
 	    } else {
 		seq.push_back(wam_instruction<BUILTIN>(f, bn.fn()));
 	    }
@@ -1144,10 +1344,10 @@ void wam_compiler::compile_if_then_else(const term goal, wam_interim_code &seq)
     seq.push_back(wam_instruction<TRY_ME_ELSE>(l1));
     seq.push_back(wam_interim_instruction<INTERIM_LABEL>(to_merge_0));
     seq.push_back(wam_instruction<GET_LEVEL>(static_cast<uint32_t>(lvl)));
-    compile_goal(goal_a, seq);
+    compile_goal(goal_a, false, seq);
 
     seq.push_back(wam_instruction<CUT>(static_cast<uint32_t>(lvl)));
-    compile_goal(goal_b, seq);
+    compile_goal(goal_b, false, seq);
     seq.push_back(wam_instruction<GOTO>(l2));
     seq.push_back(wam_interim_instruction<INTERIM_LABEL>(l1));
     seq.push_back(wam_interim_instruction<INTERIM_LABEL>(to_merge_1));
@@ -1156,7 +1356,7 @@ void wam_compiler::compile_if_then_else(const term goal, wam_interim_code &seq)
     varset_t seen_vars_0 = seen_vars_;
     seen_vars_ = old_seen;
 
-    compile_goal(goal_c, seq);
+    compile_goal(goal_c, false, seq);
     seq.push_back(wam_interim_instruction<INTERIM_LABEL>(l2));
     seq.push_back(wam_interim_instruction<INTERIM_MERGE>(*this, {l2, to_merge_0, to_merge_1}));
 
@@ -1173,9 +1373,9 @@ void wam_compiler::compile_conjunction(const term conj, wam_interim_code &seq)
     const term goal_a = env_.arg(conj, 0);
     const term goal_b = env_.arg(conj, 1);
 
-    compile_goal(goal_a, seq);
+    compile_goal(goal_a, false, seq);
     seen_vars_ |= varsets_[goal_a];
-    compile_goal(goal_b, seq);
+    compile_goal(goal_b, false, seq);
     seen_vars_ |= varsets_[goal_b];
 }
 
@@ -1208,7 +1408,7 @@ void wam_compiler::compile_disjunction(const term disj, wam_interim_code &seq)
     seq.push_back(wam_instruction<RESET_LEVEL>());
 
     seq.push_back(wam_instruction<TRY_ME_ELSE>(l1));
-    compile_goal(goal_a, seq);
+    compile_goal(goal_a, false, seq);
 
     seq.push_back(wam_interim_instruction<INTERIM_LABEL>(to_merge));
     seq.push_back(wam_instruction<GOTO>(l2));
@@ -1217,7 +1417,7 @@ void wam_compiler::compile_disjunction(const term disj, wam_interim_code &seq)
 
     varset_t seen_vars_a = seen_vars_;
     seen_vars_ = old_seen;
-    compile_goal(goal_b, seq);
+    compile_goal(goal_b, false, seq);
     seq.push_back(wam_interim_instruction<INTERIM_LABEL>(l2));
     seq.push_back(wam_interim_instruction<INTERIM_MERGE>(*this, {to_merge,l2}));
 
@@ -1233,7 +1433,8 @@ size_t wam_compiler::new_level()
     return levreg.num;
 }
 
-void wam_compiler::compile_goal(const term goal, wam_interim_code &seq)
+void wam_compiler::compile_goal(const term goal, bool first_goal,
+				wam_interim_code &seq)
 {
     if (is_if_then_else(goal)) {
 	compile_if_then_else(goal, seq);
@@ -1250,7 +1451,7 @@ void wam_compiler::compile_goal(const term goal, wam_interim_code &seq)
     bool isbn = is_builtin(f);
     compile_query_or_program(goal, COMPILE_QUERY, seq);
     if (isbn) {
-	compile_builtin(f, seq);
+	compile_builtin(f, first_goal, seq);
     } else {
 	seq.push_back(wam_instruction<CALL>(f, 0));
     }
@@ -1287,7 +1488,83 @@ void wam_compiler::peephole_opt_execute(wam_interim_code &seq)
 	    // Add these new ones
 	    it = seq.insert_after(it, wam_instruction<DEALLOCATE>());
 	    it = seq.insert_after(it, wam_instruction<EXECUTE>(f));
+	} else if (seq.is_at_type(it_0,CALL) &&
+    	           seq.is_at_type(it_1,PROCEED)) {
+	    // Memorize CALL and extract predicate (saved as 'f')
+	    wam_instruction<CALL> *call_instr
+	       = reinterpret_cast<wam_instruction<CALL> *>(*it_0);
+	    common::con_cell f = call_instr->pn();
+	    delete *it_0;
+	    delete *it_1;
+
+	    // Remove all instructions
+	    seq.erase_after(it, it_2);
+
+	    // Add these new ones
+	    it = seq.insert_after(it, wam_instruction<EXECUTE>(f));
 	} else {
+	    ++it;
+	}
+    }
+}
+
+void wam_compiler::peephole_opt_void(wam_interim_code &instrs)
+{
+    // Find singleton occurrences
+    std::unordered_map<size_t, size_t> reg_count;
+    for (auto *instr : instrs) {
+	if (auto x_get = x_getter(instr)) {
+	    auto xn = x_get();
+	    reg_count[xn]++;
+	}
+    }
+
+    bool contains_void = false;
+    for (auto *instr : instrs) {
+	if (auto x_get = x_getter(instr)) {
+	    auto xn = x_get();
+	    if (reg_count[xn] == 1) {
+		if (instr->type() == SET_VARIABLE_X) {
+		    instr->set_type<SET_VOID>();
+		    reinterpret_cast<wam_instruction<SET_VOID> *>(instr)->set_reg(1);
+		    contains_void = true;
+		}
+		if (instr->type() == UNIFY_VARIABLE_X) {
+		    instr->set_type<UNIFY_VOID>();
+		    reinterpret_cast<wam_instruction<UNIFY_VOID> *>(instr)->set_reg(1);
+		    contains_void = true;
+		}
+	    }
+	}
+    }
+    if (!contains_void) {
+	return;
+    }
+
+    //
+    // Coalesce consecutive set_voids and unify_voids
+    //
+
+    auto it = instrs.begin();
+    auto it_end = instrs.end();
+    auto it_prev = instrs.before_begin();
+    wam_instruction_unary_reg *found = nullptr;
+
+    while (it != it_end) {
+	auto *instr = *it;
+	if (instr->type() == SET_VOID || instr->type() == UNIFY_VOID) {
+	    if (found && instr->type() == found->type()) {
+		found->set_reg(found->reg()+1);
+		it = instrs.erase_after(it_prev);
+		delete instr;
+	    } else {
+		found = static_cast<wam_instruction_unary_reg *>(instr);
+		it_prev = it;
+		++it;
+	    }
+	} else {
+	    found = nullptr;
+	    it_prev = it;
 	    ++it;
 	}
     }
@@ -1436,8 +1713,10 @@ void wam_compiler::compile_clause(const term clause0, wam_interim_code &seq)
     seen_vars_ |= varsets_[head];
 
     term body = clause_body(clause);
+    bool first_goal = true;
     for (auto goal : for_all_goals(body)) {
-	compile_goal(goal, seq);
+	compile_goal(goal, first_goal, seq);
+	first_goal = false;
 	seen_vars_ |= varsets_[goal];
     }
     if (needs_env) {
@@ -1451,11 +1730,14 @@ void wam_compiler::compile_clause(const term clause0, wam_interim_code &seq)
 	allocate_cut(seq);
     }
 
+    peephole_opt_void(seq);
+
     remap_x_registers(seq);
     allocate_y_registers(seq);
     remap_y_registers(seq);
     update_calls_for_environment_trimming(seq);
     remap_to_unsafe_y_registers(seq);
+    fix_unsafe_set_unify(seq);
     eliminate_interim_but_labels(seq);
 }
 
