@@ -439,9 +439,18 @@ public:
   inline void clear_name(const term t)
      { var_naming_.erase(t); }
   inline bool has_name(const term t) const
-     { return var_naming_.count(t) != 0; }
+     { return var_naming_.find(t) != var_naming_.end(); }
   inline void set_name(const term t, const std::string &name)
      { var_naming_[t] = name; }
+  inline const std::string & get_name(const term t) const
+     { auto it = var_naming_.find(t);
+       if (it == var_naming_.end()) {
+	   static const std::string empty;
+	   return empty;
+       } else {
+	   return it->second;
+       }
+     }
 
 
   inline void unwind_trail(size_t from, size_t to)

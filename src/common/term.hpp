@@ -171,6 +171,11 @@ public:
 
     std::string str() const;
 
+    std::string hex_str() const;
+
+protected:
+    static std::string hex_str(uint64_t value);
+
 private:
     value_t raw_value_;
 };
@@ -320,11 +325,11 @@ public:
 	return str();
     }
 
-private:
     bool is_direct() const {
 	return ((value() >> 60) & 0x1) != 0;
     }
 
+private:
     uint8_t get_name_byte(size_t index) const;
 
     friend class heap;
@@ -364,6 +369,11 @@ public:
 	return bin_op( std::plus<T>(), *this, other );
     }
 
+    inline int_cell & operator ++ () {
+	set_value(value() + 1);
+	return *this;
+    }
+
     inline int_cell operator - (const int_cell other ) const {
 	return bin_op( std::minus<T>(), *this, other );
     }
@@ -384,17 +394,31 @@ public:
 	return value() == other.value();
     }
 
-    inline std::string str () const {
-	std::string s = boost::lexical_cast<std::string>(value());
-	return "|" + std::string(std::max(0,20 - static_cast<int>(s.length())), ' ') + s + " : " + static_cast<std::string>(tag()) + " |";
+    std::string str () const;
+    std::string hex_str() const;
+
+    inline operator std::string () const {
+       return str();
     }
 
-   inline operator std::string () const {
-       return str();
-   }
+private:
+    friend class term_serializer;
+
+    bool is_char_chunk() const;
+    bool is_last_char_chunk() const;
+    std::string as_char_chunk() const;
 };
 
-void blaha();
+//
+// BIG
+// This is to use a binary blob of data. Like STR it points at the
+// beginning of the block which first contains the number of cells.
+//
+class big_cell : public ptr_cell {
+public:
+    inline big_cell(const big_cell &other) : ptr_cell(other) { }
+    inline big_cell(size_t index) : ptr_cell(tag_t::BIG, index) { }
+};
 
 //
 // heap_block

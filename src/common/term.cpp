@@ -19,6 +19,37 @@ std::string cell::str() const
     }
 }
 
+std::string cell::hex_str() const
+{
+    return hex_str(raw_value());
+}
+
+std::string cell::hex_str(uint64_t value)
+{
+    std::string s = "0x";
+    if (value == 0) {
+	s += "0";
+	return s;
+    }
+
+    // Skip leading 0s
+    size_t m = 60;
+    bool leading0 = true;
+    for (size_t i = 0; i < 16; i++, m -= 4) {
+	auto digit = (value >> m) & 0xf;
+	if (leading0 && digit == 0) {
+	    continue;
+	}
+	leading0 = false;
+	if (digit < 10) {
+	    s += ('0' + digit);
+	} else {
+	    s += ('a' + digit - 10);
+	}
+    }
+    return s;
+}
+
 con_cell::con_cell(const std::string &name, size_t arity) : cell(tag_t::CON)
 {
     assert(use_compacted(name, arity));
@@ -79,8 +110,75 @@ std::string con_cell::name_and_arity() const
 
 std::string con_cell::str() const
 {
-    std::string s = (is_direct() ? name() : "[" + boost::lexical_cast<std::string>(value()) + "]");
+    std::string s = (is_direct() ? name() : "[" + boost::lexical_cast<std::string>(atom_index()) + "]");
     if (arity() > 0) s += "/" + boost::lexical_cast<std::string>(arity());
+
+    return "|" + std::string(std::max(0,20 - static_cast<int>(s.length())), ' ') + s + " : " + static_cast<std::string>(tag()) + " |";
+}
+
+std::string int_cell::hex_str() const
+{
+    return cell::hex_str(value());
+}
+
+bool int_cell::is_char_chunk() const
+{
+    // Check if lowest 5 bits is 00000 or 00001. Then it encodes
+    // a character chunk.
+    auto v = value();
+    auto lowest_5_bits = static_cast<uint8_t>(v) & 0x1f;
+    if (lowest_5_bits != 0 && lowest_5_bits != 1) {
+	return false;
+    }
+    for (size_t i = 0; i < 7; i++) {
+	auto ch = (v >> ((6-i)*8 + 5)) & 0xff;
+	if (ch == 0) {
+	    return true;
+	}
+	if (ch < ' ' || ch >= 127) {
+	    return false;
+	}
+    }
+    return true;
+}
+
+std::string int_cell::as_char_chunk() const
+{
+    auto v = value();
+    size_t i;
+    std::string s = "";
+    for (i = 0; i < 7; i++) {
+	auto ch = (v >> ((6-i)*8 + 5)) & 0xff;
+	if (ch == 0) {
+	    break;
+	}
+	s += static_cast<char>(ch);
+    }
+    return s;
+}
+
+bool int_cell::is_last_char_chunk() const
+{
+    auto v = value();
+    auto lowest_5_bits = static_cast<uint8_t>(v) & 0x1f;
+    return lowest_5_bits == 0;
+}
+
+std::string int_cell::str() const
+{
+    std::string s;
+    auto v = value();
+    if (v >= -1000000 && value() <= 1000000) {
+	s = boost::lexical_cast<std::string>(v);
+    } else if (is_char_chunk()) {
+	s = "'" + as_char_chunk() + "'";
+	while (s.size() < 8) s += " ";
+	if (!is_last_char_chunk()) {
+	    s += "...";
+	}
+    } else {
+	s = hex_str();
+    }
 
     return "|" + std::string(std::max(0,20 - static_cast<int>(s.length())), ' ') + s + " : " + static_cast<std::string>(tag()) + " |";
 }
