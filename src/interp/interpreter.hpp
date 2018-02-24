@@ -30,6 +30,7 @@ public:
     { return wam_enabled_; }
 
     std::string get_result(bool newlines = true) const;
+    term get_result_term(const std::string &varname) const;
     void print_result(std::ostream &out) const;
 
     void unwind(size_t trail_mark)

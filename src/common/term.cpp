@@ -10,13 +10,26 @@ size_t heap::id_counter_ = 0;
 
 std::string cell::str() const
 {
+    return inner_str() + ":" + tag().str();
+}
+
+std::string cell::inner_str() const
+{
     switch (tag()) {
-    case tag_t::REF: return static_cast<const ref_cell &>(*this).str();
-    case tag_t::CON: return static_cast<const con_cell &>(*this).str();
-    case tag_t::STR: return static_cast<const str_cell &>(*this).str();
-    case tag_t::INT: return static_cast<const int_cell &>(*this).str();
+    case tag_t::REF: return static_cast<const ref_cell &>(*this).inner_str();
+    case tag_t::CON: return static_cast<const con_cell &>(*this).inner_str();
+    case tag_t::STR: return static_cast<const str_cell &>(*this).inner_str();
+    case tag_t::INT: return static_cast<const int_cell &>(*this).inner_str();
     default: return "?";
     }
+    
+}
+
+std::string cell::boxed_str() const
+{
+    std::string s = inner_str();
+    return "|" + std::string(std::max(0,20 - static_cast<int>(s.length())),
+	     ' ') + s + " : " + static_cast<std::string>(tag()) + " |";
 }
 
 std::string cell::hex_str() const
@@ -108,13 +121,15 @@ std::string con_cell::name_and_arity() const
     return name() + "/" + boost::lexical_cast<std::string>(arity());
 }
 
-std::string con_cell::str() const
+std::string con_cell::inner_str() const
 {
     std::string s = (is_direct() ? name() : "[" + boost::lexical_cast<std::string>(atom_index()) + "]");
     if (arity() > 0) s += "/" + boost::lexical_cast<std::string>(arity());
-
-    return "|" + std::string(std::max(0,20 - static_cast<int>(s.length())), ' ') + s + " : " + static_cast<std::string>(tag()) + " |";
+    return s;
 }
+
+	//    return "|" + std::string(std::max(0,20 - static_cast<int>(s.length())), ' ') + s + " : " + static_cast<std::string>(tag()) + " |";
+	//}
 
 std::string int_cell::hex_str() const
 {
@@ -164,7 +179,34 @@ bool int_cell::is_last_char_chunk() const
     return lowest_5_bits == 0;
 }
 
-std::string int_cell::str() const
+int_cell int_cell::encode_str(const std::string &str, bool has_more)
+{
+    return encode_str(str, 0, str.size(), has_more);
+}
+
+int_cell int_cell::encode_str(const std::string &str, size_t from,
+			      size_t to, bool has_more)
+{
+    assert(to-from <= 7);
+
+    size_t end = to;
+    if (end > str.size()) {
+	end = str.size();
+    }
+
+    int64_t v = 0;
+
+    for (size_t i = from; i < end; i++) {
+	v |= (static_cast<int64_t>(1) << (5+(6-(i-from))*8)) *
+	      static_cast<uint8_t>(str[i]);
+    }
+
+    if (has_more) v |= 1;
+
+    return int_cell(v);
+}
+
+std::string int_cell::inner_str() const
 {
     std::string s;
     auto v = value();
@@ -179,9 +221,11 @@ std::string int_cell::str() const
     } else {
 	s = hex_str();
     }
-
-    return "|" + std::string(std::max(0,20 - static_cast<int>(s.length())), ' ') + s + " : " + static_cast<std::string>(tag()) + " |";
+    return s;
 }
+
+//    return "|" + std::string(std::max(0,20 - static_cast<int>(s.length())), ' ') + s + " : " + static_cast<std::string>(tag()) + " |";
+//}
 
 heap::heap() 
   : size_(0),
@@ -333,7 +377,7 @@ void heap::print(std::ostream &out, size_t from, size_t to) const
 {
     out << std::setw(8) << " " << std::setw(0) << "  ." << std::string(27, '-') << "." << "\n";
     for (size_t i = from; i < to; i++) {
-	out << std::setw(8) << i << std::setw(0) << ": " << get(i).str() << "\n";
+	out << std::setw(8) << i << std::setw(0) << ": " << get(i).boxed_str() << "\n";
     }
     out << std::setw(8) << " " << std::setw(0) << "  `" << std::string(27, '-') << "´" << "\n";
 }

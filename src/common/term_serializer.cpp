@@ -1,4 +1,5 @@
 #include <iomanip>
+#include <queue>
 #include "term_serializer.hpp"
 
 namespace prologcoin { namespace common {
@@ -28,6 +29,8 @@ void term_serializer::write(buffer_t &bytes, const term t)
 	std::tie(offset, t1) = stack_.back();
 	stack_.pop_back();
 
+	t1 = env_.deref(t1);
+
 	switch (t1.tag()) {
 	case tag_t::CON:
 	    write_con_cell(bytes,offset,reinterpret_cast<const con_cell &>(t1));
@@ -54,15 +57,8 @@ void term_serializer::write_encoded_string(buffer_t &bytes, const std::string &s
     // tells whether this continues or not.
     size_t n = str.size();
     for (size_t i = 0; i < n; i += 7) {
-	int64_t v = 0;
-	for (size_t j = 0; j < 7; j++) {
-	    if (i+j < n) {
-		v |= (static_cast<int64_t>(1) << (5+(6-j)*8)) *
-		    static_cast<uint8_t>(str[i+j]);
-	    }
-	}
-	if (i+7 < n) v |= 1;
-	write_int_cell(bytes, bytes.size(), int_cell(v));
+	auto ic = int_cell::encode_str(str, i, i+7, (i+7 < n));
+	write_int_cell(bytes, bytes.size(), ic);
     }
 }
 
@@ -120,20 +116,36 @@ void term_serializer::write_str_cell(buffer_t &bytes, size_t offset,
 term term_serializer::read(buffer_t &bytes)
 {
     size_t offset = 0;
-    return read(bytes, offset);
+    size_t heap_start = env_.heap_size();
+    size_t old_hdr_size = 0, new_hdr_size = 0;
+    term t = read(bytes, offset, old_hdr_size, new_hdr_size);
+    size_t heap_end = env_.heap_size();
+    integrity_check(heap_start, heap_end, old_hdr_size, new_hdr_size);
+    return t;
 }
 
-term term_serializer::read(buffer_t &bytes, size_t &offset)
+term term_serializer::read(buffer_t &bytes, size_t &offset,
+			   size_t &old_header_size,
+			   size_t &new_header_size)
 {
     term_index_.clear();
 
-    read_all_header(bytes, offset);
-
-    size_t old_addr_base = cell_count(offset);
+    size_t old_addr_base = offset;
     size_t new_addr_base = env_.heap_size();
 
+    read_all_header(bytes, offset);
+
+    size_t old_hdr_size = offset - old_addr_base;
+    size_t new_hdr_size = env_.heap_size() - new_addr_base;
+
+    size_t old_hdr = cell_count(old_addr_base + old_hdr_size);
+
+    old_header_size = old_hdr_size;
+    new_header_size = new_hdr_size;
+
     while (offset < bytes.size()) {
-	cell c = read_cell(bytes, offset);
+	cell c = read_cell(bytes, offset, "reading for term construction");
+
 	switch (c.tag()) {
 	case tag_t::INT: env_.new_cell0(c); break;
 	case tag_t::CON: {
@@ -141,7 +153,12 @@ term term_serializer::read(buffer_t &bytes, size_t &offset)
 	    if (con.is_direct()) {
 		env_.new_cell0(c);
 	    } else {
-		env_.new_cell0(con_cell(index_term(c,0), con.arity()));
+		if (!is_indexed(c)) {
+		    throw serializer_exception_missing_index(c);
+		}
+		auto newcon = con_cell(index_term(c,0), con.arity());
+		env_.new_cell0(newcon);
+		new_to_old_[newcon] = c;
 	    }
 	    break;
    	    }
@@ -149,14 +166,17 @@ term term_serializer::read(buffer_t &bytes, size_t &offset)
 	case tag_t::STR: {
 	    auto &pc = reinterpret_cast<const ptr_cell&>(c);
 	    size_t new_addr;
-	    if (pc.index() < old_addr_base) {
-		// TODO: Error if index is missing (is_indexed(c) == false)
+	    if (pc.index() < old_hdr) {
+		if (!is_indexed(c)) {
+		    throw serializer_exception_missing_index(pc);
+		}
 		new_addr = ref_cell(index_term(c, 0));
 	    } else {
-		new_addr = pc.index() - old_addr_base + new_addr_base;
+		new_addr = pc.index() - old_hdr + new_addr_base + new_hdr_size;
 	    }
 	    cell new_cell = ptr_cell(c.tag(), new_addr);
 	    env_.new_cell0(new_cell);
+	    new_to_old_[new_cell] = c;
 	    break;
    	    }
 	case tag_t::BIG:
@@ -166,14 +186,14 @@ term term_serializer::read(buffer_t &bytes, size_t &offset)
 	offset += sizeof(cell);
     }
 
-    return env_.heap_get(new_addr_base);
+    return env_.heap_get(new_addr_base + new_hdr_size);
 }
 
 void term_serializer::read_all_header(buffer_t &bytes, size_t &offset)
 {
-    auto ver_t = read_cell(bytes, offset);
+    auto ver_t = read_cell(bytes, offset, "reading version");
     if (ver_t.tag() != tag_t::CON) {
-	throw serializer_exception_unexpected_data(ver_t, offset);
+	throw serializer_exception_unexpected_data(ver_t, offset, "version constant");
     }
 
     auto &v = reinterpret_cast<const con_cell &>(ver_t);
@@ -183,15 +203,15 @@ void term_serializer::read_all_header(buffer_t &bytes, size_t &offset)
 
     offset += sizeof(cell);
 
-    auto remap_c = read_cell(bytes, offset);
+    auto remap_c = read_cell(bytes, offset, "reading remap");
 
     if (remap_c.tag() != tag_t::CON) {
-	throw serializer_exception_unexpected_data(ver_t, offset);
+	throw serializer_exception_unexpected_data(remap_c, offset, "remap section");
     }
 
     const con_cell &remap_cc = static_cast<const con_cell &>(remap_c);
     if (remap_cc != con_cell("remap",0)) {
-	throw serializer_exception_unexpected_data(remap_cc, offset);
+	throw serializer_exception_unexpected_data(remap_cc, offset, "remap section");
     }
 
     offset += sizeof(cell);
@@ -199,7 +219,7 @@ void term_serializer::read_all_header(buffer_t &bytes, size_t &offset)
     bool cont = true;
 
     while (cont) {
-	cell c = read_cell(bytes, offset);
+	cell c = read_cell(bytes, offset, "reading remap index entry");
 	offset += sizeof(cell);
 	if (c == con_cell("pamer",0)) {
 	    cont = false;
@@ -210,7 +230,7 @@ void term_serializer::read_all_header(buffer_t &bytes, size_t &offset)
 		read_index(bytes, offset, c);
 		break;
 	    default:
-		throw serializer_exception_unexpected_data(c, offset);
+		throw serializer_exception_unexpected_data(c, offset, "ref/con in remap section");
 	    }
 	}
     }
@@ -221,13 +241,13 @@ std::string term_serializer::read_encoded_string(buffer_t &bytes, size_t &offset
     bool cont = true;
     std::string str;
     while (cont) {
-	cell c = read_cell(bytes, offset);
+	cell c = read_cell(bytes, offset, "reading encoded string");
 	if (c.tag() != tag_t::INT) {
-	    throw serializer_exception_unexpected_data(c, offset);
+	    throw serializer_exception_unexpected_data(c, offset, "encoded string as INTs");
 	}
 	auto &ic = static_cast<const int_cell &>(c);
 	if (!ic.is_char_chunk()){
-	    throw serializer_exception_unexpected_data(c, offset);
+	    throw serializer_exception_unexpected_data(c, offset, "encoded string as INTs");
 	}
 	str += ic.as_char_chunk();
 	cont = !ic.is_last_char_chunk();
@@ -256,11 +276,155 @@ void term_serializer::read_index(buffer_t &bytes, size_t &offset, cell c)
     }
 }
 
+void term_serializer::integrity_check(size_t heap_start, size_t heap_end,
+				      size_t old_hdr_size,
+				      size_t new_hdr_size)
+{
+    std::vector<bool> checked;
+
+    auto set_checked = [&](size_t heap_index) {
+	size_t rel = heap_index - heap_start;
+	if (checked.size() <= rel) {
+	    checked.resize(rel+1);
+	}
+	checked[rel] = true;
+    };
+
+    auto is_checked = [&](size_t heap_index) {
+	size_t rel = heap_index - heap_start;
+	if (rel >= checked.size()) {
+	    return false;
+	}
+	bool r = checked[rel];
+	return r;
+    };
+
+    auto compute_old_index = [&](size_t heap_index) {
+	return heap_index - heap_start - new_hdr_size
+	       + cell_count(old_hdr_size);
+    };
+
+    auto compute_old_offset = [&](size_t heap_index) {
+	return compute_old_index(heap_index) * sizeof(cell);
+    };
+
+    auto compute_old_cell = [&](cell new_cell) {
+	auto it = new_to_old_.find(new_cell);
+	if (it != new_to_old_.end()) {
+	    return it->second;
+	} else {
+	    return new_cell;
+	}
+    };
+
+    auto check_pointer = [&](ptr_cell ptrcell, size_t heap_index) {
+	size_t index = ptrcell.index();
+	if (index < heap_start || index >= heap_end) {
+	    throw serializer_exception_dangling_pointer(
+				compute_old_cell(ptrcell),
+				compute_old_offset(heap_index));
+	}
+    };
+   
+    auto check_functor = [&](str_cell strcell, size_t heap_index) {
+	size_t index = strcell.index();
+	auto c = env_.heap_get(index);
+	if (c.tag() != tag_t::CON) {
+	    throw serializer_exception_illegal_functor(
+		       compute_old_cell(c),
+		       compute_old_offset(index),
+		       compute_old_cell(strcell), 
+		       compute_old_offset(heap_index));
+	}
+    };
+
+    auto check_functor_args = [&](str_cell strcell, size_t heap_index) {
+	size_t index = strcell.index();
+	auto c = env_.heap_get(index);
+	auto f = reinterpret_cast<const con_cell &>(c);
+	if (index + f.arity() >= heap_end) {
+	    throw serializer_exception_missing_argument(
+		       compute_old_cell(c),
+		       compute_old_offset(index),
+		       compute_old_cell(strcell),
+		       compute_old_offset(heap_index));
+	}
+    };
+
+    auto arrow = [&](std::string &str) {
+	if (!str.empty()) {
+	    str += "->";
+	}
+    };
+
+    auto compute_path = [&](size_t start, size_t end) {
+	std::string path;
+	size_t i = start;
+	while (i != end) {
+	    auto c = env_.heap_get(i);
+	    auto &ref = static_cast<const ref_cell &>(c);
+	    arrow(path);
+	    path += compute_old_cell(ref).str();
+	    i = ref.index();
+	}
+	arrow(path);
+	path += compute_old_cell(env_.heap_get(i)).str();
+	arrow(path);
+	path += compute_old_cell(env_.heap_get(start)).str();
+	return path;
+    };
+
+    auto check_ref_chain = [&](ref_cell refcell, size_t heap_index) {
+	size_t index = heap_index;
+	auto c = env_.heap_get(index);
+	std::unordered_set<size_t> visit;
+	while (c.tag() == tag_t::REF) {
+	    auto &ref = reinterpret_cast<const ref_cell &>(c);
+	    check_pointer(ref, index);
+	    visit.insert(index);
+	    if (is_checked(index) || ref.index() == index) {
+		std::for_each(visit.begin(), visit.end(), set_checked);
+		return;
+	    }
+	    if (visit.find(ref.index()) != visit.end()) {
+		// Ref cycle detected.
+		throw serializer_exception_cyclic_reference(
+			    compute_old_cell(refcell),
+			    compute_old_offset(heap_index),
+			    compute_path(heap_index, index));
+	    }
+	    index = ref.index();
+	    c = env_.heap_get(index);
+	}
+    };
+
+    for (size_t i = heap_start; i < heap_end; i++) {
+	if (is_checked(i)) {
+	    continue;
+	}
+	cell c = env_.heap_get(i);
+	switch (c.tag()) {
+	case tag_t::STR: {
+	    auto &strcell = reinterpret_cast<const str_cell &>(c);
+	    check_pointer(strcell, i);
+	    check_functor(strcell, i);
+	    check_functor_args(strcell, i);
+	    break;
+	    }
+	case tag_t::REF: {
+	    auto &refcell = reinterpret_cast<const ref_cell &>(c);
+	    check_ref_chain(refcell, i);
+	    break;
+	    }
+	}
+    }
+}
+
 void term_serializer::print_buffer(buffer_t &bytes)
 {
     for (size_t i = 0; i < bytes.size(); i += sizeof(cell::value_t)) {
-	cell c = read_cell(bytes, i);
-	std::cout << "[" << std::setw(5) << cell_count(i) << "]: " << c.str() << "\n";
+	cell c = read_cell(bytes, i, "print_buffer");
+	std::cout << "[" << std::setw(5) << cell_count(i) << "]: " << c.boxed_str() << " [offset:" << std::setw(5) << i << "]\n";
     }
 }
 

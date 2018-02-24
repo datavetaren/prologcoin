@@ -521,6 +521,18 @@ std::string interpreter::get_result(bool newlines) const
     return ss.str();
 }
 
+interpreter::term interpreter::get_result_term(const std::string &varname) const
+{
+    term t;
+    for (auto v : query_vars_) {
+	auto &name = v.name();
+	if (name == varname) {
+	    return v.value();
+	}
+    }
+    return t;
+}
+
 void interpreter::print_result(std::ostream &out) const
 {
     out << get_result();

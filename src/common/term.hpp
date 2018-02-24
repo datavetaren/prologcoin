@@ -107,6 +107,10 @@ public:
     inline operator uint64_t () const { return kind_; }
 
     inline operator std::string () const {
+	return str();
+    }
+
+    inline std::string str() const {
 	switch (kind_) {
 	case REF: return "REF";
 	case CON: return "CON";
@@ -115,10 +119,6 @@ public:
 	case BIG: return "BIG";
 	default : return "???";
 	}
-    }
-
-    inline std::string str() const {
-	return static_cast<std::string>(*this);
     }
 
 private:
@@ -170,6 +170,8 @@ public:
     inline operator bool () const { return raw_value_ != 0; }
 
     std::string str() const;
+    std::string inner_str() const;
+    std::string boxed_str() const;
 
     std::string hex_str() const;
 
@@ -230,13 +232,12 @@ public:
 
     void set_index( size_t index ) { set_value(static_cast<value_t>(index)); }
 
-    inline std::string str() const {
-	std::string s = boost::lexical_cast<std::string>(index());
-	return "|" + std::string(std::max(0,20 - static_cast<int>(s.length())), ' ') + s + " : " + static_cast<std::string>(tag()) + " |";
+    inline bool operator < (const ptr_cell other) const {
+	return index() < other.index();
     }
 
-    inline operator std::string () const {
-	return str();
+    inline std::string inner_str() const {
+	return boost::lexical_cast<std::string>(index());
     }
 };
 
@@ -319,11 +320,11 @@ public:
     size_t name_length() const;
     std::string name_and_arity() const;
 
-    std::string str () const;
+    std::string inner_str () const;
 
-    inline operator std::string () const {
-	return str();
-    }
+    // inline operator std::string () const {
+    //	return xxxstr();
+    // }
 
     bool is_direct() const {
 	return ((value() >> 60) & 0x1) != 0;
@@ -394,12 +395,17 @@ public:
 	return value() == other.value();
     }
 
-    std::string str () const;
+    std::string inner_str () const;
     std::string hex_str() const;
 
     inline operator std::string () const {
        return str();
     }
+
+    static int_cell encode_str(const std::string &str, bool has_more);
+
+    static int_cell encode_str(const std::string &str, size_t from,
+			       size_t to, bool has_more);
 
 private:
     friend class term_serializer;

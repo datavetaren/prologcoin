@@ -1,4 +1,5 @@
 #include "../../common/term_tools.hpp"
+#include "../../common/term_serializer.hpp"
 #include "../interpreter.hpp"
 
 using namespace prologcoin::common;
@@ -155,10 +156,69 @@ static void test_backtracking_interpreter()
 
 }
 
+static void test_interpreter_serialize()
+{
+    header("test_interpreter_serialize()");
+
+    interpreter interp;
+
+    const std::string program = 
+	R"PROGRAM(
+           [build(X,Y) :- Y = foo(X,X,bar(X,42))].
+          )PROGRAM";
+
+    const std::string query = "build(some(term(42)),Q).";
+
+    const std::string expected = "Q = foo(some(term(42)), some(term(42)), bar(some(term(42)), 42))";
+
+    term prog = interp.parse(program);
+
+    interp.load_program(prog);
+
+    std::cout << "Program --------------------------------------\n";
+    interp.print_db(std::cout);
+    std::cout << "----------------------------------------------\n";
+    
+    term qr = interp.parse(query);
+    std::cout << "?- " << interp.to_string(qr) << ".\n";
+
+    interp.execute(qr);
+
+    std::string result = interp.to_string(qr);
+
+    std::cout << "----------------------------------------------" << std::endl;
+    interp.print_result(std::cout);
+    std::cout << "----------------------------------------------" << std::endl;
+
+    assert(check_terms( interp.get_result(), expected ));
+
+    std::cout << " Checking serialization; print cells." << std::endl;
+
+    term t = interp.get_result_term("Q");
+    term_serializer ser(interp);
+    term_serializer::buffer_t buffer;
+    ser.write(buffer, t);
+
+    ser.print_buffer(buffer);
+
+    // Lock down number of cells written
+    size_t expected_cells = 15;
+    size_t actual_cells = buffer.size() / sizeof(cell);
+    std::cout << "Expected number of cells=" << expected_cells << ": actual=" << buffer.size() / sizeof(cell) << std::endl;
+    assert(actual_cells == expected_cells);
+
+    // Read back serialized data
+    term t2 = ser.read(buffer);
+    std::cout << "Read serialized buffer: " << interp.to_string(t2) << "\n";
+
+    assert(interp.to_string(t) == interp.to_string(t2));
+}
+
 int main( int argc, char *argv[] )
 {
     test_simple_interpreter();
     test_backtracking_interpreter();
+    test_interpreter_serialize();
 
     return 0;
 }
