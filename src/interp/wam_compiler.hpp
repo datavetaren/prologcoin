@@ -476,11 +476,13 @@ private:
     void find_vars(const term t, varset_t &varset);
     size_t new_level();
     void compile_clause(const term clause, wam_interim_code &seq);
+    void compile_clause(const managed_clause &m_clause, wam_interim_code &seq);
     std::vector<common::int_cell> new_labels(size_t n);
     std::vector<common::int_cell> new_labels_dup(size_t n);
     void emit_cp(std::vector<common::int_cell> &labels, size_t index, size_t n,
 		 wam_interim_code &instrs);
-    void compile_subsection(std::vector<term> &subsection, wam_interim_code &instrs);
+    void compile_subsection(const managed_clauses &subsection,
+			    wam_interim_code &instrs);
 
     common::int_cell new_label();
 
@@ -527,24 +529,28 @@ private:
     bool first_arg_is_con(const term clause);
     bool first_arg_is_str(const term clause);
 
-    std::vector<std::vector<term> > partition_clauses(const std::vector<term> &clauses, std::function<bool (const term t1, const term t2)> pred);
-    std::vector<std::vector<term> > partition_clauses_nonvar(const std::vector<term> &clauses);
-    std::vector<std::vector<term> > partition_clauses_first_arg(const std::vector<term> &clauses);
-    std::vector<size_t> find_clauses_on_cat(const std::vector<term> &clauses, first_arg_cat_t cat);
-    void emit_switch_on_term(std::vector<term> &subsection, std::vector<common::int_cell> &labels, wam_interim_code &instrs);
+    std::vector<managed_clauses> partition_clauses(const managed_clauses &clauses, std::function<bool (const managed_clause &c1, const managed_clause &t2)> pred);
+    std::vector<managed_clauses> partition_clauses_nonvar(const managed_clauses &clauses);
+    std::vector<managed_clauses> partition_clauses_first_arg(const managed_clauses &clauses);
+    std::vector<size_t> find_clauses_on_cat(const managed_clauses &clauses,
+					    first_arg_cat_t cat);
+    void emit_switch_on_term(const managed_clauses &subsection,
+			     const std::vector<common::int_cell> &labels,
+			     wam_interim_code &instrs);
     void emit_second_level_indexing(
 	      wam_compiler::first_arg_cat_t cat,
-	      std::vector<term> &subsection,
-	      std::vector<common::int_cell> &labels,
-	      std::vector<size_t> &clause_indices,
+	      const managed_clauses &subsection,
+	      const std::vector<common::int_cell> &labels,
+	      const std::vector<size_t> &clause_indices,
 	      code_point cp,
 	      wam_interim_code &instrs);
     void emit_third_level_indexing(
-	     std::vector<size_t> &clause_indices,
-	     std::vector<common::int_cell> &labels,
+	     const std::vector<size_t> &clause_indices,
+	     const std::vector<common::int_cell> &labels,
 	     wam_interim_code &instrs);
 
-    void print_partition(std::ostream &out, const std::vector<std::vector<term> > &partition);
+    void print_partition(std::ostream &out,
+			 const std::vector<managed_clauses> &partition);
 
     template<reg_type T> bool has_reg(common::ref_cell ref);
 

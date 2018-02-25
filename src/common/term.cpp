@@ -352,6 +352,23 @@ cell heap::deref(cell c) const
     return c;
 }
 
+cell heap::deref_with_cost(cell c, uint64_t &cost) const
+{
+    uint64_t cost_tmp = 1;
+    while (c.tag() == tag_t::REF) {
+      auto &rc = static_cast<ref_cell &>(c);
+      size_t index = rc.index();
+      cell referred = get(index);
+      if (referred == c) {
+	return c;
+      }
+      c = referred;
+      cost_tmp++;
+    }
+    cost += cost_tmp;
+    return c;
+}
+
 bool heap::is_list(const cell c) const
 {
     cell l = deref(c);

@@ -1686,8 +1686,17 @@ void wam_compiler::compute_varsets(const term t0)
     }
 }
 
-void wam_compiler::compile_clause(const term clause0, wam_interim_code &seq)
+void wam_compiler::compile_clause(const term clause,
+				  wam_interim_code &seq)
 {
+    compile_clause(managed_clause(clause, env_.cost(clause)), seq);
+}
+
+void wam_compiler::compile_clause(const managed_clause &m_clause,
+				  wam_interim_code &seq)
+{
+    const term clause0 = m_clause.clause();
+
     // We'll make a copy of the clause to be processed.
     // The reason is that the flattening process
     // (inside compile_query_or_program) touches the vars as it
@@ -1776,12 +1785,13 @@ std::vector<common::int_cell> wam_compiler::new_labels_dup(size_t n)
     return lbls;
 }
 
-std::vector<size_t> wam_compiler::find_clauses_on_cat(const std::vector<term> &clauses, wam_compiler::first_arg_cat_t cat)
+std::vector<size_t> wam_compiler::find_clauses_on_cat(
+      const managed_clauses &m_clauses, wam_compiler::first_arg_cat_t cat)
 {
     std::vector<size_t> found;
     size_t index = 0;
-    for (auto &clause : clauses) {
-        if (first_arg_cat(clause) == cat) {
+    for (auto &m_clause : m_clauses) {
+        if (first_arg_cat(m_clause.clause()) == cat) {
 	    found.push_back(index);
         }
 	index++;
@@ -1789,7 +1799,9 @@ std::vector<size_t> wam_compiler::find_clauses_on_cat(const std::vector<term> &c
     return found;
 }
 
-void wam_compiler::emit_switch_on_term(std::vector<term> &subsection, std::vector<common::int_cell> &labels, wam_interim_code &instrs)
+void wam_compiler::emit_switch_on_term(const managed_clauses &subsection,
+	       const std::vector<common::int_cell> &labels,
+	       wam_interim_code &instrs)
 {
     auto on_var_cp = code_point(labels[0]);
 
@@ -1816,8 +1828,8 @@ void wam_compiler::emit_switch_on_term(std::vector<term> &subsection, std::vecto
 }
 
 void wam_compiler::emit_third_level_indexing(
-	     std::vector<size_t> &clause_indices,
-	     std::vector<common::int_cell> &labels,
+	     const std::vector<size_t> &clause_indices,
+	     const std::vector<common::int_cell> &labels,
 	     wam_interim_code &instrs)
 {
     size_t n = clause_indices.size();
@@ -1831,9 +1843,9 @@ void wam_compiler::emit_third_level_indexing(
 
 void wam_compiler::emit_second_level_indexing(
 	      wam_compiler::first_arg_cat_t cat,
-	      std::vector<term> &subsection,
-	      std::vector<common::int_cell> &labels,
-	      std::vector<size_t> &clause_indices,
+	      const managed_clauses &subsection,
+	      const std::vector<common::int_cell> &labels,
+	      const std::vector<size_t> &clause_indices,
 	      code_point cp,
 	      wam_interim_code &instrs)
 {
@@ -1849,9 +1861,9 @@ void wam_compiler::emit_second_level_indexing(
     std::vector<std::vector<size_t> > for_third_indices;
     for (auto clause_index : clause_indices) {
 	common::int_cell new_lbl(0);
-	auto &clause = subsection[clause_index];
+	auto &m_clause = subsection[clause_index];
 
-	auto arg0 = first_arg(clause);
+	auto arg0 = first_arg(m_clause.clause());
 
 	// Already managed?
 	if (map->count(arg0)) {
@@ -1861,8 +1873,8 @@ void wam_compiler::emit_second_level_indexing(
 	// Get all clauses with the same arg
 	std::vector<size_t> same_arg0;
 	for (auto ci : clause_indices) {
-	    auto &other_clause = subsection[ci];
-	    auto other_arg0 = first_arg(other_clause);
+	    auto &other_m_clause = subsection[ci];
+	    auto other_arg0 = first_arg(other_m_clause.clause());
 	    if (arg0 == other_arg0) {
 		same_arg0.push_back(ci);
 	    }
@@ -1894,7 +1906,8 @@ void wam_compiler::emit_second_level_indexing(
     }
 }
 
-void wam_compiler::compile_subsection(std::vector<term> &subsection, wam_interim_code &instrs)
+void wam_compiler::compile_subsection(const managed_clauses &subsection,
+				      wam_interim_code &instrs)
 {
     auto n = subsection.size();
     if (n > 1) {
@@ -1902,15 +1915,15 @@ void wam_compiler::compile_subsection(std::vector<term> &subsection, wam_interim
 	emit_switch_on_term(subsection, labels, instrs);
 	for (size_t i = 0; i < n; i++) {
 	    emit_cp(labels, i, n, instrs);
-	    auto &clause = subsection[i];
+	    auto &m_clause = subsection[i];
 	    wam_interim_code clause_instrs(interp_);
-	    compile_clause(clause, clause_instrs);
+	    compile_clause(m_clause, clause_instrs);
 	    instrs.append(clause_instrs);
 	}
     } else {
-        auto &clause = subsection[0];
+        auto &m_clause = subsection[0];
 	wam_interim_code clause_instrs(interp_);
-	compile_clause(clause, clause_instrs);
+	compile_clause(m_clause, clause_instrs);
 	instrs.append(clause_instrs);
     }
 }
@@ -1952,16 +1965,19 @@ term wam_compiler::clause_body(const term clause)
     }
 }
 
-std::vector<std::vector<term> > wam_compiler::partition_clauses(const std::vector<term> &clauses, std::function<bool (const term t1, const term t2)> pred)
+std::vector<managed_clauses> wam_compiler::partition_clauses(
+	    const managed_clauses &clauses,
+	    std::function<bool (const managed_clause &c1,
+				const managed_clause &c2)> pred)
 {
-    std::vector<std::vector<term> > partitioned;
+    std::vector<managed_clauses> partitioned;
 
-    partitioned.push_back(std::vector<term>());
+    partitioned.push_back(managed_clauses());
     auto *v = &partitioned.back();
     bool has_last_clause = false;
-    term last_clause;
-    for (auto &clause : clauses) {
-        auto head = clause_head(clause);
+    managed_clause last_clause;
+    for (auto &m_clause : clauses) {
+        auto head = clause_head(m_clause.clause());
 	auto f = env_.functor(head);
 	if (f.arity() < 1) {
 	    // There's no argument, so no partition can be made. All clauses
@@ -1975,17 +1991,17 @@ std::vector<std::vector<term> > wam_compiler::partition_clauses(const std::vecto
 	// If there's a preceding clause, use the predicate to see
 	// if these two are disjoint or not.
 	if (has_last_clause) {
-	    is_diff = pred(last_clause, clause);
+	    is_diff = pred(last_clause, m_clause);
 	}
 	if (is_diff) {
 	    // It's a var, if v is non-empty, push it and create a new one
 	    if (!v->empty()) {
-	        partitioned.push_back(std::vector<term>());
+	        partitioned.push_back(managed_clauses());
 		v = &partitioned.back();
 	    }
 	}
-	v->push_back(clause);
-	last_clause = clause;
+	v->push_back(m_clause);
+	last_clause = m_clause;
 	has_last_clause = true;
     }
 
@@ -2005,9 +2021,9 @@ term wam_compiler::first_arg(const term clause)
     }
 }
 
-wam_compiler::first_arg_cat_t wam_compiler::first_arg_cat(const term clause)
+wam_compiler::first_arg_cat_t wam_compiler::first_arg_cat(const term cl)
 {
-    term arg = first_arg(clause);
+    term arg = first_arg(cl);
 
     if (interp_.is_dotted_pair(arg)) {
 	return FIRST_LST;
@@ -2041,46 +2057,50 @@ bool wam_compiler::first_arg_is_str(const term clause)
     return arg.tag() == common::tag_t::STR;
 }
 
-std::vector<std::vector<term> > wam_compiler::partition_clauses_nonvar(const std::vector<term> &clauses)
+std::vector<managed_clauses> wam_compiler::partition_clauses_nonvar(const managed_clauses &clauses)
 {
     return partition_clauses(clauses,
-       [&] (const term c1, const term c2)
-	     { return first_arg_is_var(c1) || first_arg_is_var(c2); } );
+       [&] (const managed_clause &c1, const managed_clause &c2)
+	     { 
+		 term c1_term = c1.clause();
+		 term c2_term = c2.clause();
+	       return first_arg_is_var(c1_term) || first_arg_is_var(c2_term);
+	     });
 }
 
-std::vector<std::vector<term> > wam_compiler::partition_clauses_first_arg(const std::vector<term> &clauses)
+std::vector<managed_clauses> wam_compiler::partition_clauses_first_arg(const managed_clauses &clauses)
 {
-    std::unordered_map<term, std::vector<term> > map;
-    std::vector<term> refs;
+    std::unordered_map<term, managed_clauses> map;
+    managed_clauses refs;
     std::vector<term> order;
 
-    for (auto &clause : clauses) {
-        auto head = clause_head(clause);
+    for (auto &m_clause : clauses) {
+        auto head = clause_head(m_clause.clause());
 	auto arg = first_arg(head);
 	switch (arg.tag()) {
 	case common::tag_t::REF:
-	    refs.push_back(clause);
+	    refs.push_back(m_clause);
 	    break;
 	case common::tag_t::CON:
 	case common::tag_t::STR: {
 	    auto f = env_.functor(arg);
 	    bool is_new = map.count(f) == 0;
 	    auto &v = map[f];
-	    v.push_back(clause);
+	    v.push_back(m_clause);
 	    if (is_new) order.push_back(f);
 	    break;
 	    }
 	case common::tag_t::INT: {
 	    bool is_new = map.count(arg) == 0;
 	    auto &v = map[arg];
-	    v.push_back(clause);
+	    v.push_back(m_clause);
 	    if (is_new) order.push_back(arg);
 	    break;
     	    }
 	}
     }
 
-    std::vector<std::vector<term> > result;
+    std::vector<managed_clauses> result;
     if (!refs.empty()) {
         result.push_back(refs);
     }
@@ -2092,13 +2112,14 @@ std::vector<std::vector<term> > wam_compiler::partition_clauses_first_arg(const 
     return result;
 }
 
-void wam_compiler::print_partition(std::ostream &out, const std::vector<std::vector<term> > &p)
+void wam_compiler::print_partition(std::ostream &out,
+				   const std::vector<managed_clauses> &p)
 {
     size_t i = 0;
-    for (auto &cs : p) {
+    for (auto &m_clauses : p) {
         out << "Section " << i << ": " << std::endl;
-	for (auto &c : cs) {
-	    out << "   " << env_.to_string(c) << std::endl;
+	for (auto &m_clause : m_clauses) {
+	    out << "   " << env_.to_string(m_clause.clause()) << std::endl;
 	}
 	i++;
     }

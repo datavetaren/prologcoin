@@ -129,7 +129,7 @@ void interpreter::fail()
 		// Do nothing
 	    } else if (bp.term_code().tag() != common::tag_t::INT) {
 		// Direct query
-		static std::vector<common::term> empty_clauses;
+		static managed_clauses empty_clauses;
 		ok = select_clause(bp, 0, empty_clauses, 0);
 	    } else {
 		auto bpterm = bp.term_code();
@@ -195,7 +195,7 @@ bool interpreter::unify_args(term head, const code_point &p)
 
 bool interpreter::select_clause(const code_point &instruction,
 				size_t index_id,
-				std::vector<term> &clauses,
+				managed_clauses &clauses,
 				size_t from_clause)
 {
     if (index_id == 0) {
@@ -212,10 +212,10 @@ bool interpreter::select_clause(const code_point &instruction,
 
     // Let's go through clause by clause and see if we can find a match.
     for (size_t i = from_clause; i < num_clauses; i++) {
-        auto &clause = clauses[i];
+        auto &m_clause = clauses[i];
 
 	size_t current_heap = heap_size();
-	auto copy_clause = copy(clause); // Instantiate it
+	auto copy_clause = copy(m_clause.clause()); // Instantiate it
 
 	term copy_head = clause_head(copy_clause);
 	term copy_body = clause_body(copy_clause);
@@ -406,10 +406,10 @@ void interpreter::compute_matched_predicate(con_cell func,
 					    const term first_arg,
 					    predicate &matched)
 {
-    auto &clauses = get_predicate(func);
-    for (auto &clause : clauses) {
+    auto &m_clauses = get_predicate(func);
+    for (auto &m_clause : m_clauses) {
 	// Extract head
-	auto head = clause_head(clause);
+	auto head = clause_head(m_clause.clause());
 	auto head_functor = functor(head);
 	if (head_functor.arity() > 0) {
 	    auto head_first_arg = arg(head, 0);
@@ -417,7 +417,7 @@ void interpreter::compute_matched_predicate(con_cell func,
 		continue;
 	    }
 	}
-	matched.push_back(clause);
+	matched.push_back(m_clause);
     }
 }
 

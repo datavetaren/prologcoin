@@ -16,8 +16,32 @@ namespace prologcoin { namespace interp {
 // This pair represents functor with first argument. If first argument
 // is a STR tag, then we dereference it to a CON cell.
 typedef std::pair<common::con_cell, common::cell> functor_index;
-typedef std::vector<common::term> clauses;
-typedef clauses predicate;
+
+class managed_clause {
+public:
+    inline managed_clause()
+	: clause_(), cost_(0) { }
+    inline managed_clause(common::term cl, uint64_t cost)
+        : clause_(cl), cost_(cost) { }
+
+    inline managed_clause(const managed_clause &other)
+	: clause_(other.clause_), cost_(other.cost_) { }
+
+    inline common::term clause() const {
+	return clause_;
+    }
+
+    inline uint64_t cost() const {
+	return cost_;
+    }
+
+private:
+    common::term clause_;
+    size_t cost_;
+};
+
+typedef std::vector<managed_clause> managed_clauses;
+typedef managed_clauses predicate;
 typedef std::pair<predicate, size_t> indexed_predicate;
 }}
 
@@ -305,8 +329,11 @@ public:
     inline void debug_check() { debug_check_fn_(); }
     inline void set_debug_check_fn(std::function<void ()> fn)
         { debug_check_fn_ = fn; }
-
     void set_debug_enabled();
+
+    bool is_track_cost() const { return track_cost_; }
+    void set_track_cost(bool b) { track_cost_ = b; }
+
     void enable_file_io();
     const std::string & get_current_directory() const;
     void set_current_directory(const std::string &dir);
@@ -883,6 +910,7 @@ private:
     term_env secondary_env_;
 
     bool debug_;
+    bool track_cost_;
     std::vector<std::function<void ()> > syntax_check_stack_;
 
     std::unordered_map<common::con_cell, builtin> builtins_;

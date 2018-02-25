@@ -152,6 +152,8 @@ public:
         { T::get_heap().new_ref(cnt); }
     inline term deref(const term t) const
         { return T::get_heap().deref(t); }
+    inline term deref_with_cost(const term t, uint64_t &cost) const
+        { return T::get_heap().deref_with_cost(t, cost); }
     inline con_cell functor(const term t) const
         { return T::get_heap().functor(t); }
     inline term arg(const term t, size_t index) const
@@ -350,8 +352,9 @@ public:
     bool unify(term a, term b);
     term copy(const term t);
     term copy(const term t, heap &src);
-    bool equal(const term a, const term b);
-    uint64_t hash(const term t);
+    bool equal(term a, term b);
+    uint64_t hash(term t);
+    uint64_t cost(term t);
 
     // Return -1, 0 or 1 when comparing standard order for 'a' and 'b'
     int standard_order(const term a, const term b);
@@ -505,6 +508,11 @@ public:
       return utils.hash(t);
   }
 
+  inline uint64_t cost(const term t)
+  {
+      term_utils utils(heap_dock<HT>::get_heap(), stacks_dock<ST>::get_stacks());
+      return utils.cost(t);
+  }
 
   inline bool equal(const term a, const term b)
   {

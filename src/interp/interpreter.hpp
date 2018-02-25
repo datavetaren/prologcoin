@@ -47,7 +47,7 @@ private:
     bool unify_args(term clause_head, const code_point &p);
     bool select_clause(const code_point &instruction,
 		       size_t index_id,
-		       std::vector<term> &clauses,
+		       managed_clauses &clauses,
 		       size_t from_clause);
 
     const predicate & get_predicate(const common::con_cell f)

@@ -27,6 +27,7 @@ interpreter_base::interpreter_base() : register_pr_("", 0), comma_(",",2), empty
 void interpreter_base::init()
 {
     debug_ = false;
+    track_cost_ = false;
     file_id_count_ = 3;
     num_of_args_= 0;
     memset(register_ai_, 0, sizeof(register_ai_));
@@ -155,10 +156,10 @@ void interpreter_base::load_clause(const term t)
     
     auto found = program_db_.find(predicate);
     if (found == program_db_.end()) {
-        program_db_[predicate] = std::vector<term>();
+        program_db_[predicate] = managed_clauses();
 	program_predicates_.push_back(predicate);
     }
-    program_db_[predicate].push_back(t);
+    program_db_[predicate].push_back(managed_clause(t, cost(t)));
 }
 
 void interpreter_base::load_builtin(con_cell f, builtin b)
@@ -410,14 +411,15 @@ void interpreter_base::print_db(std::ostream &out) const
 	if (it == program_db_.end()) {
 	    continue;
 	}
-	const predicate &clauses = it->second;
+	const predicate &m_clauses = it->second;
 	if (do_nl_p) {
 	    out << "\n";
 	}
 	bool do_nl = false;
-	for (auto clause : clauses) {
+	for (auto &m_clause : m_clauses) {
 	    if (do_nl) out << "\n";
-	    auto str = to_string(clause, term_emitter::STYLE_PROGRAM);
+	    auto str = to_string(m_clause.clause(),
+				 term_emitter::STYLE_PROGRAM);
 	    out << str;
 	    do_nl = true;
 	}

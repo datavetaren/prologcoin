@@ -128,6 +128,36 @@ uint64_t term_utils::hash(term t)
     return h;
 }
 
+uint64_t term_utils::cost(term t)
+{
+    size_t d = stack_size();
+
+    push(t);
+
+    uint64_t cost_tmp = 0;
+
+    while (stack_size() > d) {
+	t = deref_with_cost(pop(), cost_tmp);
+
+	switch (t.tag()) {
+	case tag_t::CON:
+	case tag_t::INT:
+	case tag_t::REF:
+	    break;
+        case tag_t::STR: {
+	    con_cell f = functor(t);
+	    size_t n = f.arity();
+	    for (size_t i = 0; i < n; i++) {
+	        push(arg(t, i));
+	    }
+	  }
+	  break;
+	}
+    }
+
+    return cost_tmp;
+}
+
 bool term_utils::unify(term a, term b)
 {
     size_t start_trail = trail_size();

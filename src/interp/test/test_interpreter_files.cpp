@@ -11,6 +11,7 @@ using namespace prologcoin::common;
 using namespace prologcoin::interp;
 
 static bool do_compile = true;
+static bool fast_mode = false;
 
 static void header( const std::string &str )
 {
@@ -421,8 +422,13 @@ static void test_interpreter_files(const char *filter = nullptr)
 	    continue;
 	}
 
-	if (boost::starts_with(it->path().filename().string(), "ex_") &&
+	std::string namestr = it->path().filename().string();
+
+	if (boost::starts_with(namestr, "ex_") &&
 	    boost::ends_with(filepath, ".pl")) {
+	    if (fast_mode && boost::starts_with(namestr, "ex_99")) {
+		continue;
+	    }
 	    files.push_back(filepath);
 	}
     }
@@ -438,6 +444,7 @@ static void test_interpreter_files(const char *filter = nullptr)
 int main( int argc, char *argv[] )
 {
     find_home_dir(argv[0]);
+    fast_mode = is_fast(argc, argv);
 
     if (argc == 2) {
 	test_interpreter_files(argv[1]);

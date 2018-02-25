@@ -729,6 +729,7 @@ public:
     }
 
     cell deref(cell c) const;
+    cell deref_with_cost(cell c, uint64_t &cost) const;
 
     inline term arg(const cell c, size_t index) const
     {
