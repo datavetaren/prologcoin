@@ -1704,6 +1704,8 @@ void wam_compiler::compile_clause(const managed_clause &m_clause,
 
     term clause = interp_.copy(clause0);
 
+    seq.push_back(wam_instruction<COST>(m_clause.cost()));
+
     reset_clause_temps();
     compute_varsets(clause);
 

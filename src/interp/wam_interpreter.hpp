@@ -93,6 +93,8 @@ enum wam_instruction_type {
   GOTO,        // Non-standard WAM, but so we can compile (A ; B) efficiently
   RESET_LEVEL, // --- "" ---
 
+  COST, // Non-standard WAM; for accumulated cost
+
   LAST
 };
 
@@ -891,7 +893,8 @@ private:
 
     inline void get_value_x(uint32_t xn, uint32_t ai)
     {
-        if (!unify(x(xn), a(ai))) {
+        bool ok = unify(x(xn), a(ai));
+	if (!ok) {
 	    backtrack();
         } else {
 	    goto_next_instruction();
@@ -900,7 +903,9 @@ private:
 
     inline void get_value_y(uint32_t yn, uint32_t ai)
     {
-        if (!unify(y(yn), a(ai))) {
+        bool ok = unify(y(yn), a(ai));
+
+	if (!ok) {
  	    backtrack();
         } else {
 	    goto_next_instruction();
@@ -916,7 +921,6 @@ private:
     inline void get_structure_x(common::con_cell f, uint32_t xn)
     {
         term t = deref(x(xn));
-
 	return get_structure(f, t);
     }
 
@@ -1529,6 +1533,12 @@ private:
 	goto_next_instruction();
 	set_cp(p()); // This means a try_me_else will get the reset_level
 	             // instruction to get the current size of the environment
+    }
+
+    inline void cost(uint64_t c)
+    {
+	add_accumulated_cost(c);
+	goto_next_instruction();
     }
 
     friend class test_wam_interpreter;
@@ -3570,6 +3580,42 @@ public:
         out << "reset_level, " << self1->num_y();
     }
 };
+
+template<> class wam_instruction<COST> : public wam_instruction_term {
+public:
+    inline wam_instruction(int64_t cost) :
+	wam_instruction_term(&invoke, sizeof(*this), COST,
+			     common::int_cell(cost)) {
+      init();
+    }
+
+    static inline void init() {
+	static bool init = [] {
+ 	    register_printer(&invoke, &print);
+	    return true; } ();
+	static_cast<void>(init);
+    }
+
+    inline uint64_t cost() const
+    {
+	const common::term t = get_term();
+	auto ic = reinterpret_cast<const common::int_cell &>(t);
+	return static_cast<uint64_t>(ic.value());
+    }
+
+    static void invoke(wam_interpreter &interp, wam_instruction_base *self)
+    {
+	auto self1 = reinterpret_cast<wam_instruction<COST> *>(self);
+        interp.cost(self1->cost());
+    }
+
+    static void print(std::ostream &out, wam_interpreter &interp, wam_instruction_base *self)
+    {
+	auto self1 = reinterpret_cast<wam_instruction<COST> *>(self);
+        out << "cost " << interp.to_string(self1->get_term());
+    }
+};
+
 
 template<wam_instruction_type I> inline void wam_instruction_base::set_type()
 {

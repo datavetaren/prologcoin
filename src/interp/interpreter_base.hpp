@@ -356,15 +356,11 @@ public:
     void load_program(std::istream &is);
     void load_program(const term clauses);
 
-    const predicate & get_predicate(const common::con_cell pn)
-    {
-        return program_db_[pn];
-    }
+    inline const predicate & get_predicate(const common::con_cell pn)
+        { return program_db_[pn]; }
 
     std::string to_string_cp(const code_point &cp)
-    {
-	return cp.to_string(*this);
-    }
+        { return cp.to_string(*this); }
 
     void print_db() const;
     void print_db(std::ostream &out) const;
@@ -408,9 +404,38 @@ public:
     }
 
     inline bool is_builtin(con_cell f) const
-    {
-        return builtins_.find(f) != builtins_.end();
-    }
+        { return builtins_.find(f) != builtins_.end(); }
+
+    inline uint64_t accumulated_cost() const
+        { return accumulated_cost_; }
+
+    inline bool unify(term a, term b)
+       { uint64_t cost = 0;
+	 bool ok = common::term_env::unify(a, b, cost);
+	 add_accumulated_cost(cost);
+	 return ok;
+       }
+
+    inline int standard_order(const term a, const term b)
+       { uint64_t cost = 0;
+	int cmp = common::term_env::standard_order(a, b, cost);
+	add_accumulated_cost(cost);
+	return cmp;
+       }
+
+    inline term copy(term t, heap &src)
+       { uint64_t cost = 0;
+         term c = common::term_env::copy(t, src, cost);
+	 add_accumulated_cost(cost);
+	 return c;
+       }
+
+    inline term copy(term t)
+       { uint64_t cost = 0;
+         term c = common::term_env::copy(t, cost);
+	 add_accumulated_cost(cost);
+	 return c;
+       }
 
 protected:
     inline con_cell empty_list() const
@@ -653,7 +678,7 @@ protected:
         return complete_;
     }
 
-    environment_base_t * allocate_environment(bool for_wam)
+    inline environment_base_t * allocate_environment(bool for_wam)
     {
         word_t *new_e0;
 	if (base(e0()) > base(b())) {
@@ -693,7 +718,7 @@ protected:
 	return e0();
     }
 
-    void deallocate_environment()
+    inline void deallocate_environment()
     {
         // std::cout << "[before] deallocate_environment: e=" << e() << " p=" << to_string_cp(p()) << " cp=" << to_string_cp(cp()) << "\n";
 	if (!e_is_wam()) {
@@ -748,7 +773,7 @@ protected:
 	// std::cout << "allocate_choice_point saved qr=" << to_string(register_qr_) << "\n";
     }
 
-    void deallocate_and_proceed()
+    inline void deallocate_and_proceed()
     {
 	if (e0() != top_e()) {
 	    deallocate_environment();
@@ -759,7 +784,7 @@ protected:
 	set_cp(empty_list());
     }
     
-    void proceed_and_deallocate()
+    inline void proceed_and_deallocate()
     {
         set_p(cp());
 	if (e0() != top_e()) {
@@ -782,19 +807,13 @@ protected:
     void prepare_execution();
 
     inline term qr() const
-    {
-        return register_qr_;
-    }
+        { return register_qr_; }
 
     inline void set_qr(term qr)
-    {
-        register_qr_ = qr;
-    }
+        { register_qr_ = qr; }
 
     inline void set_pr(common::con_cell pr)
-    {
-        register_pr_ = pr;
-    }
+        { register_pr_ = pr; }
 
     choice_point_t * reset_to_choice_point(choice_point_t *b);
 
@@ -824,7 +843,7 @@ protected:
 	return context;
     }
 
-    void release_last_meta_context()
+    inline void release_last_meta_context()
     {
         auto *context = meta_.back().first;
         set_top_b(context->old_top_b);
@@ -843,30 +862,26 @@ protected:
 	}
     }
 
-    meta_context * get_last_meta_context()
-    {
-        return meta_.back().first;
-    }
+    inline meta_context * get_last_meta_context()
+        { return meta_.back().first; }
 
-    template<typename T> T * get_last_meta_context()
-    {
-	return reinterpret_cast<T *>(get_last_meta_context());
-    }
+    template<typename T> inline T * get_last_meta_context()
+        { return reinterpret_cast<T *>(get_last_meta_context()); }
 
-    meta_fn get_last_meta_function()
-    {
-        return meta_.back().second;
-    }
+    inline  meta_fn get_last_meta_function()
+        { return meta_.back().second; }
 
-    bool has_meta_contexts() const
-    {
-        return !meta_.empty();
-    }
+    inline bool has_meta_contexts() const
+        { return !meta_.empty(); }
 
-    term_env & secondary_env()
-    {
-	return secondary_env_;
-    }
+    inline term_env & secondary_env()
+        { return secondary_env_; }
+
+    inline void reset_accumulated_cost()
+        { accumulated_cost_ = 0; }
+
+    inline void add_accumulated_cost(uint64_t cost)
+        { accumulated_cost_ += cost; }
 
 private:
     void load_builtin(con_cell f, builtin b);
@@ -968,6 +983,9 @@ private:
     std::unordered_map<common::con_cell, uint64_t> profiling_;
 
     std::function<void ()> debug_check_fn_;
+
+    // Keep track of accumulated cost while interpreter is executing
+    uint64_t accumulated_cost_;
 
 protected:
     size_t tidy_size;

@@ -176,8 +176,8 @@ static bool test_run_once(interpreter &interp,
     } catch (interpreter_exception &ex) {
 	actual = ex.what();
 	r = false;
-    }	
-    std::cout << "Actual: " << actual << std::endl;
+    }
+    std::cout << "Actual: " << actual << " (Cost " << interp.accumulated_cost() << ")" <<  std::endl;
     std::cout << "Expect: " << expected[iteration] << std::endl;
     assert(match_strings(actual, expected[iteration]));
 

@@ -187,23 +187,22 @@ namespace prologcoin { namespace interp {
         term order = args[0];
 
 	int c = interp.standard_order(args[1], args[2]);
+	term op;
 	if (c < 0) {
-	    term lt = con_cell("<",0);
-	    return interp.unify(order, lt);
+	    op = con_cell("<", 0);
 	} else if (c > 0) {
-	    term gt = con_cell(">",0);
-	    return interp.unify(order, gt);
+	    op = con_cell(">", 0);
 	} else {
-	    term eq = con_cell("=",0);
-	    return interp.unify(order, eq);
+	    op = con_cell("=", 0);
 	}
+	bool ok = interp.unify(order, op);
+	return ok;
     }
 
     bool builtins::operator_unification(interpreter_base &interp, size_t arity, common::term args[])
     {
 	term arg0 = args[0];
 	term arg1 = args[1];
-
 	bool r = interp.unify(arg0, arg1);
 	return r;
     }
@@ -324,7 +323,8 @@ namespace prologcoin { namespace interp {
        }
        boost::to_upper(s);
        term r = interp.atom(s);
-       return interp.unify(to, r);
+       bool ok = interp.unify(to, r);
+       return ok;
    }
 
     // TODO: cyclic_term/1 and acyclic_term/1
@@ -347,7 +347,8 @@ namespace prologcoin { namespace interp {
 	term lhs = args[0];
 	term rhs = args[1];
 	term result = interp.arith().eval(rhs, "is/2");
-	return interp.unify(lhs, result);
+	bool ok = interp.unify(lhs, result);
+	return ok;
     }	
 
     //
@@ -359,7 +360,8 @@ namespace prologcoin { namespace interp {
 	term arg1 = args[0];
 	term arg2 = args[1];
 	term copy_arg1 = interp.copy(arg1);
-	return interp.unify(arg2, copy_arg1);
+	bool ok = interp.unify(arg2, copy_arg1);
+	return ok;
     }
 
     bool builtins::functor_3(interpreter_base &interp, size_t arity, common::term args[])
@@ -593,7 +595,9 @@ namespace prologcoin { namespace interp {
 	    return interp.unify(result, output);
 	}
 
-	auto elem = interp.secondary_env().copy(mc->template_, interp);
+	uint64_t cost = 0;
+	auto elem = interp.secondary_env().copy(mc->template_, interp, cost);
+        interp.add_accumulated_cost(cost);
 	auto newtail = interp.secondary_env().new_dotted_pair(
 			      elem, interp.secondary_env().empty_list());
 	if (interp.secondary_env().is_empty_list(mc->interim_)) {

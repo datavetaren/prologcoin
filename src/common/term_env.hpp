@@ -349,18 +349,18 @@ class term_utils : public heap_proxy, stacks_proxy {
 public:
     term_utils(heap &h, stacks &s) : heap_proxy(h), stacks_proxy(s) { }
 
-    bool unify(term a, term b);
-    term copy(const term t);
-    term copy(const term t, heap &src);
-    bool equal(term a, term b);
+    bool unify(term a, term b, uint64_t &cost);
+    term copy(const term t, uint64_t &cost);
+    term copy(const term t, heap &src, uint64_t &cost);
+    bool equal(term a, term b, uint64_t &cost);
     uint64_t hash(term t);
     uint64_t cost(term t);
 
     // Return -1, 0 or 1 when comparing standard order for 'a' and 'b'
-    int standard_order(const term a, const term b);
+    int standard_order(const term a, const term b, uint64_t &cost);
 
 private:
-    bool unify_helper(term a, term b);
+    bool unify_helper(term a, term b, uint64_t &cost);
     int functor_standard_order(con_cell a, con_cell b);
 
     inline void bind(const ref_cell &a, term b)
@@ -484,22 +484,22 @@ public:
       stacks_dock<ST>::trim_trail(to);
   }
 
-  inline bool unify(term a, term b)
+  inline bool unify(term a, term b, uint64_t &cost)
   {
       term_utils utils(heap_dock<HT>::get_heap(), stacks_dock<ST>::get_stacks());
-      return utils.unify(a, b);
+      return utils.unify(a, b, cost);
   }
 
-  inline term copy(term t)
+  inline term copy(term t, uint64_t &cost)
   {
       term_utils utils(heap_dock<HT>::get_heap(), stacks_dock<ST>::get_stacks());
-      return utils.copy(t, heap_dock<HT>::get_heap());
+      return utils.copy(t, heap_dock<HT>::get_heap(), cost);
   }
 
-  inline term copy(term t, heap &src)
+  inline term copy(term t, heap &src, uint64_t &cost)
   {
       term_utils utils(heap_dock<HT>::get_heap(), stacks_dock<ST>::get_stacks());
-      return utils.copy(t, src);
+      return utils.copy(t, src, cost);
   }
 
   inline uint64_t hash(term t)
@@ -514,10 +514,10 @@ public:
       return utils.cost(t);
   }
 
-  inline bool equal(const term a, const term b)
+  inline bool equal(const term a, const term b, uint64_t &cost)
   {
       term_utils utils(heap_dock<HT>::get_heap(), stacks_dock<ST>::get_stacks());
-      return utils.equal(a, b);
+      return utils.equal(a, b, cost);
   }
 
   inline void bind(const ref_cell &a, term b)
@@ -527,10 +527,10 @@ public:
       stacks_dock<ST>::trail(index);
   }
 
-  inline int standard_order(const term a, const term b)
+  inline int standard_order(const term a, const term b, uint64_t &cost)
   {
       term_utils utils(heap_dock<HT>::get_heap(), stacks_dock<ST>::get_stacks());
-      return utils.standard_order(a, b);
+      return utils.standard_order(a, b, cost);
   }
 
   class term_range {
@@ -639,7 +639,8 @@ private:
 template<typename HT, typename ST, typename OT>
 inline bool term_iterator_templ<HT,ST,OT>::operator == (const term_iterator_templ<HT,ST,OT> &other) const
 {
-    return env_.equal(current_, other.current_);
+    uint64_t cost = 0;
+    return env_.equal(current_, other.current_, cost);
 }
 
 template<typename HT, typename ST, typename OT>
@@ -732,7 +733,9 @@ public:
     inline eq_term(term_env &env, term t) : env_(env), term_(t) { }
 
     inline bool operator == (const eq_term &other) const {
-        return env_.equal(term_, other.term_);
+        uint64_t cost = 0;
+	bool eq = env_.equal(term_, other.term_, cost);
+	return eq;
     }
 
     inline uint64_t hash() const {

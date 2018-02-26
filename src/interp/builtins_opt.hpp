@@ -16,7 +16,6 @@ namespace prologcoin { namespace interp {
     class builtins_opt {
     public:
 
-        static tribool member_2(interpreter_base &interp, size_t arity, common::term args[]);
         static tribool sort_2(interpreter_base &interp, size_t arity, common::term caller[]);
     };
 

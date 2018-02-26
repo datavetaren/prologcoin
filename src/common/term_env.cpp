@@ -48,16 +48,20 @@ private:
 };
 #endif
 
-bool term_utils::equal(term a, term b)
+bool term_utils::equal(term a, term b, uint64_t &cost)
 {
     size_t d = stack_size();
+    uint64_t cost_tmp = 0;
 
     push(b);
     push(a);
 
     while (stack_size() > d) {
-	a = deref(pop());
-	b = deref(pop());
+	uint64_t cost_deref1 = 0, cost_deref2 = 0;
+	a = deref_with_cost(pop(), cost_deref1);
+	cost_tmp += cost_deref1;
+	b = deref_with_cost(pop(), cost_deref2);
+	cost_tmp += cost_deref2;
 
 	if (a == b) {
 	    continue;
@@ -65,11 +69,13 @@ bool term_utils::equal(term a, term b)
 	
 	if (a.tag() != b.tag()) {
 	    trim_stack(d);
+	    cost = cost_tmp;
 	    return false;
 	}
 
 	if (a.tag() != tag_t::STR) {
 	    trim_stack(d);
+	    cost = cost_tmp;
 	    return false;
 	}
 
@@ -78,6 +84,7 @@ bool term_utils::equal(term a, term b)
 
 	if (fa != fb) {
 	    trim_stack(d);
+	    cost = cost_tmp;
 	    return false;
 	}
 
@@ -93,6 +100,7 @@ bool term_utils::equal(term a, term b)
 	}
     }
 
+    cost = cost_tmp;
     return true;
 }
 
@@ -134,10 +142,16 @@ uint64_t term_utils::cost(term t)
 
     push(t);
 
-    uint64_t cost_tmp = 0;
+    uint64_t cost_acc = 0;
 
     while (stack_size() > d) {
+	uint64_t cost_tmp = 0;
+	// The cost of deref is at least 1. If ref chains are
+	// longer the cost will be bigger. Thus, when the stack
+	// based DFS is completed we'll have a cost that this
+	// approximately the size of the term.
 	t = deref_with_cost(pop(), cost_tmp);
+	cost_acc += cost_tmp;
 
 	switch (t.tag()) {
 	case tag_t::CON:
@@ -155,10 +169,10 @@ uint64_t term_utils::cost(term t)
 	}
     }
 
-    return cost_tmp;
+    return cost_acc;
 }
 
-bool term_utils::unify(term a, term b)
+bool term_utils::unify(term a, term b, uint64_t &cost)
 {
     size_t start_trail = trail_size();
     size_t start_stack = stack_size();
@@ -168,7 +182,7 @@ bool term_utils::unify(term a, term b)
     // unification fails.
     set_register_hb(heap_size());
 
-    bool r = unify_helper(a, b);
+    bool r = unify_helper(a, b, cost);
 
     if (!r) {
       unwind_trail(start_trail, trail_size());
@@ -183,16 +197,27 @@ bool term_utils::unify(term a, term b)
     return true;
 }
 
-bool term_utils::unify_helper(term a, term b)
+bool term_utils::unify_helper(term a, term b, uint64_t &cost)
 {
     size_t d = stack_size();
+
+    uint64_t cost_tmp = 0;
 
     push(b);
     push(a);
 
     while (stack_size() > d) {
-        a = deref(pop());
-	b = deref(pop());
+	
+	// The cost of deref is at least 1 (if the ref chains are longer
+	// the cost will be bigger.)
+	// So every iteration of this stack based unification loop
+	// will add 2 to the accumulated cost.
+
+	uint64_t cost_deref1 = 0, cost_deref2 = 0;
+        a = deref_with_cost(pop(), cost_deref1);
+	cost_tmp += cost_deref1;
+	b = deref_with_cost(pop(), cost_deref2);
+	cost_tmp += cost_deref2;
 
 	if (a == b) {
 	    continue;
@@ -225,6 +250,7 @@ bool term_utils::unify_helper(term a, term b)
 
 	// Check tags
 	if (a.tag() != b.tag()) {
+	    cost = cost_tmp;
 	    return false;
 	}
 	
@@ -232,6 +258,7 @@ bool term_utils::unify_helper(term a, term b)
 	case tag_t::CON:
 	case tag_t::INT:
 	  if (a != b) {
+	    cost = cost_tmp;
 	    return false;
 	  }
 	  break;
@@ -240,6 +267,7 @@ bool term_utils::unify_helper(term a, term b)
 	  str_cell &bstr = static_cast<str_cell &>(b);
 	  con_cell f = functor(astr);
 	  if (f != functor(bstr)) {
+	    cost = cost_tmp;
 	    return false;
 	  }
 	  // Push pairwise args
@@ -256,6 +284,8 @@ bool term_utils::unify_helper(term a, term b)
 	case tag_t::BIG:assert(false); break;
 	}
     }
+
+    cost = cost_tmp;
 
     return true;
 }
@@ -277,16 +307,21 @@ int term_utils::functor_standard_order(con_cell a, con_cell b)
     return name_a.compare(name_b);
 }
 
-int term_utils::standard_order(term a, term b)
+int term_utils::standard_order(term a, term b, uint64_t &cost)
 {
     size_t d = stack_size();
+
+    uint64_t cost_tmp = 0;
 
     push(b);
     push(a);
 
     while (stack_size() > d) {
-	a = deref(pop());
-	b = deref(pop());
+	uint64_t cost_deref1 = 0, cost_deref2 = 0;
+	a = deref_with_cost(pop(), cost_deref1);
+	cost_tmp += cost_deref1;
+	b = deref_with_cost(pop(), cost_deref2);
+	cost_tmp += cost_deref2;
 
 	if (a == b) {
   	    continue;
@@ -299,6 +334,7 @@ int term_utils::standard_order(term a, term b)
 	    } else {
 	        return 1;
 	    }
+	    cost = cost_tmp;
 	    return false;
 	}
 
@@ -308,16 +344,20 @@ int term_utils::standard_order(term a, term b)
 	    trim_stack(d);
 	    const con_cell &fa = static_cast<const con_cell &>(a);
 	    const con_cell &fb = static_cast<const con_cell &>(b);
-	    return functor_standard_order(fa, fb);
-     	    break;
+	    // Can never be equal as it would have triggered if (a == b)...
+	    int cmp = functor_standard_order(fa, fb);
+	    cost = cost_tmp;
+	    return cmp;
 	  }
 	case tag_t::REF:
 	case tag_t::INT:
 	  {
 	    trim_stack(d);
 	    if (a.value() < b.value()) {
+		cost = cost_tmp;
 	        return -1;
 	    } else {
+		cost = cost_tmp;
   	        return 1;
 	    }
 	  }
@@ -334,6 +374,7 @@ int term_utils::standard_order(term a, term b)
 
 	if (fa != fb) {
 	    trim_stack(d);
+	    cost = cost_tmp;
 	    return functor_standard_order(fa, fb);
 	}
 
@@ -349,19 +390,24 @@ int term_utils::standard_order(term a, term b)
 	}
     }
 
+    cost = cost_tmp;
     return 0;
 }
 
-term term_utils::copy(term c, heap &src)
+term term_utils::copy(term c, heap &src, uint64_t &cost)
 {
     std::unordered_map<term, term> var_map;
 
     size_t current_stack = stack_size();
+    
+    uint64_t cost_tmp = 0;
 
     push(src.deref(c));
     push(int_cell(0));
 
     while (stack_size() > current_stack) {
+	cost_tmp++;
+
         bool processed = pop() == int_cell(1);
         c = pop();
         switch (c.tag()) {
@@ -411,6 +457,8 @@ term term_utils::copy(term c, heap &src)
 	case tag_t::BIG: assert(false); break;
 	}
     }
+
+    cost = cost_tmp;
 
     return temp_pop();
 }

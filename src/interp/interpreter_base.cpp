@@ -242,7 +242,6 @@ void interpreter_base::load_builtins()
 
 void interpreter_base::load_builtins_opt()
 {
-    // load_builtin_opt(con_cell("member", 2), &builtins_opt::member_2);
     load_builtin_opt(con_cell("sort", 2), &builtins_opt::sort_2);
 }
 

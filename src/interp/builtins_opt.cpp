@@ -6,25 +6,6 @@ namespace prologcoin { namespace interp {
     using namespace prologcoin::common;
     using namespace boost::logic;
 
-    tribool builtins_opt::member_2(interpreter_base &interp, size_t arity, term args[])
-    {
-        term arg = args[0];
-        term lst = args[1];
-	if (interp.is_ground(arg) && interp.is_ground(lst)) {
-	    // Optimized version with no choice points
-	    while (interp.is_dotted_pair(lst)) {
-		term fst = interp.arg(lst, 0);
-		if (interp.equal(fst, arg)) {
-		    return tribool(true);
-		}
-		lst = interp.arg(lst, 1);
-	    }
-	    return tribool(false);
-	} else {
-	    return tribool(indeterminate);
-	}
-    }
-
     tribool builtins_opt::sort_2(interpreter_base &interp, size_t arity, term args[])
     {
         term arg0 = args[0];
@@ -38,8 +19,10 @@ namespace prologcoin { namespace interp {
             interp.abort(interpreter_exception_not_sufficiently_instantiated("sort/2: First argument is not a list; found " + interp.to_string(arg0)));
 	}
 
+	interp.add_accumulated_cost(interp.cost(arg0));
+
 	size_t n = interp.list_length(arg0);
-	
+
 	std::vector<term> vec(n);
 
 	for (size_t i = 0; i < n; i++) {

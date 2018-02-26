@@ -69,7 +69,8 @@ static void test_unification()
 
     // Now unify these two terms
 
-    assert( env.unify(r1, r2) );
+    uint64_t cost = 0;
+    assert( env.unify(r1, r2, cost) );
 
     std::string rs1 = env.to_string(r1);
     std::string rs2 = env.to_string(r2);
@@ -77,6 +78,7 @@ static void test_unification()
     std::cout << "Unified!\n";
     std::cout << "Result1: " << rs1 << "\n";
     std::cout << "Result2: " << rs2 << "\n";
+    std::cout << "Cost   : " << cost << "\n";
 
     assert(rs1 == rs2);
 
@@ -104,10 +106,11 @@ static void test_failed_unification()
     std::cout << "Parsed2: " << sout2 << "\n";
 
     std::cout << "Status : " << env.status() << "\n";
-    
-    bool r = env.unify(r1,r2);
 
-    std::cout << "Unify should fail: " << r << "\n";
+    uint64_t cost = 0;
+    bool r = env.unify(r1,r2,cost);
+
+    std::cout << "Unify should fail: " << r << " with cost " << cost << "\n";
     assert(!r);
 
     std::cout << "Status : " << env.status() << "\n";
@@ -145,7 +148,8 @@ static void test_unify_append()
     std::cout << "Parsed1: " << env.to_string(t1) << "\n";
     std::cout << "Parsed2: " << env.to_string(t2) << "\n";
 
-    assert( env.unify(t1, t2) );
+    uint64_t cost = 0;
+    assert( env.unify(t1, t2, cost) );
 
     auto rs1 = env.to_string(t1);
     auto rs2 = env.to_string(t2);
@@ -176,16 +180,18 @@ static void test_copy_term()
 
     assert(s1 == s.substr(0, s.length()-1));
 
-    auto t2 = env.copy(t1);
+    uint64_t cost = 0;
+    auto t2 = env.copy(t1, cost);
 
     auto s2 = env.to_string(t2);
 
-    std::cout << "Result   : " << s2 << "\n";
+    std::cout << "Result   : " << s2 << " with cost " << cost << "\n";
 
     assert(s2 != s1);
 
     bool r = false;
-    assert( r = env.unify(t1, t2) );
+    cost = 0;
+    assert( r = env.unify(t1, t2, cost) );
 
     std::cout << "Unified " << r << "\n";
 
@@ -238,15 +244,20 @@ static void test_copy_term_heaps()
     auto src_str = src_env.to_string(t_src);
     std::cout << "Source     : " << src_str << "\n";
 
-    auto t_dst = dst_env.copy(t_src, src_env);
+    uint64_t cost1 = 0;
+    auto t_dst = dst_env.copy(t_src, src_env, cost1);
 
     std::cout << "Destination: " << dst_env.to_string(t_dst) << "\n";
+    std::cout << "Cost       : " << cost1 << "\n";
 
-    auto t_src2 = src_env.copy(t_dst, dst_env);
+    uint64_t cost2 = 0;
+    auto t_src2 = src_env.copy(t_dst, dst_env, cost2);
 
     std::cout << "Back       : " << src_env.to_string(t_src2) << "\n";
+    std::cout << "Cost       : " << cost2 << "\n";
 
-    src_env.unify(t_src, t_src2);
+    uint64_t cost = 0;
+    src_env.unify(t_src, t_src2, cost);
 
     auto unify_str = src_env.to_string(t_src2);
 

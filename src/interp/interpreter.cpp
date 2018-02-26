@@ -30,6 +30,8 @@ bool interpreter::execute(const term query)
 {
     using namespace prologcoin::common;
 
+    reset_accumulated_cost();
+
     set_top_fail(false);
 
     trim_trail(0);
@@ -97,6 +99,8 @@ bool interpreter::cont()
 bool interpreter::next()
 {
     term old_qr = qr();
+
+    reset_accumulated_cost();
 
     fail();
     if (!is_top_fail()) {
@@ -189,6 +193,7 @@ bool interpreter::unify_args(term head, const code_point &p)
 	}
 	
 	set_register_hb(old_register_hb);
+
 	return !fail;
     }
 }
@@ -235,6 +240,12 @@ bool interpreter::select_clause(const code_point &instruction,
 	    set_cp(empty_list());
 	    set_p(copy_body);
 	    set_qr(copy_head);
+
+	    // We've found a clause to execute. At this point we'll
+	    // add the cost of the clause. Note that unification above
+	    // is also adding to the cost.
+	    
+	    add_accumulated_cost(m_clause.cost());
 
 	    return true;
 	} else {

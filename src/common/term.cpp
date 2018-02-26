@@ -360,12 +360,13 @@ cell heap::deref_with_cost(cell c, uint64_t &cost) const
       size_t index = rc.index();
       cell referred = get(index);
       if (referred == c) {
+        cost = cost_tmp;
 	return c;
       }
       c = referred;
       cost_tmp++;
     }
-    cost += cost_tmp;
+    cost = cost_tmp;
     return c;
 }
 
