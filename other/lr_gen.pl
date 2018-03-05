@@ -31,6 +31,8 @@ main :-
     states(Grammar, Start, States),
     % resolve_conflicts(States, Properties, States1),
     sort_actions(States, NewStates),
+    %member(state(262, KernelItems, _), NewStates),
+    %emit_kernel_items(KernelItems).
     emit(Grammar, Properties, NewStates),
     tell('states.txt'),
     print_states(NewStates),
@@ -88,6 +90,7 @@ emit_begin(Grammar, Properties, States) :-
     write(ClassName), write(' : public Base {'), nl,
     i1, write('protected:'), nl, nl,
     i1, write('term_parser_gen(Args&... args) : Base(args...) { }'), nl, nl,
+    emit_symbol_name_map(Symbols),
     emit_process_state(States).
 
 emit_symbols_enum(Symbols) :-
@@ -105,20 +108,46 @@ emit_symbols_enum_body([sym(Type,Name,Ordinal)|Syms]) :-
 emit_symbols_enum_name(Name, _Type, Ordinal) :-
     i2, emit_symbol(Name), write(' = '), write(Ordinal).
 
+emit_symbol_name_map(Symbols) :-
+    i1, write('std::string symbol_name(symbol_t sym) const {'), nl,
+    i2, write('switch (sym) {'), nl,
+    emit_symbol_name_map1(Symbols),
+    i3, write('default: return "?";'), nl,
+    i2, write('}'), nl,
+    i1, write('}'), nl, nl.
+
+emit_symbol_name_map1([]).
+emit_symbol_name_map1([sym(_,Name,_)|Symbols]) :-
+    i3, write('case '), emit_symbol(Name), write(': '),
+	write('return \"'), write(Name), write('\";'), nl,
+    emit_symbol_name_map1(Symbols).
+
 emit_process_state(States) :-
     i1, write('void process_state() {'), nl,
     i2, write('switch (Base::current_state()) {'), nl,
     length(States, NumStates),
-    emit_process_state_case(0, NumStates),
-    i2, write('}'),
+    emit_process_state_case(0, NumStates, state, '(); break;'),
+    i2, write('}'), nl,
+    i1, write('}'), nl, nl,
+    i1, write('std::vector<std::string> state_description() const {'), nl,
+    i2, write('switch (Base::current_state()) {'), nl,
+    emit_process_state_case(0, NumStates, 'return state_strings_', '();'), nl,
+    i3, write('default: return std::vector<std::string>();'),
+    i2, write('}'), nl,
+    i1, write('}'), nl, nl,
+    i1, write('std::vector<int> state_next_symbols() {'), nl,
+    i2, write('switch (Base::current_state()) {'), nl,
+    emit_process_state_case(0, NumStates, 'return state_la_', '();'), nl,
+    i3, write('default: return std::vector<int>();'), nl,
+    i2, write('}'), nl,
     i1, write('}'), nl, nl.
 
-emit_process_state_case(Num, Num) :- !.
-emit_process_state_case(N, Num) :-
+emit_process_state_case(Num, Num, _, _) :- !.
+emit_process_state_case(N, Num, Pre, Post) :-
     i3, write('case '), write(N), write(': '),
-    write('state'), write(N), write('(); break;'), nl,
+    write(Pre), write(N), write(Post), nl,
     N1 is N + 1,
-    emit_process_state_case(N1, Num).
+    emit_process_state_case(N1, Num, Pre, Post).
 
 emit_end(Properties) :-
     write('};'), nl, nl,
@@ -147,7 +176,7 @@ i3 :- i1, i1, i1.
 i4 :- i2, i2.
 i5 :- i3, i2.
 
-emit_state(state(N, _, Actions), _Properties) :-
+emit_state(state(N, KernelItems, Actions), _Properties) :-
     i1, write('void state'), write(N), write('() {'), nl,
     i2, write('switch (Base::lookahead().ordinal()) {'), nl,
     emit_shift_actions(Actions, Actions),
@@ -155,9 +184,21 @@ emit_state(state(N, _, Actions), _Properties) :-
     emit_reduce_actions(Actions),
     emit_extra_actions(Actions),
     (\+ member(reduce([empty], _, _), Actions) ->
-	i3, write('default: Base::parse_error(); break;'), nl
+	i3, write('default: Base::parse_error(state_description(), state_next_symbols()); break;'), nl
     ; true),
     i2, write('}'), nl,
+    i1, write('}'),
+    nl, nl,
+    i1, write('std::vector<std::string> state_strings_'), write(N), write('() const {'), nl,
+    i2, write('std::vector<std::string> s'),
+	emit_kernel_items(KernelItems), write(';'), nl,
+    i2, write('return s;'), nl,
+    i1, write('}'),
+    nl, nl,
+    i1, write('std::vector<int> state_la_'), write(N), write('() const {'), nl,
+    i2, write('std::vector<int> s'),
+	emit_la_symbols(Actions), write(';'), nl,
+    i2, write('return s;'), nl,
     i1, write('}'),
     nl, nl.
 
@@ -315,6 +356,16 @@ all_symbols_actions([reduce(S,_Cond,(Head:-_))|Actions], Symbols) :-
     
 all_symbols_actions([], []).
 
+all_symbols_la([shift(S,_)|Actions], [S|Symbols]) :-
+    !, all_symbols_la(Actions, Symbols).
+all_symbols_la([goto(S,_)|Actions], [S|Symbols]) :-
+    !, all_symbols_la(Actions, Symbols).
+all_symbols_la([reduce(SymList,_Cond,_)|Actions], Symbols) :-
+    !,
+    append(SymList, Symbols1, Symbols),
+    all_symbols_la(Actions, Symbols1).
+all_symbols_la([], []).
+
 %
 % Resolve conflicts
 %
@@ -398,19 +449,145 @@ print_states([State|States], Cnt) :-
 
 print_state(state(N, KernelItems, Actions)) :-
     write('--- State '), write(N), write(' ------------------------------'),nl,
-    print_kernel_items(KernelItems),
+    print_items(KernelItems),
     write('-----------------------------------'),nl,
     print_actions(Actions),
     print_check_actions(Actions),
     nl, nl.
 
-print_kernel_items([]).
-print_kernel_items([Item|Items]) :-
-    print_kernel_item(Item),
-    print_kernel_items(Items).
+print_items([]).
+print_items([Item|Items]) :-
+    write(Item), nl,
+    print_items(Items).
 
-print_kernel_item(Item) :-
-    write('   '), write(Item), nl.
+emit_kernel_items(KernelItems) :-
+    items_remove_cond_and_la(KernelItems, Items1),
+    sort(Items1, Items),
+    blank_kernel_items(Items, '', NewItems),
+    replace_dot(NewItems, NewItems1),
+    column_sizes(NewItems1, ColumnSizes),
+    pad_kernel_items(NewItems1, ColumnSizes, Padded),
+    write('{'), nl,
+    emit_kernel_items1(Padded),
+    i3, write('}').
+
+emit_kernel_items1([]).
+emit_kernel_items1([Item|Items]) :-
+    emit_kernel_item(Item), (Items = [_|_] -> write(', ') ; true), nl,
+    emit_kernel_items1(Items).
+
+emit_kernel_item([Head|Tail]) :-
+    i3, write('\"'),
+    write(Head), (blank(Head) -> write('  | ') ; write(' :- ')),
+    emit_kernel_item_tail(Tail), write('\"').
+
+emit_kernel_item_tail([]).
+emit_kernel_item_tail([X|Xs]) :-
+    (X = 'DOT' -> write(' [*] ') ; write(' '), write(X), write(' ')),
+    emit_kernel_item_tail(Xs).
+
+emit_la_symbols(Actions) :-
+    all_symbols_la(Actions, Symbols0),
+    sort(Symbols0, Symbols),
+    write('{'),
+    emit_la_symbols1(Symbols),
+    write('}').
+
+emit_la_symbols1([]).
+emit_la_symbols1([Sym|Syms]) :-
+    emit_symbol(Sym), (Syms = [_|_] -> write(', ') ; true), emit_la_symbols1(Syms).
+
+blank(H) :-
+    name(H, L),
+    all_spaces(L).
+
+all_spaces([]).
+all_spaces([32|Xs]) :- all_spaces(Xs).
+
+pad_kernel_items([], _, []).
+pad_kernel_items([Item|Items], ColumnSizes, [PaddedItem|PaddedItems]) :-
+    pad_kernel_item(Item, ColumnSizes, PaddedItem),
+    pad_kernel_items(Items, ColumnSizes, PaddedItems).
+
+pad_kernel_item([], _, []).
+pad_kernel_item([X|Xs], [C|Cs], [Y|Ys]) :-
+    padded_atom(X, C, Y),
+    pad_kernel_item(Xs, Cs, Ys).
+
+padded_atom(Atom, N, Padded) :-
+    name(Atom, Name),
+    expand(Name, N, PaddedName),
+    name(Padded, PaddedName).
+
+expand([], N, Padded) :-
+    expand_tail(N, Padded).
+expand([X|Xs], N, [X|Padded]) :-
+    N0 is N - 1,
+    expand(Xs, N0, Padded).
+
+expand_tail(0, []) :- !.
+expand_tail(N, [32|Xs]) :-
+    N0 is N - 1,
+    expand_tail(N0, Xs).
+
+item_to_list((Head :- Body), [Head|List]) :-
+    body_to_list(Body, List).
+
+replace_dot([], []).
+replace_dot([Item|Items], [NewItem|NewItems]) :-
+    replace_dot_item(Item, NewItem),
+    replace_dot(Items, NewItems).
+
+replace_dot_item([], []).
+replace_dot_item(['DOT' |Xs], ['[*]'|Ys]) :-
+    !, replace_dot_item(Xs,Ys).
+replace_dot_item([X|Xs], [X|Ys]) :-
+    replace_dot_item(Xs, Ys).
+
+blank_kernel_items([], _, []).
+blank_kernel_items([Item|Items], PrevItem, [NewItem|NewItems]) :-
+    item_to_list(Item, Item0),
+    blank_kernel_item(Item0, PrevItem, NewItem),
+    blank_kernel_items(Items, Item0, NewItems).
+
+blank_kernel_item([], _, []).
+blank_kernel_item([X|Xs], [X|Ps], [''|Ys]) :-
+	!, blank_kernel_item(Xs, Ps, Ys).
+blank_kernel_item([X|Xs], [_|Ps], [X|Ys]) :-
+	!, blank_kernel_item(Xs, Ps, Ys).
+blank_kernel_item([X|Xs], Ps, [X|Ys]) :-
+	!, blank_kernel_item(Xs, Ps, Ys).
+
+column_sizes(Items, ColumnSizes) :-
+	column_sizes_items(Items, _, ColumnSizes).
+
+column_sizes_items([], ColumnSizes, ColumnSizes).
+column_sizes_items([Item|Items], Sizes, ColumnSizes) :-
+	column_sizes_item(Item, Sizes, Sizes1),
+	column_sizes_items(Items, Sizes1, ColumnSizes).
+
+column_sizes_item([], Sizes, Sizes).
+column_sizes_item([X|Xs], [S|Sizes], [NewS|NewSizes]) :-
+	name(X, Name),
+	length(Name, N),
+	((var(S) ; N > S) -> NewS = N ; NewS = S),
+	column_sizes_item(Xs, Sizes, NewSizes).
+
+items_remove_cond_and_la(H :- B, H :- B1) :-
+	items_remove_cond_and_la_body(B, B1).
+items_remove_cond_and_la([X|Xs], [Y|Ys]) :-
+	items_remove_cond_and_la(X, Y),
+	items_remove_cond_and_la(Xs, Ys).
+items_remove_cond_and_la([], []).
+
+items_remove_cond_and_la_body((A, []), A) :- !.
+items_remove_cond_and_la_body((A, [_|_]), A) :- !.
+items_remove_cond_and_la_body((A, {_}), A) :- !.
+items_remove_cond_and_la_body((A, {_}, [_|_]), A) :- !.
+items_remove_cond_and_la_body((A, {_}, []), A) :- !.
+items_remove_cond_and_la_body((A,B), (A, B1)) :-
+	!, items_remove_cond_and_la_body(B,B1).
+items_remove_cond_and_la_body(A, A).
 
 print_actions([]).
 print_actions([Action|Actions]) :-

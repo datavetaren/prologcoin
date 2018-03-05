@@ -115,16 +115,22 @@ void term_serializer::write_str_cell(buffer_t &bytes, size_t offset,
 
 term term_serializer::read(buffer_t &bytes)
 {
+    return read(bytes, bytes.size());
+}
+
+term term_serializer::read(buffer_t &bytes, size_t n)
+{
     size_t offset = 0;
     size_t heap_start = env_.heap_size();
     size_t old_hdr_size = 0, new_hdr_size = 0;
-    term t = read(bytes, offset, old_hdr_size, new_hdr_size);
+    term t = read(bytes, n, offset, old_hdr_size, new_hdr_size);
     size_t heap_end = env_.heap_size();
     integrity_check(heap_start, heap_end, old_hdr_size, new_hdr_size);
     return t;
 }
 
-term term_serializer::read(buffer_t &bytes, size_t &offset,
+term term_serializer::read(buffer_t &bytes, size_t n,
+			   size_t &offset,
 			   size_t &old_header_size,
 			   size_t &new_header_size)
 {
@@ -143,7 +149,7 @@ term term_serializer::read(buffer_t &bytes, size_t &offset,
     old_header_size = old_hdr_size;
     new_header_size = new_hdr_size;
 
-    while (offset < bytes.size()) {
+    while (offset < n) {
 	cell c = read_cell(bytes, offset, "reading for term construction");
 
 	switch (c.tag()) {

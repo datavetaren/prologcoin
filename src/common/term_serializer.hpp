@@ -170,23 +170,11 @@ public:
 
     void write(buffer_t &bytes, const term t);
     term read(buffer_t &bytes);
+    term read(buffer_t &bytes, size_t n);
 
     void print_buffer(buffer_t &bytes);
 
-private:
-    void integrity_check(size_t heap_start, size_t heap_end,
-			 size_t old_hdr_size, size_t new_hdr_size);
-
-    friend class test::test_term_serializer;
-
-    inline size_t cell_count(size_t offset)
-        { return offset / sizeof(cell); }
-    inline size_t cell_count(buffer_t &bytes)
-        { return cell_count(bytes.size()); }
-    inline uint8_t read_byte(buffer_t &bytes, size_t from_offset)
-        { return bytes[from_offset]; }
-
-    inline cell read_cell(buffer_t &bytes, size_t from_offset, const std::string &context)
+    static inline cell read_cell(buffer_t &bytes, size_t from_offset, const std::string &context)
         { cell::value_t raw_value = 0;
 	  if (from_offset + 8 > bytes.size()) {
 	      throw serializer_exception_unexpected_end(from_offset, context);
@@ -198,7 +186,7 @@ private:
 	  return cell(raw_value);
 	}
 
-    inline void write_cell(buffer_t &bytes, size_t offset, const cell c)
+    static inline void write_cell(buffer_t &bytes, size_t offset, const cell c)
         { auto v = c.raw_value();
 	  if (offset == bytes.size()) {
 	      bytes.resize(offset+8);
@@ -208,6 +196,21 @@ private:
 	      v >>= 8;
           }
         }
+
+private:
+    static inline uint8_t read_byte(buffer_t &bytes, size_t from_offset)
+        { return bytes[from_offset]; }
+
+    void integrity_check(size_t heap_start, size_t heap_end,
+			 size_t old_hdr_size, size_t new_hdr_size);
+
+    friend class test::test_term_serializer;
+
+    inline size_t cell_count(size_t offset)
+        { return offset / sizeof(cell); }
+    inline size_t cell_count(buffer_t &bytes)
+        { return cell_count(bytes.size()); }
+
     inline void write_int_cell(buffer_t &bytes, size_t offset, const int_cell c)
         { write_cell(bytes, offset, c); }
 
@@ -252,8 +255,8 @@ private:
     void write_encoded_string(buffer_t &bytes, const std::string &str);
     void write_all_header(buffer_t &bytes, const term t);
 
-    term read(buffer_t &bytes, size_t &offset, size_t &old_hdr_size,
-	      size_t &new_hdr_size);
+    term read(buffer_t &bytes, size_t n,
+	      size_t &offset, size_t &old_hdr_size, size_t &new_hdr_size);
     void read_all_header(buffer_t &bytes, size_t &offset);
     void read_index(buffer_t &bytes, size_t &offset, cell c);
     std::string read_encoded_string(buffer_t &bytes, size_t &offset);

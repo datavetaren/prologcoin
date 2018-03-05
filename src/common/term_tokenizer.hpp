@@ -61,6 +61,8 @@ public:
     token_exception(const token_position &pos, const std::string &msg) : ::std::runtime_error(msg), pos_(pos) { }
 
     const token_position & pos() const { return pos_; }
+    int column() const { return pos().column(); }
+    int line() const { return pos().line(); }
 
 private:
     token_position pos_;

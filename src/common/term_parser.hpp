@@ -17,17 +17,33 @@ public:
     token_exception_unrecognized_operator(const token_position &pos, const std::string &msg) : token_exception(pos, msg) { }
 };
 
-class term_parse_error_exception : public ::std::runtime_error
+class term_parse_exception : public ::std::runtime_error
 {
 public:
-    term_parse_error_exception(const term_tokenizer::token &token,
-			       const std::string &msg)
-	: ::std::runtime_error(msg), token_(token) { }
+    term_parse_exception(const term_tokenizer::token &token,
+			 const std::vector<std::string> &state_desc,
+			 const std::vector<int> &expected_syms,
+			 const std::string &msg)
+	: ::std::runtime_error(msg), token_(token),
+          state_description_(state_desc), expected_symbols_(expected_syms) { }
 
     const term_tokenizer::token &  token() const { return token_; }
+    int line() const { return token().pos().line(); }
+    int column() const { return token().pos().column(); }
+
+    const std::vector<std::string> & state_description() const {
+	return state_description_;
+    }
+
+    const std::vector<int> & expected_symbols() const {
+	return expected_symbols_;
+    }
 
 private:
     term_tokenizer::token token_;
+ 
+   std::vector<std::string> state_description_;
+   std::vector<int> expected_symbols_;
 };
 
 
@@ -54,6 +70,8 @@ public:
     const term_tokenizer::token & lookahead() const;
     const std::vector<term_tokenizer::token> & get_comments() const;
     std::string get_comments_string() const;
+
+    std::vector<std::string> get_expected(const term_parse_exception &ex) const;
 
     bool is_eof();
     bool is_error();

@@ -594,6 +594,37 @@ public:
       return parse(ss);
   }
 
+  std::vector<std::string> get_expected(const term_parse_exception &ex)
+  {
+      std::stringstream ss("");
+      term_tokenizer tokenizer(ss);
+      term_parser parser(tokenizer, heap_dock<HT>::get_heap(),
+			 ops_dock<OT>::get_ops());
+      return parser.get_expected(ex);
+  }
+
+  std::vector<std::string> get_expected_simplified(const term_parse_exception &ex)
+  {
+      std::vector<std::string> simpl;
+      auto lst = get_expected(ex);
+      bool op_found = false;
+      for (auto it = lst.begin(); it != lst.end(); ++it) {
+	  auto &s = *it;
+	  bool is_op = s == "op_xf" || s == "op_fx" || s == "op_yf" ||
+	               s == "op_fy" || s == "op_xfx" || s == "op_xfy" ||
+  	               s == "op_yfx";
+	  if (is_op) {
+	      if (!op_found) {
+		  simpl.push_back("operator");
+		  op_found = true;
+	      }
+	  } else {
+	      simpl.push_back(s);
+	  }
+      }
+      return simpl;
+  }
+
   std::string to_string(const term t,
 			term_emitter::style style = term_emitter::STYLE_TERM) const
   {

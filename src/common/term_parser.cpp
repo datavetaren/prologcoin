@@ -163,13 +163,14 @@ protected:
     old_lookahead_.clear();
   }
 
-  void parse_error() {
+  void parse_error(const std::vector<std::string> &desc,
+		   const std::vector<int> &expected) {
     if (!check_mode_ && is_debug_) {
       std::cout << "parse_error(): at state " << current_state_ << "\n";
     }
     error_ = true;
     if (!check_mode_) {
-	throw term_parse_error_exception(lookahead_.token(), "Unexpected " + lookahead_.token().lexeme());
+	throw term_parse_exception(lookahead_.token(), desc, expected, "Unexpected " + lookahead_.token().lexeme());
     }
   }
 
@@ -948,6 +949,24 @@ public:
 	lookahead_.set_old_state(0);
     }
   }
+
+  std::vector<std::string> get_expected(const term_parse_exception &ex) const {
+    std::vector<std::string> lexemes;
+    std::unordered_map<int, std::string> sym_to_str;
+    for (auto x : predefined_symbols_) {
+	sym_to_str[static_cast<int>(x.second)] = x.first;
+    }
+    for (auto sym_index : ex.expected_symbols()) {
+	auto sym = static_cast<symbol_t>(sym_index);
+	auto it = sym_to_str.find(sym_index);
+	if (it != sym_to_str.end()) {
+	    lexemes.push_back(it->second);
+	} else {
+	    lexemes.push_back(symbol_name(sym));
+	}
+    }
+    return lexemes;
+  }
 };
 
 term_parser::term_parser(term_tokenizer &tok, term_env &env)
@@ -1001,6 +1020,11 @@ std::string term_parser::get_comments_string() const
 	str += tok.lexeme();
     }
     return str;
+}
+
+std::vector<std::string> term_parser::get_expected(const term_parse_exception &ex) const
+{
+    return impl_->get_expected(ex);
 }
 
 bool term_parser::is_eof()
