@@ -12,6 +12,7 @@
 #include <queue>
 #include "../common/term_env.hpp"
 #include "../common/readline.hpp"
+#include "../common/term_serializer.hpp"
 
 namespace prologcoin { namespace node {
 

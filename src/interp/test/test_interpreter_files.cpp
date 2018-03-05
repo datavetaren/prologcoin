@@ -395,7 +395,7 @@ static bool test_interpreter_file(const std::string &filepath)
 
 	std::cout << "Parse error at line " << ex.pos().line() << " and column " << ex.pos().column() << ": " << ex.what() << "\n";
 	return false;
-    } catch (term_parse_error_exception &ex) {
+    } catch (term_parse_exception &ex) {
 	infile->close();
 
 	auto tok = ex.token();
