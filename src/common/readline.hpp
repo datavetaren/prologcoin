@@ -5,6 +5,7 @@
 
 #include <functional>
 #include <vector>
+#include <queue>
 
 namespace prologcoin { namespace common {
 
@@ -34,6 +35,8 @@ public:
     inline void set_tick(bool t)
       { tick_ = t; }
 
+    void end_read();
+
     void add_char(char ch);
     void del_char();
     void go_back();
@@ -55,7 +58,9 @@ public:
 		ch == 3);
     }
 
-    static int getch(bool with_timeout);
+    void enter_read();
+    void leave_read();
+    int getch(bool with_timeout);
 
 private:
     void search_history(bool back);
@@ -67,6 +72,7 @@ private:
 	ALL
     };
 
+    bool keep_reading_;
     std::string buffer_;
     size_t position_;
     size_t old_position_;
@@ -77,10 +83,19 @@ private:
     callback_fn callback_;
     bool tick_;
 
+    std::queue<char> keybuf_;
+
     std::vector<std::string> history_;
     std::string search_;
     bool search_active_;
     int history_search_index_;
+
+#if _WIN32
+#else
+    char term_old_[1024]; // Make it big enough to remember termios
+                          // We don't want platform details to leak in
+                          // a header file.
+#endif
 };
 
 }};

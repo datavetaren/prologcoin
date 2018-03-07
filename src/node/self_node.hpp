@@ -9,6 +9,7 @@
 #include <boost/asio/write.hpp>
 #include <boost/asio/buffer.hpp>
 #include <boost/asio/ip/tcp.hpp>
+#include <boost/asio/deadline_timer.hpp>
 #include <string>
 #include <ctime>
 
@@ -23,9 +24,11 @@ public:
 };
 
 class self_node;
+class session_state;
 
 class connection {
 private:
+    using term = prologcoin::common::term;
     using socket = boost::asio::ip::tcp::socket;
     using io_service = boost::asio::io_service;
 public:
@@ -34,15 +37,24 @@ public:
     void start();
 
 private:
-    void run();
-    void read_query_length();
+    void setup_commands();
+    session_state * get_session(const term id_term);
+    void command_new(const term cmd);
+    void command_connect(const term cmd);
+    void command_kill(const term cmd);
+    void process_command(const term cmd);
     void process_query();
+
+    void run();
+    void close();
+    void read_query_length();
     void reply_error(const common::term t);
     void reply_ok(const common::term t);
     void reply_answer(const common::term t);
 
     friend class self_node;
 
+    inline self_node & node() { return self_node_; }
     inline socket & get_socket() { return socket_; }
     io_service & get_io_service();
 
@@ -64,7 +76,26 @@ private:
     size_t reply_length_;
     std::vector<uint8_t> buffer_len_;
     std::vector<uint8_t> buffer_;
-    interp::interpreter interpreter_;
+    std::string id_;
+    common::term_env env_;
+    std::unordered_map<prologcoin::common::con_cell,
+		       std::function<void(common::term cmd)> > commands_;
+};
+
+class session_state {
+public:
+    session_state(connection *conn);
+
+    inline const std::string & id() const { return id_; }
+    inline common::term_env & env() { return interp_; }
+
+    inline connection * get_connection() { return connection_; }
+    inline void set_connection(connection *conn) { connection_ = conn; }
+
+private:
+    std::string id_;
+    connection *connection_;
+    interp::interpreter interp_;
 };
 
 class self_node {
@@ -82,17 +113,29 @@ public:
     void stop();
     void join();
 
+    session_state * new_session(connection *conn);
+    session_state * find_session(const std::string &id);
+    void kill_session(session_state *sess);
+    void session_connect(session_state *sess, connection *conn);
+
 private:
+    static const int TIMER_INTERVAL_SECONDS = 10;
+
     void disconnect(connection *conn);
     void run();
     void start_accept();
+    void start_prune_dead_connections();
+    void prune_dead_connections();
+    void close(connection *conn);
     io_service & get_io_service() { return ioservice_; }
 
     using endpoint = boost::asio::ip::tcp::endpoint;
     using acceptor = boost::asio::ip::tcp::acceptor;
     using socket = boost::asio::ip::tcp::socket;
+    using strand = boost::asio::io_service::strand;
     using socket_base = boost::asio::socket_base;
     using tcp = boost::asio::ip::tcp;
+    using deadline_timer = boost::asio::deadline_timer;
 
     bool stopped_;
     boost::thread thread_;
@@ -100,7 +143,15 @@ private:
     endpoint endpoint_;
     acceptor acceptor_;
     socket socket_;
-    std::vector<connection *> connections_;
+    strand strand_;
+    deadline_timer timer_;
+
+    connection *recent_connection_;
+    std::unordered_set<connection *> connections_;
+
+    boost::mutex lock_;
+    std::unordered_map<std::string, session_state *> states_;
+    std::vector<connection *> closed_;
 };
 
 inline boost::asio::io_service & connection::get_io_service()

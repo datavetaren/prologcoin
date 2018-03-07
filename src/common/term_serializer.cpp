@@ -355,6 +355,29 @@ void term_serializer::integrity_check(size_t heap_start, size_t heap_end,
 		       compute_old_cell(strcell),
 		       compute_old_offset(heap_index));
 	}
+	// Arguments cannot be CON/n where n>0!
+	size_t n = f.arity();
+	for (size_t i = 0; i < n; i++) {
+	    auto c = env_.heap_get(index+1+i);
+	    switch (c.tag()) {
+	    case tag_t::REF:
+	    case tag_t::INT:
+	    case tag_t::STR:
+	    case tag_t::BIG:
+		break;
+	    default:
+		if (c.tag() == tag_t::CON) {
+		    if (reinterpret_cast<con_cell &>(c).arity() == 0) {
+			break;
+		    }
+		}
+		throw serializer_exception_erroneous_argument(
+			  compute_old_cell(c),
+			  compute_old_offset(index+1+i),
+			  compute_old_cell(strcell),
+			  compute_old_offset(heap_index));
+	    }
+	}
     };
 
     auto arrow = [&](std::string &str) {
@@ -426,9 +449,9 @@ void term_serializer::integrity_check(size_t heap_start, size_t heap_end,
     }
 }
 
-void term_serializer::print_buffer(buffer_t &bytes)
+void term_serializer::print_buffer(buffer_t &bytes, size_t n)
 {
-    for (size_t i = 0; i < bytes.size(); i += sizeof(cell::value_t)) {
+    for (size_t i = 0; i < n; i += sizeof(cell::value_t)) {
 	cell c = read_cell(bytes, i, "print_buffer");
 	std::cout << "[" << std::setw(5) << cell_count(i) << "]: " << c.boxed_str() << " [offset:" << std::setw(5) << i << "]\n";
     }

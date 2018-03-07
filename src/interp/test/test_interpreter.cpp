@@ -199,7 +199,7 @@ static void test_interpreter_serialize()
     term_serializer::buffer_t buffer;
     ser.write(buffer, t);
 
-    ser.print_buffer(buffer);
+    ser.print_buffer(buffer, buffer.size());
 
     // Lock down number of cells written
     size_t expected_cells = 15;

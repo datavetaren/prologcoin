@@ -28,7 +28,7 @@ static void test_term_serializer_simple()
     term_serializer::buffer_t buf;
     ser.write(buf, t);
 
-    ser.print_buffer(buf);
+    ser.print_buffer(buf, buf.size());
 
     term_env env2;
     term_serializer ser2(env2);
@@ -39,7 +39,7 @@ static void test_term_serializer_simple()
     } catch (serializer_exception &ex) {
 	std::cout << "EXCEPTION WHEN READING: " << ex.what() << "\n";
 	std::cout << "Here's the data...\n";
-	ser.print_buffer(buf);
+	ser.print_buffer(buf, buf.size());
 	assert("No exception expected" == nullptr);
     }
     auto str2 = env2.to_string(t2);
@@ -73,7 +73,7 @@ public:
 
 	    std::cout << label << ": actual: no exception; expected: " << expect_str << "\n";
 	    std::cout << "Here's the data:\n";
-	    ser.print_buffer(buffer);
+	    ser.print_buffer(buffer, buffer.size());
 
 	    assert("No exception as expected" == nullptr);
 
@@ -83,7 +83,7 @@ public:
 	    bool ok = actual_str.find(expect_str) != std::string::npos;
 	    if (!ok) {
 		std::cout << "Here's the data:\n";
-		ser.print_buffer(buffer);
+		ser.print_buffer(buffer, buffer.size());
 	    }
 	    assert(ok);
 	}
@@ -178,7 +178,16 @@ static void test_term_serializer_exceptions()
 					  con_cell("f",1),
 					  con_cell("g",1)
 					  },
-					 "Missing argument for g/1:CON");
+					 "Erroneous argument g/1:CON");
+
+    test_term_serializer::test_exception("ARGERR2",
+					 {con_cell("ver1",0),
+					  con_cell("remap",0),
+					  con_cell("pamer",0),
+				 	  str_cell(4),
+					  con_cell("f",1)
+					  },
+					 "Missing argument for f/1:CON");
 
     test_term_serializer::test_exception("DANGLING2",
 					 {con_cell("ver1",0),
@@ -187,7 +196,7 @@ static void test_term_serializer_exceptions()
 				 	  str_cell(5),
 				 	  str_cell(7),
 					  con_cell("f",1),
-					  con_cell("g",1)
+					  con_cell("g",0)
 					  },
 					 "Dangling pointer for 7:STR");
 

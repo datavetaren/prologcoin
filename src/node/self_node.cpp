@@ -1,20 +1,28 @@
 #include "self_node.hpp"
 #include "../common/term_serializer.hpp"
+#include "../common/random.hpp"
 #include <boost/asio/placeholders.hpp>
+#include <boost/date_time/posix_time/posix_time.hpp>
 
 namespace prologcoin { namespace node {
+
+using namespace prologcoin::common;
 
 self_node::self_node()
     : ioservice_(),
       endpoint_(self_node::tcp::v4(), self_node::DEFAULT_PORT),
       acceptor_(ioservice_, endpoint_),
-      socket_(ioservice_)
+      socket_(ioservice_),
+      strand_(ioservice_),
+      timer_(ioservice_, boost::posix_time::seconds(TIMER_INTERVAL_SECONDS)),
+      recent_connection_(nullptr)
 {
 }
 
 void self_node::start()
 {
     stopped_ = false;
+
     acceptor_.set_option(acceptor::reuse_address(true));
     acceptor_.set_option(socket_base::enable_connection_aborted(true));
     acceptor_.listen();
@@ -31,7 +39,57 @@ void self_node::stop()
 void self_node::run()
 {
     start_accept();
+    start_prune_dead_connections();
     ioservice_.run();
+}
+
+void self_node::close(connection *conn)
+{
+    boost::lock_guard<boost::mutex> guard(lock_);    
+    closed_.push_back(conn);
+}
+
+session_state * self_node::new_session(connection *conn)
+{
+    auto *ss = new session_state(conn);
+
+    boost::lock_guard<boost::mutex> guard(lock_);
+    states_[ss->id()] = ss;
+    return ss;
+}
+
+session_state * self_node::find_session(const std::string &id)
+{
+    boost::lock_guard<boost::mutex> guard(lock_);
+    
+    auto it = states_.find(id);
+    if (it == states_.end()) {
+	return nullptr;
+    }
+
+    return it->second;
+}
+
+void self_node::session_connect(session_state *sess, connection *conn)
+{
+    boost::lock_guard<boost::mutex> guard(lock_);
+
+    connection *old_conn = sess->get_connection();
+
+    if (old_conn == conn) {
+	return;
+    }
+
+    disconnect(old_conn);
+    sess->set_connection(conn);
+}
+
+void self_node::kill_session(session_state *sess)
+{
+    boost::lock_guard<boost::mutex> guard(lock_);
+
+    states_.erase(sess->id());
+    delete sess;
 }
 
 void self_node::start_accept()
@@ -39,13 +97,41 @@ void self_node::start_accept()
     using namespace boost::asio;
     using namespace boost::system;
 
-    connections_.push_back(new connection(*this));
-    acceptor_.async_accept(connections_.back()->get_socket(),
-			   [&](const error_code &){
-			       auto *conn = connections_.back();
-			       conn->start();
+    connection *conn = new connection(*this);
+    connections_.insert(conn);
+    recent_connection_ = conn;
+    acceptor_.async_accept(conn->get_socket(),
+		   strand_.wrap(
+			   [this](const error_code &){
+			       recent_connection_->start();
 			       start_accept();
-			   });
+			   }));
+}
+
+void self_node::start_prune_dead_connections()
+{
+    using namespace boost::asio;
+    using namespace boost::system;
+
+    timer_.async_wait(
+	      strand_.wrap(
+			   [this](const error_code &) {
+			       prune_dead_connections();
+			       timer_.expires_from_now(
+					 boost::posix_time::seconds(
+					    TIMER_INTERVAL_SECONDS));
+			       start_prune_dead_connections();
+			   }));
+}
+
+void self_node::prune_dead_connections()
+{
+    boost::lock_guard<boost::mutex> guard(lock_);
+    while (!closed_.empty()) {
+	auto *c = closed_.back();
+	disconnect(c);
+	closed_.pop_back();
+    }
 }
 
 void self_node::join()
@@ -62,6 +148,11 @@ void self_node::disconnect(connection *conn)
     delete conn;
 }
 
+session_state::session_state(connection *conn) : connection_(conn)
+{
+    id_ = "s" + random::next();
+}
+
 connection::connection(self_node &self)
     : self_node_(self),
       strand_(self.get_io_service()),
@@ -73,6 +164,7 @@ connection::connection(self_node &self)
       reply_length_(0),
       buffer_(self_node::MAX_BUFFER_SIZE, ' ')
 {
+    setup_commands();
     std::cout << "connection::connection()\n";
 }
 
@@ -81,32 +173,42 @@ connection::~connection()
     std::cout << "connection::~connection()\n";
 }
 
+void connection::setup_commands()
+{
+    commands_[con_cell("new",0)] = [this](const term cmd){ command_new(cmd); };
+    commands_[con_cell("connect",1)] = [this](const term cmd){ command_connect(cmd); };
+    commands_[con_cell("kill",1)] = [this](const term cmd){ command_kill(cmd); };
+}
+
 void connection::start()
 {
     run();
 }
 
+void connection::close()
+{
+    node().close(this);
+}
+
 void connection::read_query_length()
 {
-    using namespace prologcoin::common;
-
-    auto &i = interpreter_;
+    auto &e = env_;
 
     cell c = term_serializer::read_cell(buffer_, 0,
 	"node/connection::run(): READ_QUERY_SIZE");
     if (c.tag() != tag_t::INT) {
-	reply_error(i.functor("error_query_length_was_not_integer",0));
+	reply_error(e.functor("error_query_length_was_not_integer",0));
     } else {
 	auto &ic=reinterpret_cast<const int_cell &>(c);
 	size_t max = self_node::MAX_BUFFER_SIZE-sizeof(cell);
 	if (ic.value() > max) {
-	    reply_error(i.new_term(
-			   i.functor("error_query_length_exceeds_max",1),
-			   {i.new_term(i.functor(">",2),
+	    reply_error(e.new_term(
+			   e.functor("error_query_length_exceeds_max",1),
+			   {e.new_term(e.functor(">",2),
 				       {ic, int_cell(max)})}));
 	} else if (ic.value() < sizeof(cell)) {
-	    reply_error(i.new_term(i.functor("error_query_length_too_small",1),
-			   {i.new_term(i.functor("<",2),
+	    reply_error(e.new_term(e.functor("error_query_length_too_small",1),
+			   {e.new_term(e.functor("<",2),
 				       {ic, int_cell(sizeof(cell))})}));
 	} else {
 	    query_length_ = ic.value();
@@ -117,37 +219,101 @@ void connection::read_query_length()
     }
 }
 
+void connection::command_new(const term)
+{
+    auto *ss = node().new_session(this);
+    reply_ok(env_.functor(ss->id(),0));
+}
+
+session_state * connection::get_session(const term id_term)
+{
+    auto &e = env_;
+    if (!e.is_atom(id_term)) {
+	reply_error(e.new_term(e.functor("erroneous_session_id",1),{id_term}));
+	return nullptr;
+    }
+    std::string id = e.atom_name(id_term);
+    session_state *s = node().find_session(id);
+    if (s == nullptr) {
+	reply_error(e.new_term(e.functor("session_not_found",1),{id_term}));
+	return nullptr;
+    }
+    return s;
+}
+
+void connection::command_connect(const term cmd)
+{
+    auto &e = env_;
+    term id_term = e.arg(cmd,0);
+
+    session_state *s = get_session(id_term);
+    if (s == nullptr) {
+	return;
+    }
+    node().session_connect(s, this);
+    reply_ok(e.new_term(e.functor("session_resumed",1),{id_term}));
+}
+
+void connection::command_kill(const term cmd)
+{
+    auto &e = env_;
+    term id_term = e.arg(cmd,0);
+
+    session_state *s = get_session(id_term);
+    if (s == nullptr) {
+	return;
+    }
+    node().kill_session(s);
+    reply_ok(e.new_term(e.functor("session_killed",1),{id_term}));
+}
+
+void connection::process_command(const term cmd)
+{
+    auto &e = env_;
+
+    auto it = commands_.find(e.functor(cmd));
+    if (it == commands_.end()) {
+	reply_error(e.new_term(e.functor("unrecognized_commmand",1),{cmd}));
+	return;
+    }
+    (it->second)(cmd);
+}
+
 void connection::process_query()
 {
-    using namespace prologcoin::common;
-
-    auto &i = interpreter_;
-    term_serializer ser(i);
+    auto &e = env_;
+    term_serializer ser(e);
     try {
 	auto t = ser.read(buffer_, query_length_);
-	std::cout << "Successful: " << i.to_string(t) << "\n";
-	reply_ok(t);
+	auto f = e.functor(t) ;
+	if (f == con_cell("command",1)) {
+	    process_command(e.arg(t,0));
+	} else if (f == con_cell("query",1)) {
+	    // Echo for now...
+	    std::cout << "Successful: " << e.to_string(t) << "\n";
+	    reply_ok(e.arg(t,0));
+	} else {
+	    reply_error(e.new_term(e.functor("unrecognized_command",1),{t}));
+	}
     } catch (serializer_exception &ex) {
-	reply_error(i.new_term(i.functor("serializer_exception",1),
-			       {i.functor(ex.what(),0)}));
+	reply_error(e.new_term(e.functor("serializer_exception",1),
+			       {e.functor(ex.what(),0)}));
     }
 }
 
-void connection::reply_error(const common::term t)
+void connection::reply_error(const term t)
 {
-    reply_answer(interpreter_.new_term(interpreter_.functor("error",1),{t}));
+    reply_answer(env_.new_term(env_.functor("error",1),{t}));
 }
 
-void connection::reply_ok(const common::term t)
+void connection::reply_ok(const term t)
 {
-    reply_answer(interpreter_.new_term(interpreter_.functor("ok",1),{t}));
+    reply_answer(env_.new_term(env_.functor("ok",1),{t}));
 }
 
-void connection::reply_answer(const common::term t)
+void connection::reply_answer(const term t)
 {
-    using namespace prologcoin::common;
-
-    term_serializer ser(interpreter_);
+    term_serializer ser(env_);
     buffer_.clear();
     ser.write(buffer_, t);
     buffer_len_.resize(sizeof(cell));
@@ -161,7 +327,6 @@ void connection::run()
 {
     using namespace boost::asio;
     using namespace boost::system;
-    using namespace prologcoin::common;
 
     switch (state_) {
     case READ_QUERY_LENGTH:
@@ -176,6 +341,8 @@ void connection::run()
 				 read_query_length();
 			     }
 			     run();
+			 } else {
+			     close();
 			 }
 		  }));
 	break;
@@ -190,6 +357,8 @@ void connection::run()
 				 process_query();
 			     }
 			     run();
+			 } else {
+			     close();
 			 }
 		  }));
 	break;
@@ -205,6 +374,8 @@ void connection::run()
 			      write_bytes_ = 0;
 			  }
 			  run();
+		      } else {
+			  close();
 		      }
 		  }));
 	break;
@@ -221,7 +392,9 @@ void connection::run()
 				 write_bytes_ = 0;
 			     }
 			     run();
-		         }
+		         } else {
+			     close();
+			 }
 		  }));
 	break;
     }

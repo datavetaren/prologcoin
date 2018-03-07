@@ -14,7 +14,7 @@
 
 namespace prologcoin { namespace common {
 
-readline::readline() : position_(0), old_position_(0), echo_(true), accept_ctrl_c_(false), tick_(false), search_active_(false), history_search_index_(-1)
+readline::readline() : keep_reading_(false), position_(0), old_position_(0), echo_(true), accept_ctrl_c_(false), tick_(false), search_active_(false), history_search_index_(-1)
 {
 }
 
@@ -78,7 +78,7 @@ static void term_restore(int signo)
     }
 }
 
-int readline::getch(bool with_timeout)
+void readline::enter_read()
 {
     static const int STDIN = 0;
 
@@ -99,75 +99,107 @@ int readline::getch(bool with_timeout)
 
     struct termios term;
     tcgetattr(STDIN, &term);
-    struct termios term_old = term;
+    assert(sizeof(term_old_) >= sizeof(term));
+    memcpy(&term_old_[0], &term, sizeof(term));
     term.c_lflag &= ~(ICANON | ECHO);
     tcsetattr(STDIN, TCSANOW, &term);
-    setbuf(stdin, NULL);
+}
 
-    fd_set readfds, writefds, errorfds;
+void readline::leave_read()
+{
+    static const int STDIN = 0;
+
+    struct termios term;
+    memcpy(&term, &term_old_[0], sizeof(term));
+    tcsetattr(STDIN, TCSANOW, &term);
+}
+
+int readline::getch(bool with_timeout)
+{
+    static const int STDIN = 0;
+
+    bool keybuf_processing = !keybuf_.empty();
+
+    if (!keybuf_processing) {
+	fd_set readfds, writefds, errorfds;
     
-    FD_ZERO(&readfds);
-    FD_ZERO(&writefds);
-    FD_ZERO(&errorfds);
-    FD_SET(STDIN, &readfds);
+	FD_ZERO(&readfds);
+	FD_ZERO(&writefds);
+	FD_ZERO(&errorfds);
+	FD_SET(STDIN, &readfds);
 
-    static uint64_t elapsed = 0;
+	static uint64_t elapsed = 0;
 
-    struct timeval tv0;
-    tv0.tv_sec = elapsed / 1000;
-    tv0.tv_usec = (elapsed % 1000) * 1000;
+	struct timeval tv0;
+	int64_t to = 1000 - elapsed;
+	if (to > 1000) to = 1000;
+	if (to < 0) to = 0;
+	tv0.tv_sec = to / 1000;
+	tv0.tv_usec = (to % 1000) * 1000;
 
-    struct timeval *tv = with_timeout ? &tv0 : nullptr;
+	struct timeval *tv = with_timeout ? &tv0 : nullptr;
 
-    auto before = current_timestamp();
-    int r = select(1, &readfds, &writefds, &errorfds, tv);
-    auto after = current_timestamp();
-    elapsed += (after-before);
+	auto before = current_timestamp();
+	int r = select(1, &readfds, &writefds, &errorfds, tv);
+	auto after = current_timestamp();
+	elapsed += (after-before);
 
-    if (r == -1) {
-	tcsetattr(STDIN, TCSANOW, &term_old);
-	if (global_ctrl_c_pressed) {
-	    global_ctrl_c_pressed = false;
-	    return 3;
+	if (r == -1) {
+	    if (global_ctrl_c_pressed) {
+		global_ctrl_c_pressed = false;
+		return 3;
+	    }
+	    return 0;
 	}
-	return 0;
-    }
 
-    if (r == 0) {
-	elapsed = 0;
-	return TIMEOUT;
+	if (r == 0) {
+	    elapsed = 0;
+	    return TIMEOUT;
+	}
     }
     
     int n = 0;
-    ioctl(STDIN, FIONREAD, &n);
-    char keybuf[32];
+    if (keybuf_processing) {
+	n = 1;
+    } else {
+	ioctl(STDIN, FIONREAD, &n);
+    }
 
+    char keybuf[32];
     if (n > sizeof(keybuf)) {
 	n = sizeof(keybuf);
     }
 
     int ch = 0;
 
-    ::read(STDIN, keybuf, n);
+    if (keybuf_processing) {
+	keybuf[0] = keybuf_.front();
+	keybuf_.pop();
+	n = 1;
+    } else { 
+	::read(STDIN, keybuf, n);
+    }
+
     if (n == 1) {
 	ch = keybuf[0];
-    } else {
-	if (n == 3) {
-	    if (keybuf[0] == 27 && keybuf[1] == '[') {
-		switch (keybuf[2]) {
-		case 'A': ch = KEY_UP; break;
-		case 'B': ch = KEY_DOWN; break;
-		case 'C': ch = KEY_RIGHT; break;
-		case 'D': ch = KEY_LEFT; break;
-		}
+    } else if (n == 3) {
+	if (keybuf[0] == 27 && keybuf[1] == '[') {
+	    switch (keybuf[2]) {
+	    case 'A': ch = KEY_UP; break;
+	    case 'B': ch = KEY_DOWN; break;
+	    case 'C': ch = KEY_RIGHT; break;
+	    case 'D': ch = KEY_LEFT; break;
 	    }
 	}
     }
 
-    // Restore. Yes, it's "slow" for every keypress, but
-    // who cares? Better to have it safe.
-
-    tcsetattr(STDIN, TCSANOW, &term_old);
+    // Could be a paste command. So we store it in our own buffer.
+    if (!keybuf_processing && n > 1 && ch == 0) {
+	ch = keybuf[0];
+	for (int i = 1; i < n; i++) {
+	    keybuf_.push(keybuf[i]);
+	}
+    }
 
     return ch;
 }
@@ -309,15 +341,22 @@ void readline::search_history_forward()
     search_history(false);
 }
 
+void readline::end_read()
+{
+    keep_reading_ = false;
+}
+
 std::string readline::read()
 {
+    enter_read();
+
     global_handle_ctrl_c = accept_ctrl_c_;
+    keep_reading_ = true;
 
     position_ = 0;
     buffer_.clear();
-    bool cont = true;
 
-    while (!std::cin.eof() && cont) {
+    while (!std::cin.eof() && keep_reading_) {
 	int ch = getch(tick_);
 	if (ch != -1) {
 	    bool r = (callback_ != nullptr) ? callback_(*this, ch) : true;
@@ -335,13 +374,14 @@ std::string readline::read()
 		    case KEY_RIGHT: go_forward(); break;
 		    case KEY_UP: search_history_back(); break;
 		    case KEY_DOWN: search_history_forward(); break;
-		    case 3: case 10: cont = false; break;
+		    case 3: case 10: keep_reading_ = false; break;
 		    }
 		}
 		if (echo_) render();
 	    }
 	}
     }
+    leave_read();
     return std::string(buffer_.data(), buffer_.size());
 }
 

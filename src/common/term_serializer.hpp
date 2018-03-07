@@ -101,6 +101,19 @@ public:
 
 };
 
+class serializer_exception_erroneous_argument : public serializer_exception
+{
+public:
+    serializer_exception_erroneous_argument(const cell f, size_t f_offset,
+					    const cell s, size_t s_offset) :
+	serializer_exception("Erroneous argument " + f.str() 
+			     + " at offset "
+			     + boost::lexical_cast<std::string>(f_offset)
+			     + " due to " + s.str() + " at offset "
+			     + boost::lexical_cast<std::string>(s_offset)) { }
+
+};
+
 class serializer_exception_self_reference : public serializer_exception
 {
 public:
@@ -172,7 +185,7 @@ public:
     term read(buffer_t &bytes);
     term read(buffer_t &bytes, size_t n);
 
-    void print_buffer(buffer_t &bytes);
+    void print_buffer(buffer_t &bytes, size_t n);
 
     static inline cell read_cell(buffer_t &bytes, size_t from_offset, const std::string &context)
         { cell::value_t raw_value = 0;
