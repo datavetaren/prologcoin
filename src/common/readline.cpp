@@ -193,14 +193,14 @@ void readline::del_char()
 	render_ = NOTHING;
 	return;
     }
-    if (position_ == buffer_.size()) {
+    position_--;
+    if (position_ == buffer_.size()-1) {
 	buffer_.pop_back();
 	render_ = SIMPLE_DEL;
     } else {
 	buffer_.erase(position_, 1);
 	render_ = ALL;
     }
-    position_--;
     reset_history_search();
 }
 
