@@ -88,7 +88,7 @@ static void process_meta(interpreter &interp, std::string &comments,
 	    opt[cmd] = 1;
 	} else {
 	    std::cout << "Error. Unknown command/option: " << cmd << "\n";
-	    assert("Unknown command/option" == "");
+	    assert("Unknown command/option" == nullptr);
 	}
     }
 }

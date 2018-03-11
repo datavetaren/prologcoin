@@ -645,19 +645,7 @@ private:
 		 reinterpret_cast<code_t *>(after_call) -
 		 sizeof(wam_instruction_code_point_reg)/sizeof(code_t));
 
-	    size_t n = at_call->reg();
-
-	    static environment_t *ee1 = nullptr;
-
-	    if (ee1 == nullptr && n == 1) {
-	      environment_base_t *ee = static_cast<wam_interpreter *>(interp)->e();
-	      ee1 = reinterpret_cast<environment_t *>(ee);
-	    }
-	    if (ee1 != nullptr) {
-	      term y0 = ee1->yn[0];
-	    }
-
-	    return n;
+	    return at_call->reg();
 	}
     }
 

@@ -5,6 +5,7 @@
 
 #include <forward_list>
 #include <stack>
+#include <bitset>
 #include "../common/term_env.hpp"
 #include "wam_interpreter.hpp"
 
@@ -54,7 +55,7 @@ public:
      inline wam_interim_instruction(common::int_cell lab) :
        wam_interim_instruction_base(&invoke, sizeof(*this), INTERIM_LABEL),
        label_(lab) {
-        static bool init = [] {
+        static bool init = [this] {
 	  register_printer(&invoke, &print); return true; } ();
         static_cast<void>(init);
     }
