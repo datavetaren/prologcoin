@@ -93,7 +93,7 @@ term session::read_reply()
     }
 
     auto &ic = reinterpret_cast<int_cell &>(c);
-    if (ic.value() < sizeof(cell)) {
+    if (ic.value() < static_cast<int>(sizeof(cell))) {
 	std::stringstream ss;
 	ss << "Length of reply too small (" << ic.value() << " < "
 	   << sizeof(cell) << std::endl;
@@ -101,7 +101,7 @@ term session::read_reply()
 	return term();
     }
 
-    if (ic.value() > self_node::MAX_BUFFER_SIZE) {
+    if (ic.value() > static_cast<int>(self_node::MAX_BUFFER_SIZE)) {
 	std::stringstream ss;
 	ss << "Length of reply too big (" << ic.value() << " > " << self_node::MAX_BUFFER_SIZE;
 	add_error(ss.str());
@@ -234,7 +234,7 @@ void terminal::error(const std::string &cmd,
 	ss << "...";
     }
     ss << excerpt;
-    if (excerpt_len < cmd.size()) {
+    if (excerpt_len < static_cast<int>(cmd.size())) {
 	ss << "...";
     }
     add_error(ss.str());

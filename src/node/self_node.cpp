@@ -225,12 +225,12 @@ void connection::read_query_length()
     } else {
 	auto &ic=reinterpret_cast<const int_cell &>(c);
 	size_t max = self_node::MAX_BUFFER_SIZE-sizeof(cell);
-	if (ic.value() > max) {
+	if (ic.value() > static_cast<int>(max)) {
 	    reply_error(e.new_term(
 			   e.functor("error_query_length_exceeds_max",1),
 			   {e.new_term(e.functor(">",2),
 				       {ic, int_cell(max)})}));
-	} else if (ic.value() < sizeof(cell)) {
+	} else if (ic.value() < static_cast<int>(sizeof(cell))) {
 	    reply_error(e.new_term(e.functor("error_query_length_too_small",1),
 			   {e.new_term(e.functor("<",2),
 				       {ic, int_cell(sizeof(cell))})}));
