@@ -55,6 +55,7 @@ public:
 
     void start(endpoint &ep);
     void send_query(const common::term t);
+    void send_query(const common::term t, term_env &src_env);
     void send_buffer(common::term_serializer::buffer_t &buf, size_t n);
     void send_length(size_t n);
     common::term read_reply();
@@ -70,8 +71,7 @@ private:
     using strand = boost::asio::io_service::strand;
     using term_serializer = prologcoin::common::term_serializer;
 
-    inline void add_error(const std::string &msg)
-       { errors_.push(msg); }
+    void add_error(const std::string &msg);
 
     std::string id_;
 
@@ -109,11 +109,15 @@ public:
 
     void lock_text_output_and(std::function<void()> fn);
     void add_text_output(const std::string &line);
+    void add_text_output_no_nl(const std::string &line);
+    void add_error(const std::string &line);
 
     void register_session(session *s);
     void unregister_session(session *s);
 
 private:
+    friend class session;
+
     inline void set_prompt(const std::string &prompt)
        { prompt_ = prompt; }
 
@@ -129,15 +133,19 @@ private:
 
     session * new_session(const term host_port);
     bool process_errors(session *s);
+    void process_query_reply();
 
     void setup_commands();
     void execute_command(const term cmd);
     void execute_query(const term query);
+    void execute_in_query(const std::string &cmd);
 
     void error(const std::string &cmd,
 	       int column,
 	       token_exception *token_ex,
 	       term_parse_exception *parse_ex);
+
+    inline void clear_in_query() { in_query_ = false; }
 
     std::string prompt_;
     bool stopped_;
@@ -155,6 +163,7 @@ private:
     std::unordered_map<common::con_cell, std::function<void(const term t)> > commands_;
 
     session *current_session_;
+    bool in_query_;
 };
 
 }}

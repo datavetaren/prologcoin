@@ -131,8 +131,8 @@ int readline::getch(bool with_timeout)
 	static uint64_t elapsed = 0;
 
 	struct timeval tv0;
-	int64_t to = 1000 - elapsed;
-	if (to > 1000) to = 1000;
+	int64_t to = TIMEOUT_INTERVAL_MILLIS - elapsed;
+	if (to > TIMEOUT_INTERVAL_MILLIS) to = TIMEOUT_INTERVAL_MILLIS;
 	if (to < 0) to = 0;
 	tv0.tv_sec = to / 1000;
 	tv0.tv_usec = (to % 1000) * 1000;
@@ -277,6 +277,13 @@ void readline::render()
         }
     }
     if (render_ != NOTHING) std::cout.flush();
+}
+
+void readline::clear_line()
+{
+    std::cout << std::string(buffer_.size(), '\b')
+	      << std::string(buffer_.size(), ' ')
+	      << std::string(buffer_.size(), '\b');
 }
 
 void readline::add_history(const std::string &str)

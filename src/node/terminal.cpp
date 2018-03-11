@@ -53,7 +53,12 @@ void session::send_length(size_t n)
 
 void session::send_query(const term t)
 {
-    term_serializer ser(env_);
+    send_query(t, env_);
+}
+
+void session::send_query(const term t, term_env &src)
+{
+    term_serializer ser(src);
     buffer_.clear();
     ser.write(buffer_, t);
     send_length(buffer_.size());
@@ -125,11 +130,17 @@ term session::read_reply()
     return t;
 }
 
+void session::add_error(const std::string &msg)
+{
+    errors_.push(msg);
+}
+
 terminal::terminal() : prompt_(">> "),
 		       stopped_(false),
 		       ctrl_c_(false),
 		       ioservice_(),
-		       current_session_(nullptr)
+		       current_session_(nullptr),
+		       in_query_(false)
 {
     readline_.set_tick(true);
     readline_.set_accept_ctrl_c(true);
@@ -153,9 +164,13 @@ bool terminal::key_callback(int ch)
     if (ch == readline::TIMEOUT) {
 	boost::unique_lock<boost::mutex> guard(text_output_queue_mutex_);
 	if (!text_output_queue_.empty()) {
+	    readline_.clear_line();
+	    std::cout << std::string(prompt_.size(), '\b')
+		      << std::string(prompt_.size(), ' ')
+	   	      << std::string(prompt_.size(), '\b');
 	    while (!text_output_queue_.empty()) {
 		auto line = text_output_queue_.front();
-		std::cout << line << std::endl;
+		std::cout << line;
 		text_output_queue_.pop();
 	    }
 	    std::cout << prompt_;
@@ -166,7 +181,14 @@ bool terminal::key_callback(int ch)
 	return false;
     }
 
-    return readline_.has_standard_handling(ch);
+    bool r = readline_.has_standard_handling(ch);
+
+    if (r && in_query_) {
+	// Single keystrokes if in query mode.
+	readline_.end_read();
+    }
+
+    return r;
 }
 
 void terminal::error(const std::string &cmd,
@@ -174,29 +196,32 @@ void terminal::error(const std::string &cmd,
 		     token_exception *token_ex,
 		     term_parse_exception *parse_ex)
 {
-    std::cout << "[ERROR]: While parsing at column " << column;
+    std::stringstream ss;
+    ss << "While parsing at column ";
+    ss << column;
     if (parse_ex != nullptr) {
-        std::cout << " for parse state: " << std::endl;
+        ss << " for state: ";
+	add_error(ss.str());
 	auto &desc = parse_ex->state_description();
 	for (auto &line : desc) {
-	    std::cout << "[ERROR]:   " << line << std::endl;
+	    add_error(line);
 	}
-	std::cout << "[ERROR]: Expected: {";
+	ss.str(std::string());
+	ss << "Expected: {";
 	bool first = true;
 	for (auto exp : env_.get_expected_simplified(*parse_ex)) {
-	    if (!first) std::cout << ", ";
+	    if (!first) ss << ", ";
 	    if (!isalnum(exp[0])) {
 		exp = '\'' + exp + '\'';
 	    }
-	    std::cout << exp;
+	    ss << exp;
 	    first = false;
 	}
-	std::cout << "}" << std::endl;
+	ss << "}";
+	add_error(ss.str());
     } if (token_ex != nullptr) {
-	std::cout << ": " << std::endl;
-	std::cout << "[ERROR]:   " << token_ex->what() << std::endl;
+	add_error(token_ex->what());
     } else {
-	std::cout << ": " << std::endl;
     }
 
     int pos = column - 1;
@@ -204,20 +229,21 @@ void terminal::error(const std::string &cmd,
     int end_excerpt = std::max(pos+10, static_cast<int>(cmd.size()));
     int excerpt_len = end_excerpt - start_excerpt;
     auto excerpt = cmd.substr(start_excerpt, excerpt_len);
-    std::cout << "[ERROR]: ";
+    ss.str(std::string());
     if (start_excerpt > 0) {
-	std::cout << "...";
+	ss << "...";
     }
-    std::cout << excerpt;
+    ss << excerpt;
     if (excerpt_len < cmd.size()) {
-	std::cout << "...";
+	ss << "...";
     }
-    std::cout << std::endl;
-    std::cout << "[ERROR]: ";
+    add_error(ss.str());
+    ss.str(std::string());
     if (start_excerpt > 0) {
-	std::cout << "   ";
+	ss << "   ";
     }
-    std::cout << std::string(pos-start_excerpt, ' ') << "^" << std::endl;
+    ss << std::string(pos-start_excerpt, ' ') << "^";
+    add_error(ss.str());
 }
 
 void terminal::lock_text_output_and( std::function<void()> fn )
@@ -226,7 +252,19 @@ void terminal::lock_text_output_and( std::function<void()> fn )
     fn();
 }
 
+void terminal::add_error(const std::string &str)
+{
+    auto err_str = "[ERROR]: " + str;
+    add_text_output(err_str);
+    in_query_ = false;
+}
+
 void terminal::add_text_output(const std::string &str)
+{
+    text_output_queue_.push(str + "\n");
+}
+
+void terminal::add_text_output_no_nl(const std::string &str)
 {
     text_output_queue_.push(str);
 }
@@ -247,31 +285,29 @@ void terminal::unregister_session(session *s)
 
 void terminal::command_help(const term)
 {
-    std::cout << R"TEXT(
-  help.                         This information.
-  list.                         List current sessions.
-  new(Host:Port).               Create a new session at host (with port)
-  connect(Session).             Connect to a session.
-  connect(Session,[Host:Port]). Connect to a session at specific host:port.
-  close(Session).               Disconnect session. (But keep session at node.)
-  kill(Session,[Host:Port]).    Kill session (and at node too.)
-  quit.                         End terminal.
-
-)TEXT";
-
+    add_text_output("help.                         This information.");
+    add_text_output("list.                         List current sessions.");
+    add_text_output("new(Host:Port).               Create a new session at host (with port)");
+    add_text_output("connect(Session).             Connect to a session.");
+    add_text_output("connect(Session,[Host:Port]). Connect to a session at specific host:port.");
+    add_text_output("close(Session).               Disconnect session. (But keep session at node.)");
+    add_text_output("kill(Session,[Host:Port]).    Kill session (and at node too.)");
+    add_text_output("quit.                         End terminal.");
 }
 
 void terminal::command_list(const term)
 {
-    std::cout << std::endl;
+    add_text_output("");
     if (sessions_.empty()) {
-	std::cout << " --- no sessions --- " << std::endl;
+	add_text_output(" --- no sessions --- ");
     }
     for (auto it : sessions_) {
 	auto *session = it.second;
-	std::cout << std::setw(26) << session->id() << " : " << session->get_endpoint() << std::endl;
+	std::stringstream ss;
+	ss << std::setw(26) << session->id() << " : " << session->get_endpoint();
+	add_text_output(ss.str());
     }
-    std::cout << std::endl;
+    add_text_output("");
 }
 
 session * terminal::new_session(const term host_port)
@@ -289,8 +325,8 @@ session * terminal::new_session(const term host_port)
 	host_term = env_.arg(arg, 0);
 	auto port_term  = env_.arg(arg, 1);
 	if (port_term.tag() != tag_t::INT) {
-	    std::cout << "new: Expecting host port as an integer; was "
-		      << env_.to_string(port_term) << std::endl;
+	    add_error("Expecting host port as an integer; was "
+		      + env_.to_string(port_term));
 	    return nullptr;
 	}
 	port = reinterpret_cast<int_cell &>(port_term).value();
@@ -298,8 +334,8 @@ session * terminal::new_session(const term host_port)
 	host_term = arg;
     }
     if (!env_.is_atom(host_term)) {
-	std::cout << "new: Expecting host name as an atom; was "
-		  << env_.to_string(host_term) << std::endl;
+	add_error("Expecting host name as an atom; was "
+		  + env_.to_string(host_term));
 	return nullptr;
     }
     host = env_.atom_name(host_term);
@@ -311,7 +347,10 @@ session * terminal::new_session(const term host_port)
     auto iterator = resolver.resolve(query, ec);
 
     if (ec) {
-	std::cout << "Error while resolving host " << host << ":" << port << ": " << ec.message() << "\n";
+	std::stringstream ss;
+	ss << "Error while resolving host " << host << ":"
+	   << port << ": " << ec.message();
+	add_error(ss.str());
 	return nullptr;
     }
 
@@ -325,7 +364,9 @@ session * terminal::new_session(const term host_port)
 	if (ec) ++iterator;
     }
     if (ec) {
-	std::cout << "Could not connect to " << host << ":" << port << "\n";
+	std::stringstream ss;
+	ss << "Could not connect to " << host << ":" << port;
+	add_error(ss.str());
 	return nullptr;
     }
 
@@ -338,7 +379,7 @@ bool terminal::process_errors(session *s)
     if (s->has_errors()) {
 	while (s->has_errors()) {
 	    auto line = s->next_error();
-	    std::cout << line << std::endl;
+	    add_error(line);
 	}
 	return true;
     } else {
@@ -368,27 +409,27 @@ void terminal::command_new(const term cmd)
     }
 
     if (e.functor(reply) != con_cell("ok",1)) {
-	std::cout << "Node replied with failure: " << env_.to_string(reply) << std::endl;
+	add_error("Node replied with failure: " + env_.to_string(reply));
 	return;
     }
 
     auto session_id_term = e.arg(reply, 0);
     if (!e.is_atom(session_id_term)) {
-	std::cout << "Node did not reply with session id: " << e.to_string(session_id_term) << std::endl;
+	add_error("Node did not reply with session id: " + e.to_string(session_id_term));
     }
 
     std::string session_id = e.atom_name(session_id_term);
     s->set_id(session_id);
     register_session(s);
 
-    std::cout << session_id << std::endl;
+    add_text_output(session_id);
 }
 
 session * terminal::get_session(const term cmd)
 {
     auto session_id_term = env_.arg(cmd,0);
     if (!env_.is_atom(session_id_term)) {
-	std::cout << "Erroneous session id: " << env_.to_string(session_id_term) << std::endl;
+	add_error("Erroneous session id: " + env_.to_string(session_id_term));
 	return nullptr;
     }
     auto session_id = env_.atom_name(session_id_term);
@@ -399,7 +440,10 @@ session * terminal::get_session(const term cmd)
     } else {
 	// Didn't find session id, but do we have a host:port?
 	if (env_.functor(cmd).arity() < 2) {
-	    std::cout << "Session '" << session_id << "' was not found, and no host:port was provided." << std::endl;
+	    std::stringstream ss;
+	    ss << "Session '" << session_id
+	       << "' was not found, and no host:port was provided.";
+	    add_error(ss.str());
 	    return nullptr;
 	}
 	s = new_session(env_.arg(cmd,1));
@@ -433,7 +477,7 @@ void terminal::command_connect(const term cmd)
     }
 
     if (e.functor(reply) != con_cell("ok",1)) {
-	std::cout << "Unexpected reply from node: " << e.to_string(reply) << std::endl;
+	add_error("Unexpected reply from node: " + e.to_string(reply));
 	unregister_session(s);
 	return;
     }
@@ -441,16 +485,17 @@ void terminal::command_connect(const term cmd)
     auto inner = e.arg(reply, 0);
     auto inner_f = e.functor(inner);
     auto inner_name = e.atom_name(inner_f);
-    if (inner_name != "session_resumed" || inner_f.arity() != 1) {
-	std::cout << "Unexpected reply from node: " << e.to_string(reply) << std::endl;
+    if (inner_name != "session_resumed" || inner_f.arity() != 2) {
+	add_error("Unexpected reply from node: " + e.to_string(reply));
 	unregister_session(s);
 	return;
     }
     
     auto id_term = e.arg(inner,0);
-    if (!e.is_atom(id_term)) {
+    auto state_term = e.arg(inner,1);
+    if (!e.is_atom(id_term) || !e.is_atom(state_term)) {
 	delete s;
-	std::cout << "Unexpected session id from node: " << e.to_string(id_term) << std::endl;
+	add_error("Unexpected session id from node: " + e.to_string(id_term));
 	return;
     }
     auto id = e.atom_name(id_term);
@@ -458,7 +503,14 @@ void terminal::command_connect(const term cmd)
     register_session(s);
     current_session_ = s;
 
-    std::cout << "Connecting to session '" << s->id() << "'" << std::endl;
+    in_query_ = false;
+    if (state_term == con_cell("more",0)) {
+	in_query_ = true;
+    }
+
+    std::stringstream ss;
+    ss << "Connecting to session '" << s->id() << "'";
+    add_text_output(ss.str());
 }
 
 void terminal::command_kill(const term t)
@@ -484,11 +536,13 @@ void terminal::command_kill(const term t)
     }
 
     if (e.functor(reply) != con_cell("ok",1)) {
-	std::cout << "Node replied with failure: " << e.to_string(reply) << std::endl;
+	add_error("Node replied with failure: " + e.to_string(reply));
 	return;
     }
 
-    std::cout << "Session '" << s->id() << "' killed." << std::endl;
+    std::stringstream ss;
+    ss << "Session '" << s->id() << "' killed.";
+    add_text_output(ss.str());
     unregister_session(s);
 }
 
@@ -496,13 +550,15 @@ void terminal::command_close(const term cmd)
 {
     auto session_id_term = env_.arg(cmd,0);
     if (!env_.is_atom(session_id_term)) {
-	std::cout << "Erroneous session id: " << env_.to_string(session_id_term) << std::endl;
+	add_error("Erroneous session id: " + env_.to_string(session_id_term));
 	return;
     }
     auto session_id = env_.atom_name(session_id_term);
     session *s = nullptr;
     if (sessions_.find(session_id) == sessions_.end()) {
-	std::cout << "Session '" << session_id << "' was not found." << std::endl;
+	std::stringstream ss;
+	ss << "Session '" << session_id << "' was not found.";
+	add_error(ss.str());
 	return;
     }
     s = sessions_[session_id];
@@ -531,8 +587,7 @@ void terminal::execute_command(const term cmd)
 {
     auto it = commands_.find(env_.functor(cmd));
     if (it == commands_.end()) {
-	std::cout << "Unknown command. Type 'help.' for information."
-		  << std::endl;
+	add_error("Unknown command. Type 'help.' for information.");
 	return;
     }
     (it->second)(cmd);
@@ -540,8 +595,113 @@ void terminal::execute_command(const term cmd)
 
 void terminal::execute_query(const term query)
 {
-    (void)query;
-    std::cout << "execute_query" << std::endl;
+    session *s = current_session_;
+    if (s == nullptr) {
+	add_error("No current session.");
+	return;
+    }
+    uint64_t cost = 0;
+    auto &e = s->env();
+    term s_query = e.copy(query, env_, cost);
+    auto q = e.new_term(e.functor("query",1), {s_query});
+    s->send_query(q);
+    if (process_errors(s)) {
+	unregister_session(s);
+	return;
+    }
+    process_query_reply();
+}
+
+void terminal::process_query_reply()
+{
+    session *s = current_session_;
+    auto reply = s->read_reply();
+    if (process_errors(s)) {
+	unregister_session(s);
+	return;
+    }
+    auto &e = s->env();
+    if (e.functor(reply) == con_cell("error",1)) {
+	add_error(e.to_string(e.arg(reply,0)));
+	return;
+    }
+
+    if (e.functor(reply) == con_cell("ok",1)) {
+	auto context = e.capture_state();
+	auto result_term = e.arg(reply,0);
+	if (e.functor(result_term) != con_cell("result",3)) {
+	    add_error("Unexpected result. Expected result/3 inside ok/1, but got: " + e.to_string(result_term));
+	    return;
+	}
+	auto in_query_state = e.arg(result_term,2);
+	in_query_ = in_query_state == con_cell("more",0);
+	
+	auto touched = e.prettify_var_names(result_term);
+	auto vars = e.arg(result_term,1);
+	while (vars != e.empty_list()) {
+	    if (!e.is_dotted_pair(vars)) {
+		add_error("Unexpected result. Second argument of result/3 was not a proper list. " + e.to_string(e.arg(result_term,1)));
+		return;
+	    }
+	    auto var_binding = e.arg(vars,0);
+	    if (e.functor(var_binding) != con_cell("=",2)) {
+		add_error("Unexpected result. Unexpected name binding: " + e.to_string(var_binding));
+		return;
+	    }
+	    auto var_name_term = e.arg(var_binding, 0);
+	    if (var_name_term.tag() != tag_t::CON) {
+		add_error("Unexpected result. Variable name was not an atom: " + e.to_string(var_binding));
+		return;
+	    }
+	    auto var_name = e.atom_name(reinterpret_cast<con_cell &>(var_name_term));
+	    auto var_value = e.arg(var_binding, 1);
+	    vars = e.arg(vars, 1);
+	    auto var_value_str = e.to_string(var_value);
+	    if (var_name != var_value_str) {
+		std::string binding_str = var_name + " = " + var_value_str;
+		if (e.is_dotted_pair(vars)) {
+		    binding_str += ",";
+		    add_text_output(binding_str);
+		} else {
+		    if (in_query_) {
+			add_text_output_no_nl(binding_str + " ");
+		    } else {
+			add_text_output(binding_str);
+		    }
+		}
+	    }
+	}
+	e.restore_state(context);
+	for (auto touched_term : touched) {
+	    e.clear_name(touched_term);
+	}
+	return;
+    }
+    add_error("Unexpected reply from node: " + e.to_string(reply));
+}
+
+void terminal::execute_in_query(const std::string &cmd)
+{
+    session *s = current_session_;
+    if (s == nullptr) {
+	add_error("No current session.");
+	in_query_ = false;
+	return;
+    }
+    if (cmd == ";") {
+	auto q = env_.new_term(env_.functor("command",1),{env_.functor("next",0)});
+	s->send_query(q, env_);
+	if (process_errors(s)) {
+	    unregister_session(s);
+	    return;
+	}
+	process_query_reply();
+    } else if (cmd == "") {
+	in_query_ = false;
+    } else {
+	add_error("Unknown command. Only ';' or ENTER is allowed.");
+	in_query_ = true; // Error does normally clear "in query" flag
+    }
 }
 
 void terminal::run()
@@ -553,7 +713,11 @@ void terminal::run()
 	if (current_session_ == nullptr) {
 	    prompt_ = ">> ";
 	} else {
-	    prompt_ = "?- ";
+	    if (in_query_) {
+		prompt_ = "";
+	    } else {
+		prompt_ = "?- ";
+	    }
 	}
 
 	std::cout << prompt_;
@@ -564,12 +728,13 @@ void terminal::run()
 	std::cout << "\n";
 
 	if (ctrl_c_) {
+	    in_query_ = false;
 	    if (current_session_ == nullptr) {
 		std::cout << "Enter quit. to exit terminal." << std::endl;
 		continue;
 	    } else {
 		current_session_ = nullptr;
-		std::cout << "Leaving session. Go to top level command." << std::endl;
+		std::cout << "Leaving session. Going to top level." << std::endl;
 		continue;
 	    }
 	}
@@ -579,6 +744,11 @@ void terminal::run()
 	}
 	readline_.add_history(cmd);
 	try {
+	    if (in_query_) {
+		execute_in_query(cmd);
+		continue;
+	    }
+
 	    term t = env_.parse(cmd);
 
 	    if (current_session_ == nullptr) {

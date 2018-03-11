@@ -394,9 +394,11 @@ int term_utils::standard_order(term a, term b, uint64_t &cost)
     return 0;
 }
 
-term term_utils::copy(term c, heap &src, uint64_t &cost)
+term term_utils::copy(term c, naming_map &names,
+		      heap &src, naming_map &src_names, uint64_t &cost)
 {
     std::unordered_map<term, term> var_map;
+    std::unordered_map<con_cell, con_cell> con_map;
 
     size_t current_stack = stack_size();
     
@@ -418,13 +420,34 @@ term term_utils::copy(term c, heap &src, uint64_t &cost)
 	    if (search == var_map.end()) {
 	        v = new_ref();
 		var_map[c] = v;
+		auto vn = src_names.find(c);
+		if (vn != src_names.end()) {
+		    names[v] = vn->second;
+		}
 	    } else {
   	        v = search->second;
 	    }
 	    temp_push(v);
-	    break;
 	  }
+	  break;
 	case tag_t::CON:
+	  {
+	      auto &cc = reinterpret_cast<con_cell &>(c);
+	      if (cc.is_direct()) {
+		  temp_push(c);
+	      } else {
+		  auto search = con_map.find(cc);
+		  con_cell dst_cc;
+		  if (search == con_map.end()) {
+		      dst_cc = functor(src.atom_name(cc), cc.arity());
+		      con_map[cc] = dst_cc;
+		  } else {
+		      dst_cc = search->second;
+		  }
+		  temp_push(dst_cc);
+	      }
+	  }
+	  break;
 	case tag_t::INT:
 	  temp_push(c);
 	  break;

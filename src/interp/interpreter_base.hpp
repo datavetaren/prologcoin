@@ -359,6 +359,9 @@ public:
     inline const predicate & get_predicate(const common::con_cell pn)
         { return program_db_[pn]; }
 
+    inline const std::vector<common::con_cell> get_predicates() const
+        { return program_predicates_; }
+
     std::string to_string_cp(const code_point &cp)
         { return cp.to_string(*this); }
 
@@ -423,7 +426,7 @@ public:
 	return cmp;
        }
 
-    inline term copy(term t, heap &src)
+    inline term copy(term t, term_env &src)
        { uint64_t cost = 0;
          term c = common::term_env::copy(t, src, cost);
 	 add_accumulated_cost(cost);
@@ -612,18 +615,18 @@ protected:
 	register_e_is_wam_ = false;
     }
 
-    inline environment_base_t * top_e()
+    inline environment_base_t * top_e() const
     {
         return register_top_e_;
     }
 
-    inline choice_point_t * b()
+    inline choice_point_t * b() const
     {
         return register_b_;
     }
 
     // Choice point is WAM based if continuation environment is WAM based.
-    inline bool b_is_wam()
+    inline bool b_is_wam() const
     {
 	if (b() == nullptr) {
 	    return false;
@@ -637,7 +640,7 @@ protected:
         register_b_ = b;
     }
 
-    inline choice_point_t * b0()
+    inline choice_point_t * b0() const
     {
         return register_b0_;
     }
@@ -647,7 +650,7 @@ protected:
         register_b0_ = b;
     }
 
-    inline choice_point_t * top_b()
+    inline choice_point_t * top_b() const
     {
         return register_top_b_;
     }

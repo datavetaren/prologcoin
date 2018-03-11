@@ -345,13 +345,16 @@ public:
     inline stacks_proxy(stacks &s) { set_stacks(s); }
 };
 
+typedef std::unordered_map<term, std::string> naming_map;
+
 class term_utils : public heap_proxy, stacks_proxy {
 public:
     term_utils(heap &h, stacks &s) : heap_proxy(h), stacks_proxy(s) { }
 
     bool unify(term a, term b, uint64_t &cost);
-    term copy(const term t, uint64_t &cost);
-    term copy(const term t, heap &src, uint64_t &cost);
+    term copy(const term t, naming_map &names, uint64_t &cost);
+    term copy(const term t, naming_map &names,
+	      heap &src, naming_map &src_names, uint64_t &cost);
     bool equal(term a, term b, uint64_t &cost);
     uint64_t hash(term t);
     uint64_t cost(term t);
@@ -407,7 +410,6 @@ public:
         : ops_dock<ops_bridge>(*this) { set_ops(ops); }
 };
 
-
 template<typename HT, typename ST, typename OT> class term_env_dock
   : public heap_dock<HT>, public stacks_dock<ST>, public ops_dock<OT>
 {
@@ -437,7 +439,7 @@ public:
         return true;    
      }
 
-  inline std::unordered_map<term, std::string> & var_naming()
+  inline naming_map & var_naming()
      { return var_naming_; }
   inline void clear_name(const term t)
      { var_naming_.erase(t); }
@@ -454,7 +456,6 @@ public:
 	   return it->second;
        }
      }
-
 
   inline void unwind_trail(size_t from, size_t to)
   {
@@ -493,13 +494,14 @@ public:
   inline term copy(term t, uint64_t &cost)
   {
       term_utils utils(heap_dock<HT>::get_heap(), stacks_dock<ST>::get_stacks());
-      return utils.copy(t, heap_dock<HT>::get_heap(), cost);
+      return utils.copy(t, var_naming(), heap_dock<HT>::get_heap(),
+			var_naming(), cost);
   }
 
-  inline term copy(term t, heap &src, uint64_t &cost)
+  inline term copy(term t, term_env_dock<HT,ST,OT> &src, uint64_t &cost)
   {
       term_utils utils(heap_dock<HT>::get_heap(), stacks_dock<ST>::get_stacks());
-      return utils.copy(t, src, cost);
+      return utils.copy(t, var_naming(), src.get_heap(), src.var_naming(), cost);
   }
 
   inline uint64_t hash(term t)
@@ -587,7 +589,7 @@ public:
 			     { var_naming_[ref] = name; } );
       return r;
   }
-
+ 
   term parse(const std::string &str)
   {
       std::stringstream ss(str);
@@ -662,6 +664,78 @@ public:
   {
       return const_term_dfs_iterator_templ<HT,ST,OT>(*this);
   }
+
+  struct state_context {
+      state_context(size_t tr, size_t st, size_t hb) :
+	  trail_(tr), stack_(st), hb_(hb) { }
+      size_t trail_;
+      size_t stack_;
+      size_t hb_;
+  };
+
+  state_context capture_state() {
+      return state_context(stacks_dock<ST>::trail_size(), stacks_dock<ST>::stack_size(), stacks_dock<ST>::get_register_hb());
+  }
+
+  void restore_state(state_context &context) {
+      unwind_trail(context.trail_, stacks_dock<ST>::trail_size());
+      stacks_dock<ST>::trim_trail(context.trail_);
+      stacks_dock<ST>::trim_stack(context.stack_);
+      stacks_dock<ST>::set_register_hb(context.hb_);
+  }
+
+  std::vector<std::pair<std::string, term> > find_vars(const term t0) {
+      std::vector<std::pair<std::string, term> > vars;
+      std::unordered_set<term> seen;
+      // Record all vars for this query
+      std::for_each( begin(t0),
+		     end(t0),
+		     [&](const term &t) {
+			 if (t.tag() == tag_t::REF) {
+			     const std::string name = to_string(t);
+			     if (!seen.count(t)) {
+				 vars.push_back(std::make_pair(name,t));
+				 seen.insert(t);
+			     }
+			 }
+		     } );
+      return vars;
+  }
+
+  std::vector<term> prettify_var_names(const term t0)
+  {
+      std::vector<term> touched;
+
+      std::unordered_map<term, size_t> count_occurrences;
+      std::for_each(begin(t0),
+		  end(t0),
+		  [&] (const term t) {
+		    if (t.tag() == tag_t::REF) {
+			if (!has_name(t)) {
+			    ++count_occurrences[t];
+			}
+		    }
+		  }
+		  );
+
+      // Those vars with a singleton occurrence will be named
+      // '_'.
+      size_t named_var_count = 0;
+      for (auto v : count_occurrences) {
+	  touched.push_back(v.first);
+	  if (v.second == 1) {
+	      set_name(v.first, "_");
+	  } else { // v.second > 1
+	      std::string name = "G_" + boost::lexical_cast<std::string>(
+						 named_var_count);
+	      named_var_count++;
+	      set_name(v.first, name);
+	  }
+      }
+
+      return touched;
+  }
+
 
 private:
   std::unordered_map<term, std::string> var_naming_;

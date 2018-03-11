@@ -129,6 +129,10 @@ void self_node::prune_dead_connections()
     boost::lock_guard<boost::mutex> guard(lock_);
     while (!closed_.empty()) {
 	auto *c = closed_.back();
+	auto *s = c->get_session();
+	if (s != nullptr) {
+	    s->reset_connection();
+	}
 	disconnect(c);
 	closed_.pop_back();
     }
@@ -148,9 +152,27 @@ void self_node::disconnect(connection *conn)
     delete conn;
 }
 
-session_state::session_state(connection *conn) : connection_(conn)
+session_state::session_state(connection *conn)
+  : connection_(conn),
+    interp_initialized_(false),
+    in_query_(false)
 {
     id_ = "s" + random::next();
+}
+
+bool session_state::execute(const term query)
+{
+    if (!interp_initialized_) {
+	interp_initialized_ = true;
+	interp_.setup_standard_lib();
+    }
+    query_ = query;
+    in_query_ = true;
+    bool r = interp_.execute(query);
+    if (!r) {
+	in_query_ = false;
+    }
+    return r;
 }
 
 connection::connection(self_node &self)
@@ -162,7 +184,8 @@ connection::connection(self_node &self)
       query_length_(0),
       write_bytes_(0),
       reply_length_(0),
-      buffer_(self_node::MAX_BUFFER_SIZE, ' ')
+      buffer_(self_node::MAX_BUFFER_SIZE, ' '),
+      session_(nullptr)
 {
     setup_commands();
     std::cout << "connection::connection()\n";
@@ -178,6 +201,7 @@ void connection::setup_commands()
     commands_[con_cell("new",0)] = [this](const term cmd){ command_new(cmd); };
     commands_[con_cell("connect",1)] = [this](const term cmd){ command_connect(cmd); };
     commands_[con_cell("kill",1)] = [this](const term cmd){ command_kill(cmd); };
+    commands_[con_cell("next",0)] = [this](const term cmd){ command_next(cmd); };
 }
 
 void connection::start()
@@ -241,6 +265,19 @@ session_state * connection::get_session(const term id_term)
     return s;
 }
 
+con_cell connection::get_state_atom()
+{
+    if (session_ == nullptr) {
+	return con_cell("void",0);
+    } else if (!session_->in_query()) {
+	return con_cell("ask",0);
+    } else if (session_->has_more()) {
+	return con_cell("more",0);
+    } else {
+	return con_cell("unknown",0);
+    }
+}
+
 void connection::command_connect(const term cmd)
 {
     auto &e = env_;
@@ -251,7 +288,9 @@ void connection::command_connect(const term cmd)
 	return;
     }
     node().session_connect(s, this);
-    reply_ok(e.new_term(e.functor("session_resumed",1),{id_term}));
+    session_ = s;
+    reply_ok(e.new_term(e.functor("session_resumed",2),
+			{id_term, get_state_atom()}));
 }
 
 void connection::command_kill(const term cmd)
@@ -264,7 +303,13 @@ void connection::command_kill(const term cmd)
 	return;
     }
     node().kill_session(s);
+    session_ = nullptr;
     reply_ok(e.new_term(e.functor("session_killed",1),{id_term}));
+}
+
+void connection::command_next(const term cmd)
+{
+    process_execution(cmd, true);
 }
 
 void connection::process_command(const term cmd)
@@ -285,18 +330,67 @@ void connection::process_query()
     term_serializer ser(e);
     try {
 	auto t = ser.read(buffer_, query_length_);
-	auto f = e.functor(t) ;
+	auto f = e.functor(t);
 	if (f == con_cell("command",1)) {
 	    process_command(e.arg(t,0));
 	} else if (f == con_cell("query",1)) {
-	    // Echo for now...
-	    std::cout << "Successful: " << e.to_string(t) << "\n";
-	    reply_ok(e.arg(t,0));
+	    term qr;
+	    try {
+		uint64_t cost = 0;
+		qr = session_->env().copy(e.arg(t,0), e, cost);
+		session_->set_query(qr);
+		process_execution(qr, false);
+	    } catch (std::exception &ex) {
+		reply_error(e.new_term(e.functor("remote_exception",1),
+				       {e.functor(ex.what(),0)}));
+	    }
 	} else {
 	    reply_error(e.new_term(e.functor("unrecognized_command",1),{t}));
 	}
     } catch (serializer_exception &ex) {
 	reply_error(e.new_term(e.functor("serializer_exception",1),
+			       {e.functor(ex.what(),0)}));
+    }
+}
+
+void connection::process_execution(const term cmd, bool in_query)
+{
+    auto &e = env_;
+    try {
+	if (session_ == nullptr) {
+	    reply_error(e.functor("no_running_session",0));
+	} else {
+	    uint64_t cost = 0;
+	    if (in_query) {
+		if (cmd != con_cell("next",0)) {
+		    reply_error(e.new_term(e.functor("unrecognized_command",1)
+					   ,{cmd}));
+		    return;
+		}
+	    }
+	    auto qr = session_->query();
+	    bool r = in_query ? session_->next() : session_->execute(qr);
+	    if (!r) {
+		reply_ok(e.new_term(e.functor("result",3),
+				    {e.functor("false",0),
+				     e.empty_list(),
+					    get_state_atom()}));
+	    } else {
+		term closure = session_->env().new_dotted_pair(
+				      session_->get_result(),
+				      session_->query_vars());
+		term closure_copy = e.copy(closure, session_->env(), cost);
+		term result = e.arg(closure_copy, 0);
+		term vars_term = e.arg(closure_copy, 1);
+
+		result = e.new_term(e.functor("result",3),
+				    {result, vars_term, get_state_atom()});
+
+		reply_ok(result);
+	    }
+	}
+    } catch (std::exception &ex) {
+	reply_error(e.new_term(e.functor("remote_exception",1),
 			       {e.functor(ex.what(),0)}));
     }
 }

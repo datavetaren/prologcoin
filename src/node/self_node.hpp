@@ -37,13 +37,18 @@ public:
     void start();
 
 private:
+    common::con_cell get_state_atom();
     void setup_commands();
     session_state * get_session(const term id_term);
+    inline session_state * get_session() { return session_; }
     void command_new(const term cmd);
     void command_connect(const term cmd);
     void command_kill(const term cmd);
+    void command_next(const term cmd);
     void process_command(const term cmd);
     void process_query();
+    void process_query_reply();
+    void process_execution(const term cmd, bool in_query);
 
     void run();
     void close();
@@ -80,6 +85,7 @@ private:
     common::term_env env_;
     std::unordered_map<prologcoin::common::con_cell,
 		       std::function<void(common::term cmd)> > commands_;
+    session_state *session_;
 };
 
 class session_state {
@@ -91,11 +97,49 @@ public:
 
     inline connection * get_connection() { return connection_; }
     inline void set_connection(connection *conn) { connection_ = conn; }
+    inline void reset_connection() { connection_ = nullptr; }
+
+    bool execute(const common::term query);
+
+    inline void set_query(const common::term query)
+    {
+	query_ = query;
+        auto vars = env().find_vars(query_);
+	vars_ = env().empty_list();
+	for (auto v = vars.rbegin(); v != vars.rend(); ++v) {
+	    vars_ = env().new_dotted_pair(
+			  env().new_term(common::con_cell("=",2),
+				 {env().functor(v->first,0), v->second}),
+		  vars_);
+	}
+    }
+
+    inline common::term query() const { return query_; }
+    inline common::term query_vars()
+    { return vars_; }
+    
+    inline common::term get_result() { return interp_.get_result_term(); }
+
+    inline bool in_query() const { return in_query_; }
+
+    inline bool has_more() const { return in_query() && interp_.has_more(); }
+
+    inline bool next() {
+	bool r = interp_.next();
+	if (!r) {
+	    in_query_ = false;
+	}
+	return r;
+    }
 
 private:
     std::string id_;
     connection *connection_;
     interp::interpreter interp_;
+    bool interp_initialized_;
+    common::term query_;
+    bool in_query_;
+    common::term vars_;
 };
 
 class self_node {

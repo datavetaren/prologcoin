@@ -418,6 +418,11 @@ public:
 
     void print_code(std::ostream &out);
 
+    inline bool is_compiled(common::con_cell p ) const
+    {
+	return predicate_map_.find(p) != predicate_map_.end();
+    }
+
 protected:
     void set_predicate(common::con_cell predicate_name,
 		       wam_instruction_base *instr,

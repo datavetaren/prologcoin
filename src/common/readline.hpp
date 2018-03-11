@@ -49,6 +49,7 @@ public:
 
     void clear_render();
     void render();
+    void clear_line();
 
     bool has_standard_handling(int ch) {
 	return (ch >= ' ' && ch <= 255) ||
@@ -63,6 +64,8 @@ public:
     int getch(bool with_timeout);
 
 private:
+    static const int TIMEOUT_INTERVAL_MILLIS = 100;
+
     void search_history(bool back);
 
     enum render_t {

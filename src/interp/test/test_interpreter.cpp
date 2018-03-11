@@ -1,3 +1,4 @@
+#include <boost/date_time/posix_time/posix_time.hpp>
 #include "../../common/term_tools.hpp"
 #include "../../common/term_serializer.hpp"
 #include "../interpreter.hpp"
@@ -10,6 +11,20 @@ static void header( const std::string &str )
     std::cout << "\n";
     std::cout << "--- [" + str + "] " + std::string(60 - str.length(), '-') << "\n";
     std::cout << "\n";
+}
+
+static void test_up_and_down()
+{
+    header("test_up_and_down()");
+
+    auto start = boost::posix_time::microsec_clock::local_time();
+    {
+	interpreter interp;
+	interp.setup_standard_lib();
+    }
+    auto stop = boost::posix_time::microsec_clock::local_time();
+    auto dt = stop - start;
+    std::cout << "Prolog engine up+down in " << dt.total_milliseconds() << " milliseconds\n";
 }
 
 static bool check_terms(const std::string &actual,
@@ -216,6 +231,7 @@ static void test_interpreter_serialize()
 
 int main( int argc, char *argv[] )
 {
+    test_up_and_down();
     test_simple_interpreter();
     test_backtracking_interpreter();
     test_interpreter_serialize();

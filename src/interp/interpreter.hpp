@@ -16,6 +16,9 @@ public:
     interpreter();
     ~interpreter();
 
+    void setup_standard_lib();
+
+    void compile();
     void compile(common::con_cell pred);
 
     bool execute(const term query);
@@ -23,14 +26,18 @@ public:
     bool cont();
     void fail();
 
-    void set_wam_enabled(bool enabled)
+    inline bool has_more() const
+    { return b() != top_b() || has_meta_contexts(); }
+
+    inline void set_wam_enabled(bool enabled)
     { wam_enabled_ = enabled; }
 
-    bool is_wam_enabled() const
+    inline bool is_wam_enabled() const
     { return wam_enabled_; }
 
     std::string get_result(bool newlines = true) const;
     term get_result_term(const std::string &varname) const;
+    term get_result_term() const;
     void print_result(std::ostream &out) const;
 
     void unwind(size_t trail_mark)

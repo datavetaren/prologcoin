@@ -1933,6 +1933,11 @@ void wam_compiler::compile_subsection(const managed_clauses &subsection,
 void wam_compiler::compile_predicate(common::con_cell pred, wam_interim_code &instrs)
 {
     auto &clauses = interp_.get_predicate(pred);
+
+    if (clauses.empty()) {
+	return;
+    }
+
     auto sections = partition_clauses_nonvar(clauses);
     auto n = sections.size();
     if (n > 1) {

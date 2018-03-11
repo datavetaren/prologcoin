@@ -5,6 +5,7 @@
 #include "wam_interpreter.hpp"
 #include <boost/filesystem.hpp>
 #include <boost/timer/timer.hpp>
+#include <boost/range/adaptor/reversed.hpp>
 
 #define PROFILER 0
 
@@ -299,8 +300,31 @@ void interpreter_base::load_program(const std::string &str)
 
 void interpreter_base::load_program(std::istream &in)
 {
-    auto prog = parse(in);
-    return load_program(prog);
+    term_tokenizer tok(in);
+    term_parser parser(tok, *this);
+
+    std::vector<term> clauses;
+
+    while (!parser.is_eof()) {
+        parser.clear_var_names();
+
+	auto clause = parser.parse();
+
+	// Once parsing is done we'll copy over the var-name bindings
+	// so we can pretty print the variable names.
+	parser.for_each_var_name( [&](const term  &ref,
+				    const std::string &name)
+	  { set_name(ref, name); } );
+
+	clauses.push_back(clause);
+    }
+
+    term clause_list = empty_list();
+    for (auto clause : boost::adaptors::reverse(clauses)) {
+	clause_list = new_dotted_pair(clause, clause_list);
+    }
+	
+    return load_program(clause_list);
 }
 
 void interpreter_base::syntax_check_program(const term t)

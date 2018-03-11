@@ -26,6 +26,47 @@ interpreter::~interpreter()
     id_to_predicate_.clear();
 }
 
+void interpreter::setup_standard_lib()
+{
+    std::string lib = R"PROG(
+
+%
+% Some standard predicates
+%
+
+%
+% member/2
+%
+
+member(X, Xs) :- $member0(Xs, X).
+$member0([X|_], X).
+$member0([_|Xs], X) :- $member0(Xs, X).
+
+%
+% reverse/2
+%
+
+reverse(Xs, Ys) :-
+    reverse0(Xs, [], Ys).
+
+$reverse0([], Ys, Ys).
+$reverse0([X|Xs], Acc, Ys) :-
+    $reverse0(Xs, [X|Acc], Ys).
+
+%
+% append/3
+%
+
+append([], Zs, Zs).
+append([X|Xs], Ys, [X|Zs]) :-
+    append(Xs, Ys, Zs).
+
+)PROG";
+
+    load_program(lib);
+    compile();
+}
+
 bool interpreter::execute(const term query)
 {
     using namespace prologcoin::common;
@@ -532,6 +573,11 @@ std::string interpreter::get_result(bool newlines) const
     return ss.str();
 }
 
+interpreter::term interpreter::get_result_term() const
+{
+    return qr();
+}
+
 interpreter::term interpreter::get_result_term(const std::string &varname) const
 {
     term t;
@@ -547,6 +593,15 @@ interpreter::term interpreter::get_result_term(const std::string &varname) const
 void interpreter::print_result(std::ostream &out) const
 {
     out << get_result();
+}
+
+void interpreter::compile()
+{
+    for (auto p : get_predicates()) {
+	if (!is_compiled(p)) {
+	    compile(p);
+	}
+    }
 }
 
 void interpreter::compile(common::con_cell pred)

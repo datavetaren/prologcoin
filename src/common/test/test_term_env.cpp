@@ -174,11 +174,14 @@ static void test_copy_term()
     std::string s = "foo(X, 42, X, bar(Y)).";
     auto t1 = env.parse(s);
 
+    env.var_naming().clear();
+
     std::string s1 = env.to_string(t1);
+    std::string sx = "foo(A, 42, A, bar(B))";
 
     std::cout << "Copy term: " << s1 << "\n";
 
-    assert(s1 == s.substr(0, s.length()-1));
+    assert(s1 == sx);
 
     uint64_t cost = 0;
     auto t2 = env.copy(t1, cost);
