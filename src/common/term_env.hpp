@@ -690,9 +690,9 @@ public:
       // Record all vars for this query
       std::for_each( begin(t0),
 		     end(t0),
-		     [&](const term &t) {
+		     [this,&seen,&vars](const term t) {
 			 if (t.tag() == tag_t::REF) {
-			     const std::string name = to_string(t);
+			     const std::string name = this->to_string(t);
 			     if (!seen.count(t)) {
 				 vars.push_back(std::make_pair(name,t));
 				 seen.insert(t);
@@ -709,9 +709,9 @@ public:
       std::unordered_map<term, size_t> count_occurrences;
       std::for_each(begin(t0),
 		  end(t0),
-		  [&] (const term t) {
+		  [this,&count_occurrences] (const term t) {
 		    if (t.tag() == tag_t::REF) {
-			if (!has_name(t)) {
+			if (!this->has_name(t)) {
 			    ++count_occurrences[t];
 			}
 		    }
