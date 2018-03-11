@@ -710,9 +710,9 @@ public:
 
   const std::string & get_var_name(term &cell);
 
-  void for_each_var_name(std::function<void (const term &ref, const std::string &name)> f) const {
+  void for_each_var_name(std::function<void (const term ref, const std::string &name)> f) const {
       for (auto e : var_name_map_) {
-	  const term &ref = e.first;
+	  const term ref = e.first;
 	  const std::string &name = e.second;
 	  f(ref,name);
       }
@@ -1037,7 +1037,7 @@ bool term_parser::is_error()
     return impl_->is_error();
 }
 
-void term_parser::for_each_var_name(std::function<void (const term &ref, const std::string &name)> f) const {
+void term_parser::for_each_var_name(std::function<void (const term ref, const std::string &name)> f) const {
     impl_->for_each_var_name(f);
 }
 

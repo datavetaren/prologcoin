@@ -166,7 +166,7 @@ int readline::getch(bool with_timeout)
     }
 
     char keybuf[32];
-    if (n > sizeof(keybuf)) {
+    if (n > static_cast<int>(sizeof(keybuf))) {
 	n = sizeof(keybuf);
     }
 
@@ -317,13 +317,13 @@ void readline::search_history(bool back)
 	}
     } else {
 	history_search_index_++;
-	if (history_search_index_ > history_.size()) {
+	if (history_search_index_ > static_cast<int>(history_.size())) {
 	    history_search_index_ = 0;
 	}
     }
 
     for (size_t cnt = 0; cnt < history_.size(); cnt++) {
-	auto &hist = history_search_index_ < history_.size() ?
+	auto hist = history_search_index_ < static_cast<int>(history_.size()) ?
 	    history_[history_search_index_] : search_;
 	if (boost::starts_with(hist, search_)) {
 	    buffer_ = hist;

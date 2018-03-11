@@ -584,9 +584,9 @@ public:
 
       // Once parsing is done we'll copy over the var-name bindings
       // so we can pretty print the variable names.
-      parser.for_each_var_name( [&](const term  &ref,
+      parser.for_each_var_name( [this](const term ref,
 				    const std::string &name)
-			     { var_naming_[ref] = name; } );
+			     { this->var_naming_[ref] = name; } );
       return r;
   }
  

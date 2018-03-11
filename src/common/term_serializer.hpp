@@ -246,7 +246,6 @@ private:
         { switch (t.tag()) {
 	    case tag_t::REF:
 	    case tag_t::STR: {
-		auto p = static_cast<const ptr_cell &>(t);
 		return ptr_cell(t.tag(), index_term(t, cell_index));
 		}
 	    case tag_t::CON: {

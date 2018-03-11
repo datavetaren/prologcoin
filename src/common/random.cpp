@@ -14,7 +14,7 @@ std::string random::next(size_t entropy_bits)
     boost::random::uniform_int_distribution<> index_dist(0, chars.size() - 1);
     size_t n = (entropy_bits * 1000 + 5953) / 5954;
     std::string s(n, ' ');
-    for(int i = 0; i < n; ++i) {
+    for (size_t i = 0; i < n; ++i) {
 	s[i] = chars[index_dist(random_)];
     }
     return s;
