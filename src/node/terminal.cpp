@@ -85,7 +85,6 @@ term session::read_reply()
 	}
 	off += r;
     }
-
     auto c = ser.read_cell(buffer_len_, 0, "");
     if (c.tag() != tag_t::INT) {
 	add_error("Erreoneous encoding of reply length.");
@@ -127,6 +126,7 @@ term session::read_reply()
     }
 
     term t = ser.read(buffer_);
+
     return t;
 }
 

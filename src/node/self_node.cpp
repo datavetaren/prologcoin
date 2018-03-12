@@ -243,7 +243,7 @@ void connection::read_query_length()
     }
 }
 
-void connection::command_new(const term)
+void connection::command_new(const term t)
 {
     auto *ss = node().new_session(this);
     reply_ok(env_.functor(ss->id(),0));

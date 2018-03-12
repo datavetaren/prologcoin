@@ -47,6 +47,8 @@ static void start_client()
 
 int main(int argc, char *argv[])
 {
+    header("test_node_simple()");
+
     if (argc == 2) {
 	if (strcmp(argv[1], "-server") == 0) {
 	    start_server();

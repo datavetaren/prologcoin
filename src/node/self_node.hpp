@@ -3,6 +3,8 @@
 #ifndef _node_self_node_hpp
 #define _node_self_node_hpp
 
+#include "asio_win32_check.hpp"
+
 #include <boost/thread.hpp>
 #include <boost/asio/io_service.hpp>
 #include <boost/asio/strand.hpp>

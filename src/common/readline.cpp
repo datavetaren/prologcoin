@@ -2,6 +2,7 @@
 #include "readline.hpp"
 #if _WIN32
 #include <conio.h>
+#include <windows.h>
 #else
 // For all other operating systems we do termios
 #include <sys/ioctl.h>
@@ -14,29 +15,147 @@
 
 namespace prologcoin { namespace common {
 
+static bool global_handle_ctrl_c = false;
+
 readline::readline() : keep_reading_(false), position_(0), old_position_(0), echo_(true), accept_ctrl_c_(false), tick_(false), search_active_(false), history_search_index_(-1)
 {
 }
 
 // Platform dependent!
 #if _WIN32
-int readline::getch()
+
+static DWORD oldMode;
+static bool oldModeSaved = false;
+
+static HANDLE hKeyThread;
+static HANDLE hKeyPressed;
+static HANDLE hKeyMutex;
+static bool keyThreadRun = false;
+static bool keyThreadStopped = false;
+static const int KEY_BUFFER_SIZE = 16;
+static int keyBuffer[KEY_BUFFER_SIZE];
+static DWORD keyBufferIndex = 0;
+static DWORD keyBufferLength = 0;
+
+static DWORD WINAPI KeyboardThread(LPVOID lpParam)
 {
-    int ch = _getch();
-    if (ch == 0xE0 || ch == 0) {
-	ch = _getch();
-	switch (ch) {
-	case 0x4B: ch = KEY_LEFT; break;
-	case 0x4D: ch = KEY_RIGHT; break;
-	case 0x48: ch = KEY_UP; break;
-	case 0x50: ch = KEY_DOWN; break;
-	case 0x8: ch = 127; break; // Make Windows consistent with Unix
-	case 13: ch = 10; break; // Make Windows consistent with Unix
-	default: ch = 0; break;
+    while (!keyThreadStopped) {
+        int ch = _getch();
+	int ch2 = 0;
+	if (ch == 0xe0 || ch == 0) {
+	    ch2 = _getch();
+	}
+        WaitForSingleObject(hKeyMutex, INFINITE);
+	if (keyBufferIndex < KEY_BUFFER_SIZE) {
+            keyBuffer[keyBufferIndex++] = ch;
+	}
+	if (ch2 != 0 && keyBufferIndex < KEY_BUFFER_SIZE) {
+  	    keyBuffer[keyBufferIndex++] = ch2;
+	}
+	SetEvent(hKeyPressed);
+	ReleaseMutex(hKeyMutex);
+    }
+    return 0;
+}
+
+static void startKeyThread()
+{
+    keyThreadStopped = false;
+    keyBufferIndex = 0;
+    hKeyMutex = CreateMutex(NULL, FALSE, NULL);
+    hKeyPressed = CreateEvent(NULL, FALSE, FALSE, NULL);
+    hKeyThread = CreateThread(NULL, 0, &KeyboardThread, NULL, 0, NULL);
+}
+
+static void stopKeyThread()
+{
+    // We need to send a dummy key to unblock the getch() operation
+    // We send CTRL+A, but perhaps there's another key we could send?
+    keyThreadStopped = true;
+    INPUT_RECORD ir1, ir2;
+    ir1.EventType = KEY_EVENT;
+    ir1.Event.KeyEvent.bKeyDown = TRUE;
+    ir1.Event.KeyEvent.wRepeatCount = 1;
+    ir1.Event.KeyEvent.wVirtualKeyCode = 1;
+    ir1.Event.KeyEvent.wVirtualScanCode = 1;
+    ir1.Event.KeyEvent.uChar.AsciiChar = 1;
+    ir1.Event.KeyEvent.dwControlKeyState = 0;
+    ir2 = ir1;
+    ir2.Event.KeyEvent.bKeyDown = FALSE;
+    INPUT_RECORD irs[2] = {ir1, ir2};
+    DWORD dw = 0;
+    WriteConsoleInput(GetStdHandle(STD_INPUT_HANDLE), &irs[0], 2, &dw);
+    WaitForSingleObject(hKeyThread, INFINITE);
+    FlushConsoleInputBuffer(GetStdHandle(STD_INPUT_HANDLE));
+    CloseHandle(hKeyThread);
+    CloseHandle(hKeyMutex);
+    CloseHandle(hKeyPressed);
+}
+
+static int getkey(int timeout)
+{
+    int ch = 0;
+    while (ch == 0) {
+        bool keyPress = false;
+	WaitForSingleObject(hKeyMutex, INFINITE);
+	if (keyBufferIndex > 0) {
+	    keyPress = true;
+	    ch = keyBuffer[0];
+	    keyBufferIndex--;
+	    memmove(&keyBuffer[0], &keyBuffer[1], keyBufferIndex*sizeof(int));
+	}
+	ReleaseMutex(hKeyMutex);
+	if (!keyPress) {
+	    if (WaitForSingleObject(hKeyPressed, timeout) == WAIT_TIMEOUT) {
+	        return readline::TIMEOUT;
+	    }
 	}
     }
     return ch;
 }
+
+int readline::getch(bool with_timeout)
+{
+    int ch = with_timeout ? getkey(TIMEOUT_INTERVAL_MILLIS) : _getch();
+    if (ch == 0xE0 || ch == 0) {
+        ch = with_timeout ? getkey(TIMEOUT_INTERVAL_MILLIS) : _getch();
+        switch (ch) {
+	case 0x4B: ch = KEY_LEFT; break;
+	case 0x4D: ch = KEY_RIGHT; break;
+	case 0x48: ch = KEY_UP; break;
+	case 0x50: ch = KEY_DOWN; break;
+	default: ch = 0; break;
+	}
+    } else {
+        switch (ch) {
+	case 0x8: ch = 127; break; // Make Windows consistent with Unix
+	case 13: ch = 10; break; // Make Windows consistent with Unix
+	default: break;
+	}
+    }
+    return ch;
+}
+
+void readline::enter_read()
+{
+    HANDLE hin = GetStdHandle(STD_INPUT_HANDLE);
+    if (GetConsoleMode(hin, &oldMode)) {
+        SetConsoleMode(hin, oldMode & ~ENABLE_PROCESSED_INPUT);
+	oldModeSaved = true;
+    }
+    startKeyThread();
+}
+
+void readline::leave_read()
+{
+    if (oldModeSaved) {
+        HANDLE hin = GetStdHandle(STD_INPUT_HANDLE);
+	SetConsoleMode(hin, oldMode);
+	oldModeSaved = false;
+    }
+    stopKeyThread();
+}
+
 #else
 
 static bool stdin_init = false;
@@ -45,7 +164,6 @@ static struct sigaction old_hup;
 static struct sigaction old_int;
 static struct sigaction old_usr1;
 static struct sigaction old_kill;
-static bool global_handle_ctrl_c = false;
 static bool global_ctrl_c_pressed = false;
 
 static uint64_t current_timestamp() {

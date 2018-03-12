@@ -1,4 +1,5 @@
 #include <string.h>
+#include <string>
 #include <iostream>
 #include <common/readline.hpp>
 
@@ -6,9 +7,12 @@ using namespace prologcoin::common;
 
 int main( int argc, char *argv[] )
 {
+    std::cout << "readline\n";
+
     if (argc == 2) {
 	if (strcmp(argv[1], "-readline") == 0) {
 	    readline rl;
+	    rl.set_tick(true);
 	    rl.set_accept_ctrl_c(true);
 
 	    bool cont = true;

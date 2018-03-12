@@ -26,7 +26,7 @@ static const std::string & find_home_dir(const char *selfpath = nullptr)
     static std::string home_dir;
 
     // Avoid warning to unused function is_fast.
-    (void)is_fast;
+    (void)&is_fast;
 
     if (home_dir.size() > 0) {
 	return home_dir;

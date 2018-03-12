@@ -23,6 +23,8 @@
 // This is basically, the only protocol we have.
 //
 
+#include "asio_win32_check.hpp"
+
 #include <boost/thread.hpp>
 #include <boost/asio/io_service.hpp>
 #include <boost/asio/strand.hpp>
