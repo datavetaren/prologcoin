@@ -3,6 +3,8 @@
 #ifndef _common_random_hpp
 #define _common_random_hpp
 
+#include <string>
+
 namespace prologcoin { namespace common {
 
 class random {
