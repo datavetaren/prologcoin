@@ -24,7 +24,7 @@ static void test_up_and_down()
     }
     auto stop = boost::posix_time::microsec_clock::local_time();
     auto dt = stop - start;
-    std::cout << "Prolog engine up+down in " << dt.total_milliseconds() << " milliseconds\n";
+    std::cout << "Prolog engine up+down in " << dt.total_microseconds() << " microseconds\n";
 }
 
 static bool check_terms(const std::string &actual,
