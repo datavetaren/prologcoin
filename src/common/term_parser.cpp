@@ -25,6 +25,7 @@ protected:
       sym()
 	: ordinal_(SYMBOL_UNKNOWN),
 	  result_(),
+	  pos_(),
 	  token_(),
           old_state_(-1),
           precedence_(0) { }
@@ -32,6 +33,7 @@ protected:
       sym( int old_state, const sym &other )
         : ordinal_(other.ordinal_),
 	  result_(other.result_),
+	  pos_(other.pos_),
 	  token_(other.token_),
           old_state_(old_state),
           precedence_(other.precedence_) { }
@@ -39,21 +41,24 @@ protected:
       sym( int old_state, const term_tokenizer::token &t, symbol_t ordinal )
         : ordinal_(ordinal),
   	  result_(),
+	  pos_(),
   	  token_(t),
           old_state_(old_state),
 	  precedence_(0)
           { }
 
-      sym( int old_state, symbol_t ord, const term &result)
+      sym( int old_state, symbol_t ord, const term result, const term pos)
 	: ordinal_(ord),
 	  result_(result),
+	  pos_(pos),
 	  token_(),
 	  old_state_(old_state),
           precedence_(0) { }
 
-      sym( const term &result )
+      sym( const term result, const term pos)
 	  : ordinal_(SYMBOL_UNKNOWN),
 	    result_(result),
+	    pos_(pos),
 	    token_(),
 	    old_state_(0),
 	    precedence_(0) { }
@@ -65,17 +70,20 @@ protected:
 
     inline symbol_t ordinal() const { return ordinal_; }
     inline const term_tokenizer::token & token() const { return token_; }
-    inline const term & result() const { return result_; }
+    inline const term result() const { return result_; }
+    inline const term pos() const { return pos_; }
     
     inline void set_ordinal(symbol_t ord) { ordinal_ = ord; }
     inline void set_token(const term_tokenizer::token &tok ) { token_ = tok; }
-    inline void set_result(const term &result) { result_ = result; }
+    inline void set_result(const term result) { result_ = result; }
+    inline void set_pos(const term pos) { pos_ = pos; }
     inline void set_old_state(int no) { old_state_ = no; }
     inline void set_precedence(int prec) { precedence_ = prec; }
 
     private:
       symbol_t ordinal_;
       term result_;
+      term pos_; // Position information mirroring result
       term_tokenizer::token token_;
       int old_state_;
       int precedence_;
@@ -88,9 +96,11 @@ protected:
   std::vector<term_tokenizer::token> comments_;
 
   term result_;
+  term positions_;
   bool accept_;
   bool error_;
   bool check_mode_;
+  bool track_positions_;
 
   typedef std::vector<sym> args_t;
   args_t args_;
@@ -130,6 +140,7 @@ protected:
     old_lookahead_ = lookahead_;
     lookahead_.set_ordinal(ord);
     lookahead_.set_result(result.result());
+    lookahead_.set_pos(result.pos());
     lookahead_.set_token(result.token());
     lookahead_.set_precedence(result.precedence());
     lookahead_.set_old_state(current_state_);
@@ -291,6 +302,7 @@ protected:
     if (check_mode_) return sym();
 
     result_ = args[0].result();
+    positions_ = args[0].pos();
     accept_ = true;
     return args[0];
   }
@@ -325,40 +337,96 @@ protected:
   // term_n :- ...
 
   // Helper methods...
-  sym reduce_unary_op(const std::string &opname, term operand)
+
+  inline term make_pos(const token_position &pos, size_t arity)
+  {
+      term term_pos = heap_.new_str(heap_.functor("pos", 2+arity));
+      heap_.set_arg(term_pos, 0, int_cell(pos.line()));
+      heap_.set_arg(term_pos, 1, int_cell(pos.column()));
+      return term_pos;
+  }
+
+  inline void set_pos(term term_pos, size_t arg, term pos_arg)
+  {
+      heap_.set_arg(term_pos, 2+arg, pos_arg);
+  }
+
+  sym reduce_unary_op(const std::string &opname,
+		      const token_position &pos,
+		      term operand, term operand_pos)
   {   
     if (check_mode_) return sym();
 
     con_cell unop(opname, 1);
     auto newstr = heap_.new_str(unop);
     heap_.set_arg(newstr, 0, operand);
-    sym s(newstr);
+
+    term term_pos;
+    if (track_positions()) {
+	term_pos = make_pos(pos, 1);
+	set_pos(term_pos, 0, operand_pos);
+    }
+    
+    sym s(newstr, term_pos);
     s.set_precedence(ops_.prec(unop).precedence);
     return s;
   }
 
   sym reduce_binary_op(const std::string &opname,
-		       term operand0, term operand1)
+		       const token_position &pos,
+		       term operand0, term operand0_pos,
+		       term operand1, term operand1_pos)
   {   
     con_cell binop(opname, 2);
     auto newstr = heap_.new_str(binop);
     heap_.set_arg(newstr, 0, operand0);
     heap_.set_arg(newstr, 1, operand1);
-    sym s(newstr);
+
+    term term_pos;
+    if (track_positions()) {
+	term_pos = make_pos(pos, 2);
+	set_pos(term_pos, 0, operand0_pos);
+	set_pos(term_pos, 1, operand1_pos);
+    }
+
+    sym s(newstr, term_pos);
     s.set_precedence(ops_.prec(binop).precedence);
     return s;
   }
 
+  sym reduce_args(term arg, term arg_pos,
+		  term rest, term rest_pos)
+  {
+      auto newstr = heap_.new_str(con_cell(".",2));
+      heap_.set_arg(newstr, 0, arg);
+      heap_.set_arg(newstr, 1, rest);
+
+      term term_pos;
+      if (track_positions()) {
+	  term_pos = heap_.new_str(con_cell(".",2));
+	  heap_.set_arg(term_pos, 0, arg_pos);
+	  heap_.set_arg(term_pos, 1, rest_pos);
+      }
+      sym s(newstr, term_pos);
+      return s;
+  }
+
   sym reduce_unary_op_subterm(args_t &args)
   {
-    return reduce_unary_op(args[0].token().lexeme(), args[1].result());
+     return reduce_unary_op(args[0].token().lexeme(),
+			    args[0].token().pos(),
+			    args[1].result(),
+			    args[1].pos());
   }
 
   sym reduce_binary_op_subterm(args_t &args)
   {
-    return reduce_binary_op(args[1].token().lexeme(),
-			    args[0].result(),
-			    args[2].result());
+     return reduce_binary_op(args[1].token().lexeme(),
+			     args[1].token().pos(),
+			     args[0].result(),
+			     args[0].pos(),
+			     args[2].result(),
+			     args[2].pos());
   }
 
   // term_n :- ...
@@ -426,22 +494,33 @@ protected:
     if (check_mode_) return sym();
 
     auto arg_list = args[1].result();
+    auto arg_list_pos = args[1].pos();
     size_t num_args = heap_.list_length(arg_list);
     auto fname = args[0].token().lexeme();
     auto farity = num_args;
 
     con_cell f = heap_.functor(fname, farity);
-    cell fstr = heap_.new_str(f);
+    term fstr = heap_.new_str(f);
+    term fstr_pos;
+
+    if (track_positions()) {
+	fstr_pos = make_pos(args[0].token().pos(), farity);
+    }
 
     size_t index = 0;
-    cell lst = arg_list;
+    term lst = arg_list;
+    term lst_pos = arg_list_pos;
     while (lst != empty_list_) {
         heap_.set_arg(fstr, index, heap_.arg(lst, 0));
 	lst = heap_.arg(lst, 1);
+	if (track_positions()) {
+	    set_pos(fstr_pos, index, heap_.arg(lst_pos, 0));
+	    lst_pos = heap_.arg(lst_pos, 1);
+	}
 	index++;
     }
 
-    return sym(term(heap_,fstr));
+    return sym(fstr, fstr_pos);
   }
 
   inline sym remove_precedence(sym &s)
@@ -461,7 +540,8 @@ protected:
   {
     if (check_mode_) return sym();
 
-    return reduce_unary_op("{}", args[1].result());
+    return reduce_unary_op("{}", args[0].token().pos(),
+			   args[1].result(), args[1].pos());
   }
 
   sym reduce_term_0__list(args_t &args)
@@ -498,7 +578,11 @@ protected:
           // Check if we have seen this name before
           auto found = name_var_map_.find(var_name);
           if (found != name_var_map_.end()) {
-	      return found->second;
+	      if (track_positions()) {
+		  return sym(found->second, make_pos(var_token.pos(), 0));
+	      } else {
+		  return sym(found->second, term());
+	      }
           }
       }
 
@@ -511,7 +595,11 @@ protected:
       var_name_map_[ref] = var_name;
       name_var_map_[var_name] = ref;
 
-      return sym(ref);
+      if (track_positions()) {
+	  return sym(ref, make_pos(var_token.pos(), 0));
+      } else {
+	  return sym(ref, term());
+      }
   }
 
   // arguments :- ...
@@ -523,15 +611,19 @@ protected:
     // Construct list with single element
 
     con_cell empty_list("[]", 0);
-    term ext_empty_list(heap_, empty_list);
-    return reduce_binary_op(".", args[0].result(), ext_empty_list);
+    term ext_empty_list = empty_list;
+    term ext_empty_list_pos = empty_list;
+
+    return reduce_args(args[0].result(), args[0].pos(),
+	  	       ext_empty_list, ext_empty_list_pos);
   }
 
   sym reduce_arguments__subterm_999_comma_arguments(args_t &args)
   {
     if (check_mode_) return sym();
 
-    return reduce_binary_op(".", args[0].result(), args[2].result());
+    return reduce_args(args[0].result(), args[0].pos(),
+		       args[2].result(), args[2].pos());
   }
 
   // list :- ...
@@ -541,7 +633,11 @@ protected:
     if (check_mode_) return sym();
 
     con_cell empty_list("[]", 0);
-    return sym(term(heap_, empty_list));
+    if (track_positions()) {
+	return sym(empty_list, make_pos(args[0].token().pos(), 0));
+    } else {
+	return sym(empty_list, term());
+    }
   }
 
   sym reduce_list__lbracket_listexpr_rbracket(args_t &args)
@@ -557,21 +653,33 @@ protected:
   {
     if (check_mode_) return sym();
 
-    return reduce_binary_op(".", args[0].result(), heap_.empty_list());
+    return reduce_binary_op(".", args[0].token().pos(),
+			         args[0].result(),
+  			         args[0].pos(),
+			         heap_.empty_list(),
+			         heap_.empty_list());
   }
 
   sym reduce_listexpr__subterm_999_comma_listexpr(args_t &args)
   {
     if (check_mode_) return sym();
 
-    return reduce_binary_op(".", args[0].result(), args[2].result());
+    return reduce_binary_op(".", args[1].token().pos(),
+			         args[0].result(),
+			         args[0].pos(),
+			         args[2].result(),
+			         args[2].pos());
   }
   
   sym reduce_listexpr__subterm_999_vbar_subterm_999(args_t &args)
   {
     if (check_mode_) return sym();
 
-    return reduce_binary_op(".", args[0].result(), args[2].result());
+    return reduce_binary_op(".", args[1].token().pos(),
+			         args[0].result(),
+			         args[0].pos(),
+			         args[2].result(),
+			         args[2].pos());
   }
 
   // constant :- ...
@@ -621,7 +729,11 @@ protected:
 
     auto &tok = args[0].token();
     int_cell val(boost::lexical_cast<int>(tok.lexeme()));
-    return sym(term(heap_, val));
+    if (track_positions()) {
+	return sym(val, make_pos(tok.pos(),0));
+    } else {
+        return sym(val, term());
+    }
   }
 
   sym reduce_unsigned_number__unsigned_float(args_t &args)
@@ -638,7 +750,11 @@ protected:
     if (check_mode_) return sym();
 
     con_cell con = heap_.atom(args[0].token().lexeme());
-    return sym(term(heap_, con));
+    if (track_positions()) {
+	return sym(con, make_pos(args[0].token().pos(), 0));
+    } else {
+	return sym(con, term());
+    }
   }
 
   sym reduce_atom__empty_brace(args_t &args)
@@ -646,7 +762,11 @@ protected:
     if (check_mode_) return sym();
 
     con_cell con = heap_.atom(args[0].token().lexeme());
-    return sym(term(heap_, con));
+    if (track_positions()) {
+	return sym(con, make_pos(args[0].token().pos(), 0));
+    } else {
+	return sym(con, term());
+    }
   }
 
   sym reduce_atom__empty_list(args_t &args)
@@ -654,7 +774,11 @@ protected:
     if (check_mode_) return sym();
 
     con_cell con = heap_.atom(args[0].token().lexeme());
-    return sym(term(heap_, con));
+    if (track_positions()) {
+	return sym(con, make_pos(args[0].token().pos(), 0));
+    } else {
+	return sym(con, term());
+    }
   }
 
 public:
@@ -673,6 +797,7 @@ public:
     predefined_symbols_["]"] = SYMBOL_RBRACKET;
     predefined_symbols_[")"] = SYMBOL_RPAREN;
     predefined_symbols_["|"] = SYMBOL_VBAR;
+    track_positions_ = false;
   }
 
   ~term_parser_interim() {
@@ -681,6 +806,7 @@ public:
       var_name_map_.clear();
       name_var_map_.clear();
       result_ = term();
+      positions_ = term();
   }
 
   inline term_tokenizer & tokenizer() { return tokenizer_; }
@@ -690,6 +816,19 @@ public:
   bool is_accept() const { return accept_; }
   bool is_error() const { return error_; }
   term get_result() const { return result_; }
+  term positions() const { return positions_; }
+  int line(const term pos) const {
+      auto line_term = heap_.arg(pos, 0);
+      return static_cast<int>(reinterpret_cast<const int_cell &>(line_term).value());
+  }
+  int column(const term pos) const {
+      auto col_term = heap_.arg(pos, 1);
+      return static_cast<int>(reinterpret_cast<const int_cell &>(col_term).value());
+  }
+  term position_arg(const term pos, size_t arg) const { return heap_.arg(pos, 2+arg); }
+  bool track_positions() const { return track_positions_; }
+  void set_track_positions(bool b) { track_positions_ = b; }
+
   void init() {
       comments_.clear();
       current_state_ = 0;
@@ -697,7 +836,9 @@ public:
       error_ = false;
       check_mode_ = false;
       result_ = term();
+      positions_ = term();
   }
+
   bool is_eof() {
       skip_whitespace();
       return lookahead().ordinal() == SYMBOL_EOF;
@@ -967,11 +1108,18 @@ public:
     }
     return lexemes;
   }
+
+  void parse_next()
+  {
+      while (!is_accept() && !is_error()) {
+	  process_next();
+      }
+  }
 };
 
 term_parser::term_parser(term_tokenizer &tok, term_env &env)
 {
-  impl_ = new term_parser_impl(tok, env.get_heap(), env.get_ops());
+  impl_ = new term_parser_impl(tok, env, env);
 }
 
 term_parser::term_parser(term_tokenizer &tok, heap &h, term_ops &ops)
@@ -992,10 +1140,38 @@ void term_parser::set_debug(bool dbg)
 term term_parser::parse()
 {
   impl_->init();
-  while (!impl_->is_accept() && !impl_->is_error()) {
-    impl_->process_next();
-  }
+  impl_->parse_next();
   return impl_->get_result();
+}
+
+term term_parser::positions() const
+{
+    return impl_->positions();
+}
+
+int term_parser::line(const term pos) const
+{
+    return impl_->line(pos);
+}
+
+int term_parser::column(const term pos) const
+{
+    return impl_->column(pos);
+}
+
+term term_parser::position_arg(const term pos, size_t arg) const
+{
+    return impl_->position_arg(pos, arg);
+}
+
+bool term_parser::track_positions() const
+{
+    return impl_->track_positions();
+}
+
+void term_parser::set_track_positions(bool b)
+{
+    impl_->set_track_positions(b);
 }
 
 term_tokenizer & term_parser::tokenizer()

@@ -66,6 +66,14 @@ public:
 
     term parse();
 
+    term positions() const;
+    int line(term position) const;
+    int column(term position) const;
+    term position_arg(term position, size_t arg) const;
+
+    bool track_positions() const;
+    void set_track_positions(bool b);
+
     term_tokenizer & tokenizer();
     const term_tokenizer::token & lookahead() const;
     const std::vector<term_tokenizer::token> & get_comments() const;

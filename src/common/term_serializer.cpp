@@ -113,12 +113,12 @@ void term_serializer::write_str_cell(buffer_t &bytes, size_t offset,
     }
 }
 
-term term_serializer::read(buffer_t &bytes)
+term term_serializer::read(const buffer_t &bytes)
 {
     return read(bytes, bytes.size());
 }
 
-term term_serializer::read(buffer_t &bytes, size_t n)
+term term_serializer::read(const buffer_t &bytes, size_t n)
 {
     size_t offset = 0;
     size_t heap_start = env_.heap_size();
@@ -129,7 +129,7 @@ term term_serializer::read(buffer_t &bytes, size_t n)
     return t;
 }
 
-term term_serializer::read(buffer_t &bytes, size_t n,
+term term_serializer::read(const buffer_t &bytes, size_t n,
 			   size_t &offset,
 			   size_t &old_header_size,
 			   size_t &new_header_size)
@@ -195,7 +195,7 @@ term term_serializer::read(buffer_t &bytes, size_t n,
     return env_.heap_get(new_addr_base + new_hdr_size);
 }
 
-void term_serializer::read_all_header(buffer_t &bytes, size_t &offset)
+void term_serializer::read_all_header(const buffer_t &bytes, size_t &offset)
 {
     auto ver_t = read_cell(bytes, offset, "reading version");
     if (ver_t.tag() != tag_t::CON) {
@@ -242,7 +242,7 @@ void term_serializer::read_all_header(buffer_t &bytes, size_t &offset)
     }
 }
 
-std::string term_serializer::read_encoded_string(buffer_t &bytes, size_t &offset)
+std::string term_serializer::read_encoded_string(const buffer_t &bytes, size_t &offset)
 {
     bool cont = true;
     std::string str;
@@ -262,7 +262,7 @@ std::string term_serializer::read_encoded_string(buffer_t &bytes, size_t &offset
     return str;
 }
 
-void term_serializer::read_index(buffer_t &bytes, size_t &offset, cell c)
+void term_serializer::read_index(const buffer_t &bytes, size_t &offset, cell c)
 {
     std::string name = read_encoded_string(bytes, offset);
 

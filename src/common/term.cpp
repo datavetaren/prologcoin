@@ -248,6 +248,9 @@ heap::~heap()
 	assert(external_ptrs_.size() == 0);
     }
 #endif
+    for (auto *b : blocks_) {
+	delete b;
+    }
 }
 
 void heap::trim(size_t new_size)

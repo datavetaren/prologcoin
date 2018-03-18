@@ -1,25 +1,33 @@
 #include "term_emitter.hpp"
 #include "token_chars.hpp"
+#include "term_env.hpp"
 
 namespace prologcoin { namespace common {
 
-term_emitter::term_emitter(std::ostream &out, const heap &h, const term_ops &ops)
-        : out_(out),
-	  heap_(h),
-	  ops_(ops),
-          column_(0),
-          line_(0),
-          indent_level_(0),
-	  last_char_('\0'),
-	  scan_mode_(false),
-	  dotted_pair_(".", 2),
-	  empty_list_("[]", 0),
-	  var_naming_(nullptr),
-	  var_naming_owned_(false),
-	  style_(STYLE_TERM),
-	  option_quoted_(true),
-	  option_nl_(true)
+term_emitter::term_emitter(std::ostream &out, const term_env &e) : out_(out), heap_(e), ops_(e)
 {
+    init();
+}
+
+term_emitter::term_emitter(std::ostream &out, const heap &h, const term_ops &ops) : out_(out), heap_(h), ops_(ops)
+{
+    init();
+}
+
+void term_emitter::init()
+{
+    column_ = 0;
+    line_ = 0;
+    indent_level_ = 0;
+    last_char_ = '\0';
+    scan_mode_ = false;
+    dotted_pair_ = con_cell(".", 2);
+    empty_list_ = con_cell("[]", 0);
+    var_naming_ = nullptr;
+    var_naming_owned_ = false;
+    style_ = STYLE_TERM;
+    option_quoted_ = true;
+    option_nl_ = true;
     set_max_column(78);
 }
 

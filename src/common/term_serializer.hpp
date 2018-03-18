@@ -182,12 +182,12 @@ public:
     ~term_serializer();
 
     void write(buffer_t &bytes, const term t);
-    term read(buffer_t &bytes);
-    term read(buffer_t &bytes, size_t n);
+    term read(const buffer_t &bytes);
+    term read(const buffer_t &bytes, size_t n);
 
     void print_buffer(buffer_t &bytes, size_t n);
 
-    static inline cell read_cell(buffer_t &bytes, size_t from_offset, const std::string &context)
+    static inline cell read_cell(const buffer_t &bytes, size_t from_offset, const std::string &context)
         { cell::value_t raw_value = 0;
 	  if (from_offset + 8 > bytes.size()) {
 	      throw serializer_exception_unexpected_end(from_offset, context);
@@ -211,7 +211,7 @@ public:
         }
 
 private:
-    static inline uint8_t read_byte(buffer_t &bytes, size_t from_offset)
+    static inline uint8_t read_byte(const buffer_t &bytes, size_t from_offset)
         { return bytes[from_offset]; }
 
     void integrity_check(size_t heap_start, size_t heap_end,
@@ -267,11 +267,11 @@ private:
     void write_encoded_string(buffer_t &bytes, const std::string &str);
     void write_all_header(buffer_t &bytes, const term t);
 
-    term read(buffer_t &bytes, size_t n,
+    term read(const buffer_t &bytes, size_t n,
 	      size_t &offset, size_t &old_hdr_size, size_t &new_hdr_size);
-    void read_all_header(buffer_t &bytes, size_t &offset);
-    void read_index(buffer_t &bytes, size_t &offset, cell c);
-    std::string read_encoded_string(buffer_t &bytes, size_t &offset);
+    void read_all_header(const buffer_t &bytes, size_t &offset);
+    void read_index(const buffer_t &bytes, size_t &offset, cell c);
+    std::string read_encoded_string(const buffer_t &bytes, size_t &offset);
 
     term_env &env_;
 

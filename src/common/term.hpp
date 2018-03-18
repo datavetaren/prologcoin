@@ -434,14 +434,22 @@ public:
 //
 class heap_block : private boost::noncopyable {
 public:
-    static const size_t MAX_SIZE = 1024*1024;
+    static const size_t MAX_SIZE = 1024*128;
 
     inline heap_block() : index_(0), offset_(0),
-			  size_(0), cells_(new cell[MAX_SIZE]) { }
+			  size_(0), cells_(nullptr) { init_cells(); }
     inline heap_block(size_t index, size_t offset)
         : index_(index), offset_(offset),
-	  size_(0), cells_(new cell[MAX_SIZE]) { }
-    inline ~heap_block() { delete [] cells_; }
+	  size_(0), cells_(nullptr) { init_cells(); }
+    inline ~heap_block() { free_cells(); }
+
+    inline void init_cells() {
+	cells_ = reinterpret_cast<cell *>(new uint64_t[MAX_SIZE]);
+    }
+
+    inline void free_cells() {
+	delete reinterpret_cast<uint64_t *>(cells_);
+    }
 
     inline size_t index() const { return index_; }
     inline size_t offset() const { return offset_; }

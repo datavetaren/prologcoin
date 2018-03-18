@@ -15,12 +15,17 @@ namespace prologcoin { namespace common {
 // This class emits a term into a sequence of ASCII characters.
 //
 
+class term_env;
+
 class term_emitter {
 public:
   enum style { STYLE_TERM, STYLE_PROGRAM };
 
+    term_emitter(std::ostream &out, const term_env &e);
     term_emitter(std::ostream &out, const heap &h, const term_ops &ops);
     ~term_emitter();
+
+    void init();
 
     void set_style( style s );
 
@@ -41,6 +46,8 @@ public:
     void set_max_column( size_t max_column );
 
     std::string name_ref(size_t index) const;
+
+    inline std::ostream & out() { return out_; }
 
 private:
     cell deref(cell c) const { return heap_.deref(c); }
