@@ -1,268 +1,282 @@
 #include <string>
 #include <sstream>
+#include <iomanip>
+#include <fstream>
 #include "address_book.hpp"
+#include "ip_address.hpp"
 
 namespace prologcoin { namespace node {
 
-const unsigned char ip_address::AS_IP4[12] = {0,0,0,0,0,0,0,0,0,0,0xff,0xff};
-const unsigned char ip_address::AS_ONION[12] = {0xFD,0x87,0xD8,0x7E,0xEB,0x43};
-
-void ip_address::set_addr(const boost::asio::ip::address &ip)
+address_entry::address_entry()
 {
-    if (ip.is_v4()) {
-	set_addr(ip.to_v4());
-    } else if (ip.is_v6()) {
-	set_addr(ip.to_v6());
-    } else {
-	assert("Unknown IP address" == nullptr);
-    }
+    index_ = 0;
+    port_ = 0;
+    score_ = 0;
+    time_ = 0;
 }
 
-ip_address::ip_address(const std::string &str)
+address_entry::address_entry(const address_entry &other)
 {
-    set_addr(boost::asio::ip::make_address(str));
+    index_ = other.index_;
+    addr_ = other.addr_;
+    port_ = other.port_;
+    score_ = other.score_;
+    time_ = other.time_;
+    comment_ = other.comment_;
 }
 
-bool ip_address::is_v4() const
+address_entry::address_entry(const ip_address &ip, unsigned short port)
 {
-    return memcmp(at_byte(0), AS_IP4, sizeof(AS_IP4)) == 0;
+    index_ = 0;
+    addr_ = ip;
+    port_ = port;
+    score_ = 0;
+    time_ = 0;
 }
 
-bool ip_address::is_v6() const
+void address_entry::set_comment(const std::string &str)
 {
-    return !is_v4() && !is_tor();
+    using namespace prologcoin::common;
+
+    term_env env;
+    set_comment(env, str);
 }
 
-bool ip_address::is_rfc_1918() const
+void address_entry::set_comment(common::term_env &env, const std::string &str)
 {
-    if (!is_v4()) {
-	return false;
-    }
-    return b(-4) == 10 ||                                // 10.0.0.0/24
-   	   (b(-4) == 192 && b(-3) == 168) ||             // 192.168.0.0/16
-   	   (b(-4) == 172 && b(-3) >= 16 && b(-3) <= 31); // 172.16.0.0/12
-             
+    using namespace prologcoin::common;
+
+    term t = env.parse(str);
+    term_serializer ser(env);
+    term_serializer::buffer_t buf;
+    ser.write(buf, t);
+    set_comment(buf);
 }
 
-bool ip_address::is_rfc_2544() const
+void address_entry::write(common::term_env &env, common::term_emitter &emitter) const
 {
-    if (!is_v4()) {
-	return false;
-    }
-    return b(-4) == 192 && (b(-3) == 18 || b(-3) == 19);
+    using namespace prologcoin::common;
+
+    //Create a term of everything.
+
+    term term_addr = env.functor(addr().str(), 0);
+    term term_port = int_cell(port());
+    term term_score = int_cell(static_cast<int64_t>(score()));
+    term term_time = env.functor(time().str(), 0);
+
+    term_serializer ser(env);
+    term term_comment = (comment().size() > 0) ? ser.read(comment()) : env.empty_list();
+
+    
+    term term_entry = env.new_term(env.functor("entry",5),
+		 {term_addr, term_port, term_score, term_time, term_comment});
+    emitter.print(term_entry);
+    emitter.out() << ".";
+    emitter.nl();
 }
 
-bool ip_address::is_rfc_3927() const
+void address_entry::read(common::term_env &env, common::term_parser &parser)
 {
-    if (!is_v4()) {
-	return false;
-    }
-    return b(-4) == 169 && b(-3) == 254;
-}
+    using namespace prologcoin::common;
 
-bool ip_address::is_rfc_5737() const
-{
-    if (!is_v4()) {
-	return false;
-    }
-    if (b(-4) == 192 && b(-3) == 0 && b(-2) == 2) {
-	return true;
-    }
-    if (b(-4) == 198 && b(-3) == 51 && b(-2) == 100) {
-	return true;
-    }
-    if (b(-4) == 203 && b(-3) == 0 && b(-2) == 113) {
-	return true;
-    }
-    return false;
-}
+    parser.set_track_positions(true);
 
-bool ip_address::is_rfc_6598() const
-{
-    if (!is_v4()) {
-	return false;
-    }
-    return b(-4) == 100 && b(-3) >= 64 && b(-3) <= 127;
-}
-
-bool ip_address::is_rfc_3964() const
-{
-    return b(-16) == 0x20 && b(-15) == 2;
-}
-
-bool ip_address::is_rfc_6052() const
-{
-    static const unsigned char prefix[12] = {0,0x64,0xFF,0x9B,0,0,0,0,0,0,0,0};
-    return memcmp(at_byte(0), &prefix[0], sizeof(prefix)) == 0;
-}
-
-bool ip_address::is_rfc_3849() const
-{
-    static const unsigned char prefix[4] = {0x20,1,0xD,0xB8};
-    return memcmp(at_byte(0), &prefix[0], sizeof(prefix)) == 0;
-}
-
-bool ip_address::is_rfc_4380() const
-{
-    static const unsigned char prefix[4] = {0x20,1,0,0};
-    return memcmp(at_byte(0), &prefix[0], sizeof(prefix)) == 0;
-}
-
-bool ip_address::is_rfc_4862() const
-{
-    static const unsigned char prefix[8] = {0xFE,0x80,0,0,0,0,0,0};
-    return memcmp(at_byte(0), &prefix[0], sizeof(prefix)) == 0;
-}
-
-bool ip_address::is_rfc_4193() const
-{
-    return (b(-16) & 0xFE) == 0xFC;
-}
-
-bool ip_address::is_rfc_6145() const
-{
-    static const unsigned char prefix[12] = {0,0,0,0,0,0,0,0,0xFF,0xFF,0,0};
-    return memcmp(at_byte(0), &prefix[0], sizeof(prefix)) == 0;
-}
-
-bool ip_address::is_rfc_4843() const
-{
-    return b(-16) == 0x20 && b(-15) == 1 && b(-14) == 0 &&
-	   (b(-13) & 0xF0) == 0x10;
-}
-
-bool ip_address::is_rfc_7343() const
-{
-    return b(-16) == 0x20 && b(-15) == 1 && b(-14) == 0 &&
-	   (b(-13) & 0xF0) == 0x20;
-}
-
-bool ip_address::is_he_net() const
-{
-    static const unsigned char prefix[4] = {0x20,1,4,0x70};
-    return memcmp(at_byte(0), &prefix[0], sizeof(prefix)) == 0;
-}
-
-bool ip_address::is_tor() const
-{
-    return memcmp(at_byte(0), AS_ONION, sizeof(AS_ONION)) == 0;
-}
-
-bool ip_address::is_local() const
-{
-    if (is_v4()) {
-	return b(-4) == 127 || b(-4) == 0;
-    } else {
-	static const unsigned char local_v6[16]
-	    = {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1};
-	return memcmp(at_byte(0), local_v6, sizeof(local_v6)) == 0;
-    }
-}
-
-bool ip_address::is_valid() const
-{
-    static const unsigned char ZERO[16] = {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0};
-    if (memcmp(at_byte(0), &ZERO[0], sizeof(ZERO)) == 0) {
-	return false;
+    term t;
+    try {
+	t = parser.parse();
+    } catch (const term_parse_exception &ex) {
+	std::string msg = "While parsing " + std::string(ex.what());
+	throw address_book_load_exception(msg, ex.line());
+    } catch (const token_exception &ex) {
+	std::string msg = "While parsing " + std::string(ex.what());
+	throw address_book_load_exception(msg, ex.line());
     }
 
-    if (is_rfc_3849()) {
-	return false;
-    }
+    int line = parser.line(parser.positions());
 
-    if (is_v4()) {
-	if (memcmp(at_byte(-4), &ZERO[0], 4) == 0) {
-	    return false;
-	}
-	static const unsigned char NONE[4] = {0xFF,0xFF,0xFF,0xFF};
-	if (memcmp(at_byte(-4), &NONE[0], sizeof(NONE)) == 0) {
-	    return false;
-	}
-    }
-
-    return true;
-}
-
-bool ip_address::is_routable() const
-{
-    return is_valid() &&
-	!(is_rfc_1918() || is_rfc_2544() || is_rfc_3927() || is_rfc_4862() ||
-	  is_rfc_6598() || is_rfc_5737() || (is_rfc_4193() && !is_tor()) ||
-	  is_rfc_4843() || is_rfc_7343() || is_local());
-}
-
-uint64_t ip_address::group() const
-{
-    if (is_local()) {
-	return 0xff000000;
-    }
-
-    if (!is_routable()) {
-	return 0;
-    }
-
-    if (is_v4() || is_rfc_6145() || is_rfc_6052()) {
-	return (u(-4) << 24) | (u(-3) << 16);
+    if (t.tag() != tag_t::STR) {
+	throw address_book_load_exception( "Expected functor entry/5, but got: " + env.to_string(t), line);
     }
     
-    if (is_rfc_3964()) {
-	return (u(2) << 24) | (u(3) << 16);
+    if (env.functor(t) != env.functor("entry",5)) {
+	throw address_book_load_exception( "Expected functor entry/5, but got: " + env.to_string(env.functor(t)), line);
     }
 
-    if (is_rfc_4380()) {
-	return (u(2) << 8) | u(1);
+    term term_addr = env.arg(t, 0);
+    line = parser.line(parser.position_arg(parser.positions(),0));
+    if (term_addr.tag() != tag_t::CON) {
+	throw address_book_load_exception( "First argument of entry/5 should be an atom to represent an IP-address, but was " + env.to_string(term_addr), line);
+    }
+    std::string addr = env.atom_name(term_addr);
+    try {
+	boost::asio::ip::make_address(addr);
+    } catch (std::runtime_error &ex) {
+	throw address_book_load_exception( "Couldn't parse IP address: " + addr, line);
     }
 
-    if (is_tor()) {
-	return u(6) << 32;
+    term term_port = env.arg(t, 1);
+    line = parser.line(parser.position_arg(parser.positions(),1));
+    if (term_port.tag() != tag_t::INT) {
+	throw address_book_load_exception( "Second argument of entry/5 should be an integer to represent a port number, but was " + env.to_string(term_port), line);
     }
-
-    if (is_he_net()) {
-	return (u(0) << 28) | (u(1) << 20) | (u(2) << 12) |
-	       (u(3) << 4) | (u(4) >> 4);
+    int64_t port_value = reinterpret_cast<const int_cell &>(term_port).value();
+    if (!(port_value >= 0 && port_value <= 65535)) {
+	throw address_book_load_exception( "Second argument of entry/5 is port number but was not in valid range 0..65535: " + env.to_string(term_port),line);
     }
+    unsigned short port = static_cast<unsigned short>(term_port.value());
     
-    // Use first 32-bits
-    return (u(0) << 24) | (u(1) << 16) | (u(2) << 8) | u(3);
-}
-
-std::string ip_address::str() const
-{
-    if (is_v4()) {
-	unsigned int b1 = b(-4);
-	unsigned int b2 = b(-3);
-	unsigned int b3 = b(-2);
-	unsigned int b4 = b(-1);
-	std::stringstream ss;
-	ss << b1 << "." << b2 << "." << b3 << "." << b4;
-	return ss.str();
-    } else {
-	// Let's use boost for now...
-	std::array<unsigned char, 16> arr;
-	memcpy(&arr[0], at_byte(0), arr.size());
-	boost::asio::ip::address_v6 v6(arr);
-	return v6.to_string();
-    }
-}
-
-std::string ip_address::group_str(uint64_t group)
-{
-    if ((group >> 32) == 0) {
-	std::stringstream ss;
-	ss << ((group >> 24) & 0xff) << "."
-	   << ((group >> 16) & 0xff) << "."
-	   << ((group >> 8) & 0xff) << "."
-	   << ((group >> 0) & 0xff);
-	return ss.str();
+    term term_score = env.arg(t, 2);
+    line = parser.line(parser.position_arg(parser.positions(),2));
+    if (term_score.tag() != tag_t::INT) {
+	throw address_book_load_exception( "Third argument of entry/5 should be an integer to rerepsent a score, but was " + env.to_string(term_score), line);
     }
 
+    int64_t score_value = reinterpret_cast<const int_cell &>(term_score).value();
+    if (score_value < -1000000 || score_value > 1000000) {
+	throw address_book_load_exception( "Third argument of entry/5 represents score but was not in valid range -1000000..1000000: " + env.to_string(term_score), line);
+
+    }
+    int32_t score = static_cast<int32_t>(score_value);
+
+    term term_time = env.arg(t, 3);
+    line = parser.line(parser.position_arg(parser.positions(),3));
+    if (term_time.tag() != tag_t::CON) {
+	throw address_book_load_exception( "Fourth argument of entry/5 should be an atom to represent time, but was " + env.to_string(term_time), line);
+    }
+    std::string time_str = env.to_string(term_time);
+    if (time_str[0] == '\'' && time_str[time_str.size()-1] == '\'') {
+	time_str = time_str.substr(1,time_str.size()-2);
+    }
+    utime ut;
+    if (!ut.parse(time_str)) {
+	throw address_book_load_exception( "Fourth argument of entry/5 should represent time, but failed to parse: " + time_str, line);
+    }
+
+    term term_comment = env.arg(t, 4);
+    line = parser.line(parser.position_arg(parser.positions(),4));
+    term_serializer::buffer_t buf;
+
+    if (!env.is_empty_list(term_comment)) {
+	term_serializer ser(env);
+	ser.write(buf, term_comment);
+    }
+
+    set_addr(addr);
+    set_port(port);
+    set_score(score);
+    set_time(ut);
+    set_comment(buf);
+}
+
+std::string address_entry::str() const
+{
+    using namespace prologcoin::common;
+
+    term_env env;
     std::stringstream ss;
-    size_t g = 64-16;
-    for (size_t i = 0; i < 4; i++) {
-	ss << std::hex << ((group >> g) & 0xffff);
-	if (i < 3) ss << ":";
-    }
+    term_emitter emitter(ss, env);
+    write(env, emitter);
     return ss.str();
+}
+
+// --- address_book ---
+
+address_book::address_book()
+{
+}
+
+void address_book::print(std::ostream &out)
+{
+    using namespace prologcoin::common;
+
+    out << std::setw(22) << "Address" << " Port" << std::setw(7) << " Score"  << std::setw(21) << " Time" << " Comment" << std::endl;
+
+    size_t n = index_map_.size();
+    for (size_t i = 0; i < n; i++) {
+	const address_entry &e = index_map_[i];
+	out << std::setw(22) << e.addr().str(22) << " "
+	    << std::setw(4) << e.port() << " "
+	    << std::setw(6) << e.score() << " "
+	    << std::setw(20) << e.time().str() << " ";
+	if (e.comment().size() != 0) {
+	    try {
+		term_env env;
+		term_serializer ser(env);
+		term t = ser.read(e.comment());
+		out << env.to_string(t);
+	    } catch (serializer_exception &ex) {
+		out << "?";
+	    }
+	}
+	out << std::endl;
+    }
+}
+
+void address_book::add(const address_entry &e)
+{
+    if (all_.find(e) != all_.end()) {
+	// Already exists. Exit.
+	return;
+    }
+
+    size_t new_index = index_map_.size();
+    e.set_index(new_index);
+    index_map_.insert(std::make_pair(new_index, e));
+    score_map_.insert(std::make_pair(e.score(), e.index()));
+    all_.insert(e);
+}
+
+void address_book::save(const std::string &path)
+{
+    using namespace prologcoin::common;
+
+    std::ofstream out(path);
+    term_env env;
+    term_emitter emitter(out, env);
+    for (auto &p : index_map_) {
+	auto &e = p.second;
+	e.write(env, emitter);
+    }
+}
+
+void address_book::load(const std::string &path)
+{
+    using namespace prologcoin::common;
+
+    term_env env;
+    std::ifstream in(path);
+    term_tokenizer tok(in);
+    term_parser parser(tok, env);
+
+    while (!parser.is_eof()) {
+	address_entry e;
+	e.read(env, parser);
+	add(e);
+    }
+}
+
+bool address_book::operator == (const address_book &other) const
+{
+    auto it1 = index_map_.begin();
+    auto it2 = other.index_map_.begin();
+    
+    while (it1 != index_map_.end()) {
+	if (it2 == other.index_map_.end()) {
+	    return false;
+	}
+
+	auto &e1 = it1->second;
+	auto &e2 = it2->second;
+
+	if (e1 != e2) {
+	    return false;
+	}
+
+	++it1;
+	++it2;
+    }
+
+    return it2 == other.index_map_.end();
 }
 
 }}

@@ -4,112 +4,127 @@
 #define _node_address_book_hpp
 
 #include <iostream>
-#include <boost/asio/ip/address.hpp>
-#include <boost/asio/ip/address_v4.hpp>
-#include <boost/asio/ip/address_v6.hpp>
+#include <map>
+#include <unordered_set>
+#include "ip_address.hpp"
 
 namespace prologcoin { namespace node {
 
-//
-// This class abstracts IP addresses and normalize them to IPv6.
-// We also add a bunch of useful predicates and other information
-// extracting properties. If you look carefully at bitcoind you'll
-// see that addresses are pretty complicated. Something that you first
-// perceive as something easy, is not when you scratch its surface.
-//
-class ip_address {
+class address_book_load_exception : public std::runtime_error
+{
 public:
-    inline ip_address(boost::asio::ip::address_v4 &v4)
-    { set_addr(v4); }
-
-    inline ip_address(boost::asio::ip::address_v6 &v6)
-    { set_addr(v6); }
-
-    inline ip_address(boost::asio::ip::address &ip)
-    { set_addr(ip); }
-
-    ip_address(const std::string &str);
-
-    bool is_v4() const;
-    bool is_v6() const;
-
-    bool is_valid() const;
-    bool is_local() const;
-    bool is_routable() const;
-    bool is_tor() const;
-
-    bool is_rfc_1918() const; // IP4 private networks (10.0.0.0/8,
-                              // 192.168.0.0/16, 172.16.0.0.12)
-    bool is_rfc_2544() const; // IP4 inter-network (192.18.0.0/15)
-    bool is_rfc_3927() const; // IP4 autoconfig (169.254.0.0/16)
-    bool is_rfc_5737() const; // IP4 documentation (192.0.2.0/24,
-                              // 198.51.100.0/24, 203.0.113.0/24)
-    bool is_rfc_6598() const; // IP4 ISP-level NAT (100.64.0.0/10)
-
-
-    bool is_rfc_3849() const; // IP6 documentation (2001:0DB8::/32)
-    bool is_rfc_3964() const; // IP6 6to4 tunnelling (2002::/16)
-    bool is_rfc_4193() const; // IP6 unique local (FC00::/7)
-    bool is_rfc_4380() const; // IP6 Teredo tunnelling (2001::/32)
-    bool is_rfc_4843() const; // IP6 ORCHID deprecated (2001:10::/28)
-    bool is_rfc_4862() const; // IP6 autoconfig (FF80::/64)
-    bool is_rfc_6052() const; // IP6 well known prefix (64:FF9b::/96)
-    bool is_rfc_6145() const; // IP6 IP4-translated (::FFFF:0:0:0/96)
-    bool is_rfc_7343() const; // IP6 ORCHID2 (2001:20::/28)
-    bool is_he_net() const;   // 2001:470::/36
-
-    uint64_t group() const; // Return unique value for network group
-
-    std::string str() const;
-
-    static std::string group_str(uint64_t group);
-
-private:
-    inline void set_addr(const boost::asio::ip::address_v4 &v4)
-    { memcpy(&addr_[0], &AS_IP4[0], sizeof(AS_IP4));
-      auto bb = v4.to_bytes();
-      memcpy(at_byte(-4), &bb[0], 4);
-    }
-
-    inline void set_addr(const boost::asio::ip::address_v6 &v6)
-    { memcpy(at_byte(0), &v6.to_bytes()[0], 16); }
-
-    void set_addr(const boost::asio::ip::address &addr);
-
-    inline const unsigned char * at_byte(int index) const {
-	if (index < 0) return &addr_[MAX+index]; else return &addr_[index];
-    }
-
-    inline unsigned char * at_byte(int index) {
-	if (index < 0) return &addr_[MAX+index]; else return &addr_[index];
-    }
-
-    inline unsigned char b(int index) const {
-	if (index < 0) return addr_[MAX+index]; else return addr_[index];
-    }
-
-    inline uint64_t u(int index) const {
-	return static_cast<uint64_t>(b(index));
-    }
-
-    static const size_t MAX = 16;
-    static const unsigned char AS_IP4 [12];
-    unsigned char addr_[MAX];
-
-    static const unsigned char AS_ONION [12];
+    address_book_load_exception(const std::string &msg, int line) :
+	std::runtime_error("Error at line "
+			   + boost::lexical_cast<std::string>(line) + ": "
+			   + msg) { }
 };
 
+class address_book;
+
+//
+// The score of an address entry is something that is determined by
+// the client only (it is not propagated to others, as that could be
+// used as an attack vector.) If we succeed connecting to the address
+// multiple times over a long period, then its score is increased.
+// Likewise, if we fail to connect, its score is decreased.
+// 
+//
 class address_entry {
 public:
-    address_entry(const std::string &host, int port);
-		  
+    using buffer_t = prologcoin::common::term_serializer::buffer_t;
+    using utime = prologcoin::common::utime;
+
+    address_entry();
+    address_entry(const address_entry &other);
+    address_entry(const ip_address &addr, unsigned short port);
+
+    inline size_t index() const { return index_; }
+    inline const ip_address & addr() const { return addr_; }
+    inline unsigned short port() const { return port_; }
+    inline int32_t score() const { return score_; }
+    inline utime time() const { return time_; }
+    inline const buffer_t & comment() const { return comment_; }
+
+    inline void set_addr(const ip_address addr) { addr_ = addr; }
+    inline void set_port(unsigned short port) { port_ = port; }
+    inline void set_score(int32_t score) { score_ = score; }
+    inline void set_time(const utime time) { time_ = time; }
+    inline void set_comment(buffer_t comment) { comment_ = comment; }
+
+    // Very expensive! But good for debugging/testing.
+    // (It invokes the parser and then the serializer...)
+    void set_comment(const std::string &str);
+    void set_comment(common::term_env &env, const std::string &str);
+
+    inline bool operator == (const address_entry &other) const {
+	return addr() == other.addr() && port() == other.port();
+    }
+    inline bool operator != (const address_entry &other) const {
+	return ! operator == (other);
+    }
+
+    inline bool deep_equal(const address_entry &other) const {
+	return index() == other.index() &&
+	       addr() == other.addr() &&
+	       port() == other.port() &&
+	       score() == other.score() &&
+	       time() == other.time() &&
+	       comment() == other.comment();
+    }
+
+    void read( common::term_env &env, common::term_parser &parser );
+    void write( common::term_env &ebv, common::term_emitter &emitter ) const;
+
+    std::string str() const;
+    
 private:
-    int port_;
-    uint64_t time_;
+    inline void set_index(size_t index) const { index_ = index; }
+
+    mutable size_t index_;    // Index slot
+    ip_address addr_;         // IP address
+    unsigned short port_;     // Port number
+    uint32_t score_;          // Current score
+    utime time_;              // Last time we accessed it
+    buffer_t comment_;        // Extra information
+
+    friend class address_book;
 };
+
+}}
+
+namespace std {
+    template<> struct hash<prologcoin::node::address_entry> {
+        size_t operator()(const prologcoin::node::address_entry &e) const {
+	    prologcoin::common::fast_hash h;
+	    h.update(e.addr().to_bytes(), e.addr().bytes_size());
+	    h << e.port();
+	    return static_cast<uint32_t>(h);
+	}
+    };
+}
+
+namespace prologcoin { namespace node {
 
 class address_book {
 public:
+    address_book();
+
+    void add( const address_entry &entry );
+
+    void load( const std::string &path );
+    void save( const std::string &path );
+
+    // Compare if two address books are identical in contents
+    bool operator == (const address_book &other) const;
+    inline bool operator != (const address_book &other) const
+    { return ! operator == (other); }
+
+    void print(std::ostream &out);
+
+private:
+    std::unordered_set<address_entry> all_;     // O(log 1) to insert/remove
+    std::map<size_t, address_entry> index_map_; // O(log N) to insert/remove
+    std::map<uint32_t, size_t> score_map_;      // O(log N) to insert/remove
 };
 
 }}
