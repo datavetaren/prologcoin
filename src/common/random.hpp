@@ -10,6 +10,7 @@ namespace prologcoin { namespace common {
 class random {
 public:
     static std::string next(size_t entropy_bits = 128);
+    static int next_int(int max);
 };
 
 }}

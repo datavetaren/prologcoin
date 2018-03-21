@@ -20,4 +20,9 @@ std::string random::next(size_t entropy_bits)
     return s;
 }
 
+int random::next_int(int max)
+{
+    return static_cast<int>(static_cast<unsigned int>(random_()) % max);
+}
+
 }}

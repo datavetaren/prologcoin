@@ -21,6 +21,12 @@ ip_address::ip_address(const std::string &str)
     set_addr(boost::asio::ip::make_address(str));
 }
 
+bool ip_address::is_zero() const
+{
+    static const unsigned char ZERO[16] = {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0};
+    return memcmp(at_byte(0), ZERO, sizeof(ZERO)) == 0;
+}
+
 bool ip_address::is_v4() const
 {
     return memcmp(at_byte(0), AS_IP4, sizeof(AS_IP4)) == 0;

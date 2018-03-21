@@ -7,6 +7,9 @@
 #include <map>
 #include <unordered_set>
 #include "ip_address.hpp"
+#include "ip_service.hpp"
+#include "ip_collection.hpp"
+#include "../common/term_serializer.hpp"
 
 namespace prologcoin { namespace node {
 
@@ -29,24 +32,23 @@ class address_book;
 // Likewise, if we fail to connect, its score is decreased.
 // 
 //
-class address_entry {
+class address_entry : public ip_service {
 public:
     using buffer_t = prologcoin::common::term_serializer::buffer_t;
     using utime = prologcoin::common::utime;
 
     address_entry();
     address_entry(const address_entry &other);
-    address_entry(const ip_address &addr, unsigned short port);
+    address_entry(const ip_address &addr, const ip_address &src,
+		  unsigned short port);
 
-    inline size_t index() const { return index_; }
-    inline const ip_address & addr() const { return addr_; }
-    inline unsigned short port() const { return port_; }
+    inline size_t id() const { return id_; }
+    inline const ip_address & source() const { return source_; }
     inline int32_t score() const { return score_; }
     inline utime time() const { return time_; }
     inline const buffer_t & comment() const { return comment_; }
 
-    inline void set_addr(const ip_address addr) { addr_ = addr; }
-    inline void set_port(unsigned short port) { port_ = port; }
+    inline void set_source(const ip_address &src) { source_ = src; }
     inline void set_score(int32_t score) { score_ = score; }
     inline void set_time(const utime time) { time_ = time; }
     inline void set_comment(buffer_t comment) { comment_ = comment; }
@@ -64,8 +66,9 @@ public:
     }
 
     inline bool deep_equal(const address_entry &other) const {
-	return index() == other.index() &&
+	return id() == other.id() &&
 	       addr() == other.addr() &&
+	       source() == other.source() &&
 	       port() == other.port() &&
 	       score() == other.score() &&
 	       time() == other.time() &&
@@ -76,14 +79,13 @@ public:
     void write( common::term_env &ebv, common::term_emitter &emitter ) const;
 
     std::string str() const;
-    
-private:
-    inline void set_index(size_t index) const { index_ = index; }
 
-    mutable size_t index_;    // Index slot
-    ip_address addr_;         // IP address
-    unsigned short port_;     // Port number
-    uint32_t score_;          // Current score
+private:
+    inline void set_id(size_t id) const { id_ = id; }
+
+    mutable size_t id_;       // Identifier
+    ip_address source_;       // Where the IP service (above) came from
+    int32_t score_;           // Current score
     utime time_;              // Last time we accessed it
     buffer_t comment_;        // Extra information
 
@@ -105,11 +107,22 @@ namespace std {
 
 namespace prologcoin { namespace node {
 
+class test_address_book;
+
 class address_book {
 public:
     address_book();
 
     void add( const address_entry &entry );
+    void remove( size_t id );
+    void remove( const ip_service &ip );
+    void add_score(address_entry &entry, int change );
+    size_t size() const;
+
+    std::vector<address_entry> get_from_top_10_pt(size_t n);
+    std::vector<address_entry> get_randomly_from_top_10_pt(size_t n);
+    std::vector<address_entry> get_randomly_from_bottom_90_pt(size_t n);
+    std::vector<address_entry> get_randomly_from_unverified(size_t n);
 
     void load( const std::string &path );
     void save( const std::string &path );
@@ -119,12 +132,104 @@ public:
     inline bool operator != (const address_book &other) const
     { return ! operator == (other); }
 
+    void print(std::ostream &out, const std::vector<address_entry> &entries);
     void print(std::ostream &out);
+    void print(std::ostream &out, size_t n);
+
+    std::string stat() const;
+
+    inline size_t num_spilled() const { return num_spilled_; }
+    inline size_t num_groups() const {
+	return top_10_collection_.num_groups() +
+	    bottom_90_collection_.num_groups() +
+	    unverified_gid_to_group_.size();
+    }
+    inline size_t num_unverified() const
+        { return unverified_id_to_gid_.size(); }
+
+    void integrity_check();
 
 private:
-    std::unordered_set<address_entry> all_;     // O(log 1) to insert/remove
-    std::map<size_t, address_entry> index_map_; // O(log N) to insert/remove
-    std::map<uint32_t, size_t> score_map_;      // O(log N) to insert/remove
+    inline bool is_spill_enabled() const { return spill_enabled_; }
+    inline void set_spill_enabled(bool e) { spill_enabled_ = e; }
+
+    enum spill_area { SPILL_IN_10, SPILL_IN_90, SPILL_IN_UNVERIFIED };
+    void spill_check(const address_entry &e, spill_area area);
+
+    void calibrate();
+
+    inline bool is_unverified(const address_entry &e)
+    { return !e.source().is_zero(); }
+
+    // Create a lexicographic order on score & id.
+    // This way we can quickly access the best 10% or worst 90% from
+    // the map.
+    struct score_entry {
+	inline score_entry() : score_(0), id_(0) { }
+	inline score_entry(const score_entry &other)
+            : score_(other.score_), id_(other.id_) { }
+	inline score_entry(int32_t score, size_t id) :
+	    score_(score), id_(id) { }
+	inline int32_t score() const { return score_; }
+	inline size_t id() const { return id_; }
+
+	inline std::string str() const
+	    { return "{score=" + boost::lexical_cast<std::string>(score())
+		    + ", id=" + boost::lexical_cast<std::string>(id()) + "}";
+	    }
+
+	inline bool operator < (const score_entry &other) const {
+	    if (score_ > other.score_) {
+		return true;
+	    } else if (score_ < other.score_) {
+	        return false;
+	    } else {
+		return id_ < other.id_;
+	    }
+	}
+
+	inline bool operator == (const score_entry &other) const {
+	    return score_ == other.score_ && id_ == other.id_;
+	}
+	inline bool operator != (const score_entry &other) const {
+	    return ! operator == (other);
+	}
+
+    private:
+	int32_t score_;
+	size_t id_;
+    };
+
+    size_t id_count_;
+    size_t num_spilled_;
+    bool spill_enabled_;
+
+    std::map<size_t, address_entry> id_to_entry_;
+    std::map<ip_service, size_t> ip_to_id_;
+
+    std::map<score_entry, size_t> top_10_;
+    ip_collection top_10_collection_;
+    std::map<score_entry, size_t> bottom_90_;
+    ip_collection bottom_90_collection_;
+
+    // The key is the source group
+    std::map<uint64_t, ip_collection> unverified_;
+    std::map<int, uint64_t> unverified_gid_to_group_;
+    std::map<uint64_t, int> unverified_group_to_gid_;
+    std::map<size_t, uint64_t> unverified_id_to_gid_;
+
+    static const int MAX_GID = 1000000000;
+    static const size_t MAX_FAIL_COUNT = 1000;
+
+    // Not more than 100 addesses per group. We'll spill
+    // (the worst) one before adding.
+    static const size_t MAX_GROUP_SIZE = 100;
+    static const size_t MAX_SOURCE_SIZE = 400;
+
+    int random_gid();
+    int new_gid();
+
+    friend class test_address_book;
 };
 
 }}

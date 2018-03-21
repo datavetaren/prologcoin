@@ -87,6 +87,7 @@ public:
 	return memcmp(to_bytes(), other.to_bytes(), sizeof(addr_)) >= 0;
     }
 
+    bool is_zero() const;  // 0.0.0.0 (or 16 bytes with 0s)
 
     bool is_v4() const;
     bool is_v6() const;
