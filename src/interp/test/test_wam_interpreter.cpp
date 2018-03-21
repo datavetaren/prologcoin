@@ -112,7 +112,8 @@ void test_wam_compiler::test_compile()
 	    throw;
 	}
 
-	auto &clauses = interp_.get_predicate(con_cell("nrev",2));
+	auto &clauses = interp_.get_predicate(con_cell("[]",0),
+					      con_cell("nrev",2));
 
 	wam_interim_code seq(interp_);
 	comp_.compile_clause(clauses[0], seq);
@@ -155,7 +156,7 @@ void test_wam_compiler::test_compile2()
         throw;
     }
 
-    interp_.compile(con_cell("call",1));
+    interp_.compile(con_cell("[]",0), con_cell("call",1));
     interp_.print_code(std::cout);
 }
 
@@ -228,7 +229,8 @@ Section 2:
 	throw ex;
     }
 
-    auto &clauses = interp_.get_predicate(con_cell("call",1));
+    auto &clauses = interp_.get_predicate(con_cell("[]",0),
+					  con_cell("call",1));
     
     auto p = comp_.partition_clauses_nonvar(clauses);
 
@@ -316,7 +318,7 @@ static void test_instruction_sequence()
     interp.add(wam_instruction<UNIFY_VOID>(9));
     interp.add(wam_instruction<ALLOCATE>());
     interp.add(wam_instruction<DEALLOCATE>());
-    interp.add(wam_instruction<CALL>(con_cell("f",3), 10));
+    interp.add(wam_instruction<CALL>(con_cell("[]",0), con_cell("f",3), 10));
     interp.add(wam_instruction<EXECUTE>(con_cell("g",4)));
     interp.add(wam_instruction<PROCEED>());
     interp.add(wam_instruction<TRY_ME_ELSE>(int_cell(1)));

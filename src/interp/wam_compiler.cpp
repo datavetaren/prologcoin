@@ -1198,6 +1198,7 @@ void wam_compiler::allocate_cut(wam_interim_code &instrs)
 
 bool wam_compiler::clause_needs_environment(const term clause)
 {
+    static const common::con_cell colon(":", 2);
     static const common::con_cell cut_op("!", 0);
     static const term none = common::int_cell(0);
 
@@ -1206,8 +1207,14 @@ bool wam_compiler::clause_needs_environment(const term clause)
     term last_call = none;
     term last_goal = none;
     for (auto goal : for_all_goals(body)) {
+	auto module = current_module();
 	auto f = env_.functor(goal);
-	bool isbn = is_builtin(f);
+	if (f == colon) {
+	    module = env_.functor(env_.arg(goal, 0));
+	    goal = env_.arg(goal, 1);
+	    f = env_.functor(goal);
+	}
+	bool isbn = is_builtin(module, f);
 	if (!isbn) {
 	    if (has_calls) {
 		// Multiple calls! We need an environment.
@@ -1215,10 +1222,10 @@ bool wam_compiler::clause_needs_environment(const term clause)
 	    }
 	    has_calls = true;
 	    last_call = goal;
-	} else if (f == cut_op) {
+	} else if (module == env_.empty_list() && f == cut_op) {
 	    return true;
 	} else {
-	    auto &bn = get_builtin(f);
+	    auto &bn = get_builtin(module, f);
 	    if (bn.is_recursive()) {
 		return true;
 	    }
@@ -1239,15 +1246,16 @@ bool wam_compiler::clause_needs_environment(const term clause)
     return true;
 }
 
-void wam_compiler::compile_builtin(common::con_cell f, bool first_goal,
+void wam_compiler::compile_builtin(common::con_cell module,
+				   common::con_cell f, bool first_goal,
 				   wam_interim_code &seq)
 {
     static const common::con_cell bn_true = common::con_cell("true",0);
 
-    if (f != bn_true) {
-	auto &bn = get_builtin(f);
+    if (module != env_.empty_list() || f != bn_true) {
+	auto &bn = get_builtin(module, f);
 	if (bn.is_recursive()) {
-	    seq.push_back(wam_instruction<BUILTIN_R>(f, bn.fn(), 0));
+	    seq.push_back(wam_instruction<BUILTIN_R>(module, f, bn.fn(), 0));
 	} else {
 	    if (bn.fn() == builtins::operator_cut) {
 		if (first_goal) {
@@ -1256,7 +1264,7 @@ void wam_compiler::compile_builtin(common::con_cell f, bool first_goal,
 		    seq.push_back(wam_instruction<CUT>(0));
 		}
 	    } else {
-		seq.push_back(wam_instruction<BUILTIN>(f, bn.fn()));
+		seq.push_back(wam_instruction<BUILTIN>(module, f, bn.fn()));
 	    }
 	}
     }
@@ -1436,6 +1444,8 @@ size_t wam_compiler::new_level()
 void wam_compiler::compile_goal(const term goal, bool first_goal,
 				wam_interim_code &seq)
 {
+    static const common::con_cell colon(":", 2);
+
     if (is_if_then_else(goal)) {
 	compile_if_then_else(goal, seq);
 	return;
@@ -1447,13 +1457,18 @@ void wam_compiler::compile_goal(const term goal, bool first_goal,
 	return;
     }
 
+    common::con_cell module = current_module();
     auto f = env_.functor(goal);
-    bool isbn = is_builtin(f);
+    if (f == colon) {
+	module = env_.functor(env_.arg(goal, 0));
+	f = env_.functor(env_.arg(goal, 1));
+    }
+    bool isbn = is_builtin(module, f);
     compile_query_or_program(goal, COMPILE_QUERY, seq);
     if (isbn) {
-	compile_builtin(f, first_goal, seq);
+	compile_builtin(module, f, first_goal, seq);
     } else {
-	seq.push_back(wam_instruction<CALL>(f, 0));
+	seq.push_back(wam_instruction<CALL>(module, f, 0));
     }
 }
 
@@ -1930,9 +1945,9 @@ void wam_compiler::compile_subsection(const managed_clauses &subsection,
     }
 }
 
-void wam_compiler::compile_predicate(common::con_cell pred, wam_interim_code &instrs)
+void wam_compiler::compile_predicate(const qname &qn, wam_interim_code &instrs)
 {
-    auto &clauses = interp_.get_predicate(pred);
+    auto &clauses = interp_.get_predicate(qn);
 
     if (clauses.empty()) {
 	return;

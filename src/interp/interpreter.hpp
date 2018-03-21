@@ -19,7 +19,8 @@ public:
     void setup_standard_lib();
 
     void compile();
-    void compile(common::con_cell pred);
+    void compile(const qname &pred);
+    void compile(common::con_cell module, common::con_cell name);
 
     bool execute(const term query);
     bool next();
@@ -57,19 +58,21 @@ private:
 		       managed_clauses &clauses,
 		       size_t from_clause);
 
-    const predicate & get_predicate(const common::con_cell f)
+    const predicate & get_predicate(con_cell module, con_cell f)
     {
-        return interpreter_base::get_predicate(f);
+        return interpreter_base::get_predicate(module, f);
     }
 
-    inline predicate & get_predicate(size_t id)
+    inline predicate & get_predicate_by_id(size_t id)
     {
 	return id_to_predicate_[id];
     }
 
-    void compute_matched_predicate(con_cell functor, const term first_arg,
+    void compute_matched_predicate(con_cell module, con_cell functor,
+				   const term first_arg,
 				   predicate &matched);
-    size_t matched_predicate_id(con_cell functor, const term first_arg);
+    size_t matched_predicate_id(con_cell module,
+				con_cell functor, const term first_arg);
 
 
     std::unordered_map<functor_index, size_t> predicate_id_;

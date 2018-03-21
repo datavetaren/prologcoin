@@ -187,7 +187,7 @@ void interpreter::fail()
 			std::string redo_str = to_string(qr());
 			std::cout << "interpreter::fail(): redo " << redo_str << std::endl;
 		    }
-		    auto &clauses = get_predicate(index_id);
+		    auto &clauses = get_predicate_by_id(index_id);
 		    size_t from_clause = bpval & 0xff;
 
 		    ok = select_clause(qr(), index_id, clauses, from_clause);
@@ -302,12 +302,8 @@ bool interpreter::select_clause(const code_point &instruction,
 
 void interpreter::dispatch()
 {
-    /*
-    if (p().is_fail()) {
-	next();
-	return;
-	}
-    */
+    static const con_cell default_module = empty_list();
+    static const con_cell functor_colon(":",2);
 
     set_qr(p().term_code());
 
@@ -325,6 +321,14 @@ void interpreter::dispatch()
 	    }
 	}
 	return;
+    }
+
+    con_cell module = default_module;
+
+    if (f == functor_colon) {
+	// This is module referred
+	module = functor(arg(qr(), 0));
+	f = functor(arg(qr(), 1));
     }
 
     if (is_debug()) {
@@ -351,7 +355,6 @@ void interpreter::dispatch()
     // instruction has already initialized the arguments and arity and
     // the term_code() is just a constant (not a compound STR.)
 
-
     common::tag_t ptag = p().term_code().tag();
     switch (ptag) {
     case common::tag_t::STR: {
@@ -373,7 +376,7 @@ void interpreter::dispatch()
     }
 
     // Is this a built-in?
-    auto bf = get_builtin(f);
+    auto bf = get_builtin(module, f);
     if (!bf.is_empty()) {
 	set_p(cp());
 	if (!bf.is_recursive()) {
@@ -388,7 +391,7 @@ void interpreter::dispatch()
     }
 
     // Is there a successful optimized built-in?
-    auto obf = get_builtin_opt(f);
+    auto obf = get_builtin_opt(module, f);
     if (obf != nullptr) {
         tribool r = obf(*this, arity, args());
 	if (!indeterminate(r)) {
@@ -402,7 +405,7 @@ void interpreter::dispatch()
     }
 
     if (is_wam_enabled()) {
-	if (auto instr = resolve_predicate(f)) {
+	if (auto instr = resolve_predicate(module, f)) {
 	    dispatch_wam(instr);
 	    return;
 	}
@@ -410,8 +413,8 @@ void interpreter::dispatch()
 
     auto first_arg = get_first_arg();
 
-    size_t predicate_id = matched_predicate_id(f, first_arg);
-    predicate  &pred = get_predicate(predicate_id);
+    size_t predicate_id = matched_predicate_id(module, f, first_arg);
+    predicate  &pred = get_predicate_by_id(predicate_id);
 
     set_pr(f);
 
@@ -419,10 +422,14 @@ void interpreter::dispatch()
     auto &clauses = pred;
 
     if (clauses.empty()) {
-        clauses = get_predicate(f);
+        clauses = get_predicate(module, f);
 	if (clauses.empty()) {
 	    std::stringstream msg;
-	    msg << "Undefined predicate " << atom_name(f) << "/" << f.arity();
+	    msg << "Undefined predicate ";
+	    if (!is_empty_list(module)) {
+		msg << atom_name(module) << ":";
+	    }
+	    msg << atom_name(f) << "/" << f.arity();
 	    abort(interpreter_exception_undefined_predicate(msg.str()));
 	    return;
 	}
@@ -454,11 +461,12 @@ void interpreter::dispatch_wam(wam_instruction_base *instruction)
     set_p(instruction);
 }
 
-void interpreter::compute_matched_predicate(con_cell func,
+void interpreter::compute_matched_predicate(con_cell module,
+					    con_cell func,
 					    const term first_arg,
 					    predicate &matched)
 {
-    auto &m_clauses = get_predicate(func);
+    auto &m_clauses = get_predicate(module, func);
     for (auto &m_clause : m_clauses) {
 	// Extract head
 	auto head = clause_head(m_clause.clause());
@@ -473,7 +481,8 @@ void interpreter::compute_matched_predicate(con_cell func,
     }
 }
 
-size_t interpreter::matched_predicate_id(con_cell func, const term first_arg)
+size_t interpreter::matched_predicate_id(con_cell module,
+					 con_cell func, const term first_arg)
 {
     using namespace prologcoin::common;
 
@@ -489,7 +498,7 @@ size_t interpreter::matched_predicate_id(con_cell func, const term first_arg)
 	break;
     }
 
-    functor_index findex(func, index_arg);
+    functor_index findex(std::make_pair(module,func), index_arg);
     auto it = predicate_id_.find(findex);
     size_t id;
     if (it == predicate_id_.end()) {
@@ -497,7 +506,7 @@ size_t interpreter::matched_predicate_id(con_cell func, const term first_arg)
 	id_to_predicate_.push_back( predicate() );
 	predicate_id_[findex] = id;
 	auto &pred = id_to_predicate_[id];
-	compute_matched_predicate(func, first_arg, pred);
+	compute_matched_predicate(module, func, first_arg, pred);
     } else {
 	id = it->second;
     }
@@ -597,22 +606,27 @@ void interpreter::print_result(std::ostream &out) const
 
 void interpreter::compile()
 {
-    for (auto p : get_predicates()) {
-	if (!is_compiled(p)) {
-	    compile(p);
+    for (auto &qn : get_predicates()) {
+	if (!is_compiled(qn)) {
+	    compile(qn);
 	}
     }
 }
 
-void interpreter::compile(common::con_cell pred)
+void interpreter::compile(const qname &qn)
 {
     wam_interim_code instrs(*this);
-    compiler_->compile_predicate(pred, instrs);
+    compiler_->compile_predicate(qn, instrs);
     size_t yn_size = compiler_->get_environment_size_of(instrs);
     size_t first_offset = next_offset();
     load_code(instrs);
     auto *next_instr = to_code(first_offset);
-    set_predicate(pred, next_instr, yn_size);
+    set_predicate(qn, next_instr, yn_size);
+}
+
+void interpreter::compile(common::con_cell module, common::con_cell name)
+{
+    compile(std::make_pair(module, name));
 }
 
 void interpreter::bind_code_point(std::unordered_map<size_t, size_t> &label_map, code_point &cp)
@@ -629,8 +643,17 @@ void interpreter::bind_code_point(std::unordered_map<size_t, size_t> &label_map,
 	    }
 	} else if (term.tag() == common::tag_t::CON) {
 	    auto lbl_con = static_cast<const con_cell &>(term);
-	    if (auto instr = resolve_predicate(lbl_con)) {
+	    if (auto instr = resolve_predicate(empty_list(), lbl_con)) {
 		cp.set_wam_code(instr);
+	    }
+	} else if (term.tag() == common::tag_t::STR) {
+	    static const con_cell functor_colon(":", 2);
+	    if (functor(term) == functor_colon) {
+		auto module = functor(arg(term, 0));
+		auto f = functor(arg(term, 1));
+		if (auto instr = resolve_predicate(module, f)) {
+		    cp.set_wam_code(instr);
+		}
 	    }
 	}
     }

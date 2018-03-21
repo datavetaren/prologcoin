@@ -310,7 +310,7 @@ public:
     typedef common::term term;
 
     wam_compiler(wam_interpreter &interp)
-        : interp_(interp), env_(interp), regs_a_(A_REG), regs_x_(X_REG), regs_y_(Y_REG), label_count_(1), goal_count_(0), level_count_(0) { }
+        : interp_(interp), env_(interp), regs_a_(A_REG), regs_x_(X_REG), regs_y_(Y_REG), label_count_(1), goal_count_(0), level_count_(0), current_module_(common::con_cell("[]",0)) { }
 
     ~wam_compiler();
 
@@ -334,7 +334,13 @@ public:
 	return static_cast<size_t>(find_maximum_y_register(instrs) + 1);
     }
 
-    void compile_predicate(common::con_cell pred, wam_interim_code &instrs);
+    void compile_predicate(const qname &qn, wam_interim_code &instrs);
+
+    inline common::con_cell current_module()
+    { return current_module_; }
+
+    inline void set_current_module(common::con_cell module) 
+    { current_module_ = module; }
 
 private:
     friend class test_wam_compiler;
@@ -411,14 +417,24 @@ private:
 	std::unordered_map<common::ref_cell, reg> reg_map_;
     };
 
-    inline bool is_builtin(common::con_cell f) const
+    inline bool is_builtin(const qname &qn) const
     {
-        return interp_.is_builtin(f);
+        return interp_.is_builtin(qn);
     }
 
-    inline builtin & get_builtin(common::con_cell f) const
+    inline bool is_builtin(common::con_cell module, common::con_cell f) const
     {
-        return interp_.get_builtin(f);
+	return interp_.is_builtin(module, f);
+    }
+
+    inline builtin & get_builtin(const qname &qn) const
+    {
+        return interp_.get_builtin(qn);
+    }
+
+    inline builtin & get_builtin(common::con_cell module, common::con_cell f) const
+    {
+	return interp_.get_builtin(module, f);
     }
 
     void compile_query_ref(reg lhsreg, common::ref_cell rhsvar,
@@ -435,7 +451,9 @@ private:
     void compile_program(reg lhsreg, common::ref_cell lhsvar, term rhs, 
 			 wam_interim_code &seq);
 
-    void compile_builtin(common::con_cell f, bool first_goal,
+    void compile_builtin(common::con_cell module,
+			 common::con_cell f,
+			 bool first_goal,
 			 wam_interim_code &seq);
 
 
@@ -592,6 +610,8 @@ private:
 
     std::vector<code_point> * new_merge();
     std::vector<std::vector<code_point> *> merges_;
+
+    common::con_cell current_module_;
 };
 
 template<> inline bool wam_compiler::has_reg<wam_compiler::A_REG>(common::ref_cell ref) { return regs_a_.contains(ref); }

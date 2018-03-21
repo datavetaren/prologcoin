@@ -418,31 +418,38 @@ public:
 
     void print_code(std::ostream &out);
 
-    inline bool is_compiled(common::con_cell p ) const
+    inline bool is_compiled(const qname &qn) const
     {
-	return predicate_map_.find(p) != predicate_map_.end();
+	return predicate_map_.find(qn) != predicate_map_.end();
+
+    }
+
+    inline bool is_compiled(common::con_cell module, common::con_cell p) const
+    {
+	return is_compiled(std::make_pair(module,p));
     }
 
 protected:
-    void set_predicate(common::con_cell predicate_name,
+    void set_predicate(const qname &qn,
 		       wam_instruction_base *instr,
 		       size_t environment_size)
     {
 	size_t predicate_offset = to_code_addr(instr);
-	predicate_map_[predicate_name] = predicate_offset;
-	predicate_rev_map_[predicate_offset] = predicate_name;
+	predicate_map_[qn] = predicate_offset;
+	predicate_rev_map_[predicate_offset] = qn;
 
-	auto &offsets = calls_[predicate_name];
+	auto &offsets = calls_[qn];
 	for (auto offset : offsets) {
 	    auto *cp_instr = reinterpret_cast<wam_instruction_code_point *>(to_code(offset));
 	    cp_instr->cp().set_wam_code(instr);
 	}
     }
 
-    wam_instruction_base * resolve_predicate(common::con_cell predicate_name)
+    wam_instruction_base * resolve_predicate(common::con_cell module,
+					     common::con_cell predicate_name)
     {
-	if (predicate_map_.count(predicate_name)) {
-	    return to_code(predicate_map_[predicate_name]);
+	if (predicate_map_.count(qname(module, predicate_name))) {
+	    return to_code(predicate_map_[qname(module, predicate_name)]);
 	} else {
 	    return nullptr;
 	}
@@ -479,15 +486,16 @@ private:
     size_t instrs_capacity_;
     code_t *instrs_;
 
-    std::unordered_map<common::con_cell, size_t> predicate_map_;
-    std::unordered_map<size_t, common::con_cell> predicate_rev_map_;
-    std::unordered_map<common::con_cell, std::vector<size_t> > calls_;
+    std::unordered_map<qname, size_t> predicate_map_;
+    std::unordered_map<size_t, qname> predicate_rev_map_;
+    std::unordered_map<qname, std::vector<size_t> > calls_;
 };
 
 template<> class wam_instruction<CALL> : public wam_instruction_code_point_reg {
 public:
-    inline wam_instruction(common::con_cell l, uint32_t num_y) :
-       wam_instruction_code_point_reg(&invoke, sizeof(*this), CALL, l, num_y) {
+    inline wam_instruction(common::con_cell module, common::con_cell name,
+			   uint32_t num_y) :
+	wam_instruction_code_point_reg(&invoke, sizeof(*this), CALL, code_point(module, name), num_y) {
        init();
     }
 
@@ -527,9 +535,10 @@ public:
 
 template<> class wam_instruction<BUILTIN> : public wam_instruction_code_point {
 public:
-    inline wam_instruction(common::con_cell f, builtin_fn b) :
+    inline wam_instruction(common::con_cell module, common::con_cell name,
+			   builtin_fn b) :
        wam_instruction_code_point(&invoke, sizeof(*this), BUILTIN,
-				  code_point(f,b)) {
+				  code_point(module,name,b)) {
        init();
     }
 
@@ -540,10 +549,8 @@ public:
 	static_cast<void>(init_);
     }
 
-    inline common::con_cell f() const {
-        const common::con_cell &fc = static_cast<const common::con_cell &>(
-            cp().term_code()); return fc;
-    }
+    inline common::con_cell module() { return cp().module(); }
+    inline common::con_cell f() const { return cp().name(); }
     inline builtin_fn bn() { return cp().bn(); }
     inline size_t arity() const { return f().arity(); }
 
@@ -555,9 +562,10 @@ private:
 
 template<> class wam_instruction<BUILTIN_R> : public wam_instruction_code_point_reg {
 public:
-    inline wam_instruction(common::con_cell f, builtin_fn b, uint32_t num_y) :
+    inline wam_instruction(common::con_cell module, common::con_cell name,
+			   builtin_fn b, uint32_t num_y) :
        wam_instruction_code_point_reg(&invoke, sizeof(*this), BUILTIN_R,
-				      code_point(f,b), num_y) {
+				      code_point(module,name,b), num_y) {
        init();
     }
 
@@ -567,11 +575,9 @@ public:
 	    return true; } ();
 	static_cast<void>(init_);
     }
-
-    inline common::con_cell f() const {
-        const common::con_cell &fc = static_cast<const common::con_cell &>(
-            cp().term_code()); return fc;
-    }
+    
+    inline common::con_cell module() const { return cp().module(); }
+    inline common::con_cell f() const { return cp().name(); }
     inline builtin_fn bn() { return cp().bn(); }
     inline size_t arity() const { return f().arity(); }
 

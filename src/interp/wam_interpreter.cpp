@@ -21,8 +21,9 @@ size_t wam_code::add(const wam_instruction_base &i)
 
     if (i.type() == EXECUTE || i.type() == CALL) {
 	auto *cp_instr = reinterpret_cast<wam_instruction_code_point *>(p);
-	auto con = static_cast<const common::con_cell &>(cp_instr->cp().term_code());
-	calls_[con].push_back(offset);
+	auto module = cp_instr->cp().module();
+	auto f = cp_instr->cp().name();
+	calls_[std::make_pair(module,f)].push_back(offset);
     }
     
     return sz;
@@ -30,11 +31,17 @@ size_t wam_code::add(const wam_instruction_base &i)
 
 void wam_code::print_code(std::ostream &out)
 {
+    static const common::con_cell default_module("[]",0);
     for (size_t i = 0; i < instrs_size_;) {
-	
 	if (predicate_rev_map_.count(i)) {
 	    auto name = predicate_rev_map_[i];
-	    out << interp_.to_string(name) << "/" << name.arity() << ":" << std::endl;
+	    if (name.first == default_module) {
+		out << interp_.to_string(name.second);
+	    } else {
+		out << interp_.to_string(name.first) << ":"
+		    << interp_.to_string(name.second);
+	    }
+	    out << "/" << name.second.arity() << ":" << std::endl;
 	}
 
 	wam_instruction_base *instr

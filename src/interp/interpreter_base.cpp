@@ -149,33 +149,37 @@ void interpreter_base::load_clause(const term t)
 			    t));
     syntax_check();
 
+    con_cell module = empty_list();
+
     // This is a valid clause. Let's lookup the functor of its head.
 
     term head = clause_head(t);
 
     con_cell predicate = functor(head);
     
-    auto found = program_db_.find(predicate);
+    auto qn = std::make_pair(module, predicate);
+
+    auto found = program_db_.find(qn);
     if (found == program_db_.end()) {
-        program_db_[predicate] = managed_clauses();
-	program_predicates_.push_back(predicate);
+        program_db_[qn] = managed_clauses();
+	program_predicates_.push_back(qn);
     }
-    program_db_[predicate].push_back(managed_clause(t, cost(t)));
+    program_db_[qn].push_back(managed_clause(t, cost(t)));
 }
 
-void interpreter_base::load_builtin(con_cell f, builtin b)
+void interpreter_base::load_builtin(const qname &qn, builtin b)
 {
-    auto found = builtins_.find(f);
+    auto found = builtins_.find(qn);
     if (found == builtins_.end()) {
-        builtins_[f] = b;
+        builtins_[qn] = b;
     }
 }
 
-void interpreter_base::load_builtin_opt(con_cell f, builtin_opt b)
+void interpreter_base::load_builtin_opt(const qname &qn, builtin_opt b)
 {
-    auto found = builtins_opt_.find(f);
+    auto found = builtins_opt_.find(qn);
     if (found == builtins_opt_.end()) {
-        builtins_opt_[f] = b;
+        builtins_opt_[qn] = b;
     }    
 }
 
@@ -429,8 +433,8 @@ void interpreter_base::print_db() const
 void interpreter_base::print_db(std::ostream &out) const
 {
     bool do_nl_p = false;
-    for (const con_cell p : program_predicates_) {
-	auto it = program_db_.find(p);
+    for (const auto &qn : program_predicates_) {
+	auto it = program_db_.find(qn);
 	if (it == program_db_.end()) {
 	    continue;
 	}

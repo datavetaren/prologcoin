@@ -352,7 +352,7 @@ static bool test_interpreter_file(const std::string &filepath)
 	    	            std::cout << "[DONT compile]: "<< p_name << "\n";
 			} else {
 	    	            std::cout << "[Compile]: "<< p_name << "\n";
-			    interp.compile(p);
+			    interp.compile(interp.empty_list(), p);
 			}
 	   	    }
 		    if (interp.is_debug()) {

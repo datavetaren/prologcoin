@@ -6,6 +6,7 @@
 #include <istream>
 #include <vector>
 #include <stack>
+#include <tuple>
 #include "../common/term_env.hpp"
 #include "builtins.hpp"
 #include "builtins_opt.hpp"
@@ -15,7 +16,12 @@
 namespace prologcoin { namespace interp {
 // This pair represents functor with first argument. If first argument
 // is a STR tag, then we dereference it to a CON cell.
-typedef std::pair<common::con_cell, common::cell> functor_index;
+//
+// FUNCTOR_INDEX = pair( QNAME, ARG_TYPE)
+// QNAME = pair( MODULE, FUNCTOR )
+//
+typedef std::pair<common::con_cell, common::con_cell> qname;
+typedef std::pair<qname, common::cell> functor_index;
 
 class managed_clause {
 public:
@@ -46,10 +52,17 @@ typedef std::pair<predicate, size_t> indexed_predicate;
 }}
 
 namespace std {
+    template<> struct hash<prologcoin::interp::qname> {
+	size_t operator()(const prologcoin::interp::qname &k) const {
+	    return k.first.raw_value() + 
+		   17*k.second.raw_value();
+	}
+    };
     template<> struct hash<prologcoin::interp::functor_index> {
 	size_t operator()(const prologcoin::interp::functor_index &k) const {
-	    return hash<prologcoin::interp::functor_index::first_type>()(k.first) +
-	 	   hash<prologcoin::interp::functor_index::second_type>()(k.second);
+	    return k.first.first.raw_value() + 
+	   	   17*k.first.second.raw_value() +
+	           131*k.second.raw_value();
 	}
     };
 }
@@ -194,8 +207,14 @@ public:
         : wam_code_(other.wam_code_), term_code_(other.term_code_) { }
     inline code_point(wam_instruction_base *i)
         : wam_code_(i), term_code_(common::ref_cell(0)) { }
-    inline code_point(const common::term t, builtin_fn f)
-        : bn_(f), term_code_(t) { }
+
+    inline code_point(const common::con_cell module,
+		      const common::con_cell name)
+        : bn_(nullptr), module_(module), term_code_(name) { }
+
+    inline code_point(const common::con_cell module,
+		      const common::con_cell name, builtin_fn f)
+        : bn_(f), module_(module), term_code_(name) { }
 
     inline static code_point fail() {
         return code_point();
@@ -208,8 +227,10 @@ public:
 
     inline wam_instruction_base * wam_code() const { return wam_code_; }
     inline builtin_fn bn() { return bn_; }
+    inline const common::con_cell & module() const { return module_; }
     inline const common::cell & term_code() const { return term_code_; }
     inline const common::int_cell & label() const { return static_cast<const common::int_cell &>(term_code_); }
+    inline const common::con_cell & name() const { return static_cast<const common::con_cell &>(term_code_); }
 
     inline void set_wam_code(wam_instruction_base *p) { wam_code_ = p; }
     inline void set_term_code(const common::term t) { term_code_ = t; }
@@ -223,6 +244,7 @@ private:
         wam_instruction_base *wam_code_;
         builtin_fn bn_;
     };
+    common::con_cell module_;
     common::cell term_code_;
 };
 
@@ -356,10 +378,13 @@ public:
     void load_program(std::istream &is);
     void load_program(const term clauses);
 
-    inline const predicate & get_predicate(const common::con_cell pn)
+    inline const predicate & get_predicate(con_cell module, con_cell f)
+        { return get_predicate(std::make_pair(module, f)); }
+
+    inline const predicate & get_predicate(const qname &pn)
         { return program_db_[pn]; }
 
-    inline const std::vector<common::con_cell> get_predicates() const
+    inline const std::vector<qname> get_predicates() const
         { return program_predicates_; }
 
     std::string to_string_cp(const code_point &cp)
@@ -384,11 +409,16 @@ public:
 	}
     };
 
-    inline builtin & get_builtin(con_cell f)
+    inline builtin & get_builtin(const qname &qn)
+    {
+	return get_builtin(qn.first, qn.second);
+    }
+
+    inline builtin & get_builtin(con_cell module, con_cell f)
     {
 	static builtin empty_bn_;
 
-        auto it = builtins_.find(f);
+        auto it = builtins_.find(std::make_pair(module, f));
         if (it == builtins_.end()) {
 	    return empty_bn_;
         } else {
@@ -396,9 +426,9 @@ public:
 	}
     }
 
-    inline builtin_opt get_builtin_opt(con_cell f)
+    inline builtin_opt get_builtin_opt(con_cell module, con_cell f)
     {
-        auto it = builtins_opt_.find(f);
+        auto it = builtins_opt_.find(std::make_pair(module, f));
         if (it == builtins_opt_.end()) {
 	    return nullptr;
         } else {
@@ -406,8 +436,11 @@ public:
 	}
     }
 
-    inline bool is_builtin(con_cell f) const
-        { return builtins_.find(f) != builtins_.end(); }
+    inline bool is_builtin(const qname &qn) const
+        { return is_builtin(qn.first, qn.second); }
+
+    inline bool is_builtin(con_cell module, con_cell f) const
+        { return builtins_.find(std::make_pair(module, f)) != builtins_.end();}
 
     inline uint64_t accumulated_cost() const
         { return accumulated_cost_; }
@@ -440,12 +473,12 @@ public:
 	 return c;
        }
 
-protected:
     inline con_cell empty_list() const
     {
         return empty_list_;
     }
 
+protected:
     template<typename T> inline size_t words() const
     { return sizeof(T)/sizeof(word_t); }
 
@@ -887,8 +920,17 @@ protected:
         { accumulated_cost_ += cost; }
 
 private:
-    void load_builtin(con_cell f, builtin b);
-    void load_builtin_opt(con_cell f, builtin_opt b);
+    inline void load_builtin(con_cell f, builtin b)
+        { qname qn(empty_list(), f);
+	  load_builtin(qn, b);
+	}
+    inline void load_builtin_opt(con_cell f, builtin_opt b)
+        { qname qn(empty_list(), f);
+	  load_builtin_opt(qn, b);
+	}
+
+    void load_builtin(const qname &qn, builtin b);
+    void load_builtin_opt(const qname &qn, builtin_opt b);
     void load_builtins();
     void load_builtins_file_io();
     void load_builtins_opt();
@@ -931,10 +973,10 @@ private:
     bool track_cost_;
     std::vector<std::function<void ()> > syntax_check_stack_;
 
-    std::unordered_map<common::con_cell, builtin> builtins_;
-    std::unordered_map<common::con_cell, builtin_opt> builtins_opt_;
-    std::unordered_map<common::con_cell, predicate> program_db_;
-    std::vector<common::con_cell> program_predicates_;
+    std::unordered_map<qname, builtin> builtins_;
+    std::unordered_map<qname, builtin_opt> builtins_opt_;
+    std::unordered_map<qname, predicate> program_db_;
+    std::vector<qname> program_predicates_;
 
     // Stack is emulated at heap offset >= 2^59 (3 bits for tag, remember!)
     // (This conforms to the WAM standard where addr(stack) > addr(heap))
