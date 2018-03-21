@@ -41,6 +41,7 @@ public:
     address_entry(const address_entry &other);
     address_entry(const ip_address &addr, const ip_address &src,
 		  unsigned short port);
+    address_entry(const ip_address &addr, unsigned short port);
 
     inline size_t id() const { return id_; }
     inline const ip_address & source() const { return source_; }
@@ -76,7 +77,9 @@ public:
     }
 
     void read( common::term_env &env, common::term_parser &parser );
-    void write( common::term_env &ebv, common::term_emitter &emitter ) const;
+    void write( common::term_env &env, common::term_emitter &emitter ) const;
+
+    common::term to_term(common::term_env &env) const;
 
     std::string str() const;
 
@@ -112,6 +115,9 @@ class test_address_book;
 class address_book {
 public:
     address_book();
+
+    inline void add( const std::string &addr, unsigned short port )
+    { add(address_entry(addr,port)); }
 
     void add( const address_entry &entry );
     void remove( size_t id );

@@ -5,9 +5,9 @@ namespace prologcoin { namespace node {
 
 using namespace prologcoin::common;
 
-in_session_state::in_session_state(in_connection *conn)
+in_session_state::in_session_state(self_node *self, in_connection *conn)
   : connection_(conn),
-    interp_initialized_(false),
+    interp_(self),
     in_query_(false)
 {
     id_ = "s" + random::next();
@@ -15,10 +15,8 @@ in_session_state::in_session_state(in_connection *conn)
 
 bool in_session_state::execute(const term query)
 {
-    if (!interp_initialized_) {
-	interp_initialized_ = true;
-	interp_.setup_standard_lib();
-    }
+    interp_.ensure_initialized();
+
     query_ = query;
     in_query_ = true;
     bool r = interp_.execute(query);

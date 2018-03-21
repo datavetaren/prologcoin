@@ -119,7 +119,7 @@ std::vector<ip_service> ip_collection::select(size_t n)
     
     std::unordered_set<int> selected;
     size_t fail_count = 0;
-    for (size_t i = 0; i < n && fail_count < MAX_FAIL_COUNT; i++) {
+    for (size_t i = 0; i < n && fail_count < MAX_FAIL_COUNT;) {
 
         // First select a random group
 
@@ -155,6 +155,7 @@ std::vector<ip_service> ip_collection::select(size_t n)
 	
 	selected.insert(id);
 	result.push_back(ip);
+	i++;
     }
 
     return result;

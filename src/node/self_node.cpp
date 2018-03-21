@@ -52,7 +52,7 @@ void self_node::close(connection *conn)
 
 in_session_state * self_node::new_in_session(in_connection *conn)
 {
-    auto *ss = new in_session_state(conn);
+    auto *ss = new in_session_state(this, conn);
 
     boost::lock_guard<boost::mutex> guard(lock_);
     in_states_[ss->id()] = ss;

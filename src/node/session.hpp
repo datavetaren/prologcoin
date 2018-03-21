@@ -3,7 +3,7 @@
 #ifndef _node_session_hpp
 #define _node_session_hpp
 
-#include "../interp/interpreter.hpp"
+#include "local_interpreter.hpp"
 
 namespace prologcoin { namespace node {
 
@@ -11,7 +11,7 @@ class in_connection;
 
 class in_session_state {
 public:
-    in_session_state(in_connection *conn);
+    in_session_state(self_node *self, in_connection *conn);
 
     inline const std::string & id() const { return id_; }
     inline common::term_env & env() { return interp_; }
@@ -54,9 +54,12 @@ public:
     }
 
 private:
+    void setup_modules();
+
+    self_node *self_;
     std::string id_;
     in_connection *connection_;
-    interp::interpreter interp_;
+    local_interpreter interp_;
     bool interp_initialized_;
     common::term query_;
     bool in_query_;

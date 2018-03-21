@@ -17,6 +17,7 @@
 
 #include "../interp/interpreter.hpp"
 #include "connection.hpp"
+#include "address_book.hpp"
 
 namespace prologcoin { namespace node {
 
@@ -26,16 +27,40 @@ public:
 	: std::runtime_error("self_node_exception: " + msg) { }
 };
 
+class self_node;
+
+class address_book_wrapper
+{
+public:
+    address_book_wrapper(address_book_wrapper &&other)
+      : self_(other.self_),
+	book_(other.book_) { }
+
+    address_book_wrapper(self_node &self, address_book &book);
+    ~address_book_wrapper();
+
+    inline address_book & operator ()() { return book_; }
+
+private:
+    self_node &self_;
+    address_book &book_;
+};
+
 class self_node {
 private:
     using io_service = boost::asio::io_service;
     friend class connection;
+    friend class address_book_wrapper;
 
 public:
     static const int DEFAULT_PORT = 8783;
     static const size_t MAX_BUFFER_SIZE = 65536;
 
     self_node();
+
+    address_book_wrapper book() {
+	return address_book_wrapper(*this, address_book_);
+    }
 
     void start();
     void stop();
@@ -80,7 +105,19 @@ private:
     boost::mutex lock_;
     std::unordered_map<std::string, in_session_state *> in_states_;
     std::vector<connection *> closed_;
+
+    address_book address_book_;
 };
+
+inline address_book_wrapper::address_book_wrapper(self_node &self, address_book &book) : self_(self), book_(book)
+{
+    self_.lock_.lock();
+}
+
+inline address_book_wrapper::~address_book_wrapper()
+{
+    self_.lock_.unlock();
+}
 
 }}
 

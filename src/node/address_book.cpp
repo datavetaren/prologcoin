@@ -33,6 +33,14 @@ address_entry::address_entry(const ip_address &addr, const ip_address &src,
     time_ = 0;
 }
 
+address_entry::address_entry(const ip_address &addr, unsigned short port)
+    : ip_service(addr, port)
+{
+    id_ = 0;
+    score_ = 0;
+    time_ = 0;
+}
+
 void address_entry::set_comment(const std::string &str)
 {
     using namespace prologcoin::common;
@@ -52,11 +60,9 @@ void address_entry::set_comment(common::term_env &env, const std::string &str)
     set_comment(buf);
 }
 
-void address_entry::write(common::term_env &env, common::term_emitter &emitter) const
+common::term address_entry::to_term(common::term_env &env) const
 {
     using namespace prologcoin::common;
-
-    //Create a term of everything.
 
     term term_addr = env.functor(addr().str(), 0);
     term term_src = env.functor(source().str(), 0);
@@ -71,6 +77,17 @@ void address_entry::write(common::term_env &env, common::term_emitter &emitter) 
     term term_entry = env.new_term(env.functor("entry",6),
 	   {term_addr, term_src, term_port,
 	    term_score, term_time, term_comment});
+    return term_entry;
+}
+
+void address_entry::write(common::term_env &env, common::term_emitter &emitter) const
+{
+    using namespace prologcoin::common;
+
+    //Create a term of everything.
+
+    term term_entry = to_term(env);
+
     emitter.print(term_entry);
     emitter.out() << ".";
     emitter.nl();
@@ -301,6 +318,7 @@ void address_book::spill_check(const address_entry &e, address_book::spill_area 
 void address_book::add(const address_entry &e)
 {
     if (ip_to_id_.find(e) != ip_to_id_.end()) {
+	std::cout << "Already exists...\n";
 	// Already exists. Exit.
 	return;
     }
@@ -433,8 +451,6 @@ std::vector<address_entry> address_book::get_from_top_10_pt(size_t n)
 // Select N entries from top 10%. Preferably addresses from different groups.
 std::vector<address_entry> address_book::get_randomly_from_top_10_pt(size_t n)
 {
-    assert(n < id_to_entry_.size());
-
     std::vector<address_entry> result;
     auto ips = top_10_collection_.select(n);
     for (auto &ip : ips) {
@@ -446,8 +462,6 @@ std::vector<address_entry> address_book::get_randomly_from_top_10_pt(size_t n)
 
 std::vector<address_entry> address_book::get_randomly_from_bottom_90_pt(size_t n)
 {
-    assert(n < id_to_entry_.size());
-
     std::vector<address_entry> result;
     auto ips = bottom_90_collection_.select(n);
     for (auto &ip : ips) {
@@ -459,8 +473,6 @@ std::vector<address_entry> address_book::get_randomly_from_bottom_90_pt(size_t n
 
 std::vector<address_entry> address_book::get_randomly_from_unverified(size_t n)
 {
-    assert(n < id_to_entry_.size());
-
     std::vector<address_entry> result;
     
     std::unordered_set<int> selected;
@@ -540,9 +552,6 @@ bool address_book::operator == (const address_book &other) const
 	auto &e2 = it2->second;
 
 	if (e1 != e2) {
-	    std::cout << "Failed at index " << index << "\n";
-	    std::cout << "Entry e1=" << e1.str() << "\n";
-	    std::cout << "Entry e2=" << e2.str() << "\n";
 	    return false;
 	}
 

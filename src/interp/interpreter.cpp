@@ -203,6 +203,8 @@ void interpreter::fail()
 
 bool interpreter::unify_args(term head, const code_point &p)
 {
+    static const common::con_cell colon(":",2);
+
     if (p.term_code().tag() == common::tag_t::STR) {
 	return unify(head, p.term_code());
     } else {
@@ -219,6 +221,9 @@ bool interpreter::unify_args(term head, const code_point &p)
 
 	size_t n = num_of_args();
 	bool fail = false;
+	if (head == colon) {
+	    head = arg(head, 1);
+	}
 	for (size_t i = 0; i < n; i++) {
 	    auto arg_i = arg(head, i);
 	    if (!unify(arg_i, a(i))) {
@@ -358,8 +363,13 @@ void interpreter::dispatch()
     common::tag_t ptag = p().term_code().tag();
     switch (ptag) {
     case common::tag_t::STR: {
+	static const common::con_cell colon(":",2);
+	term goal = p().term_code();
+	if (functor(goal) == colon) {
+	    goal = arg(goal, 1);
+	}
 	for (size_t i = 0; i < arity; i++) {
-	    a(i) = arg(p().term_code(), i);
+	    a(i) = arg(goal, i);
 	}
 	set_num_of_args(arity);
 	break;

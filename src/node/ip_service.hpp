@@ -45,6 +45,28 @@ public:
     inline bool operator != (const ip_service &other) const
         { return ! operator == (other); }
 
+    inline bool operator < (const ip_service &other) const {
+	if (ip_address::operator < (other)) {
+	    return true;
+	} else if (ip_address::operator == (other)) {
+	    return port_ < other.port_;
+	} else {
+	    return false;
+	}
+    }
+
+    inline bool operator <= (const ip_service &other) const {
+	return operator < (other) || operator == (other);
+    }
+
+    inline bool operator > (const ip_service &other) const {
+	return ! operator < (other);
+    }
+    inline bool operator >= (const ip_service &other) const {
+	return operator > (other) || operator == (other);
+    }
+
+
 private:
     unsigned short port_;
 };

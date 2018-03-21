@@ -919,17 +919,24 @@ protected:
     inline void add_accumulated_cost(uint64_t cost)
         { accumulated_cost_ += cost; }
 
-private:
     inline void load_builtin(con_cell f, builtin b)
         { qname qn(empty_list(), f);
 	  load_builtin(qn, b);
 	}
+
+    inline void load_builtin(con_cell module, con_cell f, builtin b)
+        { qname qn(module, f);
+	  load_builtin(qn, b);
+	}
+
+private:
+    void load_builtin(const qname &qn, builtin b);
+
     inline void load_builtin_opt(con_cell f, builtin_opt b)
         { qname qn(empty_list(), f);
 	  load_builtin_opt(qn, b);
 	}
 
-    void load_builtin(const qname &qn, builtin b);
     void load_builtin_opt(const qname &qn, builtin_opt b);
     void load_builtins();
     void load_builtins_file_io();

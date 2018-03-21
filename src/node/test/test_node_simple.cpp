@@ -37,6 +37,20 @@ static void start_server()
     self.join();
 }
 
+static void start_server2()
+{
+    header("start_server2()");
+
+    self_node self;
+
+    self.book()().add("127.0.0.1", 1000);
+    self.book()().add("127.0.0.1", 1001);
+    self.book()().add("127.0.0.1", 1002);
+
+    self.start();
+    self.join();
+}
+
 static void start_client()
 {
     header("start_client()");
@@ -52,6 +66,8 @@ int main(int argc, char *argv[])
     if (argc == 2) {
 	if (strcmp(argv[1], "-server") == 0) {
 	    start_server();
+	} else if (strcmp(argv[1], "-server2") == 0) {
+	    start_server2();
 	} else if (strcmp(argv[1], "-client") == 0) {
 	    start_client();
 	} else {
