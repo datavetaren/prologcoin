@@ -1,5 +1,6 @@
 #include "self_node.hpp"
 #include "local_interpreter.hpp"
+#include "session.hpp"
 
 namespace prologcoin { namespace node {
 
@@ -7,6 +8,14 @@ using namespace prologcoin::common;
 using namespace prologcoin::interp;
 
 const con_cell local_interpreter::me("me", 0);
+
+bool me_builtins::heartbeat_0(interpreter_base &interp0, size_t arity, term args[] )
+{
+    auto &interp = to_local(interp0);
+    interp.session().heartbeat();
+
+    return true;
+}
 
 bool me_builtins::peers_2(interpreter_base &interp0, size_t arity, term args[] )
 {
@@ -41,6 +50,11 @@ bool me_builtins::peers_2(interpreter_base &interp0, size_t arity, term args[] )
     return interp.unify(args[1], result);
 }
 
+self_node & local_interpreter::self()
+{
+    return session_->self();
+}
+
 void local_interpreter::ensure_initialized()
 {
     if (!initialized_) {
@@ -53,6 +67,7 @@ void local_interpreter::ensure_initialized()
 void local_interpreter::setup_modules()
 {
     load_builtin(me, con_cell("peers", 2), &me_builtins::peers_2);
+    load_builtin(me, functor("heartbeat", 0), &me_builtins::heartbeat_0);
 }
 
 }}

@@ -9,6 +9,7 @@ namespace prologcoin { namespace node {
 
 class self_node;
 class local_interpreter;
+class in_session_state;
 
 class me_builtins {
 public:
@@ -18,6 +19,7 @@ public:
     static local_interpreter & to_local(interpreter_base &interp)
     { return reinterpret_cast<local_interpreter &>(interp); }
 
+    static bool heartbeat_0(interpreter_base &interp, size_t arity, term args[]);
     static bool peers_2(interpreter_base &interp, size_t arity, term args[]);
 };
 
@@ -26,21 +28,23 @@ public:
     using interperter_base = interp::interpreter_base;
     using term = common::term;
 
-    inline local_interpreter(self_node *self)
-        : self_(self), initialized_(false) { }
+    inline local_interpreter(in_session_state *session)
+        :session_(session), initialized_(false) { }
 
     void ensure_initialized();
 
-private:
-    inline self_node & self() { return *self_; }
-
-    friend class me_builtins;
+    inline in_session_state & session() { return *session_; }
 
     static const common::con_cell me;
 
+private:
+    self_node & self();
+
+    friend class me_builtins;
+
     void setup_modules();
 
-    self_node *self_;
+    in_session_state *session_;
     bool initialized_;
 };
 

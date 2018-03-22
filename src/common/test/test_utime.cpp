@@ -82,9 +82,21 @@ static void test_utime()
     std::cout << "Max int : " << static_cast<uint64_t>(pow(2,64-4)) << "\n";
 }
 
+static void test_sleep()
+{
+    header("test_sleep");
+
+    std::cout << "Sleep for 1 second." << std::endl;
+
+    utime::sleep( utime::ss(1) );
+
+    std::cout << "Sleep for 1 second done." << std::endl;
+}
+
 int main(int argc, char *argv[])
 {
     test_utime();
+    test_sleep();
 
     return 0;
 }

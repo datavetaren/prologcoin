@@ -28,8 +28,14 @@ public:
     struct mm : public dt<60000000> { mm(uint64_t t) : dt(t) {} };
     struct ss : public dt<1000000> { ss(uint64_t t) : dt(t) {} };
     struct ms : public dt<1000> { ms(uint64_t t) : dt(t) {} };
+    struct us : public dt<1> { us(uint64_t t) : dt(t) {} };
 
     static utime now();
+
+    template<uint64_t C> inline static void sleep( dt<C> t )
+    { utime u = now() + t; sleep_until(u); }
+
+    static void sleep_until(const utime &u);
 
     inline bool operator == (const utime &other) const {
 	return time_ == other.time_;

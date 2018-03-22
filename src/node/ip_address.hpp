@@ -39,6 +39,8 @@ public:
 
     ip_address(const std::string &str);
 
+    boost::asio::ip::address to_addr() const;
+
     inline void set_addr(const ip_address &other)
     { set_addr(other.to_bytes(), sizeof(addr_)); }
 

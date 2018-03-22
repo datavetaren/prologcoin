@@ -50,6 +50,16 @@ void self_node::close(connection *conn)
     closed_.push_back(conn);
 }
 
+void self_node::for_each_in_session(const std::function<void (in_session_state *session)> &fn)
+{
+    boost::lock_guard<boost::mutex> guard(lock_);
+
+    for (auto p : in_states_) {
+	auto *session = p.second;
+	fn(session);
+    }
+}
+
 in_session_state * self_node::new_in_session(in_connection *conn)
 {
     auto *ss = new in_session_state(this, conn);
@@ -83,6 +93,13 @@ void self_node::in_session_connect(in_session_state *sess, in_connection *conn)
 
     disconnect(old_conn);
     sess->set_connection(conn);
+}
+
+out_connection * self_node::new_out_connection(const ip_service &ip)
+{
+    auto *out = new out_connection(*this, ip);
+    out_connections_.insert(out);
+    return out;
 }
 
 void self_node::kill_in_session(in_session_state *sess)
@@ -121,6 +138,7 @@ void self_node::start_prune_dead_connections()
 			       timer_.expires_from_now(
 					 boost::posix_time::seconds(
 					    TIMER_INTERVAL_SECONDS));
+			       master_hook();
 			       start_prune_dead_connections();
 			   }));
 }
@@ -146,6 +164,11 @@ void self_node::join()
     thread_.join();
 }
 
+bool self_node::join_us(uint64_t us)
+{
+    return thread_.try_join_for(boost::chrono::microseconds(us));
+}
+
 void self_node::disconnect(connection *conn)
 {
     if (conn->type() == connection::IN) {
@@ -155,6 +178,13 @@ void self_node::disconnect(connection *conn)
 	}
     }
     connection::delete_connection(conn);
+}
+
+void self_node::master_hook()
+{
+    if (master_hook_) {
+	master_hook_(*this);
+    }
 }
 
 }}

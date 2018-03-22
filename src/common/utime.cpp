@@ -1,4 +1,5 @@
 #include "utime.hpp"
+#include <boost/thread.hpp>
 #include <boost/chrono.hpp>
 #include <boost/date_time/gregorian/gregorian.hpp>
 #include <boost/date_time/posix_time/posix_time.hpp>
@@ -47,6 +48,17 @@ bool utime::parse(const std::string &str)
     } catch (std::exception &ex) {
 	return false;
     }
+}
+
+void utime::sleep_until(const utime &ut)
+{
+    uint64_t t0 = now().in_us();
+    uint64_t t1 = ut.in_us();
+    if (t1 <= t0) {
+	return;
+    }
+    uint64_t delta_us = t1 - t0;
+    boost::this_thread::sleep_for(boost::chrono::microseconds(delta_us));
 }
 
 }}

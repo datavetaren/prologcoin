@@ -7,8 +7,9 @@ using namespace prologcoin::common;
 
 in_session_state::in_session_state(self_node *self, in_connection *conn)
   : connection_(conn),
-    interp_(self),
-    in_query_(false)
+    interp_(this),
+    in_query_(false),
+    heartbeat_count_(0)
 {
     id_ = "s" + random::next();
 }
@@ -24,6 +25,13 @@ bool in_session_state::execute(const term query)
 	in_query_ = false;
     }
     return r;
+}
+
+void in_session_state::heartbeat()
+{
+    heartbeat_ = utime::now();
+    heartbeat_count_++;
+    std::cout << "Heartbeat: " << heartbeat_.str() << "\n";
 }
 
 }}
