@@ -52,6 +52,28 @@ struct pattern_any {
     term &any_;
 };
 
+struct pattern_any_int {
+    inline pattern_any_int(int64_t &i) : any_(i) { }
+
+    inline bool operator () (term_env &, const term t) const {
+	if (t.tag() != tag_t::INT) {
+	    return false;
+	}
+	auto const &ic = reinterpret_cast<const int_cell &>(t);
+	any_ = ic.value();
+	return true;
+    }
+    int64_t &any_;
+};
+
+struct pattern_ignore {
+    inline pattern_ignore() { }
+
+    inline bool operator () (term_env &, const term) const {
+	return true;
+    }
+};
+
 template<typename...Args> struct pattern_str {
     inline pattern_str(con_cell f, Args... args)
 	: f_(f), args_(args...) { }
@@ -79,6 +101,16 @@ struct pattern {
     inline pattern_any any(term &a)
     {
 	return pattern_any(a);
+    }
+
+    inline pattern_any_int any(int64_t &i)
+    {
+	return pattern_any_int(i);
+    }
+
+    inline pattern_ignore ignore()
+    {
+	return pattern_ignore();
     }
 
     template<typename...Args> inline pattern_str<Args...> str(con_cell f,

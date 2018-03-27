@@ -49,14 +49,29 @@ private:
 class self_node {
 private:
     using io_service = boost::asio::io_service;
+    using utime = prologcoin::common::utime;
+    using term = prologcoin::common::term;
+    using term_env = prologcoin::common::term_env;
+
     friend class connection;
     friend class address_book_wrapper;
 
 public:
-    static const int DEFAULT_PORT = 8783;
-    static const size_t MAX_BUFFER_SIZE = 65536;
+    static const int VERSION_MAJOR = 0;
+    static const int VERSION_MINOR = 10;
 
-    self_node();
+    static const unsigned short DEFAULT_PORT = 8783;
+    static const size_t MAX_BUFFER_SIZE = 65536;
+    static const size_t DEFAULT_NUM_STANDARD_OUT_CONNECTIONS = 8;
+    static const size_t DEFAULT_NUM_VERIFIER_CONNECTIONS = 1;
+
+    self_node(unsigned short port = DEFAULT_PORT);
+
+    inline term_env & env() { return env_; }
+
+    // Must be a Prolog term
+    void set_comment(const std::string &str);
+    inline term get_comment() const { return comment_; }
 
     address_book_wrapper book() {
 	return address_book_wrapper(*this, address_book_);
@@ -72,6 +87,21 @@ public:
 	return join_us(t);
     }
 
+    inline uint64_t get_timer_interval_microseconds() const {
+	return timer_interval_microseconds_;
+    }
+    inline uint64_t get_fast_timer_interval_microseconds() const {
+	return fast_timer_interval_microseconds_;
+    }
+
+    template<uint64_t C> inline void set_timer_interval(utime::dt<C> t)
+    {
+	timer_interval_microseconds_ = t;
+	fast_timer_interval_microseconds_ = t / 10;
+	timer_.expires_from_now(boost::posix_time::microseconds(
+				timer_interval_microseconds_));
+
+    }
 
     void for_each_in_session( const std::function<void (in_session_state *)> &fn);
     in_session_state * new_in_session(in_connection *conn);
@@ -79,18 +109,24 @@ public:
     void kill_in_session(in_session_state *sess);
     void in_session_connect(in_session_state *sess, in_connection *conn);
 
-    out_connection * new_out_connection(const ip_service &ip);
+    out_connection * new_standard_out_connection(const ip_service &ip);
+    out_connection * new_verifier_connection(const ip_service &ip);
 
 private:
     bool join_us(uint64_t microsec);
 
-    static const int TIMER_INTERVAL_SECONDS = 10;
+    static const int DEFAULT_TIMER_INTERVAL_SECONDS = 10;
 
     void disconnect(connection *conn);
     void run();
     void start_accept();
-    void start_prune_dead_connections();
+    void start_tick();
     void prune_dead_connections();
+    void connect_to(const std::vector<address_entry> &entries);
+    void check_out_connections();
+    void check_standard_out_connections();
+    bool has_standard_out_connection(const ip_service &ip);
+    void check_verifier_connections();
     void close(connection *conn);
     void master_hook();
 
@@ -104,6 +140,8 @@ private:
     using tcp = boost::asio::ip::tcp;
     using deadline_timer = boost::asio::deadline_timer;
 
+    common::term_env env_;
+
     bool stopped_;
     boost::thread thread_;
     io_service ioservice_;
@@ -112,18 +150,28 @@ private:
     socket socket_;
     strand strand_;
     deadline_timer timer_;
+    common::term comment_;
 
     in_connection *recent_in_connection_;
     std::unordered_set<connection *> in_connections_;
     std::unordered_set<connection *> out_connections_;
+    std::unordered_set<ip_service> out_standard_ips_;
 
-    boost::mutex lock_;
+    boost::recursive_mutex lock_;
     std::unordered_map<std::string, in_session_state *> in_states_;
     std::vector<connection *> closed_;
 
     address_book address_book_;
 
     std::function<void (self_node &self)> master_hook_;
+
+    size_t preferred_num_standard_out_connections_;
+    size_t preferred_num_verifier_connections_;
+    size_t num_standard_out_connections_;
+    size_t num_verifier_connections_;
+
+    uint64_t timer_interval_microseconds_;
+    uint64_t fast_timer_interval_microseconds_;
 };
 
 inline address_book_wrapper::address_book_wrapper(self_node &self, address_book &book) : self_(self), book_(book)

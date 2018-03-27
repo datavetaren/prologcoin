@@ -73,5 +73,18 @@ private:
 
 }}
 
+namespace std {
+    template<> struct hash<prologcoin::node::ip_service> {
+        size_t operator()(const prologcoin::node::ip_service &ip) const {
+	    prologcoin::common::fast_hash h;
+	    h.update(ip.addr().to_bytes(), ip.addr().bytes_size());
+	    h << ip.port();
+	    return static_cast<uint32_t>(h);
+	}
+    };
+
+}
+
+
 #endif
 

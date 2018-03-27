@@ -6,8 +6,9 @@ namespace prologcoin { namespace node {
 using namespace prologcoin::common;
 
 in_session_state::in_session_state(self_node *self, in_connection *conn)
-  : connection_(conn),
-    interp_(this),
+  : self_(self),
+    connection_(conn),
+    interp_(*this),
     in_query_(false),
     heartbeat_count_(0)
 {

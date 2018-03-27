@@ -16,6 +16,13 @@ utime utime::now()
     return utime((t - EPOCH).total_microseconds());
 }
 
+utime utime::now_seconds()
+{
+    utime t = utime::now();
+    t.set(t.in_us() - t.in_us() % 1000000);
+    return t;
+}
+
 std::string utime::str() const
 {
     auto t = EPOCH + boost::posix_time::microseconds(time_);

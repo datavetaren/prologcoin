@@ -34,6 +34,8 @@ class address_book;
 //
 class address_entry : public ip_service {
 public:
+    static const int32_t VERIFIED_INITIAL_SCORE = 100;
+    
     using buffer_t = prologcoin::common::term_serializer::buffer_t;
     using utime = prologcoin::common::utime;
 
@@ -42,16 +44,20 @@ public:
     address_entry(const ip_address &addr, const ip_address &src,
 		  unsigned short port);
     address_entry(const ip_address &addr, unsigned short port);
+    address_entry(const ip_service &ip);
 
     inline size_t id() const { return id_; }
     inline const ip_address & source() const { return source_; }
     inline int32_t score() const { return score_; }
     inline utime time() const { return time_; }
     inline const buffer_t & comment() const { return comment_; }
+    std::string comment_str() const;
 
     inline void set_source(const ip_address &src) { source_ = src; }
     inline void set_score(int32_t score) { score_ = score; }
     inline void set_time(const utime time) { time_ = time; }
+
+    void set_comment(const common::term t, common::term_env &src);
     inline void set_comment(buffer_t comment) { comment_ = comment; }
 
     // Very expensive! But good for debugging/testing.
@@ -125,6 +131,10 @@ public:
     void add_score(address_entry &entry, int change );
     size_t size() const;
 
+    std::vector<address_entry> get_all_true(std::function<bool (const address_entry &e)> fn);
+    std::vector<address_entry> get_all_verified();
+    std::vector<address_entry> get_all_unverified();
+
     std::vector<address_entry> get_from_top_10_pt(size_t n);
     std::vector<address_entry> get_randomly_from_top_10_pt(size_t n);
     std::vector<address_entry> get_randomly_from_bottom_90_pt(size_t n);
@@ -153,6 +163,14 @@ public:
     inline size_t num_unverified() const
         { return unverified_id_to_gid_.size(); }
 
+    inline bool is_unverified(const address_entry &e)
+    { return !is_verified(e); }
+
+    inline bool is_verified(const address_entry &e)
+    { return e.source().is_zero(); }
+
+    void update_time(const ip_service &ip);
+
     void integrity_check();
 
 private:
@@ -163,9 +181,6 @@ private:
     void spill_check(const address_entry &e, spill_area area);
 
     void calibrate();
-
-    inline bool is_unverified(const address_entry &e)
-    { return !e.source().is_zero(); }
 
     // Create a lexicographic order on score & id.
     // This way we can quickly access the best 10% or worst 90% from

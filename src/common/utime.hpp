@@ -31,6 +31,7 @@ public:
     struct us : public dt<1> { us(uint64_t t) : dt(t) {} };
 
     static utime now();
+    static utime now_seconds();
 
     template<uint64_t C> inline static void sleep( dt<C> t )
     { utime u = now() + t; sleep_until(u); }
@@ -74,6 +75,10 @@ public:
     inline utime & operator ++ () {
 	time_++;
 	return *this;
+    }
+
+    inline void set(const utime &t) {
+	time_ = t.time_;
     }
 
     inline void operator += (uint64_t dt)

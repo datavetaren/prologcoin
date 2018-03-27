@@ -7,7 +7,9 @@ namespace prologcoin { namespace node {
 using namespace prologcoin::common;
 using namespace prologcoin::interp;
 
-const con_cell local_interpreter::me("me", 0);
+const con_cell local_interpreter::ME("me", 0);
+const con_cell local_interpreter::COLON(":", 2);
+const con_cell local_interpreter::COMMA(",", 2);
 
 bool me_builtins::heartbeat_0(interpreter_base &interp0, size_t arity, term args[] )
 {
@@ -15,6 +17,23 @@ bool me_builtins::heartbeat_0(interpreter_base &interp0, size_t arity, term args
     interp.session().heartbeat();
 
     return true;
+}
+
+bool me_builtins::version_1(interpreter_base &interp0, size_t arity, term args[] )
+{
+    auto &interp = to_local(interp0);
+    int_cell ver_major(self_node::VERSION_MAJOR);
+    int_cell ver_minor(self_node::VERSION_MINOR);
+    auto ver = interp.new_term(con_cell("ver",2), {ver_major, ver_minor});
+    return interp.unify(args[0], ver);
+}
+
+bool me_builtins::comment_1(interpreter_base &interp0, size_t arity, term args[] )
+{
+    auto &interp = to_local(interp0);
+    term comment = interp.copy(interp.self().get_comment(),
+			       interp.self().env());
+    return interp.unify(args[0], comment);
 }
 
 bool me_builtins::peers_2(interpreter_base &interp0, size_t arity, term args[] )
@@ -52,7 +71,7 @@ bool me_builtins::peers_2(interpreter_base &interp0, size_t arity, term args[] )
 
 self_node & local_interpreter::self()
 {
-    return session_->self();
+    return session_.self();
 }
 
 void local_interpreter::ensure_initialized()
@@ -66,8 +85,10 @@ void local_interpreter::ensure_initialized()
 
 void local_interpreter::setup_modules()
 {
-    load_builtin(me, con_cell("peers", 2), &me_builtins::peers_2);
-    load_builtin(me, functor("heartbeat", 0), &me_builtins::heartbeat_0);
+    load_builtin(ME, con_cell("peers", 2), &me_builtins::peers_2);
+    load_builtin(ME, con_cell("version",1), &me_builtins::version_1);
+    load_builtin(ME, con_cell("comment",1), &me_builtins::comment_1);
+    load_builtin(ME, functor("heartbeat", 0), &me_builtins::heartbeat_0);
 }
 
 }}

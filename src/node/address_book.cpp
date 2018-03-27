@@ -8,37 +8,31 @@
 
 namespace prologcoin { namespace node {
 
-address_entry::address_entry() : ip_service()
+address_entry::address_entry()
+    : ip_service(), id_(0), score_(0), time_(0)
 {
-    id_ = 0;
-    score_ = 0;
-    time_ = 0;
 }
 
-address_entry::address_entry(const address_entry &other) : ip_service(other)
+address_entry::address_entry(const address_entry &other)
+    : ip_service(other), id_(other.id_), source_(other.source_),
+      score_(other.score_), time_(other.time_), comment_(other.comment_)
 {
-    id_ = other.id_;
-    source_ = other.source_;
-    score_ = other.score_;
-    time_ = other.time_;
-    comment_ = other.comment_;
 }
 
 address_entry::address_entry(const ip_address &addr, const ip_address &src,
-			     unsigned short port) : ip_service(addr, port)
+			     unsigned short port)
+    : ip_service(addr, port), id_(0), source_(src), score_(0), time_(0)
 {
-    id_ = 0;
-    source_ = src;
-    score_ = 0;
-    time_ = 0;
 }
 
 address_entry::address_entry(const ip_address &addr, unsigned short port)
-    : ip_service(addr, port)
+    : ip_service(addr, port), id_(0), score_(0), time_(0)
 {
-    id_ = 0;
-    score_ = 0;
-    time_ = 0;
+}
+
+address_entry::address_entry(const ip_service &ip)
+    : ip_service(ip), id_(0), score_(0), time_(0)
+{
 }
 
 void address_entry::set_comment(const std::string &str)
@@ -58,6 +52,25 @@ void address_entry::set_comment(common::term_env &env, const std::string &str)
     term_serializer::buffer_t buf;
     ser.write(buf, t);
     set_comment(buf);
+}
+
+void address_entry::set_comment(const common::term t, common::term_env &src)
+{
+    using namespace prologcoin::common;
+
+    term_serializer ser(src);
+    comment_.clear();
+    ser.write(comment_, t);
+}
+
+std::string address_entry::comment_str() const
+{
+    using namespace prologcoin::common;
+
+    term_env env;
+    term_serializer ser(env);
+    term t = ser.read(comment_);
+    return env.to_string(t);
 }
 
 common::term address_entry::to_term(common::term_env &env) const
@@ -430,6 +443,29 @@ size_t address_book::size() const
     return id_to_entry_.size();
 }
 
+std::vector<address_entry> address_book::get_all_true(std::function<bool (const address_entry &e)> predicate)
+{
+    std::vector<address_entry> result;
+    
+    for (auto e : id_to_entry_) {
+	if (!predicate(e.second)) {
+	    continue;
+	}
+	result.push_back(e.second);
+    }
+    return result;
+}
+
+std::vector<address_entry> address_book::get_all_verified()
+{
+    return get_all_true([this](const address_entry &e) {return !this->is_unverified(e); });
+}
+
+std::vector<address_entry> address_book::get_all_unverified()
+{
+    return get_all_true([this](const address_entry &e) {return this->is_unverified(e); });
+}
+
 std::vector<address_entry> address_book::get_from_top_10_pt(size_t n)
 {
     assert(n < id_to_entry_.size());
@@ -483,11 +519,18 @@ std::vector<address_entry> address_book::get_randomly_from_unverified(size_t n)
 	auto gid = random_gid();
 	auto it = unverified_gid_to_group_.lower_bound(gid);
 	if (it == unverified_gid_to_group_.end()) {
-	    fail_count++;
-	    continue;
+	    it = unverified_gid_to_group_.begin();
+	    if (it == unverified_gid_to_group_.end()) {
+		fail_count++;
+		continue;
+	    }
 	}
 	auto &group = it->second;
 	auto tmp = unverified_[group].select(1);
+	if (tmp.empty()) {
+	    fail_count++;
+	    continue;
+	}
 	for (auto e : tmp) {
 	    auto id = ip_to_id_[e];
 	    if (selected.find(id) != selected.end()) {
@@ -500,6 +543,22 @@ std::vector<address_entry> address_book::get_randomly_from_unverified(size_t n)
     }
 
     return result;
+}
+
+void address_book::update_time(const ip_service &ip)
+{
+    using namespace prologcoin::common;
+
+    auto it = ip_to_id_.find(ip);
+    if (it == ip_to_id_.end()) {
+	return;
+    }
+    auto it2 = id_to_entry_.find(it->second);
+    if (it2 == id_to_entry_.end()) {
+	return;
+    }
+    auto &entry = it2->second;
+    entry.set_time(utime::now_seconds());
 }
 
 void address_book::save(const std::string &path)

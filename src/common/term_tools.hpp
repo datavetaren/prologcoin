@@ -14,6 +14,11 @@ public:
     term_token_diff(std::istream &in1, std::istream &in2);
 
     bool check();
+    void report();
+
+    static void assert_equal(const std::string &s1, const std::string &s2,
+			     const std::string &comment = "");
+    static bool check(const std::string &s1, const std::string &s2);
 
     const std::string & line1() const { return line1_; }
     const std::string & line2() const { return line2_; }
@@ -23,6 +28,7 @@ public:
 
 private:
     void skip_whitespace(term_tokenizer &tokens, int &line_no, std::string &line);
+    bool check_impl();
 
     std::string line1_;
     std::string line2_;
@@ -32,6 +38,9 @@ private:
 
     term_tokenizer tokens1_;
     term_tokenizer tokens2_;
+
+    bool done_;
+    bool failed_;
 };
 
 }}

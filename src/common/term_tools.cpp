@@ -4,7 +4,8 @@
 namespace prologcoin { namespace common {
 
 term_token_diff::term_token_diff(std::istream &in1, std::istream &in2)
-    : line1_no_(-1), line2_no_(-1), tokens1_(in1), tokens2_(in2) { }
+    : line1_no_(-1), line2_no_(-1), tokens1_(in1), tokens2_(in2),
+      done_(false), failed_(false) { }
 
 void term_token_diff::skip_whitespace(term_tokenizer &tokens,
 				      int &line_no,
@@ -24,7 +25,28 @@ void term_token_diff::skip_whitespace(term_tokenizer &tokens,
     }
 }
 
+bool term_token_diff::check(const std::string &s1, const std::string &s2)
+{
+    std::stringstream in1(s1);
+    std::stringstream in2(s2);
+    term_token_diff diff(in1, in2);
+    return diff.check();
+}
+
 bool term_token_diff::check()
+{
+    if (done_) {
+	return !failed_;
+    }
+    bool r = check_impl();
+    done_ = true;
+    if (!r) {
+	failed_ = true;
+    }
+    return r;
+}
+
+bool term_token_diff::check_impl()
 {
     while (tokens1_.has_more_tokens() && tokens2_.has_more_tokens()) {
 	
@@ -63,6 +85,41 @@ bool term_token_diff::check()
     }
 
     return true;
+}
+
+void term_token_diff::report()
+{
+    if (!done_) {
+	std::cout << "Nothing to report." << std::endl;
+	return;
+    }
+    if (!failed_) {
+	std::cout << "Nothing to report. Terms are equal." << std::endl;
+	return;
+    }
+
+    if (line1_no_ != line2_no_) {
+	std::cout << "Difference at lines " << line1_no_
+		  << " and " << line2_no_ << std::endl;
+    } else {
+	std::cout << "Difference at line " << line1_no_ << std::endl;
+    }
+
+    std::cout << "Source  : " << line1_ << std::endl;
+    std::cout << "Compare : " << line2_ << std::endl;
+}
+
+void term_token_diff::assert_equal(const std::string &s1,const std::string &s2,
+				   const std::string &comment)
+{
+    std::stringstream in1(s1), in2(s2);
+    term_token_diff diff(in1, in2);
+    if (!diff.check()) {
+	if (!comment.empty()) {
+	    std::cout << comment << std::endl;
+	}
+	diff.report();
+    }
 }
 
 }}

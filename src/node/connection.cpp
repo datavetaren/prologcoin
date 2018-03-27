@@ -8,6 +8,20 @@ using namespace prologcoin::common;
 
 namespace prologcoin { namespace node {
 
+term out_task::get_result()
+{
+    static const con_cell result_3("result",3);
+
+    term r = get_term();
+    if (r.tag() != tag_t::STR) {
+	return term();
+    }
+    if (!env().functor(r) == result_3) {
+	return term();
+    }
+    return env().arg(r, 0);
+}
+
 connection::connection(self_node &self,
 		       connection::connection_type type,
 		       term_env &env)
@@ -33,20 +47,21 @@ void connection::start()
 
 inline boost::asio::io_service & connection::get_io_service()
 {
-    return node().get_io_service();
+    return self().get_io_service();
 }
 
 void connection::delete_connection(connection *conn)
 {
     switch (conn->type()) {
     case IN: delete reinterpret_cast<in_connection *>(conn); break;
+    case OUT: delete reinterpret_cast<out_connection *>(conn); break;
     default: break;
     }
 }
 
 void connection::close()
 {
-    node().close(this);
+    self().close(this);
 }
 
 void connection::send_error(const term t)
@@ -217,7 +232,8 @@ void connection::run()
 	close();
 	break;
     case IDLE:
-	timer_.expires_from_now(boost::posix_time::seconds(1));
+	timer_.expires_from_now(boost::posix_time::microseconds(
+			self().get_fast_timer_interval_microseconds()));
 	timer_.async_wait(
 	     strand_.wrap(
 		     [this](const error_code &ec) {
@@ -273,7 +289,7 @@ void in_connection::reply_error(const term t)
 
 void in_connection::command_new(const term)
 {
-    auto *ss = node().new_in_session(this);
+    auto *ss = self().new_in_session(this);
     reply_ok(env_.functor(ss->id(),0));
 }
 
@@ -285,7 +301,7 @@ in_session_state * in_connection::get_session(const term id_term)
 	return nullptr;
     }
     std::string id = e.atom_name(id_term);
-    auto *s = node().find_in_session(id);
+    auto *s = self().find_in_session(id);
     if (s == nullptr) {
 	reply_error(e.new_term(e.functor("session_not_found",1),{id_term}));
 	return nullptr;
@@ -315,7 +331,7 @@ void in_connection::command_connect(const term cmd)
     if (s == nullptr) {
 	return;
     }
-    node().in_session_connect(s, this);
+    self().in_session_connect(s, this);
     session_ = s;
     reply_ok(e.new_term(e.functor("session_resumed",2),
 			{id_term, get_state_atom()}));
@@ -330,7 +346,7 @@ void in_connection::command_kill(const term cmd)
     if (s == nullptr) {
 	return;
     }
-    node().kill_in_session(s);
+    self().kill_in_session(s);
     session_ = nullptr;
     reply_ok(e.new_term(e.functor("session_killed",1),{id_term}));
 }
@@ -432,8 +448,8 @@ void in_connection::process_execution(const term cmd, bool in_query)
 // ----- out_connection
 //
 
-out_connection::out_connection(self_node &self, const ip_service &ip)
-    :  connection(self, OUT, env_), ip_(ip), connected_(false)
+out_connection::out_connection(self_node &self, out_connection::out_type_t t, const ip_service &ip)
+    :  connection(self, OUT, env_), out_type_(t), ip_(ip), use_heartbeat_(true), connected_(false)
 {
     using namespace boost::system;
 
@@ -451,10 +467,18 @@ out_connection::out_connection(self_node &self, const ip_service &ip)
 		}));
 }
 
+out_connection::~out_connection()
+{
+}
+
 out_task out_connection::create_heartbeat_task()
 {
-    return out_task(*this,
-		    [this](out_task &task){this->handle_heartbeat_task(task);});
+    return out_task(*this, &out_connection::handle_heartbeat_task_fn);
+}
+
+void out_connection::handle_heartbeat_task_fn(out_task &task)
+{
+    task.connection().handle_heartbeat_task(task);
 }
 
 void out_connection::handle_heartbeat_task(out_task &task)
@@ -466,7 +490,9 @@ void out_connection::handle_heartbeat_task(out_task &task)
     case out_task::IDLE:
 	break;
     case out_task::RECEIVED:
-	reschedule(task, utime::ss(10));
+	// Update address entry with most recent time
+	task.self().book()().update_time(task.ip());
+	reschedule(task, utime::us(self().get_timer_interval_microseconds()));
 	break;
     case out_task::SEND:
 	task.set_term(
@@ -479,9 +505,12 @@ void out_connection::handle_heartbeat_task(out_task &task)
 
 out_task out_connection::create_init_connection_task()
 {
-    return out_task(*this,
-		    [this](out_task &task)
-		    {this->handle_init_connection_task(task);});
+    return out_task(*this, &out_connection::handle_init_connection_task_fn);
+}
+
+void out_connection::handle_init_connection_task_fn(out_task &task)
+{
+    task.connection().handle_init_connection_task(task);
 }
 
 void out_connection::handle_init_connection_task(out_task &task)
@@ -514,8 +543,10 @@ void out_connection::handle_init_connection_task(out_task &task)
 	    schedule(task);
 	} else {
 	    connected_ = true;
-	    auto hbtask = create_heartbeat_task();
-	    schedule(hbtask);
+	    if (use_heartbeat_) {
+		auto hbtask = create_heartbeat_task();
+		schedule(hbtask);
+	    }
 	}
 	break;
         }
@@ -535,6 +566,7 @@ void out_connection::handle_init_connection_task(out_task &task)
 
 void out_connection::idle_state()
 {
+    set_state(IDLE);
     // If 'id' is empty, then we don't have a session, so we need to
     // issue a command to create one.
     if (id_.empty()) {
@@ -548,44 +580,48 @@ void out_connection::error(const std::string &msg)
     std::cout << "ERROR: " << msg << std::endl;
 }
 
+void out_connection::send_next_task()
+{
+    // Don't pop work queue on send operations,
+    // as send operations expect an answer. Once
+    // the answer is processed, the task is done
+    // and can be popped.
+    if (work_.empty()) {
+	idle_state();
+	return;
+    }
+    auto next_task = work_.top();
+    if (!next_task.expiring()) {
+	idle_state();
+	return;
+    }
+    next_task.set_state(out_task::SEND);
+    next_task.set_term(term());
+    next_task.run();
+    if (next_task.get_term() == term()) {
+	set_state(IDLE);
+    } else {
+	send(next_task.get_term());
+    }
+    if (get_state() == IDLE) {
+	idle_state();
+    }
+}
+
 void out_connection::on_state()
 {
     switch (get_state()) {
-    case IDLE: {
-	if (!work_.empty()) {
-	    auto next_task = work_.top();
-	    if (next_task.expiring()) {
-		next_task.set_state(out_task::SEND);
-		next_task.run();
-		send(next_task.get_term());
-	    }
-	}
-	if (get_state() == IDLE) {
-	    idle_state();
-	}
-        }
-	break;
+    case IDLE: send_next_task(); break;
     case RECEIVED: {
-	auto task = std::move(work_.top());
+	auto task = work_.top();
 	work_.pop();
 	auto r = received();
 	task.set_state(out_task::RECEIVED);
 	task.set_term(r);
 	task.run();
-	if (work_.empty()) {
-	    set_state(IDLE);
-	    break;
-	}
-	auto next_task = work_.top();
-	if (next_task.expiring()) {
-	    next_task.set_state(out_task::SEND);
-	    next_task.run();
-	    send(next_task.get_term());
-        } else {
-	    set_state(IDLE);
-	}
-        }
+	send_next_task();
 	break;
+        }
     case SENT:
 	prepare_receive();
 	break;

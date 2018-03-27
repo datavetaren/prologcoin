@@ -42,7 +42,7 @@ public:
 
     static void delete_connection(connection *conn);
 
-    inline self_node & node() { return self_node_; }
+    inline self_node & self() { return self_node_; }
     inline socket & get_socket() { return socket_; }
     io_service & get_io_service();
 
@@ -162,18 +162,25 @@ public:
     };
 
     out_task();
-    out_task(out_task &&other);
-    out_task(const out_task &other) = default;
-    out_task & operator = (const out_task &other) = default;
-
-    out_task(out_connection &out,
-	     const std::function<void (out_task &me)> &fn);
+    out_task(out_connection &out, void (*fn)(out_task &));
 
     inline void run() {
-	fn_(*this);
+	(*fn_)(*this);
     }
 
+    inline void set_query(const term t)
+    { set_term(env_->new_term(common::con_cell("query",1), {t})); }
+
+    term get_result();
+
+    inline term_env & env() { return *env_; }
+
+    const ip_service & ip() const;
+
     inline out_connection & connection() { return *out_; }
+    inline const out_connection & connection() const { return *out_; }
+
+    self_node & self();
 
     inline bool expiring() const { return utime::now() >= get_when(); }
 
@@ -194,10 +201,16 @@ public:
 	return get_when() == other.get_when();
     }
 
+    bool is_connected() const;
+
+    template<uint64_t C> void reschedule(utime::dt<C> dt);
+    void reschedule(utime t);
+    void reschedule_last();
+
 private:
     out_connection *out_;
     term_env *env_;
-    std::function<void (out_task &me)> fn_;
+    void (*fn_)(out_task &task);
     state_t state_;
     utime when_;
     term term_;
@@ -206,23 +219,54 @@ private:
 class out_connection : public connection {
 public:
     using utime = prologcoin::common::utime;
+    enum out_type_t { STANDARD, VERIFIER };
 
-    out_connection(self_node &self, const ip_service &ip);
+    out_connection(self_node &self, out_type_t t, const ip_service &ip);
     ~out_connection();
 
+    inline out_type_t out_type() const { return out_type_; }
+    inline const ip_service & ip() const { return ip_; }
+
     inline term_env & env() { return env_; }
+
+    inline void set_use_heartbeat(bool b) { use_heartbeat_ = b; }
 
     out_task create_heartbeat_task();
     out_task create_init_connection_task();
 
-    void schedule(out_task &task) {
+    inline void schedule(out_task &task) {
 	reschedule(task, utime::us(0));
     }
 
-    template<uint64_t C> void reschedule(out_task &task, utime::dt<C> dt)
-    { task.set_when(utime::now()+dt);
-      work_.push(std::move(task));
+    template<uint64_t C> inline void reschedule(out_task &task, utime::dt<C> dt)
+    { reschedule(task, utime::now()+dt); }
+
+    inline void reschedule(out_task &task, utime t)
+    {
+        // If task issues a reschedule on SEND, which normally it doesn't
+        // as it doesn't pop the work queue, then we'll pop the work queue
+        // to remove it first.
+        if (task.get_state() == out_task::SEND) {
+  	    work_.pop();
+        }
+
+	task.set_when(t);
+	if (t > last_in_work_) {
+	    last_in_work_ = t;
+	}
+	work_.push(task);
     }
+
+    inline void reschedule_last(out_task &task)
+    { if (work_.empty()) {
+          schedule(task);
+      } else {
+          reschedule(task, last_in_work_+utime::us(1));
+      }
+    }
+
+    inline bool is_connected() const
+    { return connected_; }
 
 protected:
     void idle_state();
@@ -230,8 +274,12 @@ protected:
 
 private:
     void handle_heartbeat_task(out_task &task);
-    void handle_init_connection_task(out_task &task);
+    static void handle_heartbeat_task_fn(out_task &task);
 
+    void handle_init_connection_task(out_task &task);
+    static void handle_init_connection_task_fn(out_task &task);
+
+    void send_next_task();
     void on_state();
 
     void reply_error(const common::term t);
@@ -239,24 +287,46 @@ private:
 
     friend class self_node;
 
+    out_type_t out_type_;
     ip_service ip_;
     std::string id_;
+    bool use_heartbeat_;
     bool connected_;
     term_env env_;
     std::priority_queue<out_task> work_;
+    utime last_in_work_;
 };
 
-inline out_task::out_task(out_connection &out,
-			  const std::function<void (out_task &me)> &fn)
+inline out_task::out_task(out_connection &out, void (*fn)(out_task &task) )
     : out_(&out), env_(&out.env()), fn_(fn), state_(IDLE), when_(utime::now())
 {
 }
 
+template<uint64_t C> inline void out_task::reschedule(utime::dt<C> dt)
+{ connection().reschedule(*this, dt); }
+
+inline void out_task::reschedule(utime t)
+{ connection().reschedule(*this, t); }
+
+inline void out_task::reschedule_last()
+{ connection().reschedule_last(*this); }
+
+inline bool out_task::is_connected() const
+{ return connection().is_connected(); }
+
+inline const ip_service & out_task::ip() const
+{ return connection().ip(); }
+
+inline self_node & out_task::self()
+{ return connection().self(); }
+
+	/*
 inline out_task::out_task(out_task &&other)
     : out_(other.out_), env_(other.env_), fn_(other.fn_),
       state_(other.state_), when_(other.when_)
 {
 }
+	*/
 
 }}
 
