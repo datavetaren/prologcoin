@@ -9,51 +9,46 @@
 namespace prologcoin { namespace common {
 
 template<size_t N, size_t K, typename Arg, typename...Args> struct pattern_args {
-    pattern_args(term_env &env, Arg arg, Args... args)
-	: env_(env), arg_(arg), args_(env, args...) { }
+    pattern_args(Arg arg, Args... args)
+	: arg_(arg), args_(args...) { }
 
-    bool operator () (const term t) const
+    bool operator () (term_env &env, const term t) const
     {
-	return arg_(env_.arg(t, K)) && args_(t);
+	return arg_(env, env.arg(t, K)) && args_(env,t);
     }
 
-    term_env &env_;
     Arg arg_;
     pattern_args<N-1, K+1, Args...> args_;
 };
 
 template<size_t K, typename Arg> struct pattern_args<1,K,Arg> {
-    pattern_args(term_env &env, Arg arg) : env_(env), arg_(arg)
+    pattern_args(Arg arg) : arg_(arg)
     { }
 
-    bool operator () (const term t) const
+    bool operator () (term_env &env, const term t) const
     {
-	return arg_(env_.arg(t, K));
+	return arg_(env, env.arg(t, K));
     }
-
-    term_env &env_;
     Arg arg_;
 };
 
 struct pattern_con {
     pattern_con(con_cell c) : c_(c) { }
 
-    bool operator () (const term t) const {
+    bool operator () (term_env &, const term t) const {
 	return t.tag() == tag_t::CON
 	       && reinterpret_cast<const con_cell &>(t) == c_;
     }
-
     con_cell c_;
 };
 
 template<typename...Args> struct pattern_str {
-    pattern_str(term_env &env, con_cell f, Args... args)
-	: env_(env), f_(f), args_(env, args...) { }
+    pattern_str(con_cell f, Args... args)
+	: f_(f), args_(args...) { }
 
-    bool operator () (const term t) const
-    { return t.tag() == tag_t::STR && env_.functor(t) == f_ && args_(t); }
+    bool operator () (term_env &env, const term t) const
+    { return t.tag() == tag_t::STR && env.functor(t) == f_ && args_(env,t); }
 
-    term_env &env_;
     con_cell f_;
     pattern_args<sizeof...(Args), 0, Args...> args_;
 };
@@ -74,7 +69,7 @@ struct pattern {
     template<typename...Args> pattern_str<Args...> str(con_cell f,
 						       Args... args)
     {
-	return pattern_str<Args...>(env_, f, args...);
+	return pattern_str<Args...>(f, args...);
     }
 
     term_env &env_;

@@ -35,8 +35,8 @@ static void test_simple_match()
 					       pat.con("baz",0)));
 
 	
-	std::cout << "Matching: " << p(t) << "\n";
-	assert(p(t));
+	std::cout << "Matching: " << p(env, t) << "\n";
+	assert(p(env, t));
     }
 }
 
