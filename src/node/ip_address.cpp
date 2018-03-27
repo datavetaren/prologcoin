@@ -18,7 +18,7 @@ void ip_address::set_addr(const boost::asio::ip::address &ip)
 
 ip_address::ip_address(const std::string &str)
 {
-    set_addr(boost::asio::ip::make_address(str));
+    set_addr(boost::asio::ip::address::from_string(str));
 }
 
 boost::asio::ip::address ip_address::to_addr() const

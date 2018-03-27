@@ -33,7 +33,7 @@ protected:
     using term_env = prologcoin::common::term_env;
 
 public:
-    enum connection_type { IN, OUT };
+    enum connection_type { CONNECTION_IN, CONNECTION_OUT };
 
     connection(self_node &self, connection_type type, term_env &env);
     ~connection() = default;

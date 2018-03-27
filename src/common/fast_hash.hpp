@@ -25,6 +25,12 @@ public:
 	return h;
     }
 
+    friend inline fast_hash & operator << (fast_hash &h, unsigned short val)
+    {
+        h << static_cast<uint64_t>(val);
+	return h;
+    }
+
     friend inline fast_hash & operator << (fast_hash &h, unsigned long val)
     {
 	h << static_cast<uint64_t>(val);

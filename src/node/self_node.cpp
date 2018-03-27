@@ -1,3 +1,4 @@
+#include "asio_win32_check.hpp"
 #include <boost/asio/placeholders.hpp>
 #include <boost/date_time/posix_time/posix_time.hpp>
 #include "self_node.hpp"
@@ -183,13 +184,13 @@ void self_node::prune_dead_connections()
     boost::lock_guard<boost::recursive_mutex> guard(lock_);
     while (!closed_.empty()) {
 	auto *c = closed_.back();
-	if (c->type() == connection::IN) {
+	if (c->type() == connection::CONNECTION_IN) {
 	    auto *s = reinterpret_cast<in_connection *>(c)->get_session();
 	    if (s != nullptr) {
 		s->reset_connection();
 	    }
 	} else {
-	    assert(c->type() == connection::OUT);
+	    assert(c->type() == connection::CONNECTION_OUT);
 	    auto *out = reinterpret_cast<out_connection *>(c);
 	    switch (out->out_type()) {
 	    case out_connection::STANDARD: num_standard_out_connections_--; break;
@@ -265,12 +266,12 @@ bool self_node::join_us(uint64_t us)
 
 void self_node::disconnect(connection *conn)
 {
-    auto &conn_set = (conn->type() == connection::IN) ? in_connections_ : out_connections_;
+    auto &conn_set = (conn->type() == connection::CONNECTION_IN) ? in_connections_ : out_connections_;
     auto it = std::find(conn_set.begin(), conn_set.end(), conn);
     if (it != conn_set.end()) {
 	conn_set.erase(it);
     }
-    if (conn->type() == connection::OUT) {
+    if (conn->type() == connection::CONNECTION_OUT) {
 	auto *out_conn = reinterpret_cast<out_connection *>(conn);
 	if (out_conn->out_type() == out_connection::STANDARD) {
 	    out_standard_ips_.erase(out_conn->ip());

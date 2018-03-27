@@ -53,8 +53,8 @@ inline boost::asio::io_service & connection::get_io_service()
 void connection::delete_connection(connection *conn)
 {
     switch (conn->type()) {
-    case IN: delete reinterpret_cast<in_connection *>(conn); break;
-    case OUT: delete reinterpret_cast<out_connection *>(conn); break;
+    case CONNECTION_IN: delete reinterpret_cast<in_connection *>(conn); break;
+    case CONNECTION_OUT: delete reinterpret_cast<out_connection *>(conn); break;
     default: break;
     }
 }
@@ -245,7 +245,7 @@ void connection::run()
 }
 
 in_connection::in_connection(self_node &self)
-    : connection(self, IN, env_),
+    : connection(self, CONNECTION_IN, env_),
       session_(nullptr)
 {
     setup_commands();
@@ -449,7 +449,7 @@ void in_connection::process_execution(const term cmd, bool in_query)
 //
 
 out_connection::out_connection(self_node &self, out_connection::out_type_t t, const ip_service &ip)
-    :  connection(self, OUT, env_), out_type_(t), ip_(ip), use_heartbeat_(true), connected_(false)
+    :  connection(self, CONNECTION_OUT, env_), out_type_(t), ip_(ip), use_heartbeat_(true), connected_(false)
 {
     using namespace boost::system;
 

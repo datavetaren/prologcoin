@@ -7,6 +7,7 @@
 #include "../common/term_serializer.hpp" // buffer_t
 #include "../common/utime.hpp"
 
+#include "asio_win32_check.hpp"
 #include <boost/asio/ip/address.hpp>
 #include <boost/asio/ip/address_v4.hpp>
 #include <boost/asio/ip/address_v6.hpp>

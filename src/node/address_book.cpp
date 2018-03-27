@@ -140,7 +140,7 @@ void address_entry::read(common::term_env &env, common::term_parser &parser)
     }
     std::string addr = env.atom_name(term_addr);
     try {
-	boost::asio::ip::make_address(addr);
+        boost::asio::ip::address::from_string(addr);
     } catch (std::runtime_error &ex) {
 	throw address_book_load_exception( "Couldn't parse IP address: " + addr, line);
     }
@@ -153,7 +153,7 @@ void address_entry::read(common::term_env &env, common::term_parser &parser)
     }
     std::string src = env.atom_name(term_src);
     try {
-	boost::asio::ip::make_address(src);
+        boost::asio::ip::address::from_string(src);
     } catch (std::runtime_error &ex) {
 	throw address_book_load_exception( "Couldn't parse IP address: " + src, line);
     }
