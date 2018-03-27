@@ -9,10 +9,10 @@
 namespace prologcoin { namespace common {
 
 template<size_t N, size_t K, typename Arg, typename...Args> struct pattern_args {
-    pattern_args(Arg arg, Args... args)
+    inline pattern_args(Arg arg, Args... args)
 	: arg_(arg), args_(args...) { }
 
-    bool operator () (term_env &env, const term t) const
+    inline bool operator () (term_env &env, const term t) const
     {
 	return arg_(env, env.arg(t, K)) && args_(env,t);
     }
@@ -22,10 +22,10 @@ template<size_t N, size_t K, typename Arg, typename...Args> struct pattern_args 
 };
 
 template<size_t K, typename Arg> struct pattern_args<1,K,Arg> {
-    pattern_args(Arg arg) : arg_(arg)
+    inline pattern_args(Arg arg) : arg_(arg)
     { }
 
-    bool operator () (term_env &env, const term t) const
+    inline bool operator () (term_env &env, const term t) const
     {
 	return arg_(env, env.arg(t, K));
     }
@@ -33,20 +33,30 @@ template<size_t K, typename Arg> struct pattern_args<1,K,Arg> {
 };
 
 struct pattern_con {
-    pattern_con(con_cell c) : c_(c) { }
+    inline pattern_con(con_cell c) : c_(c) { }
 
-    bool operator () (term_env &, const term t) const {
+    inline bool operator () (term_env &, const term t) const {
 	return t.tag() == tag_t::CON
 	       && reinterpret_cast<const con_cell &>(t) == c_;
     }
     con_cell c_;
 };
 
+struct pattern_any {
+    inline pattern_any(term &any)  : any_(any) { }
+
+    inline bool operator () (term_env &, const term t) const {
+	any_ = t;
+	return true;
+    }
+    term &any_;
+};
+
 template<typename...Args> struct pattern_str {
-    pattern_str(con_cell f, Args... args)
+    inline pattern_str(con_cell f, Args... args)
 	: f_(f), args_(args...) { }
 
-    bool operator () (term_env &env, const term t) const
+    inline bool operator () (term_env &env, const term t) const
     { return t.tag() == tag_t::STR && env.functor(t) == f_ && args_(env,t); }
 
     con_cell f_;
@@ -54,20 +64,25 @@ template<typename...Args> struct pattern_str {
 };
 
 struct pattern {
-    pattern(term_env &env) : env_(env) { }
+    inline pattern(term_env &env) : env_(env) { }
 
-    pattern_con con(con_cell c)
+    inline pattern_con con(con_cell c)
     {
 	return pattern_con(c);
     }
 
-    pattern_con con(const std::string &name, size_t arity)
+    inline pattern_con con(const std::string &name, size_t arity)
     {
 	return pattern_con(env_.functor(name,arity));
     }
 
-    template<typename...Args> pattern_str<Args...> str(con_cell f,
-						       Args... args)
+    inline pattern_any any(term &a)
+    {
+	return pattern_any(a);
+    }
+
+    template<typename...Args> inline pattern_str<Args...> str(con_cell f,
+							      Args... args)
     {
 	return pattern_str<Args...>(f, args...);
     }

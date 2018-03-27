@@ -22,21 +22,32 @@ static void test_simple_match()
     term t = env.new_term( con_cell(",", 2),
 		  {con_cell("foo",0),
 		   env.new_term(con_cell(",",2),
-				{con_cell("bar",0), con_cell("baz",0)})});
-
+				{con_cell("bar",0),
+				env.new_term(con_cell(",",2),
+					     {con_cell("baz",0),
+					      con_cell("xyz",0)}
+					     )}
+				)});
 
     pattern pat(env);
 
+    term out;
     for (int i = 0; i < 10; i++) {
-	static const auto p = pat.str( con_cell(",",2),
-				       pat.con("foo",0),
-				       pat.str(con_cell(",",2),
-					       pat.con("bar",0),
-					       pat.con("baz",0)));
+	static auto p = pat.str( con_cell(",",2),
+				 pat.con("foo",0),
+				 pat.str(con_cell(",",2),
+					 pat.con("bar",0),
+					 pat.any(out)));
 
-	
-	std::cout << "Matching: " << p(env, t) << "\n";
-	assert(p(env, t));
+	bool r = p(env, t);
+	std::cout << "Matching: " << r << ": ";
+	if (r) {
+	    std::cout << env.to_string(out) << std::endl;
+	} else {
+	    std::cout << "Fail!" << std::endl;
+	}
+
+	assert(r);
     }
 }
 
