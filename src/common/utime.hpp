@@ -6,6 +6,12 @@
 
 namespace prologcoin { namespace common {
 
+class utime_parse_exception : public std::runtime_error {
+public:
+    utime_parse_exception(const std::string &msg) :
+	runtime_error(msg) { }
+};
+
 //
 // Generic class of _our_ representation of time. We use milliseconds
 // elapsed with Unix epoch.
@@ -96,6 +102,8 @@ public:
     inline uint64_t in_mm() const { return time_ / 60000000; }
     inline uint64_t in_hh() const { return time_ / 3600000000; }
     inline uint64_t in_dd() const { return time_ / 86400000000; }
+
+    static utime from_string(const std::string &str);
 
     bool parse(const std::string &str);
     std::string str() const;

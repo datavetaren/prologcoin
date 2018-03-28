@@ -12,18 +12,11 @@ public:
     address_verifier(out_connection &out);
 
 private:
-    int version_major_;
-    int version_minor_;
-
     void process_version(const common::term ver);
-
-    enum fail_t { ERROR_UNRECOGNIZED, ERROR_VERSION };
 
     static void check_fn(out_task &task);
 
     void check();
-
-    void fail(fail_t t);
 };
 
 }}

@@ -13,11 +13,12 @@
 #include <boost/asio/buffer.hpp>
 #include <boost/asio/ip/tcp.hpp>
 #include <boost/asio/deadline_timer.hpp>
-#include "ip_address.hpp"
-#include "ip_service.hpp"
 #include "../common/term.hpp"
 #include "../common/term_env.hpp"
 #include "../common/utime.hpp"
+#include "ip_address.hpp"
+#include "ip_service.hpp"
+#include "task.hpp"
 
 namespace prologcoin { namespace node {
 
@@ -149,73 +150,6 @@ private:
 //
 class out_connection;
 
-class out_task {
-public:
-    using term_env = prologcoin::common::term_env;
-    using term = prologcoin::common::term;
-    using utime = prologcoin::common::utime;
-
-    enum state_t {
-	IDLE = 0,
-	SEND = 1,
-	RECEIVED = 2
-    };
-
-    out_task();
-    out_task(out_connection &out, void (*fn)(out_task &));
-
-    inline void run() {
-	(*fn_)(*this);
-    }
-
-    inline void set_query(const term t)
-    { set_term(env_->new_term(common::con_cell("query",1), {t})); }
-
-    term get_result();
-
-    inline term_env & env() { return *env_; }
-
-    const ip_service & ip() const;
-
-    inline out_connection & connection() { return *out_; }
-    inline const out_connection & connection() const { return *out_; }
-
-    self_node & self();
-
-    inline bool expiring() const { return utime::now() >= get_when(); }
-
-    inline state_t get_state() const { return state_; }
-    inline void set_state(state_t st) { state_ = st; }
-
-    inline utime get_when() const { return when_; }
-    inline void set_when(utime when) { when_ = when; }
-
-    inline term get_term() const { return term_; }
-    inline void set_term(term t) { term_ = t; }
-
-    inline bool operator < (const out_task &other) const {
-	return get_when() < other.get_when();
-    }
-
-    inline bool operator == (const out_task &other) const {
-	return get_when() == other.get_when();
-    }
-
-    bool is_connected() const;
-
-    template<uint64_t C> void reschedule(utime::dt<C> dt);
-    void reschedule(utime t);
-    void reschedule_last();
-
-private:
-    out_connection *out_;
-    term_env *env_;
-    void (*fn_)(out_task &task);
-    state_t state_;
-    utime when_;
-    term term_;
-};
-
 class out_connection : public connection {
 public:
     using utime = prologcoin::common::utime;
@@ -296,37 +230,6 @@ private:
     std::priority_queue<out_task> work_;
     utime last_in_work_;
 };
-
-inline out_task::out_task(out_connection &out, void (*fn)(out_task &task) )
-    : out_(&out), env_(&out.env()), fn_(fn), state_(IDLE), when_(utime::now())
-{
-}
-
-template<uint64_t C> inline void out_task::reschedule(utime::dt<C> dt)
-{ connection().reschedule(*this, dt); }
-
-inline void out_task::reschedule(utime t)
-{ connection().reschedule(*this, t); }
-
-inline void out_task::reschedule_last()
-{ connection().reschedule_last(*this); }
-
-inline bool out_task::is_connected() const
-{ return connection().is_connected(); }
-
-inline const ip_service & out_task::ip() const
-{ return connection().ip(); }
-
-inline self_node & out_task::self()
-{ return connection().self(); }
-
-	/*
-inline out_task::out_task(out_task &&other)
-    : out_(other.out_), env_(other.env_), fn_(other.fn_),
-      state_(other.state_), when_(other.when_)
-{
-}
-	*/
 
 }}
 

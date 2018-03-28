@@ -64,6 +64,7 @@ public:
     static const size_t MAX_BUFFER_SIZE = 65536;
     static const size_t DEFAULT_NUM_STANDARD_OUT_CONNECTIONS = 8;
     static const size_t DEFAULT_NUM_VERIFIER_CONNECTIONS = 1;
+    static const size_t DEFAULT_NUM_DOWNLOAD_ADDRESSES = 100;
 
     self_node(unsigned short port = DEFAULT_PORT);
 
@@ -101,6 +102,10 @@ public:
 	timer_.expires_from_now(boost::posix_time::microseconds(
 				timer_interval_microseconds_));
 
+    }
+
+    inline size_t get_num_download_addresses() const {
+	return num_download_addresses_;
     }
 
     void for_each_in_session( const std::function<void (in_session_state *)> &fn);
@@ -172,6 +177,7 @@ private:
 
     uint64_t timer_interval_microseconds_;
     uint64_t fast_timer_interval_microseconds_;
+    size_t num_download_addresses_;
 };
 
 inline address_book_wrapper::address_book_wrapper(self_node &self, address_book &book) : self_(self), book_(book)

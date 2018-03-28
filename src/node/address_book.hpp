@@ -41,21 +41,27 @@ public:
 
     address_entry();
     address_entry(const address_entry &other);
-    address_entry(const ip_address &addr, const ip_address &src,
-		  unsigned short port);
+    address_entry(const ip_address &addr, unsigned short port,
+		  const ip_address &src_addr, unsigned short src_port);
     address_entry(const ip_address &addr, unsigned short port);
     address_entry(const ip_service &ip);
 
     inline size_t id() const { return id_; }
-    inline const ip_address & source() const { return source_; }
+    inline const ip_service & source() const { return source_; }
     inline int32_t score() const { return score_; }
     inline utime time() const { return time_; }
+    inline int32_t version_major() const { return version_major_; }
+    inline int32_t version_minor() const { return version_minor_; }
     inline const buffer_t & comment() const { return comment_; }
     std::string comment_str() const;
 
-    inline void set_source(const ip_address &src) { source_ = src; }
+    inline void set_source(const ip_address &addr, unsigned short port)
+    { source_ = ip_service(addr, port); }
+    inline void set_source(const ip_service &src) { source_ = src; }
     inline void set_score(int32_t score) { score_ = score; }
     inline void set_time(const utime time) { time_ = time; }
+    inline void set_version(int32_t major, int32_t minor)
+    { version_major_ = major; version_minor_ = minor; }
 
     void set_comment(const common::term t, common::term_env &src);
     inline void set_comment(buffer_t comment) { comment_ = comment; }
@@ -79,6 +85,8 @@ public:
 	       port() == other.port() &&
 	       score() == other.score() &&
 	       time() == other.time() &&
+  	       version_major() == other.version_major() &&
+  	       version_minor() == other.version_minor() &&
 	       comment() == other.comment();
     }
 
@@ -86,6 +94,7 @@ public:
     void write( common::term_env &env, common::term_emitter &emitter ) const;
 
     common::term to_term(common::term_env &env) const;
+    bool from_term(common::term_env &env, const common::term t);
 
     std::string str() const;
 
@@ -93,9 +102,11 @@ private:
     inline void set_id(size_t id) const { id_ = id; }
 
     mutable size_t id_;       // Identifier
-    ip_address source_;       // Where the IP service (above) came from
+    ip_service source_;       // Where the IP service came from
     int32_t score_;           // Current score
     utime time_;              // Last time we accessed it
+    int32_t version_major_;   // Major version
+    int32_t version_minor_;   // Minor version
     buffer_t comment_;        // Extra information
 
     friend class address_book;

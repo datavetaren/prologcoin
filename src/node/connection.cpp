@@ -22,6 +22,21 @@ term out_task::get_result()
     return env().arg(r, 0);
 }
 
+std::string out_task::reason_str(out_task::reason_t reason)
+{
+    switch (reason) {
+    case ERROR_UNRECOGNIZED: return "ERROR_UNRECOGNIZED";
+    case ERROR_VERSION: return "ERROR_VERSION";
+    default: return "???";
+    }
+}
+
+void out_task::fail(out_task::reason_t reason)
+{
+    std::cout << "out_task::fail(): reason=" << reason_str(reason)
+	      << std::endl;
+}
+
 connection::connection(self_node &self,
 		       connection::connection_type type,
 		       term_env &env)
@@ -412,8 +427,9 @@ void in_connection::process_execution(const term cmd, bool in_query)
 	    uint64_t cost = 0;
 	    if (in_query) {
 		if (cmd != con_cell("next",0)) {
+		    uint64_t cost = 0;
 		    reply_error(e.new_term(e.functor("unrecognized_command",1)
-					   ,{cmd}));
+				   ,{e.copy(cmd, session_->env(),cost)}));
 		    return;
 		}
 	    }

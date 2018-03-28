@@ -31,7 +31,7 @@ public:
 	return h;
     }
 
-    friend inline fast_hash & operator << (fast_hash &h, unsigned long val)
+    friend inline fast_hash & operator << (fast_hash &h, size_t val)
     {
 	h << static_cast<uint64_t>(val);
 	return h;

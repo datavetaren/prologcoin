@@ -18,11 +18,13 @@ self_node::self_node(unsigned short port)
       socket_(ioservice_),
       strand_(ioservice_),
       timer_(ioservice_),
+      comment_(env_.empty_list()),
       recent_in_connection_(nullptr),
       preferred_num_standard_out_connections_(DEFAULT_NUM_STANDARD_OUT_CONNECTIONS),
       preferred_num_verifier_connections_(DEFAULT_NUM_VERIFIER_CONNECTIONS),
       num_standard_out_connections_(0),
-      num_verifier_connections_(0)
+      num_verifier_connections_(0),
+      num_download_addresses_(DEFAULT_NUM_DOWNLOAD_ADDRESSES)
 {
     set_timer_interval(utime::ss(DEFAULT_TIMER_INTERVAL_SECONDS));
 }

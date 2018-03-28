@@ -38,7 +38,7 @@ static void test_simple_match()
 	auto p = pat.str( con_cell(",",2),
 			  pat.con("foo",0),
 			  pat.str(con_cell(",",2),
-				  pat.any(ival),
+				  pat.any_int(ival),
 				  pat.any(out)));
 
 	bool r = p(env, t);

@@ -5,33 +5,42 @@
 #include "address_book.hpp"
 #include "ip_address.hpp"
 #include "../common/random.hpp"
+#include "../common/checked_cast.hpp"
+#include "../common/term_match.hpp"
 
 namespace prologcoin { namespace node {
 
 address_entry::address_entry()
-    : ip_service(), id_(0), score_(0), time_(0)
+    : ip_service(), id_(0), score_(0), time_(0), version_major_(0),
+      version_minor_(0)
 {
 }
 
 address_entry::address_entry(const address_entry &other)
     : ip_service(other), id_(other.id_), source_(other.source_),
-      score_(other.score_), time_(other.time_), comment_(other.comment_)
+      score_(other.score_), time_(other.time_),
+      version_major_(other.version_major_),
+      version_minor_(other.version_minor_),
+      comment_(other.comment_)
 {
 }
 
-address_entry::address_entry(const ip_address &addr, const ip_address &src,
-			     unsigned short port)
-    : ip_service(addr, port), id_(0), source_(src), score_(0), time_(0)
+address_entry::address_entry(const ip_address &addr, unsigned short port,
+			     const ip_address &src_addr, unsigned short src_port)
+    : ip_service(addr, port), id_(0), source_(src_addr, src_port),
+      score_(0), time_(0), version_major_(0), version_minor_(0)
 {
 }
 
 address_entry::address_entry(const ip_address &addr, unsigned short port)
-    : ip_service(addr, port), id_(0), score_(0), time_(0)
+    : ip_service(addr, port), id_(0), score_(0), time_(0),
+      version_major_(0), version_minor_(0)
 {
 }
 
 address_entry::address_entry(const ip_service &ip)
-    : ip_service(ip), id_(0), score_(0), time_(0)
+    : ip_service(ip), id_(0), score_(0), time_(0), version_major_(0),
+      version_minor_(0)
 {
 }
 
@@ -78,19 +87,82 @@ common::term address_entry::to_term(common::term_env &env) const
     using namespace prologcoin::common;
 
     term term_addr = env.functor(addr().str(), 0);
-    term term_src = env.functor(source().str(), 0);
     term term_port = int_cell(port());
+    term term_src_addr = env.functor(source().addr().str(), 0);
+    term term_src_port = int_cell(source().port());
     term term_score = int_cell(static_cast<int64_t>(score()));
     term term_time = env.functor(time().str(), 0);
 
+    term term_version = env.new_term(env.functor("ver",2),
+				     {int_cell(version_major()),
+				      int_cell(version_minor())});
     term_serializer ser(env);
     term term_comment = (comment().size() > 0) ? ser.read(comment()) : env.empty_list();
 
     
-    term term_entry = env.new_term(env.functor("entry",6),
-	   {term_addr, term_src, term_port,
-	    term_score, term_time, term_comment});
+    term term_entry = env.new_term(env.functor("entry",8),
+	   {term_addr,term_port, term_src_addr, term_src_port,
+	    term_score, term_time, term_version, term_comment});
+
     return term_entry;
+}
+
+bool address_entry::from_term(common::term_env &env, const common::term t) 
+{
+    using namespace prologcoin::common;
+    static const con_cell entry_8("entry",8);
+
+    pattern p(env);
+
+    con_cell e_addr;
+    int64_t e_port;
+    con_cell e_src_addr;
+    int64_t e_src_port;
+    int64_t e_score;
+    con_cell e_time;
+    int64_t e_version_major;
+    int64_t e_version_minor;
+    term e_comment;
+    auto pat = p.str(entry_8,
+		     p.any_atom(e_addr),
+		     p.any_int(e_port),
+		     p.any_atom(e_src_addr),
+		     p.any_int(e_src_port),
+		     p.any_int(e_score),
+		     p.any_atom(e_time),
+		     p.str(con_cell("ver",2),
+			   p.any_int(e_version_major),
+			   p.any_int(e_version_minor)),
+		     p.any(e_comment));
+    if (!pat(env, t)) {
+	return false;
+    }
+
+    try {
+	auto addr = ip_address(env.atom_name(e_addr));
+	auto port = checked_cast<unsigned short>(e_port);
+	auto src_addr = ip_address(env.atom_name(e_src_addr));
+	auto src_port = checked_cast<unsigned short>(e_src_port);
+	auto score = checked_cast<int64_t>(e_score, -1000000, 1000000);
+	utime time = utime::from_string(env.atom_name(e_time));
+	auto version_major = checked_cast<int32_t>(e_version_major, 0, 1000);
+	auto version_minor = checked_cast<int32_t>(e_version_minor, 0, 1000);
+	term_serializer ser(env);
+	term_serializer::buffer_t comment;
+	ser.write(comment, e_comment);
+
+	set_addr(addr);
+	set_port(port);
+	set_source(src_addr, src_port);
+	set_score(score);
+	set_time(time);
+	set_version(version_major, version_minor);
+	set_comment(comment);
+    } catch (std::runtime_error &err) {
+	return false;
+    }
+
+    return true;
 }
 
 void address_entry::write(common::term_env &env, common::term_emitter &emitter) const
@@ -126,17 +198,17 @@ void address_entry::read(common::term_env &env, common::term_parser &parser)
     int line = parser.line(parser.positions());
 
     if (t.tag() != tag_t::STR) {
-	throw address_book_load_exception( "Expected functor entry/6, but got: " + env.to_string(t), line);
+	throw address_book_load_exception( "Expected functor entry/8, but got: " + env.to_string(t), line);
     }
     
-    if (env.functor(t) != env.functor("entry",6)) {
-	throw address_book_load_exception( "Expected functor entry/6, but got: " + env.to_string(env.functor(t)), line);
+    if (env.functor(t) != env.functor("entry",8)) {
+	throw address_book_load_exception( "Expected functor entry/8, but got: " + env.to_string(env.functor(t)), line);
     }
 
     term term_addr = env.arg(t, 0);
     line = parser.line(parser.position_arg(parser.positions(),0));
     if (term_addr.tag() != tag_t::CON) {
-	throw address_book_load_exception( "First argument of entry/6 should be an atom to represent an IP-address, but was " + env.to_string(term_addr), line);
+	throw address_book_load_exception( "First argument of entry/8 should be an atom to represent an IP-address, but was " + env.to_string(term_addr), line);
     }
     std::string addr = env.atom_name(term_addr);
     try {
@@ -145,47 +217,59 @@ void address_entry::read(common::term_env &env, common::term_parser &parser)
 	throw address_book_load_exception( "Couldn't parse IP address: " + addr, line);
     }
 
-
-    term term_src = env.arg(t, 1);
+    term term_port = env.arg(t, 1);
     line = parser.line(parser.position_arg(parser.positions(),1));
-    if (term_addr.tag() != tag_t::CON) {
-	throw address_book_load_exception( "Second argument of entry/6 should be an atom to represent an IP-address, but was " + env.to_string(term_src), line);
-    }
-    std::string src = env.atom_name(term_src);
-    try {
-        boost::asio::ip::address::from_string(src);
-    } catch (std::runtime_error &ex) {
-	throw address_book_load_exception( "Couldn't parse IP address: " + src, line);
-    }
-
-    term term_port = env.arg(t, 2);
-    line = parser.line(parser.position_arg(parser.positions(),2));
     if (term_port.tag() != tag_t::INT) {
-	throw address_book_load_exception( "Third argument of entry/6 should be an integer to represent a port number, but was " + env.to_string(term_port), line);
+	throw address_book_load_exception( "Second argument of entry/8 should be an integer to represent a port number, but was " + env.to_string(term_port), line);
     }
     int64_t port_value = reinterpret_cast<const int_cell &>(term_port).value();
     if (!(port_value >= 0 && port_value <= 65535)) {
-	throw address_book_load_exception( "Third argument of entry/6 is port number but was not in valid range 0..65535: " + env.to_string(term_port),line);
+	throw address_book_load_exception( "Second argument of entry/6 is port number but was not in valid range 0..65535: " + env.to_string(term_port),line);
     }
     unsigned short port = static_cast<unsigned short>(term_port.value());
     
-    term term_score = env.arg(t, 3);
+
+    term term_src_addr = env.arg(t, 2);
+    line = parser.line(parser.position_arg(parser.positions(),2));
+    if (term_addr.tag() != tag_t::CON) {
+	throw address_book_load_exception( "Third argument of entry/8 should be an atom to represent an IP-address, but was " + env.to_string(term_src_addr), line);
+    }
+    std::string src_addr = env.atom_name(term_src_addr);
+    try {
+        boost::asio::ip::address::from_string(src_addr);
+    } catch (std::runtime_error &ex) {
+	throw address_book_load_exception( "Couldn't parse IP address: " + src_addr, line);
+    }
+
+    term term_src_port = env.arg(t, 3);
     line = parser.line(parser.position_arg(parser.positions(),3));
+    if (term_port.tag() != tag_t::INT) {
+	throw address_book_load_exception( "Fourth argument of entry/8 should be an integer to represent a port number, but was " + env.to_string(term_port), line);
+    }
+    int64_t src_port_value = reinterpret_cast<const int_cell &>(term_src_port).value();
+    if (!(src_port_value >= 0 && src_port_value <= 65535)) {
+	throw address_book_load_exception( "Fourth argument of entry/8 is port number but was not in valid range 0..65535: " + env.to_string(term_src_port),line);
+    }
+    unsigned short src_port = static_cast<unsigned short>(term_src_port.value());
+
+
+    term term_score = env.arg(t, 4);
+    line = parser.line(parser.position_arg(parser.positions(),4));
     if (term_score.tag() != tag_t::INT) {
-	throw address_book_load_exception( "Fourth argument of entry/6 should be an integer to represent a score, but was " + env.to_string(term_score), line);
+	throw address_book_load_exception( "Fifth argument of entry/8 should be an integer to represent a score, but was " + env.to_string(term_score), line);
     }
 
     int64_t score_value = reinterpret_cast<const int_cell &>(term_score).value();
     if (score_value < -1000000 || score_value > 1000000) {
-	throw address_book_load_exception( "Fourth argument of entry/6 represents score but was not in the valid range -1000000..1000000: " + env.to_string(term_score), line);
+	throw address_book_load_exception( "Fifth argument of entry/8 represents score but was not in the valid range -1000000..1000000: " + env.to_string(term_score), line);
 
     }
     int32_t score = static_cast<int32_t>(score_value);
 
-    term term_time = env.arg(t, 4);
-    line = parser.line(parser.position_arg(parser.positions(),4));
+    term term_time = env.arg(t, 5);
+    line = parser.line(parser.position_arg(parser.positions(),5));
     if (term_time.tag() != tag_t::CON) {
-	throw address_book_load_exception( "Fifth argument of entry/6 should be an atom to represent time, but was " + env.to_string(term_time), line);
+	throw address_book_load_exception( "Sixth argument of entry/8 should be an atom to represent time, but was " + env.to_string(term_time), line);
     }
     std::string time_str = env.to_string(term_time);
     if (time_str[0] == '\'' && time_str[time_str.size()-1] == '\'') {
@@ -194,11 +278,26 @@ void address_entry::read(common::term_env &env, common::term_parser &parser)
     }
     utime ut;
     if (!ut.parse(time_str)) {
-	throw address_book_load_exception( "Fifth argument of entry/6 should represent time, but failed to parse: " + time_str, line);
+	throw address_book_load_exception( "Sixth argument of entry/8 should represent time, but failed to parse: " + time_str, line);
     }
 
-    term term_comment = env.arg(t, 5);
-    line = parser.line(parser.position_arg(parser.positions(),5));
+    term term_ver = env.arg(t, 6);
+    pattern p(env);
+    int64_t version_major = 0, version_minor = 0;
+    auto pat = p.str(con_cell("ver", 2), p.any_int(version_major), p.any_int(version_minor));
+    if (!pat(env, term_ver)) {
+	throw address_book_load_exception( "Seventh argument of entry/8 should represent a version ver(Major,Minor) but was: " + env.to_string(term_ver), line);
+    }
+    if (version_major < 0 || version_major > 1000) {
+	throw address_book_load_exception( "Seventh argument of entry/8 should represents a version but major version number is outside the valid range 0..1000, it was: " + boost::lexical_cast<std::string>(version_major), line);
+    }
+
+    if (version_minor < 0 || version_minor > 1000) {
+	throw address_book_load_exception( "Seventh argument of entry/8 should represents a version but minor version number is outside the valid range 0..1000, it was: " + boost::lexical_cast<std::string>(version_minor), line);
+    }
+
+    term term_comment = env.arg(t, 7);
+    line = parser.line(parser.position_arg(parser.positions(),7));
     term_serializer::buffer_t buf;
 
     if (!env.is_empty_list(term_comment)) {
@@ -207,10 +306,12 @@ void address_entry::read(common::term_env &env, common::term_parser &parser)
     }
 
     set_addr(addr);
-    set_source(src);
     set_port(port);
+    set_source(src_addr, src_port);
     set_score(score);
     set_time(ut);
+    set_version(static_cast<int32_t>(version_major),
+		static_cast<int32_t>(version_minor));
     set_comment(buf);
 }
 
@@ -236,14 +337,17 @@ void address_book::print(std::ostream &out, const std::vector<address_entry> &en
 {
     using namespace prologcoin::common;
 
-    out << std::setw(16) << "Address" << " " << std::setw(16) << "Source" << " Port" << std::setw(7) << " Score"  << std::setw(21) << " Time" << " Comment" << std::endl;
+    out << std::setw(14) << "Address" << " Port" << " " << std::setw(14) << "Source" << " Port" << std::setw(7) << " Score"  << "  Ver" << std::setw(20) << " Time" << " Comment" << std::endl;
 
     for (auto &e : entries) {
-	out << std::setw(16) << e.addr().str(16) << " "
-	    << std::setw(16) << e.source().str(16) << " "
+	std::string ver_str = boost::lexical_cast<std::string>(e.version_major()) + "." + boost::lexical_cast<std::string>(e.version_minor());
+	out << std::setw(14) << e.addr().str(14) << " "
 	    << std::setw(4) << e.port() << " "
+	    << std::setw(14) << e.source().addr().str(14) << " "
+	    << std::setw(4) << e.source().port() << " "
 	    << std::setw(6) << e.score() << " "
-	    << std::setw(20) << e.time().str() << " ";
+	    << std::setw(4) << ver_str << " "
+	    << std::setw(19) << e.time().str() << " ";
 	if (e.comment().size() != 0) {
 	    try {
 		term_env env;

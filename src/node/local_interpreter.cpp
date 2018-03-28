@@ -33,6 +33,7 @@ bool me_builtins::comment_1(interpreter_base &interp0, size_t arity, term args[]
     auto &interp = to_local(interp0);
     term comment = interp.copy(interp.self().get_comment(),
 			       interp.self().env());
+
     return interp.unify(args[0], comment);
 }
 

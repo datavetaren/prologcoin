@@ -53,17 +53,31 @@ struct pattern_any {
 };
 
 struct pattern_any_int {
-    inline pattern_any_int(int64_t &i) : any_(i) { }
+    inline pattern_any_int(int64_t &i) : i_(i) { }
 
     inline bool operator () (term_env &, const term t) const {
 	if (t.tag() != tag_t::INT) {
 	    return false;
 	}
 	auto const &ic = reinterpret_cast<const int_cell &>(t);
-	any_ = ic.value();
+	i_ = ic.value();
 	return true;
     }
-    int64_t &any_;
+    int64_t &i_;
+};
+
+struct pattern_any_atom {
+    inline pattern_any_atom(con_cell &c) : cc_(c) { }
+
+    inline bool operator () (term_env &env, const term t) const {
+	if (!env.is_atom(t)) {
+	    return false;
+	}
+	auto const cc = env.functor(t);
+	cc_ = cc;
+	return true;
+    }
+    con_cell &cc_;
 };
 
 struct pattern_ignore {
@@ -103,9 +117,14 @@ struct pattern {
 	return pattern_any(a);
     }
 
-    inline pattern_any_int any(int64_t &i)
+    inline pattern_any_int any_int(int64_t &i)
     {
 	return pattern_any_int(i);
+    }
+
+    inline pattern_any_atom any_atom(con_cell &c)
+    {
+	return pattern_any_atom(c);
     }
 
     inline pattern_ignore ignore()

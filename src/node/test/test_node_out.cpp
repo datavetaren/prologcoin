@@ -78,8 +78,10 @@ static void test_address_verifier()
 
     // Add new unverified address
     address_entry unverified(ip_address("127.0.0.1"),
+			     self_node::DEFAULT_PORT+1,
 			     ip_address("127.0.0.1"),
-			     self_node::DEFAULT_PORT+1);
+		   	     self_node::DEFAULT_PORT+1);
+
     self.book()().add(unverified);
 
     //

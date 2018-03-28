@@ -1,4 +1,5 @@
 #include "../common/term_match.hpp"
+#include "../common/checked_cast.hpp"
 #include "self_node.hpp"
 #include "address_verifier.hpp"
 #include "local_interpreter.hpp"
@@ -50,7 +51,7 @@ void address_verifier::check()
 	auto const version = con_cell("version",1);
 	auto const comment_1 = con_cell("comment",1);
 	auto const ver = con_cell("ver",2);
-	int64_t major_ver = 0, minor_ver = 0;
+	int64_t major_ver0 = 0, minor_ver0 = 0;
 	term comment;
 
 	//
@@ -62,8 +63,8 @@ void address_verifier::check()
 					    p.con(me),
 					    p.str(version,
 						  p.str(ver,
-							p.any(major_ver),
-							p.any(minor_ver)))),
+							p.any_int(major_ver0),
+							p.any_int(minor_ver0)))),
 				      p.str(colon,
 					    p.con(me),
 					    p.str(comment_1,
@@ -72,6 +73,15 @@ void address_verifier::check()
 			       p.ignore());
 
 	if (!pat(e, get_result())) {
+	    fail(ERROR_UNRECOGNIZED);
+	    return;
+	}
+
+	int32_t major_ver = 0, minor_ver = 0;
+	try {
+	    major_ver = checked_cast<int32_t>(major_ver0, 0, 1000);
+	    minor_ver = checked_cast<int32_t>(minor_ver0, 0, 1000);
+	} catch (checked_cast_exception &ex) {
 	    fail(ERROR_UNRECOGNIZED);
 	    return;
 	}
@@ -86,15 +96,11 @@ void address_verifier::check()
 	// Now add a verified entry with neutral score
 	address_entry verified(ip());
 	verified.set_score(address_entry::VERIFIED_INITIAL_SCORE);
+	verified.set_version(major_ver, minor_ver);
 	verified.set_comment(comment, e);
 	
 	book().add(verified);
     }
-}
-
-void address_verifier::fail(address_verifier::fail_t reason)
-{
-    std::cout << "address_verifier::fail(): reason=" << reason << std::endl;
 }
 
 }}

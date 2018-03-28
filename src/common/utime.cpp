@@ -68,4 +68,13 @@ void utime::sleep_until(const utime &ut)
     boost::this_thread::sleep_for(boost::chrono::microseconds(delta_us));
 }
 
+utime utime::from_string(const std::string &str)
+{
+    utime u;
+    if (u.parse(str)) {
+	throw utime_parse_exception( "Couldn't parse utime " + str);
+    }
+    return u;
+}
+
 }}

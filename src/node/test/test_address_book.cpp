@@ -81,8 +81,9 @@ static void fill_with_random(address_book &book, size_t n)
 	    }
 
 	    bool use_self = (i % 2) == 0;
-	    address_entry e(ip, (use_self ? self : src),
-			    self_node::DEFAULT_PORT);
+	    address_entry e(ip, self_node::DEFAULT_PORT,
+			   (use_self ? self : src),
+		           (use_self ? 0 : self_node::DEFAULT_PORT+1));
 	    e.set_time(t);
 	    h << j;
 	    e.set_score(static_cast<uint32_t>(h) % 10000);
@@ -236,7 +237,7 @@ static void test_address_book_spilling()
     header("test_address_book_spilling");
 
     ip_address ip("192.168.1.1");
-    ip_address src("127.0.0.1");
+    ip_service src("127.0.0.1", 0);
 
     address_book book;
 
@@ -244,7 +245,7 @@ static void test_address_book_spilling()
 
     std::cout << "Create " << n << " entries in the same network..." << std::endl;
     for (size_t i = 0; i < 1000; i++) {
-	address_entry e(ip, src, 1234);
+	address_entry e(ip, 1234, src.addr(), src.port());
 	book.add(e);
 	next_address(ip);
     }
@@ -261,7 +262,7 @@ static void test_address_book_spilling()
     std::cout << "Create " << n << " entries with different sources..." << std::endl;
 
     for (size_t i = 0; i < n; i++) {
-	address_entry e(ip, src, 1234);
+	address_entry e(ip, 1234, src.addr(), src.port());
 	book.add(e);
 	next_address(ip);
 	next_address(src);
@@ -278,10 +279,10 @@ static void test_address_book_spilling()
 
     std::cout << "Create " << n << " verified entries from same network..." << std::endl;
     
-    ip_address nosrc;
+    ip_service nosrc;
     int max_score = 0;
     for (size_t i = 0; i < n; i++) {
-	address_entry e(ip, nosrc, 1234);
+	address_entry e(ip, 1234, nosrc.addr(), nosrc.port());
 	e.set_score(100+10*i);
 	max_score = std::max(e.score(), max_score);
 	book.add(e);
