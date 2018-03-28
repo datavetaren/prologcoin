@@ -31,7 +31,7 @@ public:
 	return h;
     }
 
-    friend inline fast_hash & operator << (fast_hash &h, size_t val)
+    template<typename T = size_t> friend inline fast_hash & operator << (fast_hash &h, typename std::enable_if<!std::is_same<T, uint64_t>::value, T>::type val)
     {
 	h << static_cast<uint64_t>(val);
 	return h;
