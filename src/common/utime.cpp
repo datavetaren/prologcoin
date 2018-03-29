@@ -10,9 +10,31 @@ namespace prologcoin { namespace common {
 
 static const boost::posix_time::ptime EPOCH = boost::posix_time::ptime(boost::gregorian::date(1970, 1, 1));
 
+// Avoid the BOOST posix_time overflow bug by using seconds and
+// trimming the end result with microseconds.
+// This way we can use older versions of BOOST (tested all this at 1.49)
+// This is still not year 2038 safe, but we expect a BOOST upgrade before that.
+static uint64_t to_microseconds(boost::posix_time::time_duration dt)
+{
+   uint64_t sec = static_cast<uint64_t>(dt.total_seconds()) * 1000000;
+   uint64_t usec = static_cast<uint64_t>(dt.total_microseconds()) % 1000000;
+   return sec + usec;
+}
+
+// Avoid the BOOST posix_time overflow bug by using seconds and
+// trimming the end result with microseconds.
+// This way we can use older versions of BOOST (tested all this at 1.49)
+// This is still not year 2038 safe, but we expect a BOOST upgrade before that.
+static boost::posix_time::ptime from_microseconds(uint64_t dt)
+{
+   boost::posix_time::ptime t = EPOCH + boost::posix_time::seconds(dt/1000000);
+   t += boost::posix_time::microseconds(dt % 1000000);
+   return t;
+}
+     
 utime utime::now()
 {
-    boost::posix_time::ptime t = boost::posix_time::microsec_clock::local_time();
+    boost::posix_time::ptime t = boost::posix_time::microsec_clock::universal_time();
     return utime((t - EPOCH).total_microseconds());
 }
 
@@ -25,7 +47,7 @@ utime utime::now_seconds()
 
 std::string utime::str() const
 {
-    auto t = EPOCH + boost::posix_time::microseconds(time_);
+    auto t = from_microseconds(time_);
     std::string iso = boost::posix_time::to_iso_string(t);
     auto s = iso.substr(0,4) + "." + iso.substr(4,2) + "." + iso.substr(6,2) + "T" + iso.substr(9,2) + ":" + iso.substr(11,2) + ":" + iso.substr(13,2);
     auto r = iso.substr(15);
@@ -50,7 +72,8 @@ bool utime::parse(const std::string &str)
     }
     try {
 	auto t = boost::posix_time::from_iso_string(s);
-	time_ = (t - EPOCH).total_microseconds();
+        auto dt = t - EPOCH;
+        time_ = to_microseconds(dt);
 	return true;
     } catch (std::exception &ex) {
 	return false;
@@ -65,7 +88,7 @@ void utime::sleep_until(const utime &ut)
 	return;
     }
     uint64_t delta_us = t1 - t0;
-    boost::this_thread::sleep_for(boost::chrono::microseconds(delta_us));
+    boost::this_thread::sleep(boost::posix_time::microseconds(delta_us));
 }
 
 utime utime::from_string(const std::string &str)

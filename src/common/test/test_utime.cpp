@@ -69,7 +69,14 @@ static void test_utime()
     assert(t.str() == "1970.01.02T00:00:00");
     assert(t_parsed.parse(t.str()));
     assert(t == t_parsed);
+    t = utime();
+    t += utime::yy(1);
+    std::cout << "Unix epoch + 1 year: " << t.str() << std::endl;
+    assert(t.str() == "1971.01.01T00:00:00");
+    assert(t_parsed.parse(t.str()));
+    assert(t == t_parsed);
 
+   
     utime now = utime::now();
     std::string nowstr = now.str();
     std::cout << "Now: " << nowstr << std::endl;

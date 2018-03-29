@@ -21,6 +21,14 @@ class ip_collection : public boost::noncopyable {
 public:
     inline ip_collection() : count_(0) { }
 
+    inline ip_collection(ip_collection &&other) :
+     count_(std::move(other.count_)),
+     gid_to_group_prop_(std::move(other.gid_to_group_prop_)),
+     group_to_gid_(std::move(other.group_to_gid_)),
+     scores_(std::move(other.scores_)) 
+       {  }
+
+   
     void add( const ip_service &ip, int score );
     void remove( const ip_service &ip, int score );
 

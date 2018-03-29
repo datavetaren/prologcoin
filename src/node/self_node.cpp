@@ -1,6 +1,7 @@
 #include "asio_win32_check.hpp"
 #include <boost/asio/placeholders.hpp>
 #include <boost/date_time/posix_time/posix_time.hpp>
+#include <boost/chrono.hpp>
 #include "self_node.hpp"
 #include "session.hpp"
 #include "address_verifier.hpp"
@@ -263,7 +264,7 @@ void self_node::join()
 
 bool self_node::join_us(uint64_t us)
 {
-    return thread_.try_join_for(boost::chrono::microseconds(us));
+    return thread_.timed_join(boost::posix_time::microseconds(us));
 }
 
 void self_node::disconnect(connection *conn)

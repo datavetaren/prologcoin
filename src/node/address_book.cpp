@@ -420,7 +420,8 @@ void address_book::spill_check(const address_entry &e, address_book::spill_area 
 	auto key = e.source().group();
 	ip_collection &coll = unverified_[key];
 	if (coll.size() >= MAX_SOURCE_SIZE) {
-	    remove(coll.spill());
+ 	    auto to_spill = coll.spill();
+	    remove(to_spill);
 	    num_spilled_++;
 	}
 	if (coll.size(e.group()) >= MAX_GROUP_SIZE) {

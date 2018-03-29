@@ -3,6 +3,7 @@
 
 #include <stdint.h>
 #include <string>
+#include <stdexcept>
 
 namespace prologcoin { namespace common {
 
@@ -29,6 +30,7 @@ public:
 	uint64_t value_;
     };
 
+    struct yy : public dt<31536000000000> { yy(uint64_t t) : dt(t) {} };
     struct dd : public dt<86400000000> { dd(uint64_t t) : dt(t) {} };
     struct hh : public dt<3600000000> { hh(uint64_t t) : dt(t) {} };
     struct mm : public dt<60000000> { mm(uint64_t t) : dt(t) {} };

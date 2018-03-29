@@ -5,6 +5,7 @@
 
 #include <limits>
 #include <sstream>
+#include <stdexcept>
 
 namespace prologcoin { namespace common {
 

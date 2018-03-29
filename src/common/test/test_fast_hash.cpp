@@ -47,8 +47,8 @@ static void test_fast_hash()
 {
     header( "test_fast_hash" );
 
-    static const int B = 16;
-    static const int N = 100;
+    static const size_t B = 16;
+    static const size_t N = 100;
  
     std::vector<size_t> buckets(B);
 

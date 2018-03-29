@@ -41,7 +41,6 @@ void address_downloader::process()
     } else if (get_state() == RECEIVED) {
 	auto const me = local_interpreter::ME;
 	auto const colon = local_interpreter::COLON;
-	auto const comma = local_interpreter::COMMA;
 	auto const result_3 = con_cell("result",3);
 	auto const peers_2 = con_cell("peers",2);
 	term peers;

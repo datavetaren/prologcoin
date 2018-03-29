@@ -295,7 +295,7 @@ static void test_address_book_spilling()
     std::cout << "max_score=" << max_score << std::endl;
     auto top = book.get_from_top_10_pt(10);
     book.print(std::cout, top);
-    size_t sc = max_score;
+    auto sc = max_score;
     for (auto &e : top) {
 	assert(e.score() == sc);
 	sc -= 10;
