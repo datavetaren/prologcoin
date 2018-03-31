@@ -7,9 +7,9 @@
 
 namespace prologcoin { namespace node {
 
-class address_verifier : public out_task {
+class task_address_verifier : public out_task {
 public:
-    address_verifier(out_connection &out);
+    task_address_verifier(out_connection &out);
 
 private:
     void process_version(const common::term ver);

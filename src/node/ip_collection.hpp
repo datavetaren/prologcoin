@@ -31,6 +31,7 @@ public:
    
     void add( const ip_service &ip, int score );
     void remove( const ip_service &ip, int score );
+    bool exists( const ip_service &ip );
 
     inline size_t size() const { return count_; }
     inline size_t size(uint64_t group)

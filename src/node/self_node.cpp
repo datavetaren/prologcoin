@@ -2,11 +2,12 @@
 #include <boost/asio/placeholders.hpp>
 #include <boost/date_time/posix_time/posix_time.hpp>
 #include <boost/chrono.hpp>
+#include "../common/term_serializer.hpp"
+#include "../common/random.hpp"
 #include "self_node.hpp"
 #include "session.hpp"
 #include "address_verifier.hpp"
-#include "../common/term_serializer.hpp"
-#include "../common/random.hpp"
+#include "address_downloader.hpp"
 
 namespace prologcoin { namespace node {
 
@@ -25,9 +26,11 @@ self_node::self_node(unsigned short port)
       preferred_num_verifier_connections_(DEFAULT_NUM_VERIFIER_CONNECTIONS),
       num_standard_out_connections_(0),
       num_verifier_connections_(0),
-      num_download_addresses_(DEFAULT_NUM_DOWNLOAD_ADDRESSES)
+      num_download_addresses_(DEFAULT_NUM_DOWNLOAD_ADDRESSES),
+      address_downloader_fast_mode_(false)
 {
     set_timer_interval(utime::ss(DEFAULT_TIMER_INTERVAL_SECONDS));
+    id_ = random::next();
 }
 
 void self_node::start()
@@ -75,6 +78,18 @@ void self_node::for_each_in_session(const std::function<void (in_session_state *
     }
 }
 
+void self_node::for_each_standard_out_connection(const std::function<void (out_connection *out)> &fn)
+{
+    boost::lock_guard<boost::recursive_mutex> guard(lock_);
+
+    for (auto *conn : out_connections_) {
+	auto *out_conn = reinterpret_cast<out_connection *>(conn);
+	if (out_conn->out_type() == out_connection::STANDARD) {
+	    fn(out_conn);
+	}
+    }
+}
+
 in_session_state * self_node::new_in_session(in_connection *conn)
 {
     auto *ss = new in_session_state(this, conn);
@@ -118,6 +133,8 @@ out_connection * self_node::new_standard_out_connection(const ip_service &ip)
     out_connections_.insert(out);
     out_standard_ips_.insert(ip);
     num_standard_out_connections_++;
+    task_address_downloader task(*out);
+    out->schedule(task);
     return out;
 }
 
@@ -133,7 +150,7 @@ out_connection * self_node::new_verifier_connection(const ip_service &ip)
     boost::lock_guard<boost::recursive_mutex> guard(lock_);
 
     auto *out = new out_connection(*this, out_connection::VERIFIER, ip);
-    address_verifier task(*out);
+    task_address_verifier task(*out);
     out->schedule(task);
     out_connections_.insert(out);
     num_verifier_connections_++;

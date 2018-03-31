@@ -8,35 +8,6 @@ using namespace prologcoin::common;
 
 namespace prologcoin { namespace node {
 
-term out_task::get_result()
-{
-    static const con_cell result_3("result",3);
-
-    term r = get_term();
-    if (r.tag() != tag_t::STR) {
-	return term();
-    }
-    if (!env().functor(r) == result_3) {
-	return term();
-    }
-    return env().arg(r, 0);
-}
-
-std::string out_task::reason_str(out_task::reason_t reason)
-{
-    switch (reason) {
-    case ERROR_UNRECOGNIZED: return "ERROR_UNRECOGNIZED";
-    case ERROR_VERSION: return "ERROR_VERSION";
-    default: return "???";
-    }
-}
-
-void out_task::fail(out_task::reason_t reason)
-{
-    std::cout << "out_task::fail(): reason=" << reason_str(reason)
-	      << std::endl;
-}
-
 connection::connection(self_node &self,
 		       connection::connection_type type,
 		       term_env &env)
@@ -267,12 +238,12 @@ in_connection::in_connection(self_node &self)
     prepare_receive();
     set_auto_send(true);
     set_dispatcher( [this]() { this->on_state(); } );
-    std::cout << "in_connection::in_connection()\n";
+    // std::cout << "in_connection::in_connection()\n";
 }
 
 in_connection::~in_connection()
 {
-    std::cout << "in_connection::~in_connection()\n";
+    // std::cout << "in_connection::~in_connection()\n";
 }
 
 void in_connection::setup_commands()
@@ -465,7 +436,7 @@ void in_connection::process_execution(const term cmd, bool in_query)
 //
 
 out_connection::out_connection(self_node &self, out_connection::out_type_t t, const ip_service &ip)
-    :  connection(self, CONNECTION_OUT, env_), out_type_(t), ip_(ip), use_heartbeat_(true), connected_(false)
+    :  connection(self, CONNECTION_OUT, env_), out_type_(t), ip_(ip), init_in_progress_(false), use_heartbeat_(true), connected_(false)
 {
     using namespace boost::system;
 
@@ -489,7 +460,7 @@ out_connection::~out_connection()
 
 out_task out_connection::create_heartbeat_task()
 {
-    return out_task(*this, &out_connection::handle_heartbeat_task_fn);
+    return out_task("heartbeat", *this, &out_connection::handle_heartbeat_task_fn);
 }
 
 void out_connection::handle_heartbeat_task_fn(out_task &task)
@@ -521,7 +492,7 @@ void out_connection::handle_heartbeat_task(out_task &task)
 
 out_task out_connection::create_init_connection_task()
 {
-    return out_task(*this, &out_connection::handle_init_connection_task_fn);
+    return out_task("init_connection", *this, &out_connection::handle_init_connection_task_fn);
 }
 
 void out_connection::handle_init_connection_task_fn(out_task &task)
@@ -585,7 +556,8 @@ void out_connection::idle_state()
     set_state(IDLE);
     // If 'id' is empty, then we don't have a session, so we need to
     // issue a command to create one.
-    if (id_.empty()) {
+    if (id_.empty() && !init_in_progress_) {
+	init_in_progress_ = true;
 	auto task = create_init_connection_task();
 	schedule(task);
     }
@@ -611,6 +583,7 @@ void out_connection::send_next_task()
 	idle_state();
 	return;
     }
+
     next_task.set_state(out_task::SEND);
     next_task.set_term(term());
     next_task.run();
@@ -635,7 +608,9 @@ void out_connection::on_state()
 	task.set_state(out_task::RECEIVED);
 	task.set_term(r);
 	task.run();
-	send_next_task();
+	if (get_state() != KILLED) {
+	    send_next_task();
+	}
 	break;
         }
     case SENT:
@@ -643,6 +618,16 @@ void out_connection::on_state()
 	break;
     default:
 	break;
+    }
+}
+
+void out_connection::print_task_queue() const
+{
+    auto temp = work_;
+    while (!temp.empty()) {
+	auto task = temp.top();
+	std::cout << task.get_when().str() << ": " << task.description() << std::endl;
+	temp.pop();
     }
 }
 

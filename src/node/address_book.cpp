@@ -436,7 +436,6 @@ void address_book::spill_check(const address_entry &e, address_book::spill_area 
 void address_book::add(const address_entry &e)
 {
     if (ip_to_id_.find(e) != ip_to_id_.end()) {
-	std::cout << "Already exists...\n";
 	// Already exists. Exit.
 	return;
     }
@@ -539,6 +538,27 @@ void address_book::remove(size_t id)
     }
 }
 
+bool address_book::exists(const ip_service &ip)
+{
+    auto it = ip_to_id_.find(ip);
+    if (it == ip_to_id_.end()) {
+	return false;
+    }
+    if (top_10_collection_.exists(ip)) {
+	return true;
+    }
+    if (bottom_90_collection_.exists(ip)) {
+	return true;
+    }
+    auto id = it->second;
+    auto it2 = unverified_id_to_gid_.find(id);
+    if (it2 == unverified_id_to_gid_.end()) {
+	return false;
+    }
+    auto key = it2->second;
+    return unverified_[key].exists(ip);
+}
+
 void address_book::add_score(address_entry &e, int change)
 {
 }
@@ -559,6 +579,11 @@ std::vector<address_entry> address_book::get_all_true(std::function<bool (const 
 	result.push_back(e.second);
     }
     return result;
+}
+
+std::vector<address_entry> address_book::get_all()
+{
+    return get_all_true([this](const address_entry &) {return true; });
 }
 
 std::vector<address_entry> address_book::get_all_verified()

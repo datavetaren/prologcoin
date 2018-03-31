@@ -63,12 +63,16 @@ public:
     static const unsigned short DEFAULT_PORT = 8783;
     static const size_t MAX_BUFFER_SIZE = 65536;
     static const size_t DEFAULT_NUM_STANDARD_OUT_CONNECTIONS = 8;
-    static const size_t DEFAULT_NUM_VERIFIER_CONNECTIONS = 1;
+    static const size_t DEFAULT_NUM_VERIFIER_CONNECTIONS = 3;
     static const size_t DEFAULT_NUM_DOWNLOAD_ADDRESSES = 100;
 
     self_node(unsigned short port = DEFAULT_PORT);
 
     inline term_env & env() { return env_; }
+
+    inline const std::string & id() const { return id_; }
+
+    inline unsigned short port() const { return endpoint_.port(); }
 
     // Must be a Prolog term
     void set_comment(const std::string &str);
@@ -95,6 +99,15 @@ public:
 	return fast_timer_interval_microseconds_;
     }
 
+    // Makes it easier to write fast unit tests that quickly propagate
+    // addresses.
+    inline bool address_downloader_fast_mode() const {
+	return address_downloader_fast_mode_;
+    }
+    inline void set_address_downloader_fast_mode(bool b) {
+	address_downloader_fast_mode_ = b;
+    }
+
     template<uint64_t C> inline void set_timer_interval(utime::dt<C> t)
     {
 	timer_interval_microseconds_ = t;
@@ -108,7 +121,18 @@ public:
 	return num_download_addresses_;
     }
 
+    inline bool is_self(const ip_service &ip) const {
+	return self_ips_.find(ip) != self_ips_.end();
+    }
+
+    inline void add_self(const ip_service &ip) {
+	self_ips_.insert(ip);
+    }
+
     void for_each_in_session( const std::function<void (in_session_state *)> &fn);
+
+    void for_each_standard_out_connection( const std::function<void (out_connection *conn)> &fn);
+
     in_session_state * new_in_session(in_connection *conn);
     in_session_state * find_in_session(const std::string &id);
     void kill_in_session(in_session_state *sess);
@@ -116,6 +140,23 @@ public:
 
     out_connection * new_standard_out_connection(const ip_service &ip);
     out_connection * new_verifier_connection(const ip_service &ip);
+
+    class locker;
+    friend class locker;
+
+    class locker : public boost::noncopyable {
+    public:
+	inline locker(self_node &node) : lock_(&node.lock_) { lock_->lock(); }
+	inline locker(locker &&other) : lock_(std::move(other.lock_)) { }
+	inline ~locker() { lock_->unlock(); }
+
+    private:
+	boost::recursive_mutex *lock_;
+    };
+
+    inline locker locked() {
+	return locker(*this);
+    }
 
 private:
     bool join_us(uint64_t microsec);
@@ -147,6 +188,7 @@ private:
 
     common::term_env env_;
 
+    std::string id_;
     bool stopped_;
     boost::thread thread_;
     io_service ioservice_;
@@ -156,6 +198,8 @@ private:
     strand strand_;
     deadline_timer timer_;
     common::term comment_;
+
+    std::unordered_set<ip_service> self_ips_;
 
     in_connection *recent_in_connection_;
     std::unordered_set<connection *> in_connections_;
@@ -178,6 +222,8 @@ private:
     uint64_t timer_interval_microseconds_;
     uint64_t fast_timer_interval_microseconds_;
     size_t num_download_addresses_;
+
+    bool address_downloader_fast_mode_;
 };
 
 inline address_book_wrapper::address_book_wrapper(self_node &self, address_book &book) : self_(self), book_(book)

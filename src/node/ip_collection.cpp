@@ -112,6 +112,22 @@ void ip_collection::remove(const ip_service &ip, int score)
     count_--;
 }
 
+bool ip_collection::exists(const ip_service &ip)
+{
+    auto it = group_to_gid_.find(ip.group());
+    if (it == group_to_gid_.end()) {
+	return false;
+    }
+    auto gid = it->second;
+    auto &gprop = gid_to_group_prop_[gid];
+    auto it2 = gprop.ip_to_id_.find(ip);
+    if (it2 == gprop.ip_to_id_.end()) {
+	return false;
+    }
+
+    return gprop.ip_to_id_.find(ip) != gprop.ip_to_id_.end();
+}
+
 // Select N services from collection. Prefer from different groups.
 std::vector<ip_service> ip_collection::select(size_t n)
 {

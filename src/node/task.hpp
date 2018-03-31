@@ -24,12 +24,16 @@ public:
 	RECEIVED = 2
     };
 
-    out_task();
-    out_task(out_connection &out, void (*fn)(out_task &));
+    out_task(const char *description,
+	     out_connection &out, void (*fn)(out_task &));
+
+    inline const char * description() const { return description_; }
 
     inline void run() {
 	(*fn_)(*this);
     }
+
+    void stop();
 
     inline void set_query(const term t)
     { set_term(env_->new_term(common::con_cell("query",1), {t})); }
@@ -60,6 +64,10 @@ public:
 	return get_when() < other.get_when();
     }
 
+    inline bool operator > (const out_task &other) const {
+	return get_when() > other.get_when();
+    }
+
     inline bool operator == (const out_task &other) const {
 	return get_when() == other.get_when();
     }
@@ -73,12 +81,13 @@ public:
     void reschedule_last();
 
 protected:
-    enum reason_t { ERROR_UNRECOGNIZED, ERROR_VERSION };
+    enum reason_t { ERROR_UNRECOGNIZED, ERROR_SELF, ERROR_VERSION };
 
     std::string reason_str(reason_t reason);
     void fail(reason_t t);
 
 private:
+    const char *description_;
     out_connection *out_;
     term_env *env_;
     void (*fn_)(out_task &task);

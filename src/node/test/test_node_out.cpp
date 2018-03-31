@@ -13,7 +13,6 @@ static void header( const std::string &str )
     std::cout << "\n";
 }
 
-#if 0
 //
 // This test does the following:
 //
@@ -38,6 +37,7 @@ static void test_node_out()
     self.start();
 
     // Create a loop-back connection.
+    std::cout << "Create a loop back connection." << std::endl;
     self.new_standard_out_connection(ip_service("127.0.0.1",
 						self_node::DEFAULT_PORT));
 
@@ -52,14 +52,16 @@ static void test_node_out()
 			      });
 			 });
 
+    std::cout << "We should have had at least 2 heartbeats by now." << std::endl;
     // We should have had 2 heartbeats by now
     self.join(utime::ss(30));
     self.stop();
     self.join();
 
+    std::cout << "Success: " << success << std::endl;
+
     assert(success);
 }
-#endif
 
 //
 // Testing address verifier task
@@ -134,7 +136,6 @@ static void test_address_verifier()
 				  "Unexpected comment:");
 }
 
-#if 0
 //
 // The purpose of this test is to setup 10 nodes with 1 address
 // each (to its neighbor peer) and see how the addresses propagate
@@ -151,54 +152,121 @@ static void test_address_propagation()
     //
     // Setup nodes & start nodes
     //
+
+    std::cout << "Setup " << num_nodes << " from port " << self_node::DEFAULT_PORT << " to " << self_node::DEFAULT_PORT+num_nodes-1 << " (= " << num_nodes << "nodes.)" << std::endl;
     std::vector<self_node *> nodes;
     for (size_t i = 0; i < num_nodes; i++) {
 	auto *node = new self_node(self_node::DEFAULT_PORT+i);
 	node->set_timer_interval(utime::ss(1));
+	node->set_address_downloader_fast_mode(true);
 	nodes.push_back(node);
-	node->start();
     }
 
     //
     // For each node i, add the address node i + 1
     //
+    std::cout << "Node with port I has a address reference to port I + 1." << std::endl;
     for (size_t i = 0; i < num_nodes; i++) {
 	auto *node_i = nodes[i];
-	auto *node_i1 = nodes[(i+1) % num_nodes];
-	(void) node_i;
-	(void) node_i1;
+
+	//
+	// Add new unverified address
+	//
+	// Node I has address to Node I+1 (mod N)
+	//
+	address_entry unverified(ip_address("127.0.0.1"),
+				 self_node::DEFAULT_PORT+((i+1) % num_nodes),
+				 ip_address("127.0.0.1"),
+				 self_node::DEFAULT_PORT+((i+1) % num_nodes));
+
+	node_i->book()().add(unverified);
     }
 
     // Start nodes
+    std::cout << "Start all nodes..." << std::endl;
     for (auto *node : nodes) {
 	node->start();
     }
 
-    // Wait 5 seconds
-    utime::sleep(utime::ss(5));
+    //
+    // Check for 20 seconds:
+    //
+    // Each node should have the other 9 addresses. Not all of them
+    // verified perhaps.
+    //
+    std::cout << "Check for address propagation (max 30 seconds.)" << std::endl;
+    std::unordered_set<unsigned short> ok_nodes;
+    for (size_t i = 0; i < 30 && ok_nodes.size() < num_nodes; i++) {
+	utime::sleep(utime::ss(1));
+	for (auto *node : nodes) {
+	    size_t count = 0;
+	    unsigned short port = node->port();
+	    if (ok_nodes.find(port) == ok_nodes.end()) {
+		for (unsigned short p = self_node::DEFAULT_PORT;
+		     p < self_node::DEFAULT_PORT+num_nodes; p++) {
+		    ip_service ip("127.0.0.1", p);
+		    if (node->book()().exists(ip)) count++;
+		}
+		if (count == num_nodes-1) {
+		    ok_nodes.insert(port);
+		    std::cout << "Node at port " << port << " is completed." << std::endl;
+		}
+	    }
+	}
+	if (ok_nodes.size() == num_nodes) {
+	    std::cout << "All nodes completed." << std::endl;
+	}
+    }
+
 
     // Stop all nodes
+    std::cout << "Stopping all nodes..." << std::endl;
     for (auto *node : nodes) {
 	node->stop();
     }
 
     // Join threads
+    std::cout << "Join thread..." << std::endl;
     for (auto *node : nodes) {
 	node->join();
     }
 
+    //
+    // Did we succeed?
+    //
+    std::cout << "Check if successful..." << std::endl;
+    bool succeed = true;
+    if (ok_nodes.size() < num_nodes) {
+	succeed = false;
+	std::cout << "Failed to succeed address propagation for all nodes." << std::endl;
+	std::cout << "The following ones failed:" << std::endl;
+	for (auto *node : nodes) {
+	    unsigned short port = node->port();
+	    if (!ok_nodes.count(port)) {
+		std::cout << "Node at port " << port << ":" << std::endl;
+		std::cout << "---------------------------------------------" << std::endl;
+		node->book()().print(std::cout);		
+	    }
+	}
+    } else {
+	std::cout << "Succeeded!" << std::endl;
+    }
+    utime::sleep(utime::ss(1));
+
     // Delete nodes
+    std::cout << "Delete all nodes." << std::endl;
     for (auto *node : nodes) {
 	delete node;
     }
+
+    assert(succeed);
 }
-#endif
 
 int main(int argc, char *argv[])
 {
+    test_node_out();
     test_address_verifier();
-    // test_node_out();
-    // test_address_propagation();
+    test_address_propagation();
 
     return 0;
 }

@@ -76,6 +76,14 @@ static void test_utime()
     assert(t_parsed.parse(t.str()));
     assert(t == t_parsed);
 
+    try {
+	std::string time_str = "1970.01.01T00:00:00";
+	utime time = utime::from_string(time_str);
+	std::cout << "Time parsed: " << time.str() << "\n";
+	assert(time_str == time.str());
+    } catch (std::runtime_error &ex) {
+	assert("Should not error" == nullptr);
+    }
    
     utime now = utime::now();
     std::string nowstr = now.str();

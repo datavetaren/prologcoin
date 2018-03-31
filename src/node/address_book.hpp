@@ -141,8 +141,11 @@ public:
     void remove( const ip_service &ip );
     void add_score(address_entry &entry, int change );
     size_t size() const;
+    bool exists( const ip_service &ip );
 
     std::vector<address_entry> get_all_true(std::function<bool (const address_entry &e)> fn);
+
+    std::vector<address_entry> get_all();
     std::vector<address_entry> get_all_verified();
     std::vector<address_entry> get_all_unverified();
 

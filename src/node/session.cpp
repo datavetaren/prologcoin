@@ -32,7 +32,6 @@ void in_session_state::heartbeat()
 {
     heartbeat_ = utime::now();
     heartbeat_count_++;
-    std::cout << "Heartbeat: " << heartbeat_.str() << "\n";
 }
 
 }}

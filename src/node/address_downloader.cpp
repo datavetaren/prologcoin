@@ -7,19 +7,45 @@ using namespace prologcoin::common;
 
 namespace prologcoin { namespace node {
 
-address_downloader::address_downloader(out_connection &out)
-    : out_task(out, &address_downloader::process_fn)
-{ }
-
-void address_downloader::process_fn(out_task &task)
+task_address_downloader::task_address_downloader(out_connection &out)
+    : out_task("address_downloader", out, &task_address_downloader::process_fn),
+      count_(0),
+      last_checked_()
 {
-    reinterpret_cast<address_downloader &>(task).process();
 }
 
-void address_downloader::process()
+void task_address_downloader::process_fn(out_task &task)
+{
+    reinterpret_cast<task_address_downloader &>(task).process();
+}
+
+void task_address_downloader::process()
 {
     if (!is_connected()) {
 	reschedule_last();
+	set_state(IDLE);
+	return;
+    }
+
+    utime preferred_dt = 1;
+    if (!self().address_downloader_fast_mode()) {
+	switch (count_) {
+	case 0: preferred_dt = 0; break;
+	case 1: preferred_dt = 3600; break;
+	default: preferred_dt = 3600*24; break;
+	}
+    }
+    preferred_dt *= self().get_timer_interval_microseconds();
+
+    // Should this task trigger now? or not? If not, then reschedule to
+    // proper time.
+    utime threshold = last_checked_ + preferred_dt;
+    if (utime::now() < threshold) {
+	if (threshold == last_checked_) {
+	    reschedule_last();
+	} else {
+	    reschedule(threshold);
+	}
 	set_state(IDLE);
 	return;
     }
@@ -62,19 +88,22 @@ void address_downloader::process()
 	}
 
 	//
-	// Answer accepted. Move unverified entry to verified.
+	// Answer accepted. Add entries to unverified.
 	//
 	auto book = self().book();
 
 	while (e.is_dotted_pair(peers)) {
 	    address_entry entry;
-	    term term_entry = e.arg(peers, 0);
-	    if (entry.from_term(e, term_entry)) {
-		entry.set_source(connection().ip());
-		entry.set_score(0);
-		entry.set_time(utime::now_seconds());
-		book().add(entry);
+	    term peer = e.arg(peers, 0);
+	    if (entry.from_term(e, peer)) {
+		if (!self().is_self(entry)) {
+		    entry.set_source(connection().ip());
+		    entry.set_score(0);
+		    entry.set_time(utime::now_seconds());
+		    book().add(entry);
+		}
 	    }
+	    peers = e.arg(peers, 1);
 	}
     }
 }

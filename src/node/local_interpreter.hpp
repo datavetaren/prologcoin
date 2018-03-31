@@ -19,6 +19,7 @@ public:
     static local_interpreter & to_local(interpreter_base &interp)
     { return reinterpret_cast<local_interpreter &>(interp); }
 
+    static bool id_1(interpreter_base &interp, size_t arity, term args[]);
     static bool heartbeat_0(interpreter_base &interp, size_t arity, term args[]);
     static bool version_1(interpreter_base &interp, size_t arity, term args[]);
     static bool comment_1(interpreter_base &interp, size_t arity, term args[]);

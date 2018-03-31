@@ -47,6 +47,8 @@ public:
     inline socket & get_socket() { return socket_; }
     io_service & get_io_service();
 
+    inline void stop() { set_state(KILLED); }
+
     void close();
 
     inline void prepare_receive() { set_state(RECEIVE_LENGTH); }
@@ -195,12 +197,15 @@ public:
     { if (work_.empty()) {
           schedule(task);
       } else {
-          reschedule(task, last_in_work_+utime::us(1));
+	  utime next_t = last_in_work_+utime::us(1);
+          reschedule(task, next_t);
       }
     }
 
     inline bool is_connected() const
     { return connected_; }
+
+    void print_task_queue() const;
 
 protected:
     void idle_state();
@@ -224,10 +229,11 @@ private:
     out_type_t out_type_;
     ip_service ip_;
     std::string id_;
+    bool init_in_progress_;
     bool use_heartbeat_;
     bool connected_;
     term_env env_;
-    std::priority_queue<out_task> work_;
+    std::priority_queue<out_task, std::vector<out_task>, std::greater<out_task> > work_;
     utime last_in_work_;
 };
 

@@ -95,6 +95,9 @@ public:
     inline utime operator + (uint64_t dt) const
     { return utime(time_ + dt); }
 
+    inline utime & operator *= (uint64_t dt)
+    { time_ *= dt; return *this; }
+
     inline utime operator - (const utime &other) const
     { return utime(time_ - other.time_); }
 

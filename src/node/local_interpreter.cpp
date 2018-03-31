@@ -11,11 +11,18 @@ const con_cell local_interpreter::ME("me", 0);
 const con_cell local_interpreter::COLON(":", 2);
 const con_cell local_interpreter::COMMA(",", 2);
 
+bool me_builtins::id_1(interpreter_base &interp0, size_t arity, term args[] )
+{
+    auto &interp = to_local(interp0);
+    const std::string &id = interp.self().id();
+    auto f = interp.functor(id, 0);
+    return interp.unify(args[0], f);
+}
+
 bool me_builtins::heartbeat_0(interpreter_base &interp0, size_t arity, term args[] )
 {
     auto &interp = to_local(interp0);
     interp.session().heartbeat();
-
     return true;
 }
 
@@ -86,6 +93,7 @@ void local_interpreter::ensure_initialized()
 
 void local_interpreter::setup_modules()
 {
+    load_builtin(ME, con_cell("id", 1), &me_builtins::id_1);
     load_builtin(ME, con_cell("peers", 2), &me_builtins::peers_2);
     load_builtin(ME, con_cell("version",1), &me_builtins::version_1);
     load_builtin(ME, con_cell("comment",1), &me_builtins::comment_1);

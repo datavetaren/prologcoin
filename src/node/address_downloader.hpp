@@ -7,14 +7,17 @@
 
 namespace prologcoin { namespace node {
 
-class address_downloader : public out_task {
+class task_address_downloader : public out_task {
 public:
-    address_downloader(out_connection &out);
+    task_address_downloader(out_connection &out);
 
 private:
     static void process_fn(out_task &out);
 
     void process();
+
+    size_t count_;
+    utime last_checked_;
 };
 
 }}
