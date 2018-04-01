@@ -4,6 +4,7 @@
 #include <iomanip>
 #include <common/fast_hash.hpp>
 #include <common/test/test_home_dir.hpp>
+#include <common/random.hpp>
 #include <node/address_book.hpp>
 #include <node/self_node.hpp>
 
@@ -305,14 +306,69 @@ static void test_address_book_spilling()
 
 }}
 
+static void add_random_score(address_book &book,
+			     std::vector<address_entry> &es,
+			     fast_hash &h)
+{
+    for (auto &e : es) {
+	h << e.score();
+	auto change = static_cast<int32_t>(static_cast<uint32_t>(h)) % 100;
+	book.add_score(e, change);
+    }
+}
+			     
+
+static void test_address_book_change_scores()
+{
+    header("test_address_book_change_score");
+
+    std::cout << "Create book with 100 entries. Top 10% = 10 entries." << std::endl;
+
+    address_book book;
+    fill_with_random(book, 100);
+    book.integrity_check();
+
+    fast_hash h;
+    h << 5678;
+
+    std::cout << "Best 10 (before)" << std::endl;
+    std::cout << "----------------------------------------------" << std::endl;
+    book.print(std::cout, book.get_from_top_10_pt(10));
+    std::cout << "Worst 10 (before)" << std::endl;
+    std::cout << "----------------------------------------------" << std::endl;
+    book.print(std::cout, book.get_from_bottom_90_pt(10));
+
+    std::cout << "Change scores randomly across all categories." << std::endl;
+    for (size_t i = 0; i < 1000; i++) {
+	auto es1 = book.get_randomly_from_top_10_pt(5);
+	auto es2 = book.get_randomly_from_bottom_90_pt(5);
+	auto es3 = book.get_randomly_from_unverified(5);
+	add_random_score(book, es1, h);
+	add_random_score(book, es2, h);
+	add_random_score(book, es3, h);
+    }
+
+    std::cout << "Check integrity" << std::endl;
+    book.integrity_check();
+
+    std::cout << "Best 10 (after)" << std::endl;
+    std::cout << "----------------------------------------------" << std::endl;
+    book.print(std::cout, book.get_from_top_10_pt(10));
+    std::cout << "Worst 10 (after)" << std::endl;
+    std::cout << "----------------------------------------------" << std::endl;
+    book.print(std::cout, book.get_from_bottom_90_pt(10));
+}
+
 int main(int argc, char *argv[] )
 {
     find_home_dir(argv[0]);
+    random::set_for_testing(true);
 
     test_address_book_simple();
     test_address_book_big();
     test_address_book_medium();
     test_address_book::test_address_book_spilling();
+    test_address_book_change_scores();
 
     return 0;
 }

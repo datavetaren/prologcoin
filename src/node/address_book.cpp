@@ -561,6 +561,13 @@ bool address_book::exists(const ip_service &ip)
 
 void address_book::add_score(address_entry &e, int change)
 {
+    // Simplest is to remove and add it. It's all O(log n) operations.
+    // Maybe not the most efficient way, but perhaps efficient enough.
+    // And hopefully less errorprone.
+
+    remove(e);
+    e.set_score(e.score() + change);
+    add(e);
 }
 
 size_t address_book::size() const
@@ -613,6 +620,22 @@ std::vector<address_entry> address_book::get_from_top_10_pt(size_t n)
     return result;
 }
 
+std::vector<address_entry> address_book::get_from_bottom_90_pt(size_t n)
+{
+    assert(n < id_to_entry_.size());
+
+    std::vector<address_entry> result;
+    size_t cnt = 0;
+    for (auto ips = bottom_90_.rbegin(); ips != bottom_90_.rend(); ++ips) {
+	auto p = *ips;
+	if (++cnt > n) {
+	    break;
+	}
+	result.push_back(id_to_entry_[p.second]);
+    }
+
+    return result;
+}
 
 // Select N entries from top 10%. Preferably addresses from different groups.
 std::vector<address_entry> address_book::get_randomly_from_top_10_pt(size_t n)

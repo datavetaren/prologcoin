@@ -142,6 +142,7 @@ public:
     void add_score(address_entry &entry, int change );
     size_t size() const;
     bool exists( const ip_service &ip );
+    address_entry find( const ip_service &ip );
 
     std::vector<address_entry> get_all_true(std::function<bool (const address_entry &e)> fn);
 
@@ -150,6 +151,7 @@ public:
     std::vector<address_entry> get_all_unverified();
 
     std::vector<address_entry> get_from_top_10_pt(size_t n);
+    std::vector<address_entry> get_from_bottom_90_pt(size_t n);
     std::vector<address_entry> get_randomly_from_top_10_pt(size_t n);
     std::vector<address_entry> get_randomly_from_bottom_90_pt(size_t n);
     std::vector<address_entry> get_randomly_from_unverified(size_t n);
