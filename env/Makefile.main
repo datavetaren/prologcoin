@@ -73,7 +73,12 @@ TEST_LOG_FILES := $(addprefix $(BIN)/test/$(SUBDIR)/, $(TEST_CPP_FILES:$(SRC)/$(
 LINK_DEP_FILES := $(addsuffix $(LIB_EXT), $(addprefix $(BIN)/lib,$(DEPENDS)))
 LINK_DEP_FILES := $(LINK_DEP_FILES) $(addprefix -l, $(EXT))
 
+ifneq ($(LIB),)
 GOAL := $(BIN)/lib$(LIB)$(LIB_EXT)
+endif
+ifneq ($(EXE),)
+GOAL := $(BIN)/$(EXE)$(EXE_EXT)
+endif
 
 all : $(GOAL)
 
@@ -84,6 +89,16 @@ fast_test: $(TEST_OK_FAST_FILES)
 test_valgrind : $(TEST_OK_VALGRIND_FILES)
 
 .SECONDARY :
+
+ifneq ($(EXE),)
+$(GOAL) : $(BIN) $(OUT) $(OUT)/$(SUBDIR) $(OBJ_FILES)
+	@mkdir -p $(BIN)
+	@mkdir -p $(BIN)/$(SUBDIR)
+	@rm -f /tmp/err.log
+	@(echo $(green) $(bold) $@ $(off) $(white))
+	@($(LINK) $(LINKFKLAGS) $(LINKOUT)$@ $(OBJ_FILES) $(LINK_DEP_FILES) 2>/tmp/err.log 1>&2) || $(printerr)
+	@rm -f /tmp/err.log
+endif
 
 $(BIN)/%$(LIB_EXT) : $(BIN) $(BIN)/test/$(SUBDIR) $(OUT) $(OUT)/$(SUBDIR)/test $(OBJ_FILES)
 	@mkdir -p /tmp
