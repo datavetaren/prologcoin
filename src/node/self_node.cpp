@@ -27,15 +27,17 @@ self_node::self_node(unsigned short port)
       num_standard_out_connections_(0),
       num_verifier_connections_(0),
       num_download_addresses_(DEFAULT_NUM_DOWNLOAD_ADDRESSES),
-      address_downloader_fast_mode_(false)
+      testing_mode_(false)
 {
     set_timer_interval(utime::ss(DEFAULT_TIMER_INTERVAL_SECONDS));
+    set_time_to_live(utime::ss(DEFAULT_TTL_SECONDS));
     id_ = random::next();
 }
 
 void self_node::start()
 {
     stopped_ = false;
+    flushed_ = false;
 
     acceptor_.set_option(acceptor::reuse_address(true));
     acceptor_.set_option(socket_base::enable_connection_aborted(true));
@@ -46,8 +48,7 @@ void self_node::start()
 
 void self_node::stop()
 {
-    stopped_ = true;
-    ioservice_.stop();
+    stop_all_connections();
 }
 
 void self_node::run()
@@ -61,6 +62,45 @@ void self_node::close(connection *conn)
 {
     boost::lock_guard<boost::recursive_mutex> guard(lock_);    
     closed_.push_back(conn);
+}
+
+void self_node::stop_all_connections()
+{
+    boost::lock_guard<boost::recursive_mutex> guard(lock_);
+
+    if (stopped_) {
+	return;
+    }
+
+    stopped_ = true;
+    boost::system::error_code ec;
+    acceptor_.cancel(ec);
+    acceptor_.close();
+
+    recent_in_connection_->stop();
+    disconnect(recent_in_connection_);
+    for (auto *conn : in_connections_) {
+	conn->stop();
+    }
+    for (auto *conn : out_connections_) {
+	conn->stop();
+    }
+}
+
+bool self_node::all_connections_closed()
+{
+    boost::lock_guard<boost::recursive_mutex> guard(lock_);
+    for (auto *conn : in_connections_) {
+	if (!conn->is_closed()) {
+	    return false;
+	}
+    }
+    for (auto *conn : out_connections_) {
+	if (!conn->is_closed()) {
+	    return false;
+	}
+    }
+    return true;
 }
 
 void self_node::set_comment(const std::string &str)
@@ -78,6 +118,16 @@ void self_node::for_each_in_session(const std::function<void (in_session_state *
     }
 }
 
+void self_node::for_each_out_connection(const std::function<void (out_connection *out)> &fn)
+{
+    boost::lock_guard<boost::recursive_mutex> guard(lock_);
+
+    for (auto *conn : out_connections_) {
+	auto *out_conn = reinterpret_cast<out_connection *>(conn);
+	fn(out_conn);
+    }
+}
+
 void self_node::for_each_standard_out_connection(const std::function<void (out_connection *out)> &fn)
 {
     boost::lock_guard<boost::recursive_mutex> guard(lock_);
@@ -87,6 +137,16 @@ void self_node::for_each_standard_out_connection(const std::function<void (out_c
 	if (out_conn->out_type() == out_connection::STANDARD) {
 	    fn(out_conn);
 	}
+    }
+}
+
+void self_node::for_each_in_connection(const std::function<void (in_connection *out)> &fn)
+{
+    boost::lock_guard<boost::recursive_mutex> guard(lock_);
+
+    for (auto *conn : in_connections_) {
+	auto *in_conn = reinterpret_cast<in_connection *>(conn);
+	fn(in_conn);
     }
 }
 
@@ -176,8 +236,10 @@ void self_node::start_accept()
     acceptor_.async_accept(conn->get_socket(),
 		   strand_.wrap(
 			   [this](const error_code &){
-			       recent_in_connection_->start();
-			       start_accept();
+			       if (!stopped_) {
+				   recent_in_connection_->start();
+				   start_accept();
+			       }
 			   }));
 }
 
@@ -217,6 +279,7 @@ void self_node::prune_dead_connections()
 	    case out_connection::VERIFIER: num_verifier_connections_--; break;
 	    }
 	}
+
 	disconnect(c);
 	closed_.pop_back();
     }
@@ -233,7 +296,8 @@ void self_node::connect_to(const std::vector<address_entry> &entries)
 
 void self_node::check_standard_out_connections()
 {
-    if (num_standard_out_connections_ >= preferred_num_standard_out_connections_) {
+    if (stopped_ ||
+	num_standard_out_connections_ >= preferred_num_standard_out_connections_) {
 	return;
     }
 
@@ -249,7 +313,8 @@ void self_node::check_standard_out_connections()
 
 void self_node::check_verifier_connections()
 {
-    if (num_verifier_connections_ >= preferred_num_verifier_connections_) {
+    if (stopped_ ||
+	num_verifier_connections_ >= preferred_num_verifier_connections_) {
 	return;
     }
 
@@ -270,12 +335,35 @@ void self_node::check_out_connections()
 {
     boost::lock_guard<boost::recursive_mutex> guard(lock_);
 
+    if (stopped_) {
+	return;
+    }
+
     check_standard_out_connections();
     check_verifier_connections();
 }
 
 void self_node::join()
 {
+    using namespace boost::system;
+
+    stop_all_connections();
+    for (size_t i = 0; i < 100 && !all_connections_closed(); i++) {
+	prune_dead_connections();
+	utime::sleep(utime::us(fast_timer_interval_microseconds_));
+    }
+    timer_.expires_from_now(boost::posix_time::microseconds(
+		    get_fast_timer_interval_microseconds()));
+    
+    timer_.async_wait(
+         strand_.wrap(
+		 [this](const error_code &ec) {
+		     this->flushed_ = true;
+		 }));
+    while (!flushed_) {
+	utime::sleep(utime::us(get_fast_timer_interval_microseconds()));
+    }
+    ioservice_.stop();
     thread_.join();
 }
 

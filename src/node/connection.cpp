@@ -22,13 +22,28 @@ connection::connection(self_node &self,
       receive_length_(0),
       sent_bytes_(0),
       send_length_(0),
-      auto_send_(false)
+      auto_send_(false),
+      stopped_(false)
 {
+}
+
+connection::~connection()
+{
+    boost::system::error_code ec;
+    socket_.shutdown(boost::asio::ip::tcp::socket::shutdown_both, ec);
+    socket_.close(ec);
 }
 
 void connection::start()
 {
     run();
+}
+
+void connection::stop()
+{
+    stopped_ = true;
+    boost::system::error_code ec;
+    socket_.cancel(ec);
 }
 
 inline boost::asio::io_service & connection::get_io_service()
@@ -48,6 +63,7 @@ void connection::delete_connection(connection *conn)
 void connection::close()
 {
     self().close(this);
+    set_state(CLOSED);
 }
 
 void connection::send_error(const term t)
@@ -150,6 +166,8 @@ void connection::run()
 			     }
 			     run();
 			 } else {
+			     set_state(ERROR);
+			     dispatch();
 			     close();
 			 }
 		  }));
@@ -170,6 +188,8 @@ void connection::run()
 			     dispatch();
 			     run();
 			 } else {
+			     set_state(ERROR);
+			     dispatch();
 			     close();
 			 }
 		  }));
@@ -188,6 +208,8 @@ void connection::run()
 			  }
 			  run();
 		      } else {
+			  set_state(ERROR);
+			  dispatch();
 			  close();
 		      }
 		  }));
@@ -207,14 +229,21 @@ void connection::run()
 			     }
 			     run();
 		         } else {
+			     set_state(ERROR);
+			     dispatch();
 			     close();
 			 }
 		  }));
 	break;
-    case RECEIVED:
-    case SENT:
+    case RECEIVED: // These are never hit, because the state machine
+    case SENT:     // has switched to another state already (if RECEIVED
+    case CLOSED:   // or SENT.) Otherwise the connection is closed.
 	break;
     case KILLED:
+	dispatch();
+	close();
+	break;
+    case ERROR:
 	close();
 	break;
     case IDLE:
@@ -223,8 +252,14 @@ void connection::run()
 	timer_.async_wait(
 	     strand_.wrap(
 		     [this](const error_code &ec) {
-		        dispatch();
-		        run();
+			 if (!ec) {
+			     dispatch();
+			     run();
+			 } else {
+			     set_state(ERROR);
+			     dispatch();
+			     close();
+			 }
 		     }));
 	break;
     }
@@ -238,12 +273,12 @@ in_connection::in_connection(self_node &self)
     prepare_receive();
     set_auto_send(true);
     set_dispatcher( [this]() { this->on_state(); } );
-    // std::cout << "in_connection::in_connection()\n";
+    // std::cout << "in_connection::in_connection()" << std::endl;
 }
 
 in_connection::~in_connection()
 {
-    // std::cout << "in_connection::~in_connection()\n";
+    // std::cout << "in_connection::~in_connection()" << std::endl;
 }
 
 void in_connection::setup_commands()
@@ -449,6 +484,8 @@ out_connection::out_connection(self_node &self, out_connection::out_type_t t, co
 		    if (!ec) {
 			this->run();
 		    } else {
+			error(reason_t::ERROR_CANNOT_CONNECT,
+			      "Could not connect: " + ec.message());
 			this->close();
 		    }
 		}));
@@ -510,20 +547,24 @@ void out_connection::handle_init_connection_task(out_task &task)
     case out_task::RECEIVED: {
 	term t = task.get_term();
 	if (t.tag() != tag_t::STR) {
-	    error("Unexpected response for init connection: "
-		  + env_.to_string(t));
+	    error(reason_t::ERROR_FAIL_CONNECT,
+		 "Unexpected response for init connection: "
+		 + env_.to_string(t));
 	    break;
 	}
 	auto f = env_.functor(t);
 	if (f != ok) {
-	    error("Unexpected response for init connection: "
+	    error(reason_t::ERROR_FAIL_CONNECT,
+		  "Unexpected response for init connection: "
 		  + env_.to_string(t));
 	    break;
 	}
 	if (id_.empty()) {
 	    auto id_term = env_.arg(t, 0);
 	    if (!env_.is_atom(id_term)) {
-		error("Unexpected session id for init connection. Expecting atom, was " + env_.to_string(t));
+		error(reason_t::ERROR_FAIL_CONNECT,
+		      "Unexpected session id for init connection. "
+		      "Expecting atom, was " + env_.to_string(t));
 		break;
 	    }
 	    id_ = env_.atom_name(id_term);
@@ -563,9 +604,66 @@ void out_connection::idle_state()
     }
 }
 
-void out_connection::error(const std::string &msg)
+void out_connection::error(const reason_t &reason,
+			   const std::string &msg)
 {
-    std::cout << "ERROR: " << msg << std::endl;
+    //
+    // Find address entry
+    //
+    
+    address_entry entry;
+    if (!self().book()().exists(ip(), &entry)) {
+	// If we cannot find the entry in the book (for whatever reason)
+	// we'll just end the session and quit. We won't reconnect anyway
+	// because it's not in the address book.
+	stop();
+	return;
+    }
+
+
+    //
+    // This is the base delta score we'll use to update the entry with.
+    //
+    int d_score = 0;
+
+    switch (reason) {
+    case reason_t::ERROR_CANNOT_CONNECT: d_score = -40; break;
+    case reason_t::ERROR_FAIL_CONNECT: d_score = -80; break;
+    case reason_t::ERROR_UNRECOGNIZED: d_score = -80; break;
+    case reason_t::ERROR_SELF: d_score = 0; break; // Will be removed anyway
+    case reason_t::ERROR_VERSION: d_score = -80; break;
+    default: d_score = -10; break;
+    }
+
+    //
+    // Next we'll "punish" w.r.t. the time distance when we last succeeded.
+    // The longer the time period is, the more unlikely it is we'll ever
+    // be connecting again. 24hrs = 100%. Otherwise linear scaling up to
+    // 500% (max.)
+    //
+
+    auto d_time = utime::now() - entry.time();
+    auto hours = static_cast<int>(d_time.in_hh());
+
+    if (hours >= 24*5) {
+	hours = 24*5;
+    }
+    //
+    // In testing mode
+    //
+    if (self().is_testing_mode()) {
+	if (hours < 1) hours = 1;
+    }
+
+    d_score = d_score * hours / 24;
+
+    if (d_score != 0) {
+	// std::cout << "Change score for entry: " << d_score << std::endl;
+	self().book()().add_score(entry, d_score);
+    }
+
+    // std::cout << reason.str() << " " << msg << std::endl;
+    stop();
 }
 
 void out_connection::send_next_task()
@@ -600,7 +698,7 @@ void out_connection::send_next_task()
 void out_connection::on_state()
 {
     switch (get_state()) {
-    case IDLE: send_next_task(); break;
+    case IDLE: if (!is_stopped()) send_next_task(); break;
     case RECEIVED: {
 	auto task = work_.top();
 	work_.pop();
@@ -608,7 +706,7 @@ void out_connection::on_state()
 	task.set_state(out_task::RECEIVED);
 	task.set_term(r);
 	task.run();
-	if (get_state() != KILLED) {
+	if (!is_stopped()) {
 	    send_next_task();
 	}
 	break;
@@ -616,8 +714,15 @@ void out_connection::on_state()
     case SENT:
 	prepare_receive();
 	break;
+    case ERROR:
+	error(reason_t::ERROR_UNRECOGNIZED, "Probable node shutdown.");
+	break;
     default:
 	break;
+    }
+
+    if (is_stopped()) {
+	set_state(KILLED);
     }
 }
 

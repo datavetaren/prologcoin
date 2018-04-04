@@ -14,9 +14,9 @@ public:
 private:
     void process_version(const common::term ver);
 
-    static void check_fn(out_task &task);
+    static void process_fn(out_task &task);
 
-    void check();
+    void process();
 };
 
 }}

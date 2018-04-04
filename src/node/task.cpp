@@ -44,20 +44,9 @@ term out_task::get_result()
     return env().arg(r, 0);
 }
 
-std::string out_task::reason_str(out_task::reason_t reason)
+void out_task::error(const reason_t &reason)
 {
-    switch (reason) {
-    case ERROR_UNRECOGNIZED: return "ERROR_UNRECOGNIZED";
-    case ERROR_SELF: return "ERROR_SELF";
-    case ERROR_VERSION: return "ERROR_VERSION";
-    default: return "???";
-    }
-}
-
-void out_task::fail(out_task::reason_t reason)
-{
-    //    std::cout << "out_task::fail(): reason=" << reason_str(reason)
-    //	      << std::endl;
+    connection().error(reason, "");
 }
 
 }}

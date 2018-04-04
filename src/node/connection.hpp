@@ -25,6 +25,39 @@ namespace prologcoin { namespace node {
 class self_node;
 class in_session_state;
 
+class reason_t {
+public:
+    enum enum_t { ERROR_CANNOT_CONNECT,
+		  ERROR_FAIL_CONNECT,
+		  ERROR_UNRECOGNIZED,
+		  ERROR_SELF,
+		  ERROR_VERSION };
+    inline reason_t(const reason_t &other) : e_(other.e_) { }
+    inline reason_t(const enum_t e) : e_(e) { }
+
+    inline operator enum_t () const { return e_; }
+
+    inline bool operator == (const reason_t &other) {
+	return e_ == other.e_;
+    }
+    inline bool operator != (const reason_t &other) {
+	return ! operator == (other);
+    }
+
+    inline std::string str() const {
+	switch (e_) {
+	case ERROR_CANNOT_CONNECT: return "ERROR_CANNOT_CONNECT";
+	case ERROR_FAIL_CONNECT: return "ERROR_FAIL_CONNECT";
+	case ERROR_UNRECOGNIZED: return "ERROR_UNRECOGNIZED";
+	case ERROR_SELF: return "ERROR_SELF";
+	case ERROR_VERSION: return "ERROR_VERSION";
+	default: return "???";
+	}
+    }
+private:
+    enum_t e_;
+};
+
 class connection {
 protected:
     using socket = boost::asio::ip::tcp::socket;
@@ -37,7 +70,7 @@ public:
     enum connection_type { CONNECTION_IN, CONNECTION_OUT };
 
     connection(self_node &self, connection_type type, term_env &env);
-    ~connection() = default;
+    ~connection();
 
     connection_type type() const { return type_; }
 
@@ -47,9 +80,11 @@ public:
     inline socket & get_socket() { return socket_; }
     io_service & get_io_service();
 
-    inline void stop() { set_state(KILLED); }
+    void stop();
+    inline bool is_stopped() const { return stopped_; }
 
     void close();
+    inline bool is_closed() const { return get_state() == CLOSED; }
 
     inline void prepare_receive() { set_state(RECEIVE_LENGTH); }
     inline void prepare_send() { set_state(SEND_LENGTH); }
@@ -76,7 +111,9 @@ protected:
 	SEND_LENGTH,
 	SEND,
 	SENT,
-	KILLED
+	ERROR,
+	KILLED,
+	CLOSED
     };
 
     inline state get_state() const { return state_; }
@@ -110,6 +147,7 @@ private:
 
     std::function<void ()> dispatcher_;
     bool auto_send_;
+    bool stopped_;
 };
 
 class in_connection : public connection {
@@ -207,9 +245,10 @@ public:
 
     void print_task_queue() const;
 
+    void error(const reason_t &reason, const std::string &msg);
+
 protected:
     void idle_state();
-    void error(const std::string &msg);
 
 private:
     void handle_heartbeat_task(out_task &task);

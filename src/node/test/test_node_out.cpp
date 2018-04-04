@@ -44,17 +44,19 @@ static void test_node_out()
     self.set_master_hook(
 			 [&success] (self_node &self) {
 			     self.for_each_in_session(
-			      [&success,&self](in_session_state *session) {
+			      [&success](in_session_state *session) {
 					  if (session->heartbeats() >= 2) {
 					      success = true;
-					      self.stop();
 					  }
 			      });
 			 });
 
+    for (size_t i = 0; i < 10 && !success; i++) {
+	utime::sleep(utime::ss(1));
+    }
+
     std::cout << "We should have had at least 2 heartbeats by now." << std::endl;
     // We should have had 2 heartbeats by now
-    self.join(utime::ss(30));
     self.stop();
     self.join();
 
@@ -153,12 +155,13 @@ static void test_address_propagation()
     // Setup nodes & start nodes
     //
 
-    std::cout << "Setup " << num_nodes << " from port " << self_node::DEFAULT_PORT << " to " << self_node::DEFAULT_PORT+num_nodes-1 << " (= " << num_nodes << "nodes.)" << std::endl;
+    std::cout << "Setup from port " << self_node::DEFAULT_PORT << " to " << self_node::DEFAULT_PORT+num_nodes-1 << " (= " << num_nodes << " nodes.)" << std::endl;
     std::vector<self_node *> nodes;
     for (size_t i = 0; i < num_nodes; i++) {
 	auto *node = new self_node(self_node::DEFAULT_PORT+i);
 	node->set_timer_interval(utime::ss(1));
-	node->set_address_downloader_fast_mode(true);
+	node->set_time_to_live(utime::ss(2));
+	node->set_testing_mode(true);
 	nodes.push_back(node);
     }
 
@@ -189,14 +192,14 @@ static void test_address_propagation()
     }
 
     //
-    // Check for 20 seconds:
+    // Check for maximum 60 seconds:
     //
     // Each node should have the other 9 addresses. Not all of them
     // verified perhaps.
     //
-    std::cout << "Check for address propagation (max 30 seconds.)" << std::endl;
+    std::cout << "Check for address propagation (max 60 seconds.)" << std::endl;
     std::unordered_set<unsigned short> ok_nodes;
-    for (size_t i = 0; i < 30 && ok_nodes.size() < num_nodes; i++) {
+    for (size_t i = 0; i < 60 && ok_nodes.size() < num_nodes; i++) {
 	utime::sleep(utime::ss(1));
 	for (auto *node : nodes) {
 	    size_t count = 0;
@@ -209,7 +212,18 @@ static void test_address_propagation()
 		}
 		if (count == num_nodes-1) {
 		    ok_nodes.insert(port);
-		    std::cout << "Node at port " << port << " is completed." << std::endl;
+		    std::stringstream ss;
+		    ss << "Node at port " << port << " is completed "
+		       << "(connected to ";
+		    bool first = true;
+		    node->for_each_standard_out_connection(
+			   [&](out_connection *conn) {
+			       if (!first) ss << ", ";
+			       ss << conn->ip().port();
+			       first = false;
+			   });
+		    ss << ")" << std::endl;
+		    std::cout << ss.str();
 		}
 	    }
 	}
@@ -218,6 +232,58 @@ static void test_address_propagation()
 	}
     }
 
+    auto *stopped_node = nodes[4];
+
+    //
+    // Record address entry scores for each node to node about to be stopped
+    // 
+    std::cout << "Record scores to node at port " << stopped_node->port() << std::endl;
+    std::map<unsigned short, int32_t> recorded_scores;
+    for (auto *node : nodes) {
+	node->book()().for_each_address_entry(
+	      [&](const address_entry &e) {
+		  if (e.port() == stopped_node->port()) {
+		      recorded_scores[node->port()] = e.score();
+		  }
+	      });
+    }
+
+    //
+    // Now stop node no. 4 (counting from 0) and see how scores
+    // will be propagated.
+    //
+    std::cout << "Stopping node at port " << stopped_node->port() << std::endl;
+    stopped_node->stop();
+    stopped_node->join();
+    std::cout << "Node stopped." << std::endl;
+
+    //
+    // Wait for 30 seconds and see how this is propagated through the
+    // network.
+    //
+    std::cout << "Waiting for effect to propagate to other nodes (max 30 seconds)" << std::endl;
+    size_t changes = 0;
+    auto stopped_port = stopped_node->port();
+    for (size_t i = 0; i < 30 && changes < 10; i++) {
+	utime::sleep(utime::ss(1));
+
+        for (auto *node : nodes) {
+	    node->book()().for_each_address_entry(
+	       [node,stopped_port,&changes,&recorded_scores]
+	       (const address_entry &e) {
+		   if (e.port() == stopped_port) {
+		       if (e.score() != recorded_scores[node->port()]) {
+			  changes++;
+			  std::cout << "Node at port " << node->port()
+				    << " downgraded score for node "
+				    << stopped_port << " to "
+				    << e.score() << std::endl;
+			  recorded_scores[node->port()] = e.score();
+		      }
+		  }
+	      });
+	}
+    }
 
     // Stop all nodes
     std::cout << "Stopping all nodes..." << std::endl;
@@ -251,6 +317,22 @@ static void test_address_propagation()
     } else {
 	std::cout << "Succeeded!" << std::endl;
     }
+
+    std::cout << "Check scores to node at port " << stopped_port << std::endl;
+    for (auto *node : nodes) {
+	node->book()().for_each_address_entry(
+	      [&](const address_entry &e) {
+		  if (e.port() == stopped_port) {
+		      std::cout << "Node at port " << node->port()
+				<< " has score for node "
+				    << stopped_node->port() << ": "
+				    << e.score() << std::endl;
+		  }
+	      });
+    }
+    assert(changes >= 10);
+
+
     utime::sleep(utime::ss(1));
 
     // Delete nodes

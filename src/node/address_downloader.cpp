@@ -28,7 +28,16 @@ void task_address_downloader::process()
     }
 
     utime preferred_dt = 1;
-    if (!self().address_downloader_fast_mode()) {
+    //
+    // In testing mode we let the DT be 1 which enables continuous
+    // fast address downloading, which makes it faster for address
+    // propagation across nodes. This is good for testing to study what
+    // happens when nodes go up and down.
+    //
+    // In real mode we first make an initial address poll, then wait for
+    // an hour for the next poll and finally at every 24 hours.
+    //
+    if (!self().is_testing_mode()) {
 	switch (count_) {
 	case 0: preferred_dt = 0; break;
 	case 1: preferred_dt = 3600; break;
@@ -83,7 +92,7 @@ void task_address_downloader::process()
 					   p.any(peers))));
 
 	if (!pat(e, get_result())) {
-	    fail(ERROR_UNRECOGNIZED);
+	    error(reason_t::ERROR_UNRECOGNIZED);
 	    return;
 	}
 

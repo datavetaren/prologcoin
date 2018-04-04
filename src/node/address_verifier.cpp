@@ -9,15 +9,15 @@ using namespace prologcoin::common;
 namespace prologcoin { namespace node {
 
 task_address_verifier::task_address_verifier(out_connection &out)
-    : out_task("address_verifier", out, &task_address_verifier::check_fn)
+    : out_task("address_verifier", out, &task_address_verifier::process_fn)
 { }
 
-void task_address_verifier::check_fn(out_task &task)
+void task_address_verifier::process_fn(out_task &task)
 {
-    reinterpret_cast<task_address_verifier &>(task).check();
+    reinterpret_cast<task_address_verifier &>(task).process();
 }
 
-void task_address_verifier::check()
+void task_address_verifier::process()
 {
     if (!is_connected()) {
 	reschedule_last();
@@ -86,7 +86,7 @@ void task_address_verifier::check()
 		      p.ignore()));
 
 	if (!pat(e, get_result())) {
-	    fail(ERROR_UNRECOGNIZED);
+	    error(reason_t::ERROR_UNRECOGNIZED);
 	    return;
 	}
 
@@ -94,7 +94,7 @@ void task_address_verifier::check()
 	if (e.atom_name(id) == self().id()) {
 	    self().add_self(connection().ip());
 	    self().book()().remove(connection().ip());
-	    fail(ERROR_SELF);
+	    error(reason_t::ERROR_SELF);
 	    return;
 	}
 
@@ -103,7 +103,7 @@ void task_address_verifier::check()
 	    major_ver = checked_cast<int32_t>(major_ver0, 0, 1000);
 	    minor_ver = checked_cast<int32_t>(minor_ver0, 0, 1000);
 	} catch (checked_cast_exception &ex) {
-	    fail(ERROR_UNRECOGNIZED);
+	    error(reason_t::ERROR_UNRECOGNIZED);
 	    return;
 	}	
 

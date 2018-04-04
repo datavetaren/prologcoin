@@ -66,6 +66,7 @@ public:
 	return operator > (other) || operator == (other);
     }
 
+    std::string str(size_t maxlen = std::string::npos) const;
 
 private:
     unsigned short port_;

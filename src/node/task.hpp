@@ -11,6 +11,7 @@ namespace prologcoin { namespace node {
 
 class out_connection;
 class self_node;
+class reason_t;
 
 class out_task {
 public:
@@ -81,10 +82,7 @@ public:
     void reschedule_last();
 
 protected:
-    enum reason_t { ERROR_UNRECOGNIZED, ERROR_SELF, ERROR_VERSION };
-
-    std::string reason_str(reason_t reason);
-    void fail(reason_t t);
+    void error(const reason_t &reason);
 
 private:
     const char *description_;

@@ -65,6 +65,7 @@ public:
     static const size_t DEFAULT_NUM_STANDARD_OUT_CONNECTIONS = 8;
     static const size_t DEFAULT_NUM_VERIFIER_CONNECTIONS = 3;
     static const size_t DEFAULT_NUM_DOWNLOAD_ADDRESSES = 100;
+    static const size_t DEFAULT_TTL_SECONDS = 60;
 
     self_node(unsigned short port = DEFAULT_PORT);
 
@@ -99,13 +100,18 @@ public:
 	return fast_timer_interval_microseconds_;
     }
 
+    template<uint64_t C> inline void set_time_to_live(utime::dt<C> t)
+    { time_to_live_microseconds_ = t; }
+    inline uint64_t time_to_live_microseconds() const
+    { return time_to_live_microseconds_; }
+
     // Makes it easier to write fast unit tests that quickly propagate
     // addresses.
-    inline bool address_downloader_fast_mode() const {
-	return address_downloader_fast_mode_;
+    inline bool is_testing_mode() const {
+	return testing_mode_;
     }
-    inline void set_address_downloader_fast_mode(bool b) {
-	address_downloader_fast_mode_ = b;
+    inline void set_testing_mode(bool b) {
+	testing_mode_ = b;
     }
 
     template<uint64_t C> inline void set_timer_interval(utime::dt<C> t)
@@ -131,6 +137,8 @@ public:
 
     void for_each_in_session( const std::function<void (in_session_state *)> &fn);
 
+    void for_each_in_connection( const std::function<void (in_connection *conn)> &fn);
+    void for_each_out_connection( const std::function<void (out_connection *conn)> &fn);
     void for_each_standard_out_connection( const std::function<void (out_connection *conn)> &fn);
 
     in_session_state * new_in_session(in_connection *conn);
@@ -163,6 +171,8 @@ private:
 
     static const int DEFAULT_TIMER_INTERVAL_SECONDS = 10;
 
+    void stop_all_connections();
+    bool all_connections_closed();
     void disconnect(connection *conn);
     void run();
     void start_accept();
@@ -190,6 +200,7 @@ private:
 
     std::string id_;
     bool stopped_;
+    bool flushed_;
     boost::thread thread_;
     io_service ioservice_;
     endpoint endpoint_;
@@ -221,9 +232,10 @@ private:
 
     uint64_t timer_interval_microseconds_;
     uint64_t fast_timer_interval_microseconds_;
+    uint64_t time_to_live_microseconds_;
     size_t num_download_addresses_;
 
-    bool address_downloader_fast_mode_;
+    bool testing_mode_;
 };
 
 inline address_book_wrapper::address_book_wrapper(self_node &self, address_book &book) : self_(self), book_(book)

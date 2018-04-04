@@ -141,8 +141,7 @@ public:
     void remove( const ip_service &ip );
     void add_score(address_entry &entry, int change );
     size_t size() const;
-    bool exists( const ip_service &ip );
-    address_entry find( const ip_service &ip );
+    bool exists( const ip_service &ip, address_entry *entry = nullptr );
 
     std::vector<address_entry> get_all_true(std::function<bool (const address_entry &e)> fn);
 
@@ -188,6 +187,8 @@ public:
     void update_time(const ip_service &ip);
 
     void integrity_check();
+
+    void for_each_address_entry(const std::function<void (const address_entry &entry)> &fn);
 
 private:
     inline bool is_spill_enabled() const { return spill_enabled_; }

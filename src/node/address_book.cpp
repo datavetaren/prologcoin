@@ -538,11 +538,15 @@ void address_book::remove(size_t id)
     }
 }
 
-bool address_book::exists(const ip_service &ip)
+bool address_book::exists(const ip_service &ip, address_entry *entry)
 {
     auto it = ip_to_id_.find(ip);
     if (it == ip_to_id_.end()) {
 	return false;
+    }
+    const address_entry &e = id_to_entry_[it->second];
+    if (entry != nullptr) {
+	*entry = e;
     }
     if (top_10_collection_.exists(ip)) {
 	return true;
@@ -566,8 +570,12 @@ void address_book::add_score(address_entry &e, int change)
     // And hopefully less errorprone.
 
     remove(e);
-    e.set_score(e.score() + change);
-    add(e);
+    auto new_score = e.score() + change;
+    // Don't bother put it back if scores go under -10000.
+    if (new_score >= -10000) { 
+	e.set_score(new_score);
+	add(e);
+    }
 }
 
 size_t address_book::size() const
@@ -590,7 +598,7 @@ std::vector<address_entry> address_book::get_all_true(std::function<bool (const 
 
 std::vector<address_entry> address_book::get_all()
 {
-    return get_all_true([this](const address_entry &) {return true; });
+    return get_all_true([](const address_entry &) {return true; });
 }
 
 std::vector<address_entry> address_book::get_all_verified()
@@ -872,6 +880,13 @@ int address_book::new_gid()
 	}
     }
     return gid;
+}
+
+void address_book::for_each_address_entry(const std::function<void (const address_entry &e)> &fn) {
+    for (auto p : id_to_entry_) {
+	auto const &entry = p.second;
+	fn(entry);
+    }
 }
 
 }}
