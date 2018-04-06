@@ -18,8 +18,8 @@ protected:
   term_ops &ops_;
   bool is_debug_;
   std::unordered_map<std::string, symbol_t> predefined_symbols_;
-  cell empty_list_;
-  cell dotted_pair_;
+  con_cell empty_list_;
+  con_cell dotted_pair_;
 
   struct sym {
       sym()
@@ -555,7 +555,25 @@ protected:
   {
     if (check_mode_) return sym();
 
-    return args[0];
+    std::string lexeme = args[0].token().lexeme();
+    bool first = true;
+
+    term lst;
+    for (auto ch : lexeme) {
+	str_cell p = heap_.new_str0(dotted_pair_);
+	if (first) { lst = p; first = false; }
+	heap_.new_cell0(int_cell(ch));
+    }
+    if (!first) {
+	heap_.new_cell0(empty_list_);
+    } else {
+	lst = empty_list_;
+    }
+    if (track_positions()) {
+	return sym(lst, make_pos(args[0].token().pos(),0));
+    } else {
+	return sym(lst, term());
+    }
   }
 
   sym reduce_term_0__constant(args_t &args)

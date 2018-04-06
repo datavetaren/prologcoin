@@ -75,6 +75,9 @@ public:
 
     inline unsigned short port() const { return endpoint_.port(); }
 
+    inline void set_name(const std::string &name) { name_ = name; }
+    inline const std::string & name() const { return name_; }
+
     // Must be a Prolog term
     void set_comment(const std::string &str);
     inline term get_comment() const { return comment_; }
@@ -149,6 +152,17 @@ public:
     out_connection * new_standard_out_connection(const ip_service &ip);
     out_connection * new_verifier_connection(const ip_service &ip);
 
+    void failed_connection(const ip_service &ip);
+    void successful_connection(const ip_service &ip);
+
+    void create_mailbox(const std::string &mailbox_name);
+
+    void send_message(const std::string &mailbox_name,
+		      const std::string &from,
+		      const std::string &message);
+
+    std::string check_mail();
+
     class locker;
     friend class locker;
 
@@ -182,6 +196,7 @@ private:
     void check_out_connections();
     void check_standard_out_connections();
     bool has_standard_out_connection(const ip_service &ip);
+    bool recently_failed(const ip_service &ip);
     void check_verifier_connections();
     void close(connection *conn);
     void master_hook();
@@ -199,6 +214,7 @@ private:
     common::term_env env_;
 
     std::string id_;
+    std::string name_;
     bool stopped_;
     bool flushed_;
     boost::thread thread_;
@@ -216,6 +232,8 @@ private:
     std::unordered_set<connection *> in_connections_;
     std::unordered_set<connection *> out_connections_;
     std::unordered_set<ip_service> out_standard_ips_;
+    std::unordered_map<ip_service, std::pair<utime, size_t> > recently_failed_;
+    std::set<std::pair<utime, ip_service> > recently_failed_sorted_;
 
     boost::recursive_mutex lock_;
     std::unordered_map<std::string, in_session_state *> in_states_;
@@ -234,6 +252,8 @@ private:
     uint64_t fast_timer_interval_microseconds_;
     uint64_t time_to_live_microseconds_;
     size_t num_download_addresses_;
+
+    std::map<std::string, std::queue<std::string> > mailbox_;
 
     bool testing_mode_;
 };

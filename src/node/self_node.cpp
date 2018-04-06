@@ -2,6 +2,7 @@
 #include <boost/asio/placeholders.hpp>
 #include <boost/date_time/posix_time/posix_time.hpp>
 #include <boost/chrono.hpp>
+#include <boost/algorithm/string/predicate.hpp>
 #include "../common/term_serializer.hpp"
 #include "../common/random.hpp"
 #include "self_node.hpp"
@@ -14,7 +15,8 @@ namespace prologcoin { namespace node {
 using namespace prologcoin::common;
 
 self_node::self_node(unsigned short port)
-    : ioservice_(),
+    : name_("noname"),
+      ioservice_(),
       endpoint_(self_node::tcp::v4(), port),
       acceptor_(ioservice_, endpoint_),
       socket_(ioservice_),
@@ -205,6 +207,27 @@ bool self_node::has_standard_out_connection(const ip_service &ip)
     return out_standard_ips_.find(ip) != out_standard_ips_.end();
 }
 
+bool self_node::recently_failed(const ip_service &ip)
+{
+    auto it = recently_failed_.find(ip);
+    if (it == recently_failed_.end()) {
+	return false;
+    }
+    auto p = it->second;
+    utime t0 = utime::now();
+    auto t1 = p.first;
+    auto cnt = p.second;
+    uint64_t span = 60;
+    // First three attemptes all acceptable within next minute
+    // Then we try next hour.
+    switch (cnt) {
+    case 0: case 1: case 2: case 3: span = 60; break;
+    default: span = 3600; break;
+    }
+    auto diff = (t0 - t1).in_ss();
+    return diff < span;
+}
+
 out_connection * self_node::new_verifier_connection(const ip_service &ip)
 {
     boost::lock_guard<boost::recursive_mutex> guard(lock_);
@@ -275,7 +298,8 @@ void self_node::prune_dead_connections()
 	    assert(c->type() == connection::CONNECTION_OUT);
 	    auto *out = reinterpret_cast<out_connection *>(c);
 	    switch (out->out_type()) {
-	    case out_connection::STANDARD: num_standard_out_connections_--; break;
+	    case out_connection::STANDARD: num_standard_out_connections_--;
+		break;
 	    case out_connection::VERIFIER: num_verifier_connections_--; break;
 	    }
 	}
@@ -288,7 +312,7 @@ void self_node::prune_dead_connections()
 void self_node::connect_to(const std::vector<address_entry> &entries)
 {
     for (auto &e : entries) {
-	if (!has_standard_out_connection(e)) {
+	if (!has_standard_out_connection(e) && !recently_failed(e)) {
 	    new_standard_out_connection(e);
 	}
     }
@@ -343,6 +367,39 @@ void self_node::check_out_connections()
     check_verifier_connections();
 }
 
+void self_node::failed_connection(const ip_service &ip)
+{
+    auto &p = recently_failed_[ip];
+    recently_failed_sorted_.erase(std::make_pair(p.first, ip));
+    p.first = utime::now();
+    p.second++;
+    recently_failed_sorted_.insert(std::make_pair(p.first, ip));
+
+    //
+    // If the recently failed set is too big, then prune the oldest ones.
+    // (Never remove more than 10 at a time. Shouldn't happen in practice
+    //  but as a double safety check.)
+    size_t cnt = 0;
+    while (cnt < 10 &&
+	recently_failed_.size()>2*preferred_num_standard_out_connections_) {
+	auto oldest = *recently_failed_sorted_.begin();
+	recently_failed_sorted_.erase(oldest);
+	recently_failed_.erase(oldest.second);
+	cnt++;
+    }
+}
+
+void self_node::successful_connection(const ip_service &ip)
+{
+    auto it = recently_failed_.find(ip);
+    if (it == recently_failed_.end()) {
+	return;
+    }
+    auto &p = it->second;
+    recently_failed_sorted_.erase(std::make_pair(p.first, ip));
+    recently_failed_.erase(it);
+}
+
 void self_node::join()
 {
     using namespace boost::system;
@@ -393,6 +450,53 @@ void self_node::master_hook()
     if (master_hook_) {
 	master_hook_(*this);
     }
+}
+
+void self_node::create_mailbox(const std::string &mailbox_name)
+{
+    boost::lock_guard<boost::recursive_mutex> guard(lock_);
+
+    mailbox_[mailbox_name] = std::queue<std::string>();
+}
+
+void self_node::send_message(const std::string &mailbox_name,
+			     const std::string &from,
+			     const std::string &message)
+{
+    boost::lock_guard<boost::recursive_mutex> guard(lock_);
+
+    auto it = mailbox_.find(mailbox_name);
+    if (it == mailbox_.end()) {
+	// Unknown mailbox. Just drop the message silently.
+	return;
+    }
+    auto &q = it->second;
+    std::string msg = (from.empty() ? "" : "@") + from + ": ";
+    msg += message;
+    q.push(msg);
+}
+
+// Flush messages, move them to text_out (with mailbox_name as prefix)
+std::string self_node::check_mail()
+{
+    boost::lock_guard<boost::recursive_mutex> guard(lock_);
+
+    std::string s;
+
+    for (auto &p : mailbox_) {
+	auto &name = p.first;
+	auto &msgs = p.second;
+	while (!msgs.empty()) {
+	    const std::string &msg = msgs.front();
+	    s  += name + ": " + msg;
+	    if (!boost::ends_with(msg, "\n")) {
+		s += "\n";
+	    }
+	    msgs.pop();
+	}
+    }
+
+    return s;
 }
 
 }}

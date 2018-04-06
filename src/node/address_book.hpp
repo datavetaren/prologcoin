@@ -52,6 +52,11 @@ public:
     inline utime time() const { return time_; }
     inline int32_t version_major() const { return version_major_; }
     inline int32_t version_minor() const { return version_minor_; }
+    inline std::string version_str() const
+    { return boost::lexical_cast<std::string>(version_major_) + "."
+	    + boost::lexical_cast<std::string>(version_minor_);
+    }
+
     inline const buffer_t & comment() const { return comment_; }
     std::string comment_str() const;
 
@@ -140,6 +145,7 @@ public:
     void remove( size_t id );
     void remove( const ip_service &ip );
     void add_score(address_entry &entry, int change );
+    void update(address_entry &entry);
     size_t size() const;
     bool exists( const ip_service &ip, address_entry *entry = nullptr );
 

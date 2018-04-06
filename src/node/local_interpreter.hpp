@@ -20,10 +20,17 @@ public:
     { return reinterpret_cast<local_interpreter &>(interp); }
 
     static bool id_1(interpreter_base &interp, size_t arity, term args[]);
+    static bool name_1(interpreter_base &interp, size_t arity, term args[]);
     static bool heartbeat_0(interpreter_base &interp, size_t arity, term args[]);
     static bool version_1(interpreter_base &interp, size_t arity, term args[]);
     static bool comment_1(interpreter_base &interp, size_t arity, term args[]);
     static bool peers_2(interpreter_base &interp, size_t arity, term args[]);
+
+    static bool add_address_2(interpreter_base &interp, size_t arity, term args[]);
+    static bool connections_0(interpreter_base &interp, size_t arity, term args[]);
+    static bool mailbox_1(interpreter_base &interp, size_t arity, term args[]);
+    static bool send_2(interpreter_base &interp, size_t arity, term args[]);
+    static bool check_mail_0(interpreter_base &interp, size_t arity, term args[]);
 };
 
 class local_interpreter : public interp::interpreter {
@@ -38,6 +45,11 @@ public:
 
     inline in_session_state & session() { return session_; }
 
+    inline const std::string & get_text_out() { return text_out_; }
+    inline void reset_text_out() { text_out_.clear(); }
+
+    inline void add_text(const std::string &str) { text_out_ += str; }
+
     static const common::con_cell ME;
     static const common::con_cell COLON;
     static const common::con_cell COMMA;
@@ -51,6 +63,7 @@ private:
 
     in_session_state &session_;
     bool initialized_;
+    std::string text_out_;
 };
 
 }}

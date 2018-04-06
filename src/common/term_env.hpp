@@ -362,6 +362,10 @@ public:
     // Return -1, 0 or 1 when comparing standard order for 'a' and 'b'
     int standard_order(const term a, const term b, uint64_t &cost);
 
+    std::string list_to_string(const term t, heap &src);
+    term string_to_list(const std::string &str);
+    bool is_string(const term t, heap &src);
+
 private:
     bool unify_helper(term a, term b, uint64_t &cost);
     int functor_standard_order(con_cell a, con_cell b);
@@ -502,6 +506,29 @@ public:
   {
       term_utils utils(heap_dock<HT>::get_heap(), stacks_dock<ST>::get_stacks());
       return utils.copy(t, var_naming(), src.get_heap(), src.var_naming(), cost);
+  }
+
+  inline std::string list_to_string(term t, term_env_dock<HT,ST,OT> &src)
+  {
+      term_utils utils(heap_dock<HT>::get_heap(), stacks_dock<ST>::get_stacks());
+      return utils.list_to_string(t, src.get_heap());
+  }
+
+  inline std::string list_to_string(term t)
+  {
+      return list_to_string(t, *this);
+  }
+
+  inline term string_to_list(const std::string &str)
+  {
+      term_utils utils(heap_dock<HT>::get_heap(), stacks_dock<ST>::get_stacks());
+      return utils.string_to_list(str);
+  }
+
+  inline bool is_string(term t)
+  {
+      term_utils utils(heap_dock<HT>::get_heap(), stacks_dock<ST>::get_stacks());
+      return utils.is_string(t, *this);
   }
 
   inline uint64_t hash(term t)

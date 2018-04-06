@@ -54,7 +54,7 @@ void task_address_verifier::process()
 	auto const me = local_interpreter::ME;
 	auto const colon = local_interpreter::COLON;
 	auto const comma = local_interpreter::COMMA;
-	auto const result_3 = con_cell("result",3);
+	auto const result_4 = con_cell("result",4);
 	auto const id_1 = con_cell("id",1);
 	auto const version = con_cell("version",1);
 	auto const comment_1 = con_cell("comment",1);
@@ -67,7 +67,7 @@ void task_address_verifier::process()
 	// pattern: result(me:id(Id), me:version(Major,Minor),
         //                 me:comment(Comment),_,_)
 	//
-	auto const pat = p.str(result_3,
+	auto const pat = p.str(result_4,
 	       p.str( comma,
 		      p.str(colon,
 			    p.con(me),
@@ -82,6 +82,7 @@ void task_address_verifier::process()
 			    p.str(colon,
 				  p.con(me),
 				  p.str(comment_1, p.any(comment)))),
+		      p.ignore(),
 		      p.ignore(),
 		      p.ignore()));
 

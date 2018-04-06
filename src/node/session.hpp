@@ -45,12 +45,14 @@ public:
     { return vars_; }
     
     inline common::term get_result() { return interp_.get_result_term(); }
+    inline const std::string & get_text_out() { return interp_.get_text_out(); }
 
     inline bool in_query() const { return in_query_; }
 
     inline bool has_more() const { return in_query() && interp_.has_more(); }
 
     inline bool next() {
+	interp_.reset_text_out();
 	bool r = interp_.next();
 	if (!r) {
 	    in_query_ = false;

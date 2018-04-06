@@ -126,6 +126,7 @@ private:
     void emit_functor_elem(const elem &a);
     void emit_functor_elem_helper(const elem &a);
     void emit_list(const cell lst);
+    void emit_string(const cell str);
     bool atom_name_needs_quotes(const std::string &name) const;
     void emit_atom_name(const std::string &name);
     void emit_functor(const term_emitter::elem &e, const con_cell &f, size_t index);

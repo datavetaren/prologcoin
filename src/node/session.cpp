@@ -18,6 +18,7 @@ in_session_state::in_session_state(self_node *self, in_connection *conn)
 bool in_session_state::execute(const term query)
 {
     interp_.ensure_initialized();
+    interp_.reset_text_out();
 
     query_ = query;
     in_query_ = true;

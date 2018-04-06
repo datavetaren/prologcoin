@@ -707,7 +707,7 @@ void term_emitter::emit_functor_elem_helper(const term_emitter::elem &e)
     auto f = static_cast<const con_cell &>(fc);
 
     if (f == dotted_pair_ || f == empty_list_) {
-        emit_list(str);
+	emit_list(str);
 	return;
     }
 
@@ -753,6 +753,12 @@ void term_emitter::emit_functor_elem_helper(const term_emitter::elem &e)
     case term_ops::YFX: emit_xfy(is_def,x,f,y,x_prec<=f_prec,y_prec<f_prec);return;
     default: emit_functor(e, f, index); return;
     }
+}
+
+void term_emitter::emit_string(const cell lst0)
+{
+    std::string literal = "\"" + heap_.list_to_string(lst0) + "\"";
+    emit_token(literal);
 }
 
 void term_emitter::emit_list(const cell lst0)

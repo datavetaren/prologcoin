@@ -32,14 +32,23 @@ void out_task::stop()
 
 term out_task::get_result()
 {
-    static const con_cell result_3("result",3);
+    static const con_cell result_4("result",4);
 
     term r = get_term();
     if (r.tag() != tag_t::STR) {
 	return term();
     }
-    if (!env().functor(r) == result_3) {
+    if (!env().functor(r) == result_4) {
 	return term();
+    }
+    return env().arg(r, 0);
+}
+
+term out_task::get_result_goal()
+{
+    term r = get_result();
+    if (r == term()) {
+	return r;
     }
     return env().arg(r, 0);
 }

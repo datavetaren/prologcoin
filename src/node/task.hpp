@@ -40,6 +40,7 @@ public:
     { set_term(env_->new_term(common::con_cell("query",1), {t})); }
 
     term get_result();
+    term get_result_goal();
 
     inline term_env & env() { return *env_; }
 

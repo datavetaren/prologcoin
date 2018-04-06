@@ -76,7 +76,7 @@ void task_address_downloader::process()
     } else if (get_state() == RECEIVED) {
 	auto const me = local_interpreter::ME;
 	auto const colon = local_interpreter::COLON;
-	auto const result_3 = con_cell("result",3);
+	auto const result_4 = con_cell("result",4);
 	auto const peers_2 = con_cell("peers",2);
 	term peers;
 
@@ -84,7 +84,7 @@ void task_address_downloader::process()
 	// pattern: result(me:peers(10,X),_,_)
 	//
 	pattern p(e);
-	auto const pat = p.str(result_3,
+	auto const pat = p.str(result_4,
 			       p.str(colon,
 				     p.con(me),
 				     p.str(peers_2,

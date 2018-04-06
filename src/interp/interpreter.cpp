@@ -439,6 +439,7 @@ void interpreter::dispatch()
 	    if (!is_empty_list(module)) {
 		msg << atom_name(module) << ":";
 	    }
+
 	    msg << atom_name(f) << "/" << f.arity();
 	    abort(interpreter_exception_undefined_predicate(msg.str()));
 	    return;

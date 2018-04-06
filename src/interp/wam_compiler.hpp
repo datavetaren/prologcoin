@@ -55,7 +55,7 @@ public:
      inline wam_interim_instruction(common::int_cell lab) :
        wam_interim_instruction_base(&invoke, sizeof(*this), INTERIM_LABEL),
        label_(lab) {
-        static bool init = [this] {
+        static bool init = [] {
 	  register_printer(&invoke, &print); return true; } ();
         static_cast<void>(init);
     }

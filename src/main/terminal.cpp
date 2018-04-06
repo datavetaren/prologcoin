@@ -1,5 +1,6 @@
 #include <algorithm>
 #include <ctype.h>
+#include <boost/algorithm/string/predicate.hpp>
 #include "../common/term_serializer.hpp"
 #include "../node/self_node.hpp"
 #include "terminal.hpp"
@@ -139,7 +140,11 @@ void terminal::add_error(const std::string &str)
 
 void terminal::add_text_output(const std::string &str)
 {
-    text_output_queue_.push(str + "\n");
+    if (!boost::ends_with(str, "\n")) {
+	text_output_queue_.push(str + "\n");
+    } else {
+	text_output_queue_.push(str);
+    }
 }
 
 void terminal::add_text_output_no_nl(const std::string &str)
@@ -272,7 +277,15 @@ bool terminal::connect()
 	return false;
     }
 
-    auto session_id_term = e.arg(reply, 0);
+    static const con_cell session("session", 2);
+
+    auto session_term = e.arg(reply, 0);
+    if (e.functor(session_term) != session) {
+	add_error("Node replied with unexpected session: " + env_.to_string(session_term));
+	return false;
+    }
+
+    auto session_id_term = e.arg(session_term, 0);
     if (!e.is_atom(session_id_term)) {
 	add_error("Node did not reply with session id: " + e.to_string(session_id_term));
 	return false;
@@ -346,6 +359,7 @@ bool terminal::process_query_reply()
 	return false;
     }
     auto &e = env_;
+
     if (e.functor(reply) == con_cell("error",1)) {
 	add_error(e.to_string(e.arg(reply,0)));
 	return false;
@@ -354,18 +368,27 @@ bool terminal::process_query_reply()
     if (e.functor(reply) == con_cell("ok",1)) {
 	auto context = e.capture_state();
 	auto result_term = e.arg(reply,0);
-	if (e.functor(result_term) != con_cell("result",3)) {
-	    add_error("Unexpected result. Expected result/3 inside ok/1, but got: " + e.to_string(result_term));
+	if (e.functor(result_term) != con_cell("result",4)) {
+	    add_error("Unexpected result. Expected result/4 inside ok/1, but got: " + e.to_string(result_term));
 	    return false;
 	}
 	auto in_query_state = e.arg(result_term,2);
 	in_query_ = in_query_state == con_cell("more",0);
+
+	// Append any text output from fourth argument.
+	// This never errors becaus list_to_string() never errors, it
+	// just skips illegal items.
+	auto text_out_term = e.arg(result_term,3);
+	auto text_out = e.list_to_string(text_out_term);
+	if (!text_out.empty()) {
+	    add_text_output(text_out);
+	}
 	
 	auto touched = e.prettify_var_names(result_term);
 	auto vars = e.arg(result_term,1);
 	while (vars != e.empty_list()) {
 	    if (!e.is_dotted_pair(vars)) {
-		add_error("Unexpected result. Second argument of result/3 was not a proper list. " + e.to_string(e.arg(result_term,1)));
+		add_error("Unexpected result. Second argument of result/4 was not a proper list. " + e.to_string(e.arg(result_term,1)));
 		return false;
 	    }
 	    auto var_binding = e.arg(vars,0);
@@ -400,6 +423,7 @@ bool terminal::process_query_reply()
 	for (auto touched_term : touched) {
 	    e.clear_name(touched_term);
 	}
+
 	return true;
     }
     add_error("Unexpected reply from node: " + e.to_string(reply));

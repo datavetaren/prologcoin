@@ -76,6 +76,10 @@ std::string address_entry::comment_str() const
 {
     using namespace prologcoin::common;
 
+    if (comment_.empty()) {
+	return "[]";
+    }
+
     term_env env;
     term_serializer ser(env);
     term t = ser.read(comment_);
@@ -576,6 +580,15 @@ void address_book::add_score(address_entry &e, int change)
 	e.set_score(new_score);
 	add(e);
     }
+}
+
+void address_book::update(address_entry &e)
+{
+    address_entry ee = e;
+    if (exists(e, &ee)) {
+	remove(ee);
+    }
+    add(e);
 }
 
 size_t address_book::size() const

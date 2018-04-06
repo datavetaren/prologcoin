@@ -629,8 +629,8 @@ void terminal::process_query_reply()
     if (e.functor(reply) == con_cell("ok",1)) {
 	auto context = e.capture_state();
 	auto result_term = e.arg(reply,0);
-	if (e.functor(result_term) != con_cell("result",3)) {
-	    add_error("Unexpected result. Expected result/3 inside ok/1, but got: " + e.to_string(result_term));
+	if (e.functor(result_term) != con_cell("result",4)) {
+	    add_error("Unexpected result. Expected result/4 inside ok/1, but got: " + e.to_string(result_term));
 	    return;
 	}
 	auto in_query_state = e.arg(result_term,2);
@@ -640,7 +640,7 @@ void terminal::process_query_reply()
 	auto vars = e.arg(result_term,1);
 	while (vars != e.empty_list()) {
 	    if (!e.is_dotted_pair(vars)) {
-		add_error("Unexpected result. Second argument of result/3 was not a proper list. " + e.to_string(e.arg(result_term,1)));
+		add_error("Unexpected result. Second argument of result/4 was not a proper list. " + e.to_string(e.arg(result_term,1)));
 		return;
 	    }
 	    auto var_binding = e.arg(vars,0);

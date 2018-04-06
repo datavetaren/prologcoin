@@ -8,6 +8,7 @@ using namespace prologcoin::node;
 static std::string program_name;
 static std::string home_dir;
 unsigned short port = self_node::DEFAULT_PORT;
+static std::string name;
 
 static void help()
 {
@@ -15,6 +16,7 @@ static void help()
     std::cout << "Usage: " << program_name << " --interactive [--port <number>]" << std::endl;
     std::cout << "  --interactive (non-interactive currently unavailable)" << std::endl;
     std::cout << "  --port <number> (start service on this port, default is " << self_node::DEFAULT_PORT << ")" << std::endl;
+    std::cout << "  --name <string> (set friendly name on node, default is noname)" << std::endl;
     // std::cout << "  --homedir <dir> (location of home directory, default userdir/" << program_name << ")" << std::endl;
 
     std::cout << std::endl;
@@ -27,6 +29,10 @@ static void start()
     std::cout << std::endl;
 
     self_node node(port);
+
+    if (!name.empty()) {
+	node.set_name(name);
+    }
 
     std::cout << "[" << program_name << " v" << self_node::VERSION_MAJOR << "." << self_node::VERSION_MINOR << "]" << std::endl << std::endl;
 
@@ -98,6 +104,11 @@ int main(int argc, char *argv[])
 	} catch (boost::exception &ex) {
 	    std::cout << std::endl << program_name << ": erroneous port: " << port_opt << std::endl << std::endl;
 	}
+    }
+
+    std::string name_opt = get_option(args, "--name");
+    if (!name_opt.empty()) {
+	name = name_opt;
     }
     // std::cout << "Dir     : " << home_dir << std::endl;
 

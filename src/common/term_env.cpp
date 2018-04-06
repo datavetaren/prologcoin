@@ -454,10 +454,18 @@ term term_utils::copy(term c, naming_map &names,
 
 	case tag_t::STR:
 	  { con_cell f = src.functor(c);
+	    auto search_f = con_map.find(f);
+	    con_cell dst_f;
+            if (search_f == con_map.end()) {
+		dst_f = functor(src.atom_name(f), f.arity());
+		con_map[f] = dst_f;
+	    } else {
+		dst_f = search_f->second;
+	    }
 	    size_t num_args = f.arity();
 	    if (processed) {
 	      // Arguments on temp are the new arguments of STR cell
-	      cell newstr = new_term(f);
+	      cell newstr = new_term(dst_f);
 	      for (size_t i = 0; i < num_args; i++) {
 		  set_arg(newstr, num_args-i-1, temp_pop());
 	      }
@@ -484,6 +492,58 @@ term term_utils::copy(term c, naming_map &names,
     cost = cost_tmp;
 
     return temp_pop();
+}
+
+std::string term_utils::list_to_string(const term t, heap &src)
+{
+    term lst = t;
+    std::string str;
+    while (src.is_dotted_pair(lst)) {
+	term elem = src.arg(lst, 0);
+	lst = src.arg(lst, 1);
+	if (elem.tag() != tag_t::INT) {
+	    continue;
+	}
+	auto ascii = static_cast<const int_cell &>(elem).value();
+	if (ascii >= 0 && ascii <= 255) {
+	    str += static_cast<const char>(ascii);
+	}
+    }
+    return str;
+}
+
+term term_utils::string_to_list(const std::string &str)
+{
+    size_t n = str.size();
+    term lst = empty_list();
+    for (size_t i = 0; i < n; i++) {
+	size_t ri = n - i - 1;
+	auto ch = str[ri];
+	auto ascii = static_cast<int>(ch);
+	if (ascii < 0 || ascii > 255) {
+	    continue;
+	}
+	lst = new_dotted_pair(int_cell(ascii), lst);
+    }
+    return lst;
+}
+
+bool term_utils::is_string(const term t, heap &src)
+{
+    term lst = t;
+    std::string str;
+    while (src.is_dotted_pair(lst)) {
+	term elem = src.arg(lst, 0);
+	lst = src.arg(lst, 1);
+	if (elem.tag() != tag_t::INT) {
+	    return false;
+	}
+	auto ascii = static_cast<const int_cell &>(elem).value();
+	if (ascii < 0 || ascii > 255) {
+	    return false;
+	}
+    }
+    return src.is_empty_list(lst);
 }
 
 }}

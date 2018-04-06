@@ -637,6 +637,47 @@ public:
 	}
     }
 
+    inline bool is_string(term lst) const
+    {
+	if (is_empty_list(lst)) {
+	    return false;
+	}
+	bool contain_printables = false;
+	while (is_dotted_pair(lst)) {
+	    term head = arg(lst, 0);
+	    if (head.tag() != tag_t::INT) {
+		return false;
+	    }
+	    auto val = static_cast<const int_cell &>(head).value();
+	    if (val < 0 || val > 255) {
+		return false;
+	    }
+	    if (val >= ' ') {
+		contain_printables = true;
+	    }
+	    lst = arg(lst, 1);
+	}
+	return contain_printables;
+    }
+
+    inline std::string list_to_string(term lst) const
+    {
+	std::string s;
+
+	while (is_dotted_pair(lst)) {
+	    term head = arg(lst, 0);
+	    lst = arg(lst, 1);
+	    if (head.tag() != tag_t::INT) {
+		continue;
+	    }
+	    auto val = static_cast<const int_cell &>(head).value();
+	    if (val >= 0 && val <= 255) {
+		s += static_cast<char>(val);
+	    }
+	}
+	return s;
+    }
+
     bool is_name(con_cell cell, const std::string &name) const;
 
     inline con_cell functor(const std::string &name, size_t arity)

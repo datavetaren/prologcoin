@@ -155,6 +155,8 @@ public:
     in_connection(self_node &self);
     ~in_connection();
 
+    inline const std::string & name() const { return name_; }
+
 private:
     common::con_cell get_state_atom();
     void setup_commands();
@@ -165,6 +167,7 @@ private:
 
     void command_new(const term cmd);
     void command_connect(const term cmd);
+    void command_name(const term cmd);
     void command_kill(const term cmd);
     void command_next(const term cmd);
     void process_command(const term cmd);
@@ -181,6 +184,7 @@ private:
 		       std::function<void(common::term cmd)> > commands_;
     in_session_state *session_;
     term_env env_;
+    std::string name_;
 };
 
 //
@@ -200,12 +204,15 @@ public:
 
     inline out_type_t out_type() const { return out_type_; }
     inline const ip_service & ip() const { return ip_; }
+    inline const std::string & name() const { return name_; }
 
     inline term_env & env() { return env_; }
 
     inline void set_use_heartbeat(bool b) { use_heartbeat_ = b; }
 
     out_task create_heartbeat_task();
+    out_task create_publish_task();
+    out_task create_info_task();
     out_task create_init_connection_task();
 
     inline void schedule(out_task &task) {
@@ -252,7 +259,11 @@ protected:
 
 private:
     void handle_heartbeat_task(out_task &task);
+    void handle_publish_task(out_task &task);
+    void handle_info_task(out_task &task);
     static void handle_heartbeat_task_fn(out_task &task);
+    static void handle_publish_task_fn(out_task &task);
+    static void handle_info_task_fn(out_task &task);
 
     void handle_init_connection_task(out_task &task);
     static void handle_init_connection_task_fn(out_task &task);
@@ -268,9 +279,11 @@ private:
     out_type_t out_type_;
     ip_service ip_;
     std::string id_;
+    std::string name_;
     bool init_in_progress_;
     bool use_heartbeat_;
     bool connected_;
+    bool sent_my_name_;
     term_env env_;
     std::priority_queue<out_task, std::vector<out_task>, std::greater<out_task> > work_;
     utime last_in_work_;

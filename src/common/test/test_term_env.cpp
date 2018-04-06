@@ -269,6 +269,32 @@ static void test_copy_term_heaps()
     assert(src_str == unify_str);
 }
 
+static void test_list_string()
+{
+    header( "test_list_string()" );
+
+    term_env env;
+
+    std::string str = "this is a string with a \t tab";
+    term lst = env.string_to_list(str);
+    std::string expect = "[116,104,105,115,32,105,115,32,97,32,115,116,114,105,110,103,32,119,105,116,104,32,97,32,9,32,116,97,98]";
+    std::stringstream ss_actual;
+    term_emitter emit(ss_actual, env);
+    emit.set_option_nl(false);
+    emit.print(lst);
+    std::string actual = ss_actual.str();
+    
+    std::cout << "String: " << str << std::endl;
+    std::cout << "List  : " << actual << std::endl;
+    std::cout << "Expect: " << expect << std::endl;
+    assert(actual == expect);
+
+    std::cout << "Go back to string" << std::endl;
+    std::string back = env.list_to_string(lst);
+    std::cout << "String: " << back << std::endl;
+    assert(back == str);
+}
+
 int main( int argc, char *argv[] )
 {
     test_simple_env();
@@ -279,6 +305,7 @@ int main( int argc, char *argv[] )
     test_copy_term();
     test_dfs_iterator();
     test_copy_term_heaps();
+    test_list_string();
 
     return 0;
 }
