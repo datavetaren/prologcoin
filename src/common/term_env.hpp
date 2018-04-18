@@ -851,6 +851,8 @@ class term_env : public term_env_dock<heap, stacks, term_ops>
 {
 public:
      term_env() : term_env_dock() { }
+
+     std::string to_string_debug(const term t) const;
 };
 
 //

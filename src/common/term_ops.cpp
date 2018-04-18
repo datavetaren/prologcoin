@@ -7,15 +7,21 @@ namespace prologcoin { namespace common {
 term_ops::term_ops()
 {
     static op_entry DEFAULT[] =
-  	  { { "-->",    2, 1200,       XFX, SPACE_XFX},
+	{
+	    { "-->",    2, 1200,       XFX, SPACE_XFX},
 	    { ":-",     2, 1200,       XFX, SPACE_XFX },
 	    { ":-",     1, 1200,       FX,  SPACE_XF },
 	    { "?-",     1, 1200,       FX,  SPACE_XF },
+
 	    { ";",      2, 1100,       XFY, SPACE_XFX },
 	    { "|",      2, 1100,       XFY, SPACE_XFX },
 	    { "->",     2, 1050,       XFY, SPACE_XFX },
 	    { "*->",    2, 1050,       XFY, SPACE_XFX },
 	    { ",",      2, 1000,       XFY, SPACE_FX },
+
+	    // Non-standard Prolog operator; for Prologcoin only
+	    { "@",      2, 995,       XFY, SPACE_XFX },
+
 	    { ":=",     2, 990,        XFX, SPACE_XFX },
 	    { "\\+",    1, 900,        FY, SPACE_FX },
 	    { "<",      2, 700,        XFX, SPACE_XFX },
@@ -60,6 +66,7 @@ term_ops::term_ops()
 	    { "+",      1, 200,        FY, SPACE_FX },
 	    { "-",      1, 200,        FY, SPACE_FX },
 	    { "\\",     1, 200,        FY, SPACE_F },
+
 	    { ".",      2, 100,        YFX, SPACE_F },
 	    { "$",      1, 1,          FX, SPACE_F }
 	  };

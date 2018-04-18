@@ -9,13 +9,8 @@ using namespace prologcoin::common;
 namespace prologcoin { namespace node {
 
 task_address_verifier::task_address_verifier(out_connection &out)
-    : out_task("address_verifier", out, &task_address_verifier::process_fn)
+    : out_task("address_verifier", out)
 { }
-
-void task_address_verifier::process_fn(out_task &task)
-{
-    reinterpret_cast<task_address_verifier &>(task).process();
-}
 
 void task_address_verifier::process()
 {

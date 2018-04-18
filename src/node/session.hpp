@@ -18,6 +18,7 @@ public:
 
     inline const std::string & id() const { return id_; }
     inline common::term_env & env() { return interp_; }
+    inline interp::interpreter & interp() { return interp_; }
 
     inline in_connection * get_connection() { return connection_; }
     inline void set_connection(in_connection *conn) { connection_ = conn; }
@@ -25,40 +26,22 @@ public:
 
     inline size_t heartbeats() const { return heartbeat_count_; }
 
+    inline common::term query() const { return interp_.query(); }
+
+    // Return a dotted pair with the query and its vars.
+    common::term query_closure();
+
     bool execute(const common::term query);
+    bool next();
+    bool at_end();
+    void delete_instance();
+    bool reset();
+    void local_reset();
 
-    inline void set_query(const common::term query)
-    {
-	query_ = query;
-        auto vars = env().find_vars(query_);
-	vars_ = env().empty_list();
-	for (auto v = vars.rbegin(); v != vars.rend(); ++v) {
-	    vars_ = env().new_dotted_pair(
-			  env().new_term(common::con_cell("=",2),
-				 {env().functor(v->first,0), v->second}),
-		  vars_);
-	}
-    }
-
-    inline common::term query() const { return query_; }
-    inline common::term query_vars()
-    { return vars_; }
-    
     inline common::term get_result() { return interp_.get_result_term(); }
-    inline const std::string & get_text_out() { return interp_.get_text_out(); }
+    inline const std::string & get_text_out() {return interp_.get_text_out();}
 
-    inline bool in_query() const { return in_query_; }
-
-    inline bool has_more() const { return in_query() && interp_.has_more(); }
-
-    inline bool next() {
-	interp_.reset_text_out();
-	bool r = interp_.next();
-	if (!r) {
-	    in_query_ = false;
-	}
-	return r;
-    }
+    inline bool has_more() const { return interp_.has_more(); }
 
     void heartbeat();
 
@@ -70,9 +53,6 @@ private:
     in_connection *connection_;
     local_interpreter interp_;
     bool interp_initialized_;
-    common::term query_;
-    bool in_query_;
-    common::term vars_;
     common::utime heartbeat_;
     size_t heartbeat_count_;
 };

@@ -18,6 +18,10 @@ public:
 
     void setup_standard_lib();
 
+    void new_instance();
+    size_t num_instances() const { return num_instances_; }
+    void delete_instance();
+
     void compile();
     void compile(const qname &pred);
     void compile(common::con_cell module, common::con_cell name);
@@ -27,8 +31,36 @@ public:
     bool cont();
     void fail();
 
+    inline common::term query() const { return qr(); }
+
+    class binding {
+    public:
+	binding() { }
+	binding(const std::string &name, const common::term value) 
+	    : name_(name), value_(value) { }
+	binding(const binding &other)
+            : name_(other.name_), value_(other.value_) { }
+
+	inline const std::string & name() const { return name_; }
+	inline const common::term value() const { return value_; }
+
+    private:
+	std::string name_;
+	common::term value_;
+    };
+
+    inline const std::vector<binding> & query_vars() const
+    { return *query_vars_; }
+
+    common::term query_var_list();
+
     inline bool has_more() const
-    { return b() != top_b() || has_meta_contexts(); }
+    { if (top_b() != b()) return true;
+      if (!has_meta_context()) {
+	  return false;
+      }
+      return get_current_meta_context()->fn != interpreter::new_instance_meta;
+    }
 
     inline void set_wam_enabled(bool enabled)
     { wam_enabled_ = enabled; }
@@ -46,7 +78,11 @@ public:
 	interpreter_base::unwind(trail_mark);
     }
 
+    bool is_instance() const;
+
 private:
+    static bool new_instance_meta(interpreter_base &interp, const meta_reason_t &reason);
+
     void load_code(wam_interim_code &code);
     void bind_code_point(std::unordered_map<size_t, size_t> &label_map,
 			 code_point &cp);
@@ -78,27 +114,21 @@ private:
     std::unordered_map<functor_index, size_t> predicate_id_;
     std::vector<predicate> id_to_predicate_;
 
+    inline std::vector<binding> & query_vars()
+        { return *query_vars_; }
 
-    class binding {
-    public:
-	binding() { }
-	binding(const std::string &name, const term value) 
-	    : name_(name), value_(value) { }
-
-	inline const std::string & name() const { return name_; }
-	inline const term value() const { return value_; }
-
-    private:
-	std::string name_;
-	term value_;
-    };
-
-    inline const std::vector<binding> & query_vars() const
+    inline std::vector<binding> * query_vars_ptr()
         { return query_vars_; }
 
+    inline void set_query_vars(std::vector<binding> *qv)
+        { query_vars_ = qv; }
+
     bool wam_enabled_;
-    std::vector<binding> query_vars_;
+    std::vector<binding> *query_vars_;
     wam_compiler *compiler_;
+    size_t num_instances_;
+
+    friend struct new_instance_context;
 
     friend class test_wam_compiler;
 };

@@ -507,7 +507,7 @@ namespace prologcoin { namespace interp {
     bool builtins::operator_disprove(interpreter_base &interp, size_t arity, common::term args[])
     {
 	term arg = args[0];
-	interp.new_meta_context<meta_context>(&operator_disprove_post);
+	interp.new_meta_context<meta_context>(&operator_disprove_meta);
 
 	interp.set_top_e();
 	interp.allocate_choice_point(code_point::fail());
@@ -518,17 +518,23 @@ namespace prologcoin { namespace interp {
 	return true;
     }
 
-    bool builtins::operator_disprove_post(interpreter_base &interp,
-					  meta_context *context)
+    bool builtins::operator_disprove_meta(interpreter_base &interp,
+					  const meta_reason_t &reason)
     {
+	if (reason == interp::meta_reason_t::META_DELETE) {
+	    interp.unwind_to_top_choice_point();
+	    interp.release_last_meta_context();
+	    return true;
+	} 
+
         bool failed = interp.is_top_fail();
 
 	interp.unwind_to_top_choice_point();
 	interp.release_last_meta_context();
 
-	if (interp.e0() != interp.top_e()) {
-	    interp.deallocate_environment();
-	}
+	//	if (interp.e0() != interp.top_e()) {
+	//	    interp.deallocate_environment();
+	//	}
 	interp.set_p(interp.cp());
 	interp.set_cp(interp.empty_list());
 
@@ -541,6 +547,8 @@ namespace prologcoin { namespace interp {
     }
 
     struct meta_context_findall : public meta_context {
+	inline meta_context_findall(interpreter_base &interp, meta_fn fn)
+	    : meta_context(interp, fn) { }
 	size_t secondary_hb_;
         term template_;
 	term result_;
@@ -552,12 +560,12 @@ namespace prologcoin { namespace interp {
     bool builtins::findall_3(interpreter_base &interp, size_t arity, common::term args[])
     {
 	term qr = args[1];
-	auto *mc = interp.new_meta_context<meta_context_findall>(&findall_3_post);
-	mc->template_ = args[0];
-	mc->result_ = args[2];
-	mc->interim_ = interp.secondary_env().empty_list();
-	mc->tail_ = interp.secondary_env().empty_list();
-	mc->secondary_hb_ = interp.secondary_env().get_register_hb();
+	auto *context = interp.new_meta_context<meta_context_findall>(&findall_3_meta);
+	context->template_ = args[0];
+	context->result_ = args[2];
+	context->interim_ = interp.secondary_env().empty_list();
+	context->tail_ = interp.secondary_env().empty_list();
+	context->secondary_hb_ = interp.secondary_env().get_register_hb();
 	interp.secondary_env().set_register_hb(interp.secondary_env().heap_size());
 	interp.set_top_e();
 	interp.allocate_choice_point(code_point::fail());
@@ -568,20 +576,27 @@ namespace prologcoin { namespace interp {
 	return true;
     }
 
-    bool builtins::findall_3_post(interpreter_base &interp, meta_context *context)
+    bool builtins::findall_3_meta(interpreter_base &interp, const meta_reason_t &reason)
     {
 	bool failed = interp.is_top_fail();
 
-	auto *mc = interp.get_last_meta_context<meta_context_findall>();
+	auto *context = interp.get_current_meta_context<meta_context_findall>();
+
+	if (reason == interp::meta_reason_t::META_DELETE) {
+	    interp.secondary_env().trim_heap(interp.secondary_env().get_register_hb());
+	    interp.secondary_env().set_register_hb(context->secondary_hb_);
+	    interp.release_last_meta_context();
+	    return true;
+	} 
 
 	interp.set_complete(false);
 
 	if (failed) {
 	    interp.unwind_to_top_choice_point();
-	    term result = interp.copy(mc->interim_, interp.secondary_env());
-	    term output = mc->result_;
+	    term result = interp.copy(context->interim_, interp.secondary_env());
+	    term output = context->result_;
 	    interp.secondary_env().trim_heap(interp.secondary_env().get_register_hb());
-	    interp.secondary_env().set_register_hb(mc->secondary_hb_);
+	    interp.secondary_env().set_register_hb(context->secondary_hb_);
 	    interp.release_last_meta_context();
 	    if (interp.e0() != interp.top_e()) {
 		interp.deallocate_environment();
@@ -596,16 +611,16 @@ namespace prologcoin { namespace interp {
 	}
 
 	uint64_t cost = 0;
-	auto elem = interp.secondary_env().copy(mc->template_, interp, cost);
+	auto elem = interp.secondary_env().copy(context->template_, interp, cost);
         interp.add_accumulated_cost(cost);
 	auto newtail = interp.secondary_env().new_dotted_pair(
 			      elem, interp.secondary_env().empty_list());
-	if (interp.secondary_env().is_empty_list(mc->interim_)) {
-	    mc->interim_ = newtail;
-	    mc->tail_ = mc->interim_;
+	if (interp.secondary_env().is_empty_list(context->interim_)) {
+	    context->interim_ = newtail;
+	    context->tail_ = context->interim_;
 	} else {
-	    interp.secondary_env().set_arg(mc->tail_, 1, newtail);
-	    mc->tail_ = newtail;
+	    interp.secondary_env().set_arg(context->tail_, 1, newtail);
+	    context->tail_ = newtail;
 	}
 
 	interp.set_p(common::con_cell("fail",0));

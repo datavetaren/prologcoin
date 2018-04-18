@@ -8,6 +8,7 @@
 namespace prologcoin { namespace interp {
 
     class interpreter_base;
+    class meta_reason_t;
     struct meta_context;
 
     // We avoid std::function, because it is not as efficient as a
@@ -174,9 +175,9 @@ namespace prologcoin { namespace interp {
 	//
 	
 	static bool operator_disprove(interpreter_base &interp, size_t arity, common::term args[]);
-	static bool operator_disprove_post(interpreter_base &interp, meta_context *context);
+	static bool operator_disprove_meta(interpreter_base &interp, const meta_reason_t &reason);
 	static bool findall_3(interpreter_base &interp, size_t arity, common::term args[]);
-	static bool findall_3_post(interpreter_base &interp, meta_context *context);
+	static bool findall_3_meta(interpreter_base &interp, const meta_reason_t &reason);
     };
 
 }}

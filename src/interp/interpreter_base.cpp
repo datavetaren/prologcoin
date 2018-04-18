@@ -15,6 +15,22 @@ using namespace prologcoin::common;
 
 const common::term code_point::fail_term_ = common::ref_cell(0);
 
+meta_context::meta_context(interpreter_base &i, meta_fn mfn)
+{
+    fn = mfn;
+    old_m = i.m();
+    old_top_b = i.top_b();
+    old_b = i.b();
+    old_b0 = i.b0();
+    old_top_e = i.top_e();
+    old_e = i.e();
+    old_e_is_wam = i.e_is_wam();
+    old_p = i.p();
+    old_cp = i.cp();
+    old_qr = i.qr();
+    old_hb = i.get_register_hb();
+}
+
 interpreter_base::interpreter_base() : register_pr_("", 0), comma_(",",2), empty_list_("[]", 0), implied_by_(":-", 2), arith_(*this)
 {
     init();
@@ -23,6 +39,19 @@ interpreter_base::interpreter_base() : register_pr_("", 0), comma_(",",2), empty
     load_builtins_opt();
 
     tidy_size = 0;
+
+    register_top_b_ = nullptr;
+    register_top_e_ = nullptr;
+    register_b_ = nullptr;
+    register_b0_ = nullptr;
+    register_e_ = nullptr;
+    register_e_is_wam_ = false;
+    register_p_.reset();
+    register_cp_.reset();
+    register_m_ = nullptr;
+    num_of_args_ = 0;
+    memset(&register_ai_[0], 0, sizeof(common::term)*MAX_ARGS);
+    num_y_fn_ = nullptr;
 }
 
 void interpreter_base::init()
@@ -49,6 +78,21 @@ interpreter_base::~interpreter_base()
     builtins_opt_.clear();
     program_db_.clear();
     program_predicates_.clear();
+}
+
+void interpreter_base::reset()
+{
+    unwind_to_top_choice_point();
+    while (has_meta_context()) {
+	auto *m = get_current_meta_context();
+	m->fn(*this, meta_reason_t::META_DELETE);
+	unwind_to_top_choice_point();
+    }
+    while (b() != top_b()) {
+	reset_to_choice_point(b());
+	set_b(b()->b);
+	if (b() != nullptr) set_register_hb(b()->h);
+    }
 }
 
 std::string code_point::to_string(interpreter_base &interp) const
@@ -508,13 +552,10 @@ void interpreter_base::prepare_execution()
     memset(register_ai_, 0, sizeof(register_ai_));
     top_fail_ = false;
     complete_ = false;
-    register_b_ = nullptr;
-    register_e_ = nullptr;
-    register_e_is_wam_ = false;
+    register_top_b_ = register_b_;
+    register_b0_ = register_b_;
+    register_top_e_ = register_e_;
     set_register_hb(heap_size());
-    register_b0_ = nullptr;
-    register_top_b_ = nullptr;
-    register_top_e_ = nullptr;
     register_p_.reset();
 }
 
@@ -610,7 +651,7 @@ common::term interpreter_base::get_first_arg()
     if (num_of_args_ == 0) {
         return empty_list();
     }
-    return a(0);
+    return deref(a(0));
 }
 
 
@@ -627,6 +668,7 @@ choice_point_t * interpreter_base::reset_to_choice_point(choice_point_t *b)
 {
     auto ch = b;
 
+    set_m(ch->m);
     set_e(ch->ce);
     set_cp(ch->cp);
     unwind(ch->tr);

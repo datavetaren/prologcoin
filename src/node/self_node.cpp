@@ -9,6 +9,7 @@
 #include "session.hpp"
 #include "address_verifier.hpp"
 #include "address_downloader.hpp"
+#include "task_execute_query.hpp"
 
 namespace prologcoin { namespace node {
 
@@ -57,7 +58,10 @@ void self_node::run()
 {
     start_accept();
     start_tick();
-    ioservice_.run();
+
+    for (int i = 0; i < 2; i++) {
+    	workers_.push_back(boost::thread([this]() { ioservice_.run(); } ));
+    }
 }
 
 void self_node::close(connection *conn)
@@ -152,6 +156,130 @@ void self_node::for_each_in_connection(const std::function<void (in_connection *
     }
 }
 
+out_connection * self_node::find_out_connection(const std::string &where)
+{
+    boost::lock_guard<boost::recursive_mutex> guard(lock_);
+
+    for (auto *conn : out_connections_) {
+	auto *out = reinterpret_cast<out_connection *>(conn);
+	if (out->out_type() == out_connection::STANDARD) {
+	    if (out->name() == where) {
+		return out;
+	    }
+	}
+    }
+    return nullptr;
+}
+
+task_execute_query * self_node::schedule_execute_new_instance(const std::string &where)
+{
+    boost::lock_guard<boost::recursive_mutex> guard(lock_);
+    auto *out = find_out_connection(where);
+    if (out == nullptr) {
+	return nullptr;
+    }
+    auto *task = new task_execute_query(*out, task_execute_query::new_instance());
+    out->schedule(task);
+    return task;
+}
+
+task_execute_query * self_node::schedule_execute_delete_instance(const std::string &where)
+{
+    boost::lock_guard<boost::recursive_mutex> guard(lock_);
+    auto *out = find_out_connection(where);
+    if (out == nullptr) {
+	return nullptr;
+    }
+    auto *task = new task_execute_query(*out, task_execute_query::delete_instance());
+    out->schedule(task);
+    return task;
+}
+
+task_execute_query * self_node::schedule_execute_query(term query, term_env &query_src, const std::string &where)
+{
+    boost::lock_guard<boost::recursive_mutex> guard(lock_);
+    auto *out = find_out_connection(where);
+    if (out == nullptr) {
+	return nullptr;
+    }
+    auto *task = new task_execute_query(*out, query, query_src);
+    out->schedule(task);
+    return task;
+}
+
+task_execute_query * self_node::schedule_execute_next(const std::string &where)
+{
+    boost::lock_guard<boost::recursive_mutex> guard(lock_);
+    auto *out = find_out_connection(where);
+    if (out == nullptr) {
+	return nullptr;
+    }
+    auto *task = new task_execute_query(*out, task_execute_query::do_next());
+    out->schedule(task);
+    return task;
+}
+
+self_node::execute_at_return_t self_node::schedule_execute_wait_for_result(task_execute_query *task, term_env &query_src)
+{
+    task->wait_for_result();
+    if (task->failed()) {
+	return execute_at_return_t();
+    }
+
+    term result_term = task->get_result();
+    bool has_more = task->has_more();
+    bool at_end = task->at_end();
+    // Copy this result to the right environment
+    uint64_t cost = 0;
+
+    term result_copy = query_src.copy(result_term, task->env(), cost);
+    task->consume_result();
+
+    return execute_at_return_t(result_copy, has_more, at_end);
+}
+
+self_node::execute_at_return_t self_node::execute_at(term query, term_env &query_src, const std::string &where)
+{
+    auto *task = schedule_execute_query(query, query_src, where);
+    if (task == nullptr) {
+	// TODO: Throw an exception instead
+	return execute_at_return_t();
+    }
+    return schedule_execute_wait_for_result(task, query_src);
+}
+
+self_node::execute_at_return_t self_node::continue_at(term_env &query_src, const std::string &where)
+{
+    auto *task = schedule_execute_next(where);
+    if (task == nullptr) {
+	// TODO: Throw an exception instead
+	return execute_at_return_t();
+    }
+    return schedule_execute_wait_for_result(task, query_src);
+}
+
+bool self_node::new_instance_at(term_env &query_src, const std::string &where)
+{
+    auto *task = schedule_execute_new_instance(where);
+    if (task == nullptr) {
+	// TODO: Throw an exception instead
+	return false;
+    }
+    auto r = schedule_execute_wait_for_result(task, query_src);
+    return !r.failed();
+}
+
+bool self_node::delete_instance_at(term_env &query_src, const std::string &where)
+{
+    auto *task = schedule_execute_delete_instance(where);
+    if (task == nullptr) {
+	// TODO: Throw an exception instead
+	return false;
+    }
+    auto r = schedule_execute_wait_for_result(task, query_src);
+    return !r.failed();
+}
+
 in_session_state * self_node::new_in_session(in_connection *conn)
 {
     auto *ss = new in_session_state(this, conn);
@@ -195,7 +323,7 @@ out_connection * self_node::new_standard_out_connection(const ip_service &ip)
     out_connections_.insert(out);
     out_standard_ips_.insert(ip);
     num_standard_out_connections_++;
-    task_address_downloader task(*out);
+    task_address_downloader *task = new task_address_downloader(*out);
     out->schedule(task);
     return out;
 }
@@ -233,7 +361,7 @@ out_connection * self_node::new_verifier_connection(const ip_service &ip)
     boost::lock_guard<boost::recursive_mutex> guard(lock_);
 
     auto *out = new out_connection(*this, out_connection::VERIFIER, ip);
-    task_address_verifier task(*out);
+    task_address_verifier *task = new task_address_verifier(*out);
     out->schedule(task);
     out_connections_.insert(out);
     num_verifier_connections_++;
@@ -422,6 +550,11 @@ void self_node::join()
     }
     ioservice_.stop();
     thread_.join();
+    while (!workers_.empty()) {
+	auto &worker = workers_.back();
+	worker.join();
+	workers_.pop_back();
+    }
 }
 
 bool self_node::join_us(uint64_t us)

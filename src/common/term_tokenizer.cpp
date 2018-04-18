@@ -516,7 +516,8 @@ void term_tokenizer::next_number()
 	// We need to double check that there's a digit after '.' in
 	// order to parse this as a float.
 	next_char_la();
-	if (is_layout_char(peek_char())) {
+
+	if (is_eof() || is_layout_char(peek_char())) {
 	    unget_char();
 	    return;
 	}

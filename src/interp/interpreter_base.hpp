@@ -285,8 +285,11 @@ struct environment_t : public environment_base_t {
     common::term          yn[]; // Y variables
 };
 
+struct meta_context;
+
 struct choice_point_t {
     environment_saved_t   ce;
+    meta_context          *m;
     code_point            cp;
     choice_point_t       *b;
     code_point            bp;
@@ -317,25 +320,61 @@ typedef union {
 // The purpose of the meta context is to store environments &
 // choice points upon recursive invocation of the interpreter.
 //
+class meta_reason_t {
+public:
+    enum meta_reason_enum_t {
+	META_UNKNOWN = 0,
+	META_RETURN = 1,
+	META_BACKTRACK = 2,
+	META_DELETE = 3
+    } enum_;
+    inline meta_reason_t(meta_reason_enum_t e) : enum_(e) { }
+    inline bool operator == (meta_reason_enum_t t) const {
+	return enum_ == t;
+    }
+    inline std::string str() const {
+	switch (enum_) {
+	case META_UNKNOWN: return "META_UNKNOWN";
+	case META_RETURN: return "META_RETURN";
+	case META_BACKTRACK: return "META_BACKTRACK";
+	case META_DELETE: return "META_DELETE";
+	}
+    }
+};
+
+typedef bool (*meta_fn)(interpreter_base &, const meta_reason_t &reason);
 struct meta_context {
+    meta_context(interpreter_base &i, meta_fn fn);
+
+    inline void * operator new (size_t n, word_t *where) {
+	return reinterpret_cast<void *>(where);
+    }
+
+    size_t size_in_words;
+    meta_fn fn;
+    meta_context *old_m;
     choice_point_t *old_top_b;
     choice_point_t *old_b;
+    choice_point_t *old_b0;
     environment_base_t *old_top_e;
     environment_base_t *old_e;
+    bool old_e_is_wam;
     code_point old_p;
     code_point old_cp;
     common::term old_qr;
     size_t old_hb;
 };
 
-typedef std::function<bool (interpreter_base &, meta_context *)> meta_fn;
-typedef std::pair<meta_context *, meta_fn> meta_entry;
+class interpreter;
 
 class interpreter_base : public common::term_env {
     friend class builtins;
     friend class builtins_opt;
     friend class builtins_fileio;
     friend class arithmetics;
+    friend struct meta_context;
+    friend class interpreter;
+    friend struct new_instance_context;
 
 public:
     typedef common::term term;
@@ -346,12 +385,16 @@ public:
     interpreter_base();
     ~interpreter_base();
 
+    static const size_t MAX_ARGS = 256;
+
     inline bool is_debug() const { return debug_; }
     inline void set_debug(bool dbg) { debug_ = dbg; arith_.set_debug(dbg); }
     inline void debug_check() { debug_check_fn_(); }
     inline void set_debug_check_fn(std::function<void ()> fn)
         { debug_check_fn_ = fn; }
     void set_debug_enabled();
+
+    void reset();
 
     bool is_track_cost() const { return track_cost_; }
     void set_track_cost(bool b) { track_cost_ = b; }
@@ -693,6 +736,9 @@ protected:
         register_top_b_ = b;
     }
 
+    inline meta_context * m() const { return register_m_; }
+    inline void set_m(meta_context *m) { register_m_ = m; }
+
     inline void set_top_fail(bool b)
     {
         top_fail_ = b;
@@ -714,24 +760,37 @@ protected:
         return complete_;
     }
 
-    inline environment_base_t * allocate_environment(bool for_wam)
+    // Allocate on stack so that we don't overwrite any data of a previous
+    // stack frame.
+    inline word_t * allocate_stack()
     {
-        word_t *new_e0;
-	if (base(e0()) > base(b())) {
+	word_t *new_s;
+
+	// Is the meta context on top?
+	if (base(m()) > base(e0()) && base(m()) > base(b())) {
+	    new_s = base(m()) + m()->size_in_words;
+	} else if (base(e0()) > base(b())) {
 	    auto n = words<term>()*(num_y_fn()(this, e0())) + words<environment_base_t>();
-	    new_e0 = base(e0()) + n;
+	    new_s = base(e0()) + n;
 	} else {
 	    if (b() == nullptr) {
-	        new_e0 = stack_;
+	        new_s = stack_;
   	    } else {
-	        new_e0 = base(b()) + words<term>()*b()->arity + words<choice_point_t>();
+	        new_s = base(b()) + words<term>()*b()->arity + words<choice_point_t>();
 	    }
 	}
 
-	if (to_stack_relative_addr(new_e0) + MAX_STACK_FRAME_WORDS
+	if (to_stack_relative_addr(new_s) + MAX_STACK_FRAME_WORDS
 	    >= MAX_STACK_SIZE_WORDS) {
 	    throw interpreter_exception_stack_overflow("Exceeded maximum stack size (" + boost::lexical_cast<std::string>(MAX_STACK_SIZE) + " bytes.)");
 	}
+
+	return new_s;
+    }
+
+    inline environment_base_t * allocate_environment(bool for_wam)
+    {
+        word_t *new_e0 = allocate_stack();
 
 	if (for_wam) {
 	    environment_t *new_e = reinterpret_cast<environment_t *>(new_e0);
@@ -770,28 +829,14 @@ protected:
 
     inline void allocate_choice_point(const code_point &cont)
     {
-        word_t *new_b0;
-	if (base(e0()) > base(b())) {
-	    new_b0 = base(e0()) + num_y_fn()(this, e0()) + words<environment_t>();
-	} else {
-  	    if (b() == nullptr) {
-	        new_b0 = stack_;
-	    } else {
-  	        new_b0 = base(b()) + b()->arity + words<choice_point_t>();
-	    }
-	}
-
-	if (to_stack_relative_addr(new_b0) + MAX_STACK_FRAME_WORDS
-	            >= MAX_STACK_SIZE_WORDS) {
-	    throw interpreter_exception_stack_overflow("Exceeded maximum stack size (" + boost::lexical_cast<std::string>(MAX_STACK_SIZE) + " bytes.)");
-	}
-
+        word_t *new_b0 = allocate_stack();
 	auto *new_b = reinterpret_cast<choice_point_t *>(new_b0);
 	new_b->arity = num_of_args_;
 	for (size_t i = 0; i < num_of_args_; i++) {
 	    new_b->ai[i] = a(i);
 	}
 	new_b->ce = save_e();
+	new_b->m = register_m_;
 	new_b->cp = register_cp_;
 	new_b->b = register_b_;
 	new_b->bp = cont;
@@ -861,60 +906,53 @@ protected:
     bool definitely_inequal(const term a, const term b);
 
     template<typename T> inline T * new_meta_context(meta_fn fn) {
-        T *context = new T();
-	context->old_top_b = register_top_b_;
-	context->old_b = register_b_;
-	context->old_top_e = register_top_e_;
-	context->old_e = register_e_;
-	context->old_p = register_p_;
-	context->old_cp = register_cp_;
-	context->old_qr = register_qr_;
-	context->old_hb = get_register_hb();
-	meta_.push_back(std::make_pair(context, fn));
+	T *context = new(allocate_stack()) T(*this, fn);
+	context->size_in_words = sizeof(T) / sizeof(word_t);
 
 	if (is_debug()) {
 	    std::cout << "interpreter_base::new_meta_context(): ---- e=" << context->old_e << " ----\n";
 	}
+
+	register_m_ = context;
 
 	return context;
     }
 
     inline void release_last_meta_context()
     {
-        auto *context = meta_.back().first;
-        set_top_b(context->old_top_b);
-	set_b(context->old_b);
-	set_top_e(context->old_top_e);
-	set_e(context->old_e);
-	set_p(context->old_p);
-	set_cp(context->old_cp);
-	set_qr(context->old_qr);
+	auto *context = get_current_meta_context();
+	register_top_b_ = context->old_top_b;
+	register_b_ = context->old_b;
+	register_top_e_ = context->old_top_e;
+	register_e_ = context->old_e;
+	register_p_ = context->old_p;
+	register_cp_ = context->old_cp;
+	register_qr_ = context->old_qr;
 	set_register_hb(context->old_hb);
-	delete context;
-	meta_.pop_back();
+        register_m_ = register_m_->old_m;
 
 	if (is_debug()) {
 	    std::cout << "interpreter_base::release_meta_context(): ---- e=" << e() << " ----\n";
 	}
     }
 
-    inline meta_context * get_last_meta_context()
-        { return meta_.back().first; }
+    inline meta_context * get_current_meta_context()
+        { return register_m_; }
 
-    template<typename T> inline T * get_last_meta_context()
-        { return reinterpret_cast<T *>(get_last_meta_context()); }
+    inline const meta_context * get_current_meta_context() const
+        { return register_m_; }
 
-    inline  meta_fn get_last_meta_function()
-        { return meta_.back().second; }
+    template<typename T> inline T * get_current_meta_context()
+        { return reinterpret_cast<T *>(get_current_meta_context()); }
 
-    inline bool has_meta_contexts() const
-        { return !meta_.empty(); }
+    inline bool has_meta_context() const
+        { return register_m_ != nullptr; }
 
     inline term_env & secondary_env()
         { return secondary_env_; }
 
-    inline void reset_accumulated_cost()
-        { accumulated_cost_ = 0; }
+    inline void reset_accumulated_cost(uint64_t value = 0)
+        { accumulated_cost_ = value; }
 
     inline void add_accumulated_cost(uint64_t cost)
         { accumulated_cost_ += cost; }
@@ -1008,7 +1046,11 @@ private:
     choice_point_t *register_b0_;
     choice_point_t *register_top_b_;
 
-    term register_ai_[256];
+    // This is for recursive invocation of the interpreter. These meta
+    // frames are stored on stack (like environments and choice points.)
+    meta_context *register_m_;
+
+    term register_ai_[MAX_ARGS];
 
     size_t num_of_args_;
 
@@ -1016,8 +1058,6 @@ private:
 
     term register_qr_;     // Current query 
     con_cell register_pr_; // Current predicate (for profiling)
-
-    std::vector<meta_entry> meta_;
 
     con_cell comma_;
     con_cell empty_list_;

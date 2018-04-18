@@ -1,5 +1,6 @@
 #include "interpreter.hpp"
 #include "wam_compiler.hpp"
+#include <boost/range/adaptor/reversed.hpp>
 
 namespace prologcoin { namespace interp {
 
@@ -8,6 +9,8 @@ interpreter::interpreter()
     compiler_ = new wam_compiler(*this);
     id_to_predicate_.push_back(predicate()); // Reserve index 0
     wam_enabled_ = true;
+    query_vars_ = nullptr;
+    num_instances_ = 0;
 
     set_debug_check_fn(
        [&] {
@@ -21,7 +24,7 @@ interpreter::interpreter()
 interpreter::~interpreter()
 {
     delete compiler_;
-    query_vars_.clear();
+    delete query_vars_;
     predicate_id_.clear();
     id_to_predicate_.clear();
 }
@@ -67,19 +70,81 @@ append([X|Xs], Ys, [X|Zs]) :-
     compile();
 }
 
+// Save everything so interpreter state can be restored.
+struct new_instance_context : public meta_context {
+    new_instance_context(interpreter_base &i, meta_fn fn)
+	: meta_context(i, fn),
+	  old_accumulated_cost(reinterpret_cast<interpreter &>(i).accumulated_cost()),
+	  old_num_of_args(reinterpret_cast<interpreter &>(i).num_of_args()),
+	  old_top_fail(reinterpret_cast<interpreter &>(i).is_top_fail()),
+	  old_complete(reinterpret_cast<interpreter &>(i).is_complete()),
+	  old_query_vars(reinterpret_cast<interpreter &>(i).query_vars_ptr())
+    {
+	memcpy(&old_ai[0], i.args(), sizeof(common::term)*i.num_of_args());
+	reinterpret_cast<interpreter &>(i).set_query_vars( nullptr );
+    }
+
+    uint64_t old_accumulated_cost;
+    size_t old_num_of_args;
+    bool old_top_fail;
+    bool old_complete;
+    std::vector<interpreter::binding> *old_query_vars;
+    common::term old_ai[interpreter_base::MAX_ARGS];
+};
+
+void interpreter::new_instance()
+{
+    new_meta_context<new_instance_context>(interpreter::new_instance_meta);
+    num_instances_++;
+}
+
+// new_instance_meta acts as a stop gap. It's like the interpeter is run
+// for the first time. You won't get passed this marker. The only way would
+// be to release the instance.
+bool interpreter::new_instance_meta(interpreter_base &interp0, const meta_reason_t &reason)
+{
+    if (reason == meta_reason_t::META_RETURN) {
+	return !interp0.is_top_fail();
+    }
+
+    if (reason == meta_reason_t::META_BACKTRACK) {
+	return true;
+    }
+
+    if (reason == meta_reason_t::META_DELETE) {
+	auto *context = reinterpret_cast<new_instance_context *>(interp0.get_current_meta_context());
+	auto &interp = reinterpret_cast<interpreter &>(interp0);
+	auto *qv = interp.query_vars_ptr();
+        delete qv;
+	interp.set_query_vars(context->old_query_vars);
+	interp.reset_accumulated_cost(context->old_accumulated_cost);
+	interp.set_num_of_args(context->old_num_of_args);
+	interp.set_top_fail(context->old_top_fail);
+	interp.set_complete(context->old_complete);
+	memcpy(interp.args(), &context->old_ai[0], sizeof(common::term)*interp.num_of_args());
+	interp.release_last_meta_context();
+    }
+    return false;
+}
+
 bool interpreter::execute(const term query)
 {
     using namespace prologcoin::common;
 
+    bool new_inst = false;
+
+    if (has_more()) {
+	new_instance();
+	new_inst = true;
+    }
+    if (query_vars_ == nullptr) {
+	query_vars_ = new std::vector<binding>();
+    }
+
+    query_vars_->clear();
     reset_accumulated_cost();
-
     set_top_fail(false);
-
-    trim_trail(0);
-
     prepare_execution();
-
-    query_vars_.clear();
 
     std::unordered_set<std::string> seen;
 
@@ -90,7 +155,7 @@ bool interpreter::execute(const term query)
 		       if (t.tag() == tag_t::REF) {
 			   const std::string name = to_string(t);
 			   if (!seen.count(name)) {
-			       query_vars_.push_back(binding(name,t));
+			       query_vars_->push_back(binding(name,t));
 			       seen.insert(name);
 			   }
 		       }
@@ -105,6 +170,10 @@ bool interpreter::execute(const term query)
     bool b = cont();
 
     set_qr(query);
+
+    if (new_inst && b && !has_more()) {
+	delete_instance();
+    }
 
     return b;
 }
@@ -124,17 +193,40 @@ bool interpreter::cont()
 	    }
 	}
 
-        while (is_complete() && has_meta_contexts()) {
-  	    set_complete(false);
-	    meta_context *mc = get_last_meta_context();
-	    meta_fn fn = get_last_meta_function();
-	    if (!fn(*this, mc)) {
-	        fail();
+        if (is_complete() && has_meta_context()) {
+	    meta_context *mc = get_current_meta_context();
+	    meta_fn fn = mc->fn;
+	    if (!fn(*this, meta_reason_t::META_RETURN)) {
+		set_complete(false);
+		fail();
 	    }
         }
     }
 
-    return !is_top_fail();
+    bool r = !is_top_fail();
+
+    return r;
+}
+
+bool interpreter::is_instance() const
+{
+    if (has_more()) {
+	return false;
+    }
+    return has_meta_context() &&
+	   get_current_meta_context()->fn == interpreter::new_instance_meta;
+}
+
+void interpreter::delete_instance()
+{
+    num_instances_--;
+    assert(!has_more());
+    if (meta_context *mc = get_current_meta_context()) {
+	meta_fn fn = mc->fn;
+	if (fn == interpreter::new_instance_meta) {
+	    fn(*this, meta_reason_t::META_DELETE);
+	}
+    }
 }
 
 bool interpreter::next()
@@ -149,7 +241,25 @@ bool interpreter::next()
     }
 
     set_qr(old_qr);
-    return !is_top_fail();
+
+    bool r = !is_top_fail();
+
+    return r;
+}
+
+common::term interpreter::query_var_list()
+{
+    using namespace prologcoin::common;
+
+    static const con_cell eq_functor("=", 2);
+
+    common::term varlist = empty_list();
+    for (auto &binding : boost::adaptors::reverse(query_vars())) {
+	auto binding_term =
+	    new_term(eq_functor, {functor(binding.name(), 0),binding.value()});
+	varlist = new_dotted_pair(binding_term, varlist);
+    }
+    return varlist;
 }
 
 void interpreter::fail()
@@ -164,6 +274,13 @@ void interpreter::fail()
         if (b() == top_b()) {
 	    set_top_fail(true);
 	    ok = true;
+	    // Invoke meta-function if we have one
+	    if (m() != nullptr) {
+		meta_fn fn = m()->fn;
+		if (!fn(*this, meta_reason_t::META_BACKTRACK)) {
+		    ok = false;
+		}
+	    }
         } else if (b_is_wam()) {
 	    ok = backtrack_wam();
 	} else {
@@ -561,7 +678,7 @@ std::string interpreter::get_result(bool newlines) const
     bool first = true;
 
     std::stringstream ss;
-    for (auto v : query_vars_) {
+    for (auto &v : *query_vars_) {
 	auto &name = v.name();
 	auto &value = v.value();
 	auto value_str = to_string(value);
@@ -601,7 +718,7 @@ interpreter::term interpreter::get_result_term() const
 interpreter::term interpreter::get_result_term(const std::string &varname) const
 {
     term t;
-    for (auto v : query_vars_) {
+    for (auto &v : *query_vars_) {
 	auto &name = v.name();
 	if (name == varname) {
 	    return v.value();

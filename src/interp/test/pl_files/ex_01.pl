@@ -33,10 +33,13 @@ split([A,B|Xs],[A|As],[B|Bs]) :-
 
 ?- split([1,2,3,4,5],Q3,Q4).
 % Expect: Q3 = [1,3,5], Q4 = [2,4]
+% Expect: end
 ?- split([1,2,3,4],Q5,Q6).
 % Expect: Q5 = [1,3], Q6 = [2,4]
+% Expect: end
 ?- split([],Q7,Q8).
 % Expect: Q7 = [], Q8 = []
+% Expect: end
 ?- split(Q9, [1,3], [2,4]).
 % Expect: Q9 = [1,2,3,4]
 % Expect: end
@@ -49,6 +52,7 @@ select([Y|Xs], X, [Y|Ys]) :-
     select(Xs, X, Ys).
 ?- select([1,2,3,4],2,Q10).
 % Expect: Q10 = [1,3,4]
+% Expect: end
 ?- select([1,2,3],Q11,Q12).
 % Expect: Q11 = 1, Q12 = [2,3]
 % Expect: Q11 = 2, Q12 = [1,3]

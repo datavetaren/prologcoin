@@ -5,18 +5,28 @@ namespace prologcoin { namespace node {
 
 using namespace prologcoin::common;
 
-out_task::out_task(const char *description, out_connection &out,
-		   void (*fn)(out_task &task) )
-    : description_(description), out_(&out), env_(&out.env()), fn_(fn),
+out_task::out_task(const char *description, out_connection &out)
+    : description_(description), out_(&out), env_(&out.env()),
       state_(IDLE), when_(utime::now())
 {
 }
 
+bool out_task::comparator(const out_task *t1, const out_task *t2)
+{
+    return t1->get_when() > t2->get_when();
+}
+
 void out_task::reschedule(utime t)
-{ connection().reschedule(*this, t); }
+{ connection().reschedule(this, t); }
 
 void out_task::reschedule_last()
-{ connection().reschedule_last(*this); }
+{ connection().reschedule_last(this); }
+
+void out_task::reschedule_next()
+{ connection().reschedule_next(this); }
+
+void out_task::trigger_now()
+{ connection().trigger_now(); }
 
 bool out_task::is_connected() const
 { return connection().is_connected(); }
@@ -30,21 +40,56 @@ self_node & out_task::self()
 void out_task::stop()
 { connection().stop(); }
 
-term out_task::get_result()
+term out_task::get_result() const
 {
+    static const con_cell ok_1("ok",1);
     static const con_cell result_4("result",4);
 
     term r = get_term();
     if (r.tag() != tag_t::STR) {
 	return term();
     }
-    if (!env().functor(r) == result_4) {
+    if (env().functor(r) != ok_1) {
 	return term();
     }
-    return env().arg(r, 0);
+    term result = env().arg(r, 0);
+    if (env().functor(result) != result_4) {
+	return term();
+    }
+    return result;
 }
 
-term out_task::get_result_goal()
+bool out_task::has_more() const
+{
+    static const con_cell more_0("more", 0);
+
+    term result = get_result();
+    if (result == term()) {
+	return false;
+    }
+    term state = env().arg(result, 2);
+    if (!env().is_atom(state)) {
+	return false;
+    }
+    return state == more_0;
+}
+
+bool out_task::at_end() const
+{
+    static const con_cell at_end_0("at_end", 0);
+
+    term result = get_result();
+    if (result == term()) {
+	return false;
+    }
+    term state = env().arg(result, 2);
+    if (!env().is_atom(state)) {
+	return false;
+    }
+    return state == at_end_0;
+}
+
+term out_task::get_result_goal() const
 {
     term r = get_result();
     if (r == term()) {
@@ -55,8 +100,16 @@ term out_task::get_result_goal()
 
 void out_task::error(const reason_t &reason)
 {
+    set_state(KILLED);
     connection().error(reason, "");
 }
+
+void out_task::error(const reason_t &reason, const std::string &msg)
+{
+    set_state(KILLED);
+    connection().error(reason, msg);
+}
+
 
 }}
 

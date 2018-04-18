@@ -12,9 +12,7 @@ public:
     task_address_downloader(out_connection &out);
 
 private:
-    static void process_fn(out_task &out);
-
-    void process();
+    virtual void process();
 
     size_t count_;
     utime last_checked_;

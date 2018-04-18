@@ -229,12 +229,79 @@ static void test_interpreter_serialize()
     assert(interp.to_string(t) == interp.to_string(t2));
 }
 
+static void test_interpreter_multi_instance()
+{
+    header("test_interpreter_multi_instance()");
+
+    interpreter interp;
+
+    interp.setup_standard_lib();
+
+    const std::string expect[] = 
+	{ "X = 1", "Y = a", "Y = b", "Y = c", "Y = d", "true", "Done.",
+	  "X = 2", "Y = a", "Y = b", "Y = c", "Y = d", "true", "Done.",
+	  "X = 3", "Y = a", "Y = b", "Y = c", "Y = d", "true", "Done.",
+	  "X = 4", "Y = a", "Y = b", "Y = c", "Y = d", "true", "Done.",
+	  "true",
+	  "",
+	};
+
+    static size_t expect_count = 0;
+    
+    auto expect_check = [&](const std::string &actual)
+	{
+	    assert(!expect[expect_count].empty());
+	    std::cout << "Actual: " << actual << std::endl;
+	    std::cout << "Expect: " << expect[expect_count] << std::endl;
+	    assert(expect[expect_count] == actual);
+	    expect_count++;
+	};
+
+    term query1 = interp.parse("member(X, [1,2,3,4]).");
+    term query2 = interp.parse("member(Y, [a,b,c,d]).");
+
+    assert(interp.execute(query1));
+    std::cout << "First answer: " << interp.get_result(false) << std::endl;
+    
+    expect_check(interp.get_result(false));
+    
+    while (interp.has_more()) {
+	//
+	// Start another instance of interpreter and apply query2
+	//
+	assert(interp.execute(query2));
+	std::cout << "    [Nested] First answer: " << interp.get_result(false) << std::endl;
+	expect_check(interp.get_result(false));
+	while (interp.has_more()) {
+	    interp.next();
+	    std::cout << "    [Nested] Next answer:  " << interp.get_result(false) << std::endl;
+	    expect_check(interp.get_result(false));
+	}
+	std::cout << "    [Nested] Done." << std::endl;
+	expect_check("Done.");
+	if (interp.is_instance()) {
+	    std::cout << "    [Delete inner instance]." << std::endl;
+	    interp.delete_instance();
+	}
+
+	//
+	// Back at outer instance of interpreter
+	//
+
+	interp.next();
+	std::cout << "Next answer:  " << interp.get_result(false) << std::endl;
+	expect_check(interp.get_result(false));
+    }
+}
+
+
 int main( int argc, char *argv[] )
 {
     test_up_and_down();
     test_simple_interpreter();
     test_backtracking_interpreter();
     test_interpreter_serialize();
+    test_interpreter_multi_instance();
 
     return 0;
 }

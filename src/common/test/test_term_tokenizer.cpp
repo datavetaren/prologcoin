@@ -123,9 +123,9 @@ static void test_negative_tokens()
 	 ,{ "'esc\\xg",  new token_exception_hex_code(p(1,1)) }
 	 ,{ "0'",       new token_exception_no_char_code(p(1,1)) }
 	 ,{ "11'",      new token_exception_missing_number_after_base(p(1,1)) }
-	 ,{ "1.",      new token_exception_missing_decimal(p(1,1)) }
+	 ,{ "1.x",      new token_exception_missing_decimal(p(1,1)) }
 	 ,{ "1.e",     new token_exception_missing_decimal(p(1,1)) }
-	 ,{ "1e",      new token_exception_missing_exponent(p(1,1)) }
+	 ,{ "1ex",      new token_exception_missing_exponent(p(1,1)) }
 	 ,{ "1e+",     new token_exception_missing_exponent(p(1,1)) }
 	 ,{ "1e-",     new token_exception_missing_exponent(p(1,1)) }
 	 ,{ "2E-",     new token_exception_missing_exponent(p(1,1)) }

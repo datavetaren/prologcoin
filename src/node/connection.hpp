@@ -24,6 +24,7 @@ namespace prologcoin { namespace node {
 
 class self_node;
 class in_session_state;
+class task_reset;
 
 class reason_t {
 public:
@@ -93,6 +94,7 @@ public:
     void send_ok(const term t);
     void send(const term t);
     term received();
+    term received(term_env &env);
 
     inline void set_dispatcher( std::function<void ()> dispatcher )
     { dispatcher_ = dispatcher; }
@@ -125,6 +127,8 @@ protected:
     inline void dispatch() { dispatcher_(); }
 
     boost::asio::io_service::strand strand() { return strand_; }
+
+    void trigger_now();
 
 private:
     bool received_length();
@@ -170,6 +174,9 @@ private:
     void command_name(const term cmd);
     void command_kill(const term cmd);
     void command_next(const term cmd);
+    void command_delete_instance(const term cmd);
+    void command_reset(const term cmd);
+    void command_local_reset(const term cmd);
     void process_command(const term cmd);
     void process_query();
     void process_query_reply();
@@ -205,40 +212,37 @@ public:
     inline out_type_t out_type() const { return out_type_; }
     inline const ip_service & ip() const { return ip_; }
     inline const std::string & name() const { return name_; }
+    inline const std::string & id() const { return id_; }
+
+    inline bool sent_my_name() const { return sent_my_name_; }
+    inline void set_sent_my_name() { sent_my_name_ = true; }
+
+
+    inline void set_id(const std::string &id) { id_ = id; }
+    inline void set_name(const std::string &name) { name_ = name; }
 
     inline term_env & env() { return env_; }
 
+    inline bool use_heartbeat() const { return use_heartbeat_; }
     inline void set_use_heartbeat(bool b) { use_heartbeat_ = b; }
 
-    out_task create_heartbeat_task();
-    out_task create_publish_task();
-    out_task create_info_task();
-    out_task create_init_connection_task();
+    out_task * create_heartbeat_task();
+    out_task * create_publish_task();
+    out_task * create_info_task();
+    out_task * create_init_connection_task();
+    task_reset * create_reset_task();
 
-    inline void schedule(out_task &task) {
-	reschedule(task, utime::us(0));
-    }
+    inline void schedule(out_task *task) { reschedule_next(task); }
 
-    template<uint64_t C> inline void reschedule(out_task &task, utime::dt<C> dt)
+    template<uint64_t C> inline void reschedule(out_task *task, utime::dt<C> dt)
     { reschedule(task, utime::now()+dt); }
 
-    inline void reschedule(out_task &task, utime t)
-    {
-        // If task issues a reschedule on SEND, which normally it doesn't
-        // as it doesn't pop the work queue, then we'll pop the work queue
-        // to remove it first.
-        if (task.get_state() == out_task::SEND) {
-  	    work_.pop();
-        }
+    inline void reschedule_next(out_task *task)
+    { reschedule(task, 0); }
 
-	task.set_when(t);
-	if (t > last_in_work_) {
-	    last_in_work_ = t;
-	}
-	work_.push(task);
-    }
+    void reschedule(out_task *task, utime t);
 
-    inline void reschedule_last(out_task &task)
+    inline void reschedule_last(out_task *task)
     { if (work_.empty()) {
           schedule(task);
       } else {
@@ -247,8 +251,8 @@ public:
       }
     }
 
-    inline bool is_connected() const
-    { return connected_; }
+    inline bool is_connected() const { return connected_; }
+    inline void set_connected(bool b) { connected_ = b; }
 
     void print_task_queue() const;
 
@@ -258,10 +262,8 @@ protected:
     void idle_state();
 
 private:
-    void handle_heartbeat_task(out_task &task);
     void handle_publish_task(out_task &task);
     void handle_info_task(out_task &task);
-    static void handle_heartbeat_task_fn(out_task &task);
     static void handle_publish_task_fn(out_task &task);
     static void handle_info_task_fn(out_task &task);
 
@@ -275,6 +277,7 @@ private:
     void reply_ok(const common::term t);
 
     friend class self_node;
+    friend class out_task;
 
     out_type_t out_type_;
     ip_service ip_;
@@ -285,7 +288,9 @@ private:
     bool connected_;
     bool sent_my_name_;
     term_env env_;
-    std::priority_queue<out_task, std::vector<out_task>, std::greater<out_task> > work_;
+    boost::recursive_mutex work_lock_;
+    // boost::condition_variable work_cv_;
+    std::priority_queue<out_task *, std::vector<out_task *>, std::function<bool (const out_task *t1, const out_task *t2)> > work_;
     utime last_in_work_;
 };
 

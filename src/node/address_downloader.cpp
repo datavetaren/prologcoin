@@ -8,15 +8,10 @@ using namespace prologcoin::common;
 namespace prologcoin { namespace node {
 
 task_address_downloader::task_address_downloader(out_connection &out)
-    : out_task("address_downloader", out, &task_address_downloader::process_fn),
+    : out_task("address_downloader", out),
       count_(0),
       last_checked_()
 {
-}
-
-void task_address_downloader::process_fn(out_task &task)
-{
-    reinterpret_cast<task_address_downloader &>(task).process();
 }
 
 void task_address_downloader::process()

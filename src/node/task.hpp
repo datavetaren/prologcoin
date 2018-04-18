@@ -22,27 +22,33 @@ public:
     enum state_t {
 	IDLE = 0,
 	SEND = 1,
-	RECEIVED = 2
+	RECEIVED = 2,
+	KILLED = 3
     };
 
-    out_task(const char *description,
-	     out_connection &out, void (*fn)(out_task &));
+    out_task(const char *description, out_connection &out);
+    virtual ~out_task() = default;
+
+    static bool comparator(const out_task *t1, const out_task *t2);
 
     inline const char * description() const { return description_; }
 
-    inline void run() {
-	(*fn_)(*this);
-    }
+    virtual void process() = 0;
 
     void stop();
 
     inline void set_query(const term t)
     { set_term(env_->new_term(common::con_cell("query",1), {t})); }
+    inline void set_command(const term t)
+    { set_term(env_->new_term(common::con_cell("command",1),{t})); }
 
-    term get_result();
-    term get_result_goal();
+    term get_result() const;
+    term get_result_goal() const;
+    bool has_more() const;
+    bool at_end() const;
 
     inline term_env & env() { return *env_; }
+    inline const term_env & env() const { return *env_; }
 
     const ip_service & ip() const;
 
@@ -81,15 +87,17 @@ public:
 
     void reschedule(utime t);
     void reschedule_last();
+    void reschedule_next();
+    void trigger_now();
 
 protected:
     void error(const reason_t &reason);
+    void error(const reason_t &reason, const std::string &msg);
 
 private:
     const char *description_;
     out_connection *out_;
     term_env *env_;
-    void (*fn_)(out_task &task);
     state_t state_;
     utime when_;
     term term_;

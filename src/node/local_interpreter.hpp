@@ -14,10 +14,16 @@ class in_session_state;
 class me_builtins {
 public:
     using interpreter_base = interp::interpreter_base;
+    using meta_context = interp::meta_context;
+    using meta_reason_t = interp::meta_reason_t;
+
     using term = common::term;
 
     static local_interpreter & to_local(interpreter_base &interp)
     { return reinterpret_cast<local_interpreter &>(interp); }
+
+    static bool operator_at_2(interpreter_base &interp, size_t arity, term args[]);
+    static bool operator_at_2_meta(interpreter_base &interp, const meta_reason_t &reason);
 
     static bool id_1(interpreter_base &interp, size_t arity, term args[]);
     static bool name_1(interpreter_base &interp, size_t arity, term args[]);
@@ -42,6 +48,9 @@ public:
         :session_(session), initialized_(false) { }
 
     void ensure_initialized();
+
+    bool reset();
+    void local_reset();
 
     inline in_session_state & session() { return session_; }
 

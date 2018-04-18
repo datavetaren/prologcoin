@@ -5,6 +5,11 @@
 #include "connection.hpp"
 #include "session.hpp"
 #include "self_node.hpp"
+#include "task_heartbeat.hpp"
+#include "task_publish.hpp"
+#include "task_info.hpp"
+#include "task_init_connection.hpp"
+#include "task_reset.hpp"
 
 using namespace prologcoin::common;
 
@@ -132,7 +137,12 @@ bool connection::received_length()
 
 term connection::received()
 {
-    auto &e = env_;
+    return received(env_);
+}
+
+term connection::received(term_env &env)
+{
+    auto &e = env;
     term_serializer ser(e);
     try {
 	auto t = ser.read(buffer_, receive_length_);
@@ -252,19 +262,32 @@ void connection::run()
 	timer_.expires_from_now(boost::posix_time::microseconds(
 			self().get_fast_timer_interval_microseconds()));
 	timer_.async_wait(
-	     strand_.wrap(
+		  strand_.wrap(
 		     [this](const error_code &ec) {
 			 if (!ec) {
 			     dispatch();
 			     run();
 			 } else {
-			     set_state(ERROR);
-			     dispatch();
-			     close();
+			     if (is_stopped()) {
+				 set_state(ERROR);
+				 dispatch();
+				 close();
+			     } else {
+				 // This timer got retriggered.
+				 dispatch();
+				 run();
+			     }
 			 }
-		     }));
+		     })
+			  );
 	break;
     }
+}
+
+void connection::trigger_now()
+{
+    timer_.expires_from_now(boost::posix_time::microseconds(
+			    self().get_fast_timer_interval_microseconds()));
 }
 
 in_connection::in_connection(self_node &self)
@@ -289,6 +312,9 @@ void in_connection::setup_commands()
     commands_[con_cell("connect",1)] = [this](const term cmd){ command_connect(cmd); };
     commands_[con_cell("kill",1)] = [this](const term cmd){ command_kill(cmd); };
     commands_[con_cell("next",0)] = [this](const term cmd){ command_next(cmd); };
+    commands_[con_cell("delinst",0)] = [this](const term cmd){ command_delete_instance(cmd); };
+    commands_[con_cell("reset",0)] = [this](const term cmd){ command_reset(cmd); };
+    commands_[con_cell("lreset",0)] = [this](const term cmd){ command_local_reset(cmd); };
     commands_[con_cell("name",1)] = [this](const term cmd){ command_name(cmd); };
 }
 
@@ -339,12 +365,12 @@ con_cell in_connection::get_state_atom()
 {
     if (session_ == nullptr) {
 	return con_cell("void",0);
-    } else if (!session_->in_query()) {
-	return con_cell("ask",0);
+    } else if (session_->at_end()) {
+	return con_cell("at_end",0);
     } else if (session_->has_more()) {
 	return con_cell("more",0);
     } else {
-	return con_cell("unknown",0);
+	return con_cell("ask",0);
     }
 }
 
@@ -388,6 +414,69 @@ void in_connection::command_kill(const term cmd)
     reply_ok(e.new_term(e.functor("session_killed",1),{id_term}));
 }
 
+void in_connection::command_delete_instance(const term cmd)
+{
+    auto &e = env_;
+    if (session_ == nullptr) {
+	reply_error(e.functor("no_running_session",0));
+    } else {
+	try {
+	    session_->delete_instance();
+	    reply_ok(e.new_term(e.functor("result",4),
+				{e.empty_list(),
+				 e.empty_list(),
+			 	 e.empty_list(),
+			 	 e.empty_list(),
+					} ));
+	} catch (std::exception &ex) {
+	    reply_error(e.new_term(e.functor("remote_exception",1),
+				   {e.functor(ex.what(),0)}));
+	}
+    }
+}
+
+void in_connection::command_reset(const term cmd)
+{
+    auto &e = env_;
+    if (session_ == nullptr) {
+	reply_error(e.functor("no_running_session",0));
+    } else {
+	try {
+	    session_->reset();
+	    reply_ok(e.new_term(e.functor("result",4),
+				{e.empty_list(),
+				 e.empty_list(),
+			 	 e.empty_list(),
+			 	 e.empty_list(),
+					} ));
+	} catch (std::exception &ex) {
+	    reply_error(e.new_term(e.functor("remote_exception",1),
+				   {e.functor(ex.what(),0)}));
+	}
+    }
+}
+
+void in_connection::command_local_reset(const term cmd)
+{
+    auto &e = env_;
+    if (session_ == nullptr) {
+	reply_error(e.functor("no_running_session",0));
+    } else {
+	try {
+	    session_->local_reset();
+	    reply_ok(e.new_term(e.functor("result",4),
+				{e.empty_list(),
+				 e.empty_list(),
+			 	 e.empty_list(),
+			 	 e.empty_list(),
+					} ));
+	} catch (std::exception &ex) {
+	    reply_error(e.new_term(e.functor("remote_exception",1),
+				   {e.functor(ex.what(),0)}));
+	}
+    }
+}
+
 void in_connection::command_next(const term cmd)
 {
     process_execution(cmd, true);
@@ -427,7 +516,6 @@ void in_connection::process_query()
 	    try {
 		uint64_t cost = 0;
 		qr = session_->env().copy(e.arg(t,0), e, cost);
-		session_->set_query(qr);
 		process_execution(qr, false);
 	    } catch (std::exception &ex) {
 		reply_error(e.new_term(e.functor("remote_exception",1),
@@ -455,7 +543,8 @@ void in_connection::process_execution(const term cmd, bool in_query)
 		    return;
 		}
 	    }
-	    auto qr = session_->query();
+	    auto qr = cmd;
+	    // std::cout << "QUERY: " << session_->env().to_string(qr) << std::endl;
 	    bool r = in_query ? session_->next() : session_->execute(qr);
 	    term standard_out = e.empty_list();
 	    if (!session_->get_text_out().empty()) {
@@ -468,9 +557,7 @@ void in_connection::process_execution(const term cmd, bool in_query)
 		 		     get_state_atom(),
 				     standard_out} ));
 	    } else {
-		term closure = session_->env().new_dotted_pair(
-				      session_->get_result(),
-				      session_->query_vars());
+		term closure = session_->query_closure();
 		term closure_copy = e.copy(closure, session_->env(), cost);
 		term result = e.arg(closure_copy, 0);
 		term vars_term = e.arg(closure_copy, 1);
@@ -492,7 +579,7 @@ void in_connection::process_execution(const term cmd, bool in_query)
 //
 
 out_connection::out_connection(self_node &self, out_connection::out_type_t t, const ip_service &ip)
-    :  connection(self, CONNECTION_OUT, env_), out_type_(t), ip_(ip), init_in_progress_(false), use_heartbeat_(true), connected_(false), sent_my_name_(false)
+    :  connection(self, CONNECTION_OUT, env_), out_type_(t), ip_(ip), init_in_progress_(false), use_heartbeat_(true), connected_(false), sent_my_name_(false), work_( &out_task::comparator )
 {
     using namespace boost::system;
 
@@ -514,253 +601,37 @@ out_connection::out_connection(self_node &self, out_connection::out_type_t t, co
 
 out_connection::~out_connection()
 {
-}
+    boost::lock_guard<boost::recursive_mutex> guard(work_lock_);
 
-out_task out_connection::create_heartbeat_task()
-{
-    return out_task("heartbeat", *this, &out_connection::handle_heartbeat_task_fn);
-}
-
-out_task out_connection::create_publish_task()
-{
-    return out_task("publish", *this, &out_connection::handle_publish_task_fn);
-}
-
-out_task out_connection::create_info_task()
-{
-    return out_task("info", *this, &out_connection::handle_info_task_fn);
-}
-
-void out_connection::handle_heartbeat_task_fn(out_task &task)
-{
-    task.connection().handle_heartbeat_task(task);
-}
-
-void out_connection::handle_publish_task_fn(out_task &task)
-{
-    task.connection().handle_publish_task(task);
-}
-
-void out_connection::handle_info_task_fn(out_task &task)
-{
-    task.connection().handle_info_task(task);
-}
-
-void out_connection::handle_heartbeat_task(out_task &task)
-{
-    static const con_cell colon(":", 2);
-    static const con_cell me("me",0);
-
-    switch (task.get_state()) {
-    case out_task::IDLE:
-	break;
-    case out_task::RECEIVED:
-	// Update address entry with most recent time
-	task.self().book()().update_time(task.ip());
-	reschedule(task, utime::us(self().get_timer_interval_microseconds()));
-	break;
-    case out_task::SEND:
-	task.set_term(
-	      env_.new_term(con_cell("query",1),
-		    {env_.new_term(colon,
-				   {me, env_.functor("heartbeat",0)})}));
-	break;
+    while (!work_.empty()) {
+	delete work_.top();
+	work_.pop();
     }
 }
 
-//
-// Publish my own address
-// (this will be optional in future, because a mobile wallet may not
-//  have an official address for incoming connections.)
-//
-void out_connection::handle_publish_task(out_task &task)
+out_task * out_connection::create_heartbeat_task()
 {
-    static const con_cell colon(":", 2);
-    static const con_cell me("me",0);
-
-    switch (task.get_state()) {
-    case out_task::IDLE:
-	break;
-    case out_task::RECEIVED:
-	// This is a one time event only.
-	break;
-    case out_task::SEND:
-	task.set_term(
-	      env_.new_term(con_cell("query",1),
-		    {env_.new_term(colon, {me,
-		     env_.new_term(env_.functor("add_address",2),
-				   {env_.empty_list(),
-					   int_cell(task.self().port())})})
-		    }
-		    ));
-	break;
-    }
+    return new task_heartbeat(*this);
 }
 
-
-//
-// Grab version and comment info. Update address book.
-//
-void out_connection::handle_info_task(out_task &task)
+out_task * out_connection::create_publish_task()
 {
-    using namespace prologcoin::common;
-
-    static const con_cell colon(":", 2);
-    static const con_cell comma(",", 2);
-    static const con_cell me("me",0);
-    static const con_cell version_1("version",1);
-    static const con_cell comment_1("comment",1);
-    static const con_cell ver_2("ver",2);
-
-    switch (task.get_state()) {
-    case out_task::IDLE:
-	break;
-    case out_task::RECEIVED: {
-	// This is a one time event only.
-	auto &e = env_;
-
-	pattern p(e);
-	int64_t major_ver0 = 0, minor_ver0 = 0;
-	term comment;
-	auto const pat = p.str(comma,
-			       p.str(colon,
-				     p.con(me),
-				     p.str(version_1,
-					   p.str(ver_2,
-						 p.any_int(major_ver0),
-						 p.any_int(minor_ver0)))),
-			       p.str(colon,
-				     p.con(me),
-				     p.str(comment_1, p.any(comment))));
-	if (!pat(e, task.get_result_goal())) {
-	    error(reason_t::ERROR_UNRECOGNIZED, "");
-	    return;
-	}
-
-	int32_t major_ver = 0, minor_ver = 0;
-	try {
-	    major_ver = checked_cast<int32_t>(major_ver0, 0, 1000);
-	    minor_ver = checked_cast<int32_t>(minor_ver0, 0, 1000);
-	} catch (checked_cast_exception &ex) {
-	    error(reason_t::ERROR_UNRECOGNIZED, "");
-	    return;
-	}
-
-	// Successful. So update address book etc.
-	address_entry entry;
-	if (self().book()().exists(ip(), &entry)) {
-	    entry.set_version(major_ver, minor_ver);
-	    entry.set_comment(comment, e);
-	    self().book()().update(entry);
-	}
-	break;
-        }
-    case out_task::SEND:
-	task.set_term(
-          env_.new_term(con_cell("query",1),
-	    {env_.new_term(comma, {
-			   env_.new_term(colon,
-				 {me, env_.new_term(version_1,{env_.new_ref()})
-					 }),
-			   env_.new_term(colon,
-				 {me, env_.new_term(comment_1,
-						    {env_.new_ref()})
-					 })})
-	    }));
-	break;
-    }
+    return new task_publish(*this);
 }
 
-out_task out_connection::create_init_connection_task()
+out_task * out_connection::create_info_task()
 {
-    return out_task("init_connection", *this, &out_connection::handle_init_connection_task_fn);
+    return new task_info(*this);
 }
 
-void out_connection::handle_init_connection_task_fn(out_task &task)
+out_task * out_connection::create_init_connection_task()
 {
-    task.connection().handle_init_connection_task(task);
+    return new task_init_connection(*this);
 }
 
-void out_connection::handle_init_connection_task(out_task &task)
+task_reset * out_connection::create_reset_task()
 {
-    static const con_cell ok("ok", 1);
-    static const con_cell session("session",2);
-
-    switch (task.get_state()) {
-    case out_task::IDLE:
-	break;
-    case out_task::RECEIVED: {
-	term t = task.get_term();
-	if (t.tag() != tag_t::STR) {
-	    error(reason_t::ERROR_FAIL_CONNECT,
-		 "Unexpected response for init connection: "
-		 + env_.to_string(t));
-	    break;
-	}
-	auto f = env_.functor(t);
-	if (f != ok) {
-	    error(reason_t::ERROR_FAIL_CONNECT,
-		  "Unexpected response for init connection: "
-		  + env_.to_string(t));
-	    break;
-	}
-	if (id_.empty()) {
-	    auto session_term = env_.arg(t, 0);
-	    if (session_term.tag() != tag_t::STR ||
-		env_.functor(session_term) != session) {
-		error(reason_t::ERROR_FAIL_CONNECT,
-		      "Unexpected session term for init connection. "
-		      "Expecting session/2, was " + env_.to_string(t));
-		break;
-	    }
-	    auto id_term = env_.arg(session_term, 0);
-	    if (!env_.is_atom(env_.arg(session_term,0))) {
-		error(reason_t::ERROR_FAIL_CONNECT,
-		      "Unexpected session id for init connection. "
-		      "Expecting atom, was " + env_.to_string(id_term));
-		break;
-	    }
-	    auto name_term = env_.arg(session_term, 1);
-	    if (!env_.is_atom(env_.arg(session_term,1))) {
-		error(reason_t::ERROR_FAIL_CONNECT,
-		      "Unexpected session name for init connection. "
-		      "Expecting atom, was " + env_.to_string(name_term));
-	    }
-	    id_ = env_.atom_name(id_term);
-	    name_ = env_.atom_name(name_term);
-	    schedule(task);
-	} else {
-	    connected_ = true;
-	    self().successful_connection(ip());
-	    if (use_heartbeat_) {
-		auto infotask = create_info_task();
-		schedule(infotask);
-		auto hbtask = create_heartbeat_task();
-		schedule(hbtask);
-		auto pubtask = create_publish_task();
-		schedule(pubtask);
-	    }
-	}
-	break;
-        }
-    case out_task::SEND:
-	if (id_.empty()) {
-	    task.set_term(
-		  env_.new_term(con_cell("command",1), {con_cell("new",0)}));
-	} else if (!connected_) {
-	    task.set_term(
-		  env_.new_term(con_cell("command",1),
-				{env_.new_term(con_cell("connect",1),
-					       {env_.functor(id_,0)})}));
-	} else if (!sent_my_name_) {
-	    sent_my_name_ = true;
-	    task.set_term(
-		  env_.new_term(con_cell("command",1),
-			{env_.new_term(con_cell("name",1),
-				       {env_.functor(self().name(),0)})}));
-	}
-	break;
-    }
+    return new task_reset(*this);
 }
 
 void out_connection::idle_state()
@@ -773,6 +644,28 @@ void out_connection::idle_state()
 	auto task = create_init_connection_task();
 	schedule(task);
     }
+}
+
+void out_connection::reschedule(out_task *task, utime t)
+{
+    {
+    boost::lock_guard<boost::recursive_mutex> guard(work_lock_);
+
+    // If task issues a reschedule on SEND, which normally it doesn't
+    // as it doesn't pop the work queue, then we'll pop the work queue
+    // to remove it first.
+    if (task->get_state() == out_task::SEND) {
+	work_.pop();
+    }
+    
+    task->set_when(t);
+    if (t > last_in_work_) {
+	last_in_work_ = t;
+    }
+    work_.push(task);
+    }
+
+    trigger_now();
 }
 
 void out_connection::error(const reason_t &reason,
@@ -850,18 +743,22 @@ void out_connection::send_next_task()
 	return;
     }
     auto next_task = work_.top();
-    if (!next_task.expiring()) {
+    if (!next_task->expiring()) {
 	idle_state();
 	return;
     }
-
-    next_task.set_state(out_task::SEND);
-    next_task.set_term(term());
-    next_task.run();
-    if (next_task.get_term() == term()) {
+    if (next_task->get_state() == out_task::KILLED) {
+	delete next_task;
+	work_.pop();
+	return;
+    }
+    next_task->set_state(out_task::SEND);
+    next_task->set_term(term());
+    next_task->process();
+    if (next_task->get_term() == term()) {
 	set_state(IDLE);
     } else {
-	send(next_task.get_term());
+	send(next_task->get_term());
     }
     if (get_state() == IDLE) {
 	idle_state();
@@ -870,15 +767,20 @@ void out_connection::send_next_task()
 
 void out_connection::on_state()
 {
+    boost::lock_guard<boost::recursive_mutex> guard(work_lock_);
+
     switch (get_state()) {
     case IDLE: if (!is_stopped()) send_next_task(); break;
     case RECEIVED: {
 	auto task = work_.top();
 	work_.pop();
-	auto r = received();
-	task.set_state(out_task::RECEIVED);
-	task.set_term(r);
-	task.run();
+	auto r = received(task->env());
+	task->set_state(out_task::RECEIVED);
+	task->set_term(r);
+	task->process();
+	if (task->get_state() == out_task::KILLED) {
+	    delete task;
+	}
 	if (!is_stopped()) {
 	    send_next_task();
 	}
@@ -904,7 +806,7 @@ void out_connection::print_task_queue() const
     auto temp = work_;
     while (!temp.empty()) {
 	auto task = temp.top();
-	std::cout << task.get_when().str() << ": " << task.description() << std::endl;
+	std::cout << task->get_when().str() << ": " << task->description() << std::endl;
 	temp.pop();
     }
 }

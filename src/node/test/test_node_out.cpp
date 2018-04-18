@@ -1,6 +1,5 @@
 #include <common/term_tools.hpp>
 #include <node/self_node.hpp>
-#include <node/terminal.hpp>
 #include <node/session.hpp>
 
 using namespace prologcoin::common;
@@ -264,7 +263,7 @@ static void test_address_propagation()
     std::cout << "Waiting for effect to propagate to other nodes (max 30 seconds)" << std::endl;
     size_t changes = 0;
     auto stopped_port = stopped_node->port();
-    for (size_t i = 0; i < 30 && changes < 10; i++) {
+    for (size_t i = 0; i < 30 && changes < 5; i++) {
 	utime::sleep(utime::ss(1));
 
         for (auto *node : nodes) {
@@ -330,7 +329,7 @@ static void test_address_propagation()
 		  }
 	      });
     }
-    assert(changes >= 10);
+    assert(changes >= 5);
 
 
     utime::sleep(utime::ss(1));

@@ -3,27 +3,7 @@
 #ifndef _node_terminal_hpp
 #define _node_terminal_hpp
 
-// terminal
-//
-// The purpose of the terminal is mostly a debugging tool. It provides
-// a command line interface to a running node. Basically, it will be the
-// same protocol that nodes use when they communicate with each other.
-//
-// It's not a Prolog interpreter itself, but it uses terms (and term
-// serialization) as data structures. The terminal doesn't have a
-// state itself.
-//
-// Normally, the runnng node is in a "execute next command" state, waiting
-// for a Prolog query. But if the query has more solutions (as part of
-// interactive backtracking), then the state goes into a "continuation"
-// mode. That's when the terminal window changes its "state" and waits
-// for a ";" or a "\n" character to determine whether to query for the
-// next solution or stop. However, behind the scenes it'll issue a
-// "cont." or "stop." command back to the running node.
-// This is basically, the only protocol we have.
-//
-
-#include "asio_win32_check.hpp"
+#include "../node/asio_win32_check.hpp"
 
 #include <boost/thread.hpp>
 #include <boost/asio/io_service.hpp>
@@ -31,141 +11,116 @@
 #include <boost/asio/write.hpp>
 #include <boost/asio/buffer.hpp>
 #include <boost/asio/ip/tcp.hpp>
-#include <queue>
+#include <boost/asio/deadline_timer.hpp>
+#include <string>
+#include <iostream>
+
 #include "../common/term_env.hpp"
-#include "../common/readline.hpp"
-#include "../common/term_serializer.hpp"
+#include "../common/term_tokenizer.hpp"
+#include "../common/term_parser.hpp"
 
 namespace prologcoin { namespace node {
 
-class terminal;
-
-class session {
-private:
-    using term_env = prologcoin::common::term_env;
-    using io_service = boost::asio::io_service;
-    using endpoint = boost::asio::ip::tcp::endpoint;
-    using socket = boost::asio::ip::tcp::socket;
-
-public:
-    session(terminal &term, io_service &ios, const endpoint &ep, socket &sock);
-    ~session();
-
-    inline terminal & get_terminal() { return terminal_; }
-    inline term_env & env() { return env_; }
-    inline endpoint & get_endpoint() { return endpoint_; }
-
-    void start(endpoint &ep);
-    void send_query(const common::term t);
-    void send_query(const common::term t, term_env &src_env);
-    void send_buffer(common::term_serializer::buffer_t &buf, size_t n);
-    void send_length(size_t n);
-    common::term read_reply();
-    inline bool has_errors() const { return !errors_.empty(); }
-    inline std::string next_error()
-        { std::string err = errors_.front(); errors_.pop(); return err; }
-    inline const std::string & id() const { return id_; }
-    inline void set_id(const std::string &id) { id_ = id; }
-
-private:
-    using socket_base = boost::asio::socket_base;
-    using tcp = boost::asio::ip::tcp;
-    using strand = boost::asio::io_service::strand;
-    using term_serializer = prologcoin::common::term_serializer;
-
-    void add_error(const std::string &msg);
-
-    std::string id_;
-
-    terminal &terminal_;
-    io_service &ioservice_;
-    endpoint endpoint_;
-    socket socket_;
-    strand strand_;
-    bool connected_;
-
-    term_env env_;
-
-    term_serializer::buffer_t buffer_;
-    term_serializer::buffer_t buffer_len_;
-
-    std::queue<std::string> errors_;
-};
-
+//
+// This class provides terminal access to a node programmatically (non-interactive.)
+//
 class terminal {
 private:
     using io_service = boost::asio::io_service;
-    using readline = common::readline;
+    using endpoint = boost::asio::ip::tcp::endpoint;
+    using socket = boost::asio::ip::tcp::socket;
     using term_env = common::term_env;
     using token_exception = common::token_exception;
     using term_parse_exception = common::term_parse_exception;
     using term = common::term;
+    using term_serializer = common::term_serializer;
 
 public:
-    terminal();
+    terminal(unsigned short port, const std::string &addr = "127.0.0.1");
     ~terminal();
 
-    void run();
-
-    bool key_callback(int ch);
+    bool connect();
+    void close();
 
     void lock_text_output_and(std::function<void()> fn);
     void add_text_output(const std::string &line);
     void add_text_output_no_nl(const std::string &line);
     void add_error(const std::string &line);
 
-    void register_session(session *s);
-    void unregister_session(session *s);
+    std::string flush_text();
+
+    void print_text();
+    void purge_text();
+
+    term parse(const std::string &str);
+
+    inline bool execute(const std::string &str)
+    { term t = parse(str); if (t != term()) return execute(t); else return false; }
+
+    inline bool execute(term t) { return execute_query(t); }
+
+    inline bool has_more() const { return has_more_; }
+    inline bool next() { if (!has_more_) { return false; } else return execute_in_query(";"); }
+    bool reset();
+
+    inline term_env & env() { return env_; }
+
+    inline term get_result() const { return result_; }
+    inline term get_result_string() const { return result_; }
+    inline const std::vector<std::string> & var_names() const { return var_names_; }
+    inline term get_result(const std::string &var_name) const {
+	auto it = var_result_.find(var_name);
+	if (it == var_result_.end()) return term(); else return it->second;
+    }
+
+    inline const std::string & get_result_string(const std::string &var_name) const {
+	static const std::string empty;
+	auto it = var_result_string_.find(var_name);
+	if (it == var_result_string_.end()) return empty; else return it->second;
+    }
+
+protected:
+    inline void set_has_more() { has_more_ = true; }
 
 private:
-    friend class session;
+    void run();
 
-    inline void set_prompt(const std::string &prompt)
-       { prompt_ = prompt; }
-
-    session * get_session(const term cmd);
-
-    void command_help(const term cmd);
-    void command_quit(const term cmd);
-    void command_list(const term cmd);
-    void command_new(const term cmd);
-    void command_connect(const term cmd);
-    void command_kill(const term cmd);
-    void command_close(const term cmd);
-
-    session * new_session(const term host_port);
-    bool process_errors(session *s);
-    void process_query_reply();
-
-    void setup_commands();
-    void execute_command(const term cmd);
-    void execute_query(const term query);
-    void execute_in_query(const std::string &cmd);
+    bool send_query(const common::term t);
+    bool send_query(const common::term t, term_env &src_env);
+    bool send_buffer(common::term_serializer::buffer_t &buf, size_t n);
+    bool send_length(size_t n);
+    common::term read_reply();
+    bool execute_query(const term query);
+    bool execute_in_query(const std::string &cmd);
+    bool process_query_reply();
 
     void error(const std::string &cmd,
 	       int column,
 	       token_exception *token_ex,
 	       term_parse_exception *parse_ex);
 
-    inline void clear_in_query() { in_query_ = false; }
-
-    std::string prompt_;
-    bool stopped_;
-    readline readline_;
-    bool ctrl_c_;
+    bool connected_;
     term_env env_;
 
     io_service ioservice_;
+    endpoint endpoint_;
+    socket socket_;
+
+    term_serializer::buffer_t buffer_;
+    term_serializer::buffer_t buffer_len_;
+    std::queue<std::string> errors_;
+
+    std::string session_id_;
+    bool has_more_;
+
+    term result_;
+    std::vector<std::string> var_names_;
+    std::unordered_map<std::string, term> var_result_;
+    std::unordered_map<std::string, std::string> var_result_string_;
 
     boost::mutex text_output_queue_mutex_;
     boost::condition_variable text_output_queue_cond_;
     std::queue<std::string> text_output_queue_;
-
-    std::unordered_map<std::string, session *> sessions_;
-    std::unordered_map<common::con_cell, std::function<void(const term t)> > commands_;
-
-    session *current_session_;
-    bool in_query_;
 };
 
 }}

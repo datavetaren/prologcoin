@@ -2,6 +2,7 @@
 #include "self_node.hpp"
 #include "local_interpreter.hpp"
 #include "session.hpp"
+#include "task_reset.hpp"
 
 namespace prologcoin { namespace node {
 
@@ -11,6 +12,106 @@ using namespace prologcoin::interp;
 const con_cell local_interpreter::ME("me", 0);
 const con_cell local_interpreter::COLON(":", 2);
 const con_cell local_interpreter::COMMA(",", 2);
+
+struct meta_context_operator_at : public interp::meta_context {
+    meta_context_operator_at(interpreter_base &interp, meta_fn fn)
+	: meta_context(interp, fn) { }
+
+    // Where to execute. Don't store a reference to the connection directly,
+    // as the connection may die. This means we'll do a lookup every time
+    // but it's not efficient to begin with (think about all the network
+    // communication, serialization, etc.)
+    std::string where_;
+    term query_;
+};
+
+bool me_builtins::operator_at_2(interpreter_base &interp0, size_t arity, term args[] )
+{
+    auto &interp = to_local(interp0);
+    auto query = args[0];
+    auto where_term = args[1];
+
+    // std::cout << "operator_at_2: query=" << interp.to_string(query) << " where=" << interp.to_string(where_term) << std::endl;
+
+    if (!interp.is_atom(where_term)) {
+	interp.abort(interpreter_exception_wrong_arg_type("@/2: Second argument must be an atom to represent a connection name; was " + interp.to_string(where_term)));
+    }
+
+    std::string where_str = interp.atom_name(where_term);
+
+    auto result = interp.self().execute_at(query, interp, where_str);
+    if (result.failed()) {
+	return false;
+    }
+    if (result.has_more()) {
+	auto *mc = interp.new_meta_context<meta_context_operator_at>(&operator_at_2_meta);
+	interp.set_top_b(interp.b());
+	interp.allocate_choice_point(code_point::fail());
+	mc->where_ = where_str;
+	mc->query_ = query;
+    }
+    return interp.unify(result.result(), query);
+}
+
+bool me_builtins::operator_at_2_meta(interpreter_base &interp0, const interp::meta_reason_t &reason)
+{
+    auto &interp = to_local(interp0);
+    auto *mc = interp.get_current_meta_context<meta_context_operator_at>();
+
+    interp.set_p(interp.empty_list());
+    interp.set_cp(interp.empty_list());
+
+    if (reason == interp::meta_reason_t::META_DELETE) {
+	interp.release_last_meta_context();
+	return true;
+   } 
+
+    bool failed = interp.is_top_fail();
+    if (!failed) {
+	// If @/2 operator did not fail, then unwind the environment and
+	// the current meta context. (The current meta context will be
+	// restored if we backtrack to a choice point.)
+        interp.set_top_fail(false);
+	interp.set_complete(false);
+	interp.set_top_e(mc->old_top_e);
+	interp.set_m(mc->old_m);
+	return true;
+    }
+
+    interp.set_top_fail(false);
+    interp.set_complete(false);
+
+    // interp.unwind_to_top_choice_point();
+    // Now query remote machine for next solution
+    auto r = interp.self().continue_at(interp, mc->where_);
+    if (r.failed()) {
+	interp.release_last_meta_context();
+	if (r.at_end()) {
+	    bool ok = interp.self().delete_instance_at(interp, mc->where_);
+	    if (!ok) {
+		// TODO: Throw exception
+	    }
+	}
+	return false;
+    }
+    term qr = mc->query_;
+
+    if (!r.has_more()) {
+	interp.release_last_meta_context();
+	if (r.at_end()) {
+	    bool ok = interp.self().delete_instance_at(interp, mc->where_);
+	    if (!ok) {
+		// TODO: Throw exception
+	    }
+	}
+	return false;
+    } else {
+	interp.allocate_choice_point(code_point::fail());
+	interp.set_p(interp.empty_list());
+    }
+
+    return interp.unify(qr, r.result());
+}
 
 bool me_builtins::id_1(interpreter_base &interp0, size_t arity, term args[] )
 {
@@ -166,7 +267,7 @@ bool me_builtins::connections_0(interpreter_base &interp0, size_t arity, term ar
 
     interp.add_text(ss.str());
 
-    return false;
+    return true;
 }
 
 bool me_builtins::mailbox_1(interpreter_base &interp0, size_t arity, term args[] )
@@ -247,6 +348,8 @@ void local_interpreter::ensure_initialized()
 
 void local_interpreter::setup_modules()
 {
+    load_builtin(con_cell("@",2), &me_builtins::operator_at_2);
+
     load_builtin(ME, con_cell("id", 1), &me_builtins::id_1);
     load_builtin(ME, con_cell("name", 1), &me_builtins::name_1);
     load_builtin(ME, con_cell("peers", 2), &me_builtins::peers_2);
@@ -258,6 +361,38 @@ void local_interpreter::setup_modules()
     load_builtin(ME, con_cell("mailbox",1), &me_builtins::mailbox_1);
     load_builtin(ME, functor("check_mail",0), &me_builtins::check_mail_0);
     load_builtin(ME, con_cell("send",2), &me_builtins::send_2);
+}
+
+void local_interpreter::local_reset()
+{
+    interpreter::reset();
+}
+
+bool local_interpreter::reset()
+{
+    interpreter::reset();
+    std::unordered_set<task_reset *> resets;
+    self().for_each_standard_out_connection( [&resets](out_connection *out)
+		  {
+		    auto *reset = out->create_reset_task();
+	            resets.insert(reset);
+	            out->schedule(reset); } );
+    bool failed = false;
+    while (!resets.empty()) {
+	std::vector<task_reset *> to_remove;
+	for (auto *task : resets) {
+	    if (task->is_reset() || task->failed()) {
+		if (task->failed()) failed = true;
+		task->consume();
+		to_remove.push_back(task);
+	    }
+	}
+	for (auto *task : to_remove) {
+	    resets.erase(task);
+	}
+	utime::sleep(utime::us(self_node().get_fast_timer_interval_microseconds()));
+    }
+    return !failed;
 }
 
 }}

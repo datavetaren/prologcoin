@@ -1,7 +1,7 @@
 #include <boost/filesystem.hpp>
 #include <boost/algorithm/string/predicate.hpp>
 #include "../node/self_node.hpp"
-#include "terminal.hpp"
+#include "interactive_terminal.hpp"
 
 using namespace prologcoin::node;
 
@@ -38,7 +38,7 @@ static void start()
 
     node.start();
 
-    prologcoin::main::terminal term(port);
+    prologcoin::main::interactive_terminal term(port);
     if (!term.connect()) {
 	std::cout << "Couldn't connect to node." << std::endl;
     } else {

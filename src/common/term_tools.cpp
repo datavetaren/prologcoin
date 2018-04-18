@@ -114,12 +114,14 @@ void term_token_diff::assert_equal(const std::string &s1,const std::string &s2,
 {
     std::stringstream in1(s1), in2(s2);
     term_token_diff diff(in1, in2);
-    if (!diff.check()) {
+    bool r = diff.check();
+    if (!r) {
 	if (!comment.empty()) {
 	    std::cout << comment << std::endl;
 	}
 	diff.report();
     }
+    assert(r);
 }
 
 }}

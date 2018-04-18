@@ -13,10 +13,7 @@ public:
 
 private:
     void process_version(const common::term ver);
-
-    static void process_fn(out_task &task);
-
-    void process();
+    virtual void process() override;
 };
 
 }}
