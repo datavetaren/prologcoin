@@ -464,6 +464,9 @@ private:
     bool is_char_chunk() const;
     bool is_last_char_chunk() const;
     std::string as_char_chunk() const;
+
+    inline bool is_valid_char(uint8_t ch) const
+    { return ch >= 1 && ch <= 127; }
 };
 
 //

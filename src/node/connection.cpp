@@ -341,7 +341,7 @@ void in_connection::reply_exception(const std::string &msg)
 {
     auto &e = env_;
     reply_error(e.new_term(e.functor("remote_exception",1),
-			   {e.string_to_list(msg)}));
+    			   {e.string_to_list(msg)}));
 }
 
 void in_connection::command_new(const term)
@@ -537,7 +537,7 @@ std::string in_connection::to_error_message(const std::vector<std::string> &msgs
 {
     std::stringstream ss;
     for (auto &msg : msgs) {
-	ss << "[ERROR]: " << msg << std::endl;
+	ss << msg << "\n";
     }
     return ss.str();
 }

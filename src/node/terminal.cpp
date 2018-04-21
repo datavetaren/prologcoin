@@ -369,20 +369,16 @@ bool terminal::execute_query(const term query)
 
 void terminal::handle_error(const std::string &msg)
 {
-    size_t from = 0;
-    auto it = msg.find("[ERROR]: ", from);
-    if (it == std::string::npos) {
-	add_error(msg);
-	return;
-    }
-    while (it != std::string::npos) {
-	auto it_end = msg.find("\n", it);
-	if (it_end == std::string::npos) {
-	    add_error(msg.substr(it+9));
-	    break;
+    auto from = 0;
+    while (from != std::string::npos) {
+	auto end = msg.find("\n", from);
+	if (end == std::string::npos) {
+	    add_error(msg.substr(from));
+	    from = end;
+	} else {
+	    add_error(msg.substr(from,end-from+1));
+	    from = end+1;
 	}
-	add_error(msg.substr(it+9, it_end-it-9));
-	it = it_end+1;
     }
 }
 

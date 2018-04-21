@@ -146,11 +146,11 @@ bool int_cell::is_char_chunk() const
 	return false;
     }
     for (size_t i = 0; i < 7; i++) {
-	auto ch = (v >> ((6-i)*8 + 5)) & 0xff;
+	auto ch = static_cast<uint8_t>((v >> ((6-i)*8 + 5)) & 0xff);
 	if (ch == 0) {
 	    return true;
 	}
-	if (ch < ' ' || ch >= 127) {
+	if (!is_valid_char(ch)) {
 	    return false;
 	}
     }
