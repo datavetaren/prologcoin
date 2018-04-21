@@ -194,7 +194,7 @@ void term_tokenizer::next_quoted_name()
     bool cont = true;
     while (cont) {
         if (is_eof()) {
-	    throw token_exception_unterminated_quoted_name(pos(), "Unterminated quoted name");
+	    throw token_exception_unterminated_quoted_name(line_string(), pos(), "Unterminated quoted name");
         }
 	ch = next_char();
 	if (ch == '\'') {
@@ -215,7 +215,7 @@ void term_tokenizer::next_quoted_name()
 void term_tokenizer::next_escape_sequence()
 {
     if (is_eof()) {
-        throw token_exception_unterminated_escape(pos(), "Unterminated escape sequence");
+        throw token_exception_unterminated_escape(line_string(), pos(), "Unterminated escape sequence");
     }
     int ch = next_char();
 
@@ -233,11 +233,11 @@ void term_tokenizer::next_escape_sequence()
     case 'a': c = 7; break;
     case 'x':{
         if (is_eof()) {
-	    throw token_exception_unterminated_escape(pos(), "Unterminated escape sequence");	  
+	    throw token_exception_unterminated_escape(line_string(), pos(), "Unterminated escape sequence");	  
         }
 	int v1 = parse_hex_digit();
         if (is_eof()) {
-  	    throw token_exception_unterminated_escape(pos(), "Unterminated escape sequence");	  
+  	    throw token_exception_unterminated_escape(line_string(), pos(), "Unterminated escape sequence");	  
         }
 	int v2 = parse_hex_digit();
 	c = (v1 << 8) | v2;
@@ -251,7 +251,7 @@ void term_tokenizer::next_escape_sequence()
         }
     case '^': {
         if (is_eof()) {
-  	    throw token_exception_unterminated_escape(pos(), "Unterminated escape sequence");	  
+  	    throw token_exception_unterminated_escape(line_string(), pos(), "Unterminated escape sequence");	  
         }
 	ch = next_char();
 	if (ch == '?') {
@@ -263,7 +263,7 @@ void term_tokenizer::next_escape_sequence()
 	} else {
 	    std::string msg = "Unexpected control character (" 
 	 	+ boost::lexical_cast<std::string>(ch) + ")";
-	    throw token_exception_control_char(pos(), msg);
+	    throw token_exception_control_char(line_string(), pos(), msg);
 	}
 	break;
         }
@@ -293,7 +293,7 @@ int term_tokenizer::parse_hex_digit()
     } else if (ch >= '0' && ch <= '9') {
 	v = ch - '0';
     } else {
-        throw token_exception_hex_code( pos(),
+        throw token_exception_hex_code(line_string(), pos(),
 	       "Unexpected hex character ("
 	       + boost::lexical_cast<std::string>(ch) + ")");
     }
@@ -482,7 +482,7 @@ void term_tokenizer::next_char_code()
     }
     // Decode it.
     if (current_.lexeme_.empty()) {
-        throw token_exception_no_char_code( pos(),
+        throw token_exception_no_char_code( line_string(), pos(),
 					   "No char code provided for 0'");
 	
     }
@@ -508,7 +508,8 @@ void term_tokenizer::next_number()
 	} else {
 	    size_t len = next_alphas();
 	    if (len == 0) {
-	        throw token_exception_missing_number_after_base( pos(), 
+	        throw token_exception_missing_number_after_base(
+					line_string(), pos(), 
 					"No number after base'");
 	    }
 	}
@@ -541,7 +542,7 @@ void term_tokenizer::next_decimal()
 {
     consume_next_char();
     if (next_digits() == 0) {
-        throw token_exception_missing_decimal(pos(), "Missing decimal");
+        throw token_exception_missing_decimal(line_string(), pos(), "Missing decimal");
     }
     if (is_eof()) {
         return;
@@ -562,7 +563,7 @@ void term_tokenizer::next_exponent()
     }
     size_t len = next_digits();
     if (len  == 0) {
-        throw token_exception_missing_exponent(pos(), "Missing exponent");
+        throw token_exception_missing_exponent(line_string(), pos(), "Missing exponent");
     }
 }
 
@@ -577,7 +578,7 @@ void term_tokenizer::next_string()
     bool cont = true;
     while (cont) {
         if (is_eof()) {
-	  throw token_exception_unterminated_string(pos(),
+	    throw token_exception_unterminated_string(line_string(), pos(),
 						    "Unterminated string");	        }
 	int ch = next_char();
 	if (ch == '\"') {
@@ -597,6 +598,13 @@ void term_tokenizer::next_string()
 const term_tokenizer::token & term_tokenizer::next_token()
 {
     auto &token = next_token_helper();
+    auto it = token.lexeme().find_last_of("\n");
+    if (it == std::string::npos) {
+	line_string_ += token.lexeme();
+    } else {
+	// Find last '\n' and use that as the new beginning
+	line_string_ = token.lexeme().substr(it+1);
+    }
     return token;
 }
 

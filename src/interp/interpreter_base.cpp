@@ -52,6 +52,7 @@ interpreter_base::interpreter_base() : register_pr_("", 0), comma_(",",2), empty
     num_of_args_ = 0;
     memset(&register_ai_[0], 0, sizeof(common::term)*MAX_ARGS);
     num_y_fn_ = nullptr;
+    maximum_cost_ = std::numeric_limits<uint64_t>::max();
 }
 
 void interpreter_base::init()
@@ -186,7 +187,7 @@ void interpreter_base::syntax_check()
     }
 }
 
-void interpreter_base::load_clause(const term t)
+void interpreter_base::load_clause(const term t, bool as_program)
 {
     syntax_check_stack_.push_back(
 		  std::bind(&interpreter_base::syntax_check_clause, this,
@@ -207,7 +208,16 @@ void interpreter_base::load_clause(const term t)
     if (found == program_db_.end()) {
         program_db_[qn] = managed_clauses();
 	program_predicates_.push_back(qn);
+    } else {
+	if (as_program) {
+	    if (!is_updated_predicate(qn)) {
+		// This is the first time. So we'll retract whatever
+		// we currently have in our database.
+		program_db_[qn].clear();
+	    }
+	}
     }
+    updated_predicates_.insert(qn);
     program_db_[qn].push_back(managed_clause(t, cost(t)));
 }
 
@@ -336,7 +346,7 @@ void interpreter_base::load_program(const term t)
     syntax_check();
 
     for (auto clause : list_iterator(*this, t)) {
-	load_clause(clause);
+	load_clause(clause, true);
     }
 }
 
@@ -372,7 +382,12 @@ void interpreter_base::load_program(std::istream &in)
 	clause_list = new_dotted_pair(clause, clause_list);
     }
 	
-    return load_program(clause_list);
+    load_program(clause_list);
+}
+
+void interpreter_base::retract_predicate(const qname &pn)
+{
+    program_db_.erase(pn);
 }
 
 void interpreter_base::syntax_check_program(const term t)

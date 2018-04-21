@@ -81,6 +81,20 @@ static void test_int_cells()
     assert(r4 == 3);
 
     std::cout << "---- r1 String : " << r1.str() << "\n";
+
+    int_cell actual_maximum = int_cell::max();
+    int64_t expect_maximum =  static_cast<int64_t>((static_cast<uint64_t>(1) << (63 - cell::TAG_SIZE_BITS)) - 1);
+    std::cout << "Actual maximum: " << actual_maximum.value() << std::endl;
+    std::cout << "Expect maximum: " << expect_maximum << std::endl;
+    assert(actual_maximum == int_cell(expect_maximum));
+    assert(actual_maximum.value() == expect_maximum);
+
+    int_cell actual_minimum = int_cell::min();
+    int64_t expect_minimum =  static_cast<int64_t>(~((static_cast<uint64_t>(1) << (63 - cell::TAG_SIZE_BITS)) - 1));
+    std::cout << "Actual minimum: " << actual_minimum.value() << std::endl;
+    std::cout << "Expect minimum: " << expect_minimum << std::endl;
+    assert(actual_minimum == int_cell(expect_minimum));
+    assert(actual_minimum.value() == expect_minimum);
 }    
 
 static void test_heap_simple()

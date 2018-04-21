@@ -25,6 +25,45 @@ struct meta_context_operator_at : public interp::meta_context {
     term query_;
 };
 
+bool me_builtins::list_load_2(interpreter_base &interp0, size_t arity, term args[] )
+{
+    auto &interp = to_local(interp0);
+    term filename_term = args[0];
+    term rest = args[1];
+
+    bool done = false;
+
+    // First check arguments...
+    while (!done) {
+        if (!interp.is_atom(filename_term)) {
+	    interp.abort(interpreter_exception_wrong_arg_type("[...]: Argument was not a file name; was " + interp.to_string(filename_term)));
+        }
+	if (interp.is_dotted_pair(rest)) {
+	    filename_term = interp.arg(rest, 0);
+	    rest = interp.arg(rest, 1);
+	} else if (!interp.is_empty_list(rest)) {
+	    interp.abort(interpreter_exception_wrong_arg_type("[...]: List did not end with an empty list; was " + interp.to_string(rest)));
+	} else {
+	    done = true;
+	}
+    }
+
+    filename_term = args[0];
+    rest = args[1];
+
+    while (!interp.is_empty_list(filename_term)) {
+	std::string filename = interp.atom_name(filename_term) + ".pl";
+	interp.load_file(filename);
+	if (interp.is_dotted_pair(rest)) {
+	    filename_term = interp.arg(rest, 0);
+	} else {
+	    filename_term = interp.empty_list();
+	}
+    }
+
+    return true;
+}
+
 bool me_builtins::operator_at_2(interpreter_base &interp0, size_t arity, term args[] )
 {
     auto &interp = to_local(interp0);
@@ -43,6 +82,7 @@ bool me_builtins::operator_at_2(interpreter_base &interp0, size_t arity, term ar
     if (result.failed()) {
 	return false;
     }
+
     if (result.has_more()) {
 	auto *mc = interp.new_meta_context<meta_context_operator_at>(&operator_at_2_meta);
 	interp.set_top_b(interp.b());
@@ -332,6 +372,64 @@ bool me_builtins::send_2(interpreter_base &interp0, size_t arity, term args[] )
     return true;
 }
 
+bool me_builtins::initial_funds_1(interpreter_base &interp0, size_t arity, term args[] )
+{
+    auto &interp = to_local(interp0);
+    term arg = args[0];
+    if (arg.tag() == tag_t::INT) {
+	uint64_t val = static_cast<uint64_t>(reinterpret_cast<int_cell &>(arg).value());
+	interp.self().set_initial_funds(val);
+	return true;
+    } else if (arg.tag() == tag_t::REF) {
+	auto val = static_cast<int64_t>(interp.self().get_initial_funds());
+	if (val <= 0) val = 0;
+	return interp.unify(arg, int_cell(val));
+    } else {
+	return false;
+    }
+}
+
+bool me_builtins::maximum_funds_1(interpreter_base &interp0, size_t arity, term args[] )
+{
+    auto &interp = to_local(interp0);
+    term arg = args[0];
+    if (arg.tag() == tag_t::INT) {
+	uint64_t val = static_cast<uint64_t>(reinterpret_cast<int_cell &>(arg).value());
+	interp.self().set_maximum_funds(val);
+	return true;
+    } else if (arg.tag() == tag_t::REF) {
+	auto val = static_cast<int64_t>(interp.self().get_maximum_funds());
+	if (val <= 0) val = 0;
+	return interp.unify(arg, int_cell(val));
+    } else {
+	return false;
+    }
+}
+
+bool me_builtins::new_funds_per_second_1(interpreter_base &interp0, size_t arity, term args[] )
+{
+    auto &interp = to_local(interp0);
+    term arg = args[0];
+    if (arg.tag() == tag_t::INT) {
+	uint64_t val = static_cast<uint64_t>(reinterpret_cast<int_cell &>(arg).value());
+	interp.self().set_new_funds_per_second(val);
+	return true;
+    } else if (arg.tag() == tag_t::REF) {
+	auto val = static_cast<int64_t>(int_cell::saturate(interp.self().new_funds_per_second()));
+	return interp.unify(arg, int_cell(val));
+    } else {
+	return false;
+    }
+}
+
+bool me_builtins::funds_1(interpreter_base &interp0, size_t arity, term args[] )
+{
+    auto &interp = to_local(interp0);
+    term arg = args[0];
+    auto funds = static_cast<int64_t>(int_cell::saturate(interp.session().available_funds()));
+    return interp.unify(arg, int_cell(funds));
+}
+
 self_node & local_interpreter::self()
 {
     return session_.self();
@@ -350,17 +448,30 @@ void local_interpreter::setup_modules()
 {
     load_builtin(con_cell("@",2), &me_builtins::operator_at_2);
 
+    // [...] syntax to load programs.
+    load_builtin(con_cell(".", 2), &me_builtins::list_load_2);
+
+    // Basic
     load_builtin(ME, con_cell("id", 1), &me_builtins::id_1);
     load_builtin(ME, con_cell("name", 1), &me_builtins::name_1);
-    load_builtin(ME, con_cell("peers", 2), &me_builtins::peers_2);
+    load_builtin(ME, functor("heartbeat", 0), &me_builtins::heartbeat_0);
     load_builtin(ME, con_cell("version",1), &me_builtins::version_1);
     load_builtin(ME, con_cell("comment",1), &me_builtins::comment_1);
-    load_builtin(ME, functor("heartbeat", 0), &me_builtins::heartbeat_0);
+
+    // Address book & connections
+    load_builtin(ME, con_cell("peers", 2), &me_builtins::peers_2);
     load_builtin(ME, functor("connections",0), &me_builtins::connections_0);
     load_builtin(ME, functor("add_address",2), &me_builtins::add_address_2);
+
+    // Mailbox
     load_builtin(ME, con_cell("mailbox",1), &me_builtins::mailbox_1);
     load_builtin(ME, functor("check_mail",0), &me_builtins::check_mail_0);
     load_builtin(ME, con_cell("send",2), &me_builtins::send_2);
+
+    // Funding
+    load_builtin(ME, functor("initial_funds",1), &me_builtins::initial_funds_1);
+    load_builtin(ME, functor("new_funds_per_second",1), &me_builtins::new_funds_per_second_1);
+    load_builtin(ME, con_cell("funds",1), &me_builtins::funds_1);
 }
 
 void local_interpreter::local_reset()
@@ -393,6 +504,36 @@ bool local_interpreter::reset()
 	utime::sleep(utime::us(self_node().get_fast_timer_interval_microseconds()));
     }
     return !failed;
+}
+
+void local_interpreter::load_file(const std::string &filename)
+{
+    using namespace prologcoin::common;
+
+    std::ifstream infile(filename);
+    if (!infile.good()) {
+	throw interpreter_exception_file_not_found("Couldn't open file '" + filename + "'");
+    }
+
+    try {
+	load_program(infile);
+	compile();
+	infile.close();
+    } catch (const syntax_exception &ex) {
+	abort(ex);
+    } catch (const interpreter_exception &ex) {
+	abort(ex);
+    } catch (const token_exception &ex) {
+        throw ex;
+    } catch (const term_parse_exception &ex) {
+        throw ex;
+    } catch (std::runtime_error &ex) {
+	std::string msg("Unknown error: ");
+	msg += ex.what();
+	abort(interpreter_exception_unknown(msg));
+    } catch (...) {
+	abort(interpreter_exception_unknown("Unknown error"));
+    }
 }
 
 }}

@@ -46,6 +46,8 @@ public:
     void add_text_output(const std::string &line);
     void add_text_output_no_nl(const std::string &line);
     void add_error(const std::string &line);
+    inline void set_result_to_text(bool res) { result_to_text_ = res; }
+    inline bool is_result_to_text() const { return result_to_text_; }
 
     std::string flush_text();
 
@@ -92,6 +94,7 @@ private:
     common::term read_reply();
     bool execute_query(const term query);
     bool execute_in_query(const std::string &cmd);
+    void handle_error(const std::string &msg);
     bool process_query_reply();
 
     void error(const std::string &cmd,
@@ -121,6 +124,8 @@ private:
     boost::mutex text_output_queue_mutex_;
     boost::condition_variable text_output_queue_cond_;
     std::queue<std::string> text_output_queue_;
+
+    bool result_to_text_;
 };
 
 }}

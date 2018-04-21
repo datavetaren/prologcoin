@@ -44,6 +44,7 @@ public:
 
     term get_result() const;
     term get_result_goal() const;
+    uint64_t get_cost() const;
     bool has_more() const;
     bool at_end() const;
 

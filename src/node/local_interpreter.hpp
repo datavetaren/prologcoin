@@ -22,21 +22,58 @@ public:
     static local_interpreter & to_local(interpreter_base &interp)
     { return reinterpret_cast<local_interpreter &>(interp); }
 
+    static bool list_load_2(interpreter_base &interp, size_t arity, term args[] );
+
     static bool operator_at_2(interpreter_base &interp, size_t arity, term args[]);
     static bool operator_at_2_meta(interpreter_base &interp, const meta_reason_t &reason);
 
+    // Version & name...
     static bool id_1(interpreter_base &interp, size_t arity, term args[]);
     static bool name_1(interpreter_base &interp, size_t arity, term args[]);
     static bool heartbeat_0(interpreter_base &interp, size_t arity, term args[]);
     static bool version_1(interpreter_base &interp, size_t arity, term args[]);
     static bool comment_1(interpreter_base &interp, size_t arity, term args[]);
+
+    // Addresses & connections
     static bool peers_2(interpreter_base &interp, size_t arity, term args[]);
 
     static bool add_address_2(interpreter_base &interp, size_t arity, term args[]);
     static bool connections_0(interpreter_base &interp, size_t arity, term args[]);
+
+    // Mailboxes
     static bool mailbox_1(interpreter_base &interp, size_t arity, term args[]);
     static bool send_2(interpreter_base &interp, size_t arity, term args[]);
     static bool check_mail_0(interpreter_base &interp, size_t arity, term args[]);
+
+    // Funding
+    static bool initial_funds_1(interpreter_base &interp, size_t arity, term args[]);
+    static bool maximum_funds_1(interpreter_base &interp, size_t arity, term args[]);
+    static bool new_funds_per_second_1(interpreter_base &interp, size_t arity, term args[]);
+    static bool funds_1(interpreter_base &interp, size_t arity, term args[]);
+};
+
+class local_interpreter_exception : public interp::interpreter_exception {
+public:
+    local_interpreter_exception(const std::string &msg) :
+	interpreter_exception(msg) { }
+};
+
+class interpreter_exception_file_not_found : public local_interpreter_exception {
+public:
+    interpreter_exception_file_not_found(const std::string &msg) :
+	local_interpreter_exception(msg) { }
+};
+
+class interpreter_exception_syntax_error : public local_interpreter_exception {
+public:
+    interpreter_exception_syntax_error(const std::string &msg) :
+	local_interpreter_exception(msg) { }
+};
+
+class interpreter_exception_unknown : public local_interpreter_exception {
+public:
+    interpreter_exception_unknown(const std::string &msg) :
+	local_interpreter_exception(msg) { }
 };
 
 class local_interpreter : public interp::interpreter {
@@ -45,19 +82,25 @@ public:
     using term = common::term;
 
     inline local_interpreter(in_session_state &session)
-        :session_(session), initialized_(false) { }
+        :session_(session), initialized_(false), ignore_text_(false) { }
 
     void ensure_initialized();
 
     bool reset();
     void local_reset();
 
+    void load_file(const std::string &filename);
+
     inline in_session_state & session() { return session_; }
 
     inline const std::string & get_text_out() { return text_out_; }
     inline void reset_text_out() { text_out_.clear(); }
 
-    inline void add_text(const std::string &str) { text_out_ += str; }
+    inline void add_text(const std::string &str)
+    { if (!ignore_text()) { text_out_ += str; } }
+
+    inline void set_ignore_text(bool ignore) { ignore_text_ = ignore; }
+    inline bool ignore_text() const { return ignore_text_; }
 
     static const common::con_cell ME;
     static const common::con_cell COLON;
@@ -73,6 +116,7 @@ private:
     in_session_state &session_;
     bool initialized_;
     std::string text_out_;
+    bool ignore_text_;
 };
 
 }}

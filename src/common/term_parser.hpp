@@ -14,19 +14,21 @@ namespace prologcoin { namespace common {
 class token_exception_unrecognized_operator : public token_exception
 {
 public:
-    token_exception_unrecognized_operator(const token_position &pos, const std::string &msg) : token_exception(pos, msg) { }
+    token_exception_unrecognized_operator(const std::string &line, const token_position &pos, const std::string &msg) : token_exception(line, pos, msg) { }
 };
 
 class term_parse_exception : public ::std::runtime_error
 {
 public:
-    term_parse_exception(const term_tokenizer::token &token,
+    term_parse_exception(const std::string &line_string,
+			 const term_tokenizer::token &token,
 			 const std::vector<std::string> &state_desc,
 			 const std::vector<int> &expected_syms,
 			 const std::string &msg)
-	: ::std::runtime_error(msg), token_(token),
+	: ::std::runtime_error(msg), line_string_(line_string), token_(token),
           state_description_(state_desc), expected_symbols_(expected_syms) { }
 
+    const std::string & line_string() const { return line_string_; }
     const term_tokenizer::token &  token() const { return token_; }
     int line() const { return token().pos().line(); }
     int column() const { return token().pos().column(); }
@@ -40,10 +42,10 @@ public:
     }
 
 private:
+    std::string line_string_;
     term_tokenizer::token token_;
- 
-   std::vector<std::string> state_description_;
-   std::vector<int> expected_symbols_;
+    std::vector<std::string> state_description_;
+    std::vector<int> expected_symbols_;
 };
 
 

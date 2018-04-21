@@ -68,6 +68,9 @@ public:
     static const size_t DEFAULT_NUM_VERIFIER_CONNECTIONS = 3;
     static const size_t DEFAULT_NUM_DOWNLOAD_ADDRESSES = 100;
     static const size_t DEFAULT_TTL_SECONDS = 60;
+    static const uint64_t DEFAULT_INITIAL_FUNDS = 10000;
+    static const uint64_t DEFAULT_MAXIMUM_FUNDS = 10000;
+    static const uint64_t DEFAULT_NEW_FUNDS_PER_SECOND = 100;
 
     self_node(unsigned short port = DEFAULT_PORT);
 
@@ -83,6 +86,15 @@ public:
     // Must be a Prolog term
     void set_comment(const std::string &str);
     inline term get_comment() const { return comment_; }
+
+    // Funding settings
+    inline uint64_t get_initial_funds() const { return initial_funds_; }
+    inline void set_initial_funds(uint64_t funds) { initial_funds_ = funds; }
+    inline uint64_t get_maximum_funds() const { return maximum_funds_; }
+    inline void set_maximum_funds(uint64_t funds) { maximum_funds_ = funds; }
+    inline uint64_t new_funds_per_second() const { return new_funds_per_second_; }
+    inline void set_new_funds_per_second(uint64_t funds)
+    { new_funds_per_second_ = funds; }
 
     address_book_wrapper book() {
 	return address_book_wrapper(*this, address_book_);
@@ -152,17 +164,19 @@ public:
     public:
 	execute_at_return_t() : result_(), has_more_(false), at_end_(false) { }
 	execute_at_return_t(term r) : result_(r), has_more_(false), at_end_(false) { }
-	execute_at_return_t(term r, bool has_more, bool at_end) : result_(r), has_more_(has_more), at_end_(at_end) { }
+	execute_at_return_t(term r, bool has_more, bool at_end, uint64_t cost) : result_(r), has_more_(has_more), at_end_(at_end), cost_(cost) { }
 	execute_at_return_t(const execute_at_return_t &other) = default;
 
 	term result() const { return result_; }
 	bool failed() const { return result_ == term(); }
 	bool has_more() const { return has_more_; }
 	bool at_end() const { return at_end_; }
+	uint64_t get_cost() const { return cost_; }
     private:
 	term result_;
 	bool has_more_;
 	bool at_end_;
+	uint64_t cost_;
     };
 
     task_execute_query * schedule_execute_new_instance(const std::string &where);    
@@ -296,6 +310,10 @@ private:
     std::map<std::string, std::queue<std::string> > mailbox_;
 
     bool testing_mode_;
+
+    uint64_t initial_funds_;
+    uint64_t maximum_funds_;
+    uint64_t new_funds_per_second_;
 };
 
 inline address_book_wrapper::address_book_wrapper(self_node &self, address_book &book) : self_(self), book_(book)

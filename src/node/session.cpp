@@ -10,7 +10,8 @@ in_session_state::in_session_state(self_node *self, in_connection *conn)
   : self_(self),
     connection_(conn),
     interp_(*this),
-    heartbeat_count_(0)
+    heartbeat_count_(0),
+    available_funds_(0)
 {
     id_ = "s" + random::next();
 }
@@ -24,13 +25,29 @@ bool in_session_state::execute(const term query)
 {
     interp_.ensure_initialized();
     interp_.reset_text_out();
-    return interp_.execute(query);
+    interp_.set_maximum_cost(available_funds_);
+    bool r = interp_.execute(query);
+    auto cost = interp_.accumulated_cost();
+    if (cost > available_funds_) {
+	available_funds_ = 0;
+    } else {
+	available_funds_ -= cost;
+    }
+    return r;
 }
 
 bool in_session_state::next()
 {
     interp_.reset_text_out();
-    return interp_.next();
+    interp_.set_maximum_cost(available_funds_);
+    bool r = interp_.next();
+    auto cost = interp_.accumulated_cost();
+    if (cost > available_funds_) {
+	available_funds_ = 0;
+    } else {
+	available_funds_ -= cost;
+    }
+    return r;
 }
 
 bool in_session_state::at_end()

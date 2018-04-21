@@ -16,7 +16,8 @@ terminal::terminal(unsigned short port, const std::string &ip_address)
     socket_(ioservice_),
     buffer_(self_node::MAX_BUFFER_SIZE, ' '),
     buffer_len_(sizeof(cell)),
-    has_more_(false)
+    has_more_(false),
+    result_to_text_(true)
 {
 }
 
@@ -366,6 +367,25 @@ bool terminal::execute_query(const term query)
     return true;
 }
 
+void terminal::handle_error(const std::string &msg)
+{
+    size_t from = 0;
+    auto it = msg.find("[ERROR]: ", from);
+    if (it == std::string::npos) {
+	add_error(msg);
+	return;
+    }
+    while (it != std::string::npos) {
+	auto it_end = msg.find("\n", it);
+	if (it_end == std::string::npos) {
+	    add_error(msg.substr(it+9));
+	    break;
+	}
+	add_error(msg.substr(it+9, it_end-it-9));
+	it = it_end+1;
+    }
+}
+
 bool terminal::process_query_reply()
 {
     auto reply = read_reply();
@@ -375,7 +395,13 @@ bool terminal::process_query_reply()
     auto &e = env_;
 
     if (e.functor(reply) == con_cell("error",1)) {
-	add_error(e.to_string(e.arg(reply,0)));
+	auto arg = e.arg(reply,0);
+	if (e.functor(arg)  == e.functor("remote_exception",1)) {
+	    arg = e.arg(arg,0);
+	    handle_error(e.list_to_string(arg));
+	} else {
+	    handle_error(e.to_string(arg));
+	}
 	return false;
     }
 
@@ -383,8 +409,8 @@ bool terminal::process_query_reply()
 	auto context = e.capture_state();
 	auto result_term = e.arg(reply,0);
 
-	if (e.functor(result_term) != con_cell("result",4)) {
-	    add_error("Unexpected result. Expected result/4 inside ok/1, but got: " + e.to_string(result_term));
+	if (e.functor(result_term) != con_cell("result",5)) {
+	    add_error("Unexpected result. Expected result/5 inside ok/1, but got: " + e.to_string(result_term));
 	    return false;
 	}
 	auto in_query_state = e.arg(result_term,2);
@@ -398,14 +424,16 @@ bool terminal::process_query_reply()
 	if (!text_out.empty()) {
 	    add_text_output(text_out);
 	}
-	
+
 	result_ = e.arg(result_term, 0);
 	var_names_.clear();
 	var_result_.clear();
 	var_result_string_.clear();
 
 	if (e.arg(result_term, 0) == con_cell("false",0)) {
-	    add_text_output("false.");
+	    if (result_to_text_) {
+		add_text_output("false.");
+	    }
 	    return false;
 	}
 
@@ -413,10 +441,12 @@ bool terminal::process_query_reply()
 	auto vars = e.arg(result_term,1);
 
 	if (vars == e.empty_list()) {
-	    if (has_more_) {
-		add_text_output_no_nl("true ");
-	    } else {
-		add_text_output("true.");
+	    if (result_to_text_) {
+		if (has_more_) {
+		    add_text_output_no_nl("true ");
+		} else {
+		    add_text_output("true.");
+		}
 	    }
 	    return true;
 	}
@@ -442,11 +472,11 @@ bool terminal::process_query_reply()
 	    vars = e.arg(vars, 1);
 	    auto var_value_str = e.to_string(var_value);
 	    if (var_name != var_value_str) {
-		if (non_empty) {
+		if (result_to_text_ && non_empty) {
 		    add_text_output(",");
 		}
 		std::string binding_str = var_name + " = " + var_value_str;
-		add_text_output_no_nl(binding_str);
+		if (result_to_text_) add_text_output_no_nl(binding_str);
 		non_empty = true;
 	    }
 
@@ -458,10 +488,12 @@ bool terminal::process_query_reply()
 	for (auto touched_term : touched) {
 	    e.clear_name(touched_term);
 	}
-	if (has_more_) {
-	    add_text_output_no_nl(" ");
-	} else {
-	    add_text_output(".");
+	if (result_to_text_) {
+	    if (has_more_) {
+		add_text_output_no_nl(" ");
+	    } else {
+		add_text_output(".");
+	    }
 	}
 
 	return true;

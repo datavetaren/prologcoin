@@ -114,22 +114,22 @@ static void test_negative_tokens()
     auto p = [](int line, int col) { return token_position(line,col); };
 
     entry table[] =
-      {  { "'foo",     new token_exception_unterminated_quoted_name(p(1,1)) }
-	 ,{ "'esc\\",   new token_exception_unterminated_escape(p(1,1)) }
-	 ,{ "'esc\\x",  new token_exception_unterminated_escape(p(1,1)) }
-	 ,{ "'esc\\x3", new token_exception_unterminated_escape(p(1,1)) }
-	 ,{ "'esc\\^",  new token_exception_unterminated_escape(p(1,1)) }
-	 ,{ "'esc\\^\t",  new token_exception_control_char(p(1,1)) }
-	 ,{ "'esc\\xg",  new token_exception_hex_code(p(1,1)) }
-	 ,{ "0'",       new token_exception_no_char_code(p(1,1)) }
-	 ,{ "11'",      new token_exception_missing_number_after_base(p(1,1)) }
-	 ,{ "1.x",      new token_exception_missing_decimal(p(1,1)) }
-	 ,{ "1.e",     new token_exception_missing_decimal(p(1,1)) }
-	 ,{ "1ex",      new token_exception_missing_exponent(p(1,1)) }
-	 ,{ "1e+",     new token_exception_missing_exponent(p(1,1)) }
-	 ,{ "1e-",     new token_exception_missing_exponent(p(1,1)) }
-	 ,{ "2E-",     new token_exception_missing_exponent(p(1,1)) }
-	 ,{ "\"foo",  new token_exception_unterminated_string(p(1,1)) }
+     {  { "'foo",     new token_exception_unterminated_quoted_name("",p(1,1)) }
+         ,{ "'esc\\",   new token_exception_unterminated_escape("",p(1,1)) }
+	 ,{ "'esc\\x",  new token_exception_unterminated_escape("",p(1,1)) }
+	 ,{ "'esc\\x3", new token_exception_unterminated_escape("",p(1,1)) }
+	 ,{ "'esc\\^",  new token_exception_unterminated_escape("",p(1,1)) }
+	 ,{ "'esc\\^\t",  new token_exception_control_char("",p(1,1)) }
+ 	 ,{ "'esc\\xg",  new token_exception_hex_code("", p(1,1)) }
+	 ,{ "0'",       new token_exception_no_char_code("", p(1,1)) }
+	 ,{ "11'",      new token_exception_missing_number_after_base("", p(1,1)) }
+	 ,{ "1.x",      new token_exception_missing_decimal("", p(1,1)) }
+	 ,{ "1.e",     new token_exception_missing_decimal("", p(1,1)) }
+ 	 ,{ "1ex",      new token_exception_missing_exponent("", p(1,1)) }
+ 	 ,{ "1e+",     new token_exception_missing_exponent("", p(1,1)) }
+	 ,{ "1e-",     new token_exception_missing_exponent("", p(1,1)) }
+	 ,{ "2E-",     new token_exception_missing_exponent("", p(1,1)) }
+	 ,{ "\"foo",  new token_exception_unterminated_string("", p(1,1)) }
       };
 
     for (auto e : table) {

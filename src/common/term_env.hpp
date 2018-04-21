@@ -345,11 +345,39 @@ public:
     inline stacks_proxy(stacks &s) { set_stacks(s); }
 };
 
+template<typename T> class ops_dock : public T
+{
+public:
+    ops_dock() { }
+    ops_dock(T &t) : T(t) { }
+};
+
+class ops_bridge
+{
+public:
+    inline ops_bridge(term_ops &ops) : ops_(&ops) { }
+
+    inline term_ops & get_ops() { return *ops_; }
+    inline const term_ops & get_ops() const { return *ops_; }
+
+    inline void set_ops(term_ops &ops) { ops_ = &ops; }
+
+private:
+    term_ops *ops_;
+};
+
+class ops_proxy : public ops_dock<ops_bridge> 
+{
+public:
+    inline ops_proxy(term_ops &ops)
+        : ops_dock<ops_bridge>(*this) { set_ops(ops); }
+};
+
 typedef std::unordered_map<term, std::string> naming_map;
 
-class term_utils : public heap_proxy, stacks_proxy {
+class term_utils : public heap_proxy, stacks_proxy, ops_proxy {
 public:
-    term_utils(heap &h, stacks &s) : heap_proxy(h), stacks_proxy(s) { }
+    term_utils(heap &h, stacks &s, term_ops &o) : heap_proxy(h), stacks_proxy(s), ops_proxy(o) { }
 
     bool unify(term a, term b, uint64_t &cost);
     term copy(const term t, naming_map &names, uint64_t &cost);
@@ -365,6 +393,16 @@ public:
     std::string list_to_string(const term t, heap &src);
     term string_to_list(const std::string &str);
     bool is_string(const term t, heap &src);
+
+    std::vector<std::string> get_expected(const term_parse_exception &ex);
+    std::vector<std::string> get_expected_simplified(const term_parse_exception &ex);
+
+    std::vector<std::string> to_error_messages(const token_exception &ex);
+    std::vector<std::string> to_error_messages(const term_parse_exception &ex);
+
+    void error_excerpt(const std::string &line, size_t column,
+		       std::vector<std::string> &msgs);
+    
 
 private:
     bool unify_helper(term a, term b, uint64_t &cost);
@@ -384,34 +422,6 @@ private:
             heap_set(index, ref_cell(index));
         }
     }
-};
-
-template<typename T> class ops_dock : public T
-{
-public:
-    ops_dock() { }
-    ops_dock(T &t) : T(t) { }
-};
-
-class ops_bridge
-{
-public:
-    inline ops_bridge(term_ops &ops) : ops_(ops) { }
-
-    inline term_ops & get_ops() { return ops_; }
-    inline const term_ops & get_ops() const { return ops_; }
-
-    inline void set_ops(term_ops &ops) { ops_ = ops; }
-
-private:
-    term_ops ops_;
-};
-
-class ops_proxy : public ops_dock<ops_bridge> 
-{
-public:
-    inline ops_proxy(term_ops &ops)
-        : ops_dock<ops_bridge>(*this) { set_ops(ops); }
 };
 
 template<typename HT, typename ST, typename OT> class term_env_dock
@@ -491,26 +501,26 @@ public:
 
   inline bool unify(term a, term b, uint64_t &cost)
   {
-      term_utils utils(heap_dock<HT>::get_heap(), stacks_dock<ST>::get_stacks());
+      term_utils utils(heap_dock<HT>::get_heap(), stacks_dock<ST>::get_stacks(), ops_dock<OT>::get_ops());
       return utils.unify(a, b, cost);
   }
 
   inline term copy(term t, uint64_t &cost)
   {
-      term_utils utils(heap_dock<HT>::get_heap(), stacks_dock<ST>::get_stacks());
+      term_utils utils(heap_dock<HT>::get_heap(), stacks_dock<ST>::get_stacks(), ops_dock<OT>::get_ops());
       return utils.copy(t, var_naming(), heap_dock<HT>::get_heap(),
 			var_naming(), cost);
   }
 
   inline term copy(term t, term_env_dock<HT,ST,OT> &src, uint64_t &cost)
   {
-      term_utils utils(heap_dock<HT>::get_heap(), stacks_dock<ST>::get_stacks());
+      term_utils utils(heap_dock<HT>::get_heap(), stacks_dock<ST>::get_stacks(), ops_dock<OT>::get_ops());
       return utils.copy(t, var_naming(), src.get_heap(), src.var_naming(), cost);
   }
 
   inline std::string list_to_string(term t, term_env_dock<HT,ST,OT> &src)
   {
-      term_utils utils(heap_dock<HT>::get_heap(), stacks_dock<ST>::get_stacks());
+      term_utils utils(heap_dock<HT>::get_heap(), stacks_dock<ST>::get_stacks(), ops_dock<OT>::get_ops());
       return utils.list_to_string(t, src.get_heap());
   }
 
@@ -521,31 +531,31 @@ public:
 
   inline term string_to_list(const std::string &str)
   {
-      term_utils utils(heap_dock<HT>::get_heap(), stacks_dock<ST>::get_stacks());
+      term_utils utils(heap_dock<HT>::get_heap(), stacks_dock<ST>::get_stacks(), ops_dock<OT>::get_ops());
       return utils.string_to_list(str);
   }
 
   inline bool is_string(term t)
   {
-      term_utils utils(heap_dock<HT>::get_heap(), stacks_dock<ST>::get_stacks());
+      term_utils utils(heap_dock<HT>::get_heap(), stacks_dock<ST>::get_stacks(), ops_dock<OT>::get_ops());
       return utils.is_string(t, *this);
   }
 
   inline uint64_t hash(term t)
   {
-      term_utils utils(heap_dock<HT>::get_heap(), stacks_dock<ST>::get_stacks());
+      term_utils utils(heap_dock<HT>::get_heap(), stacks_dock<ST>::get_stacks(), ops_dock<OT>::get_ops());
       return utils.hash(t);
   }
 
   inline uint64_t cost(const term t)
   {
-      term_utils utils(heap_dock<HT>::get_heap(), stacks_dock<ST>::get_stacks());
+      term_utils utils(heap_dock<HT>::get_heap(), stacks_dock<ST>::get_stacks(), ops_dock<OT>::get_ops());
       return utils.cost(t);
   }
 
   inline bool equal(const term a, const term b, uint64_t &cost)
   {
-      term_utils utils(heap_dock<HT>::get_heap(), stacks_dock<ST>::get_stacks());
+      term_utils utils(heap_dock<HT>::get_heap(), stacks_dock<ST>::get_stacks(), ops_dock<OT>::get_ops());
       return utils.equal(a, b, cost);
   }
 
@@ -558,7 +568,7 @@ public:
 
   inline int standard_order(const term a, const term b, uint64_t &cost)
   {
-      term_utils utils(heap_dock<HT>::get_heap(), stacks_dock<ST>::get_stacks());
+      term_utils utils(heap_dock<HT>::get_heap(), stacks_dock<ST>::get_stacks(), ops_dock<OT>::get_ops());
       return utils.standard_order(a, b, cost);
   }
 
@@ -621,37 +631,6 @@ public:
   {
       std::stringstream ss(str);
       return parse(ss);
-  }
-
-  std::vector<std::string> get_expected(const term_parse_exception &ex)
-  {
-      std::stringstream ss("");
-      term_tokenizer tokenizer(ss);
-      term_parser parser(tokenizer, heap_dock<HT>::get_heap(),
-			 ops_dock<OT>::get_ops());
-      return parser.get_expected(ex);
-  }
-
-  std::vector<std::string> get_expected_simplified(const term_parse_exception &ex)
-  {
-      std::vector<std::string> simpl;
-      auto lst = get_expected(ex);
-      bool op_found = false;
-      for (auto it = lst.begin(); it != lst.end(); ++it) {
-	  auto &s = *it;
-	  bool is_op = s == "op_xf" || s == "op_fx" || s == "op_yf" ||
-	               s == "op_fy" || s == "op_xfx" || s == "op_xfy" ||
-  	               s == "op_yfx";
-	  if (is_op) {
-	      if (!op_found) {
-		  simpl.push_back("operator");
-		  op_found = true;
-	      }
-	  } else {
-	      simpl.push_back(s);
-	  }
-      }
-      return simpl;
   }
 
   std::string to_string(const term t,
@@ -763,6 +742,29 @@ public:
       return touched;
   }
 
+  inline std::vector<std::string> get_expected(const term_parse_exception &ex)
+  {
+      term_utils utils(heap_dock<HT>::get_heap(), stacks_dock<ST>::get_stacks(), ops_dock<OT>::get_ops());
+      return utils.get_expected(ex);
+  }
+
+  inline std::vector<std::string> get_expected_simplified(const term_parse_exception &ex)
+  {
+      term_utils utils(heap_dock<HT>::get_heap(), stacks_dock<ST>::get_stacks(), ops_dock<OT>::get_ops());
+      return utils.get_expected_simplified(ex);
+  }
+
+  inline std::vector<std::string> to_error_messages(const token_exception &ex)
+  {
+      term_utils utils(heap_dock<HT>::get_heap(), stacks_dock<ST>::get_stacks(), ops_dock<OT>::get_ops());
+      return utils.to_error_messages(ex);
+  }
+
+  inline std::vector<std::string> to_error_messages(const term_parse_exception &ex)
+  {
+      term_utils utils(heap_dock<HT>::get_heap(), stacks_dock<ST>::get_stacks(), ops_dock<OT>::get_ops());
+      return utils.to_error_messages(ex);
+  }
 
 private:
   std::unordered_map<term, std::string> var_naming_;

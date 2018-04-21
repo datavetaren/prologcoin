@@ -337,6 +337,13 @@ void in_connection::reply_error(const term t)
     send_error(t);
 }
 
+void in_connection::reply_exception(const std::string &msg)
+{
+    auto &e = env_;
+    reply_error(e.new_term(e.functor("remote_exception",1),
+			   {e.string_to_list(msg)}));
+}
+
 void in_connection::command_new(const term)
 {
     auto *ss = self().new_in_session(this);
@@ -422,15 +429,15 @@ void in_connection::command_delete_instance(const term cmd)
     } else {
 	try {
 	    session_->delete_instance();
-	    reply_ok(e.new_term(e.functor("result",4),
+	    reply_ok(e.new_term(e.functor("result",5),
 				{e.empty_list(),
 				 e.empty_list(),
 			 	 e.empty_list(),
 			 	 e.empty_list(),
+	 			 e.empty_list()
 					} ));
 	} catch (std::exception &ex) {
-	    reply_error(e.new_term(e.functor("remote_exception",1),
-				   {e.functor(ex.what(),0)}));
+	    reply_exception(ex.what());
 	}
     }
 }
@@ -443,15 +450,15 @@ void in_connection::command_reset(const term cmd)
     } else {
 	try {
 	    session_->reset();
-	    reply_ok(e.new_term(e.functor("result",4),
+	    reply_ok(e.new_term(e.functor("result",5),
 				{e.empty_list(),
 				 e.empty_list(),
 			 	 e.empty_list(),
 			 	 e.empty_list(),
+			 	 e.empty_list()
 					} ));
 	} catch (std::exception &ex) {
-	    reply_error(e.new_term(e.functor("remote_exception",1),
-				   {e.functor(ex.what(),0)}));
+	    reply_exception(ex.what());
 	}
     }
 }
@@ -464,15 +471,15 @@ void in_connection::command_local_reset(const term cmd)
     } else {
 	try {
 	    session_->local_reset();
-	    reply_ok(e.new_term(e.functor("result",4),
+	    reply_ok(e.new_term(e.functor("result",5),
 				{e.empty_list(),
 				 e.empty_list(),
 			 	 e.empty_list(),
 			 	 e.empty_list(),
+			 	 e.empty_list()
 					} ));
 	} catch (std::exception &ex) {
-	    reply_error(e.new_term(e.functor("remote_exception",1),
-				   {e.functor(ex.what(),0)}));
+	    reply_exception(ex.what());
 	}
     }
 }
@@ -518,13 +525,31 @@ void in_connection::process_query()
 		qr = session_->env().copy(e.arg(t,0), e, cost);
 		process_execution(qr, false);
 	    } catch (std::exception &ex) {
-		reply_error(e.new_term(e.functor("remote_exception",1),
-				       {e.functor(ex.what(),0)}));
+		reply_exception(ex.what());
 	    }
 	}
     } else {
 	reply_error(e.new_term(e.functor("unrecognized_command",1),{t}));
     }
+}
+
+std::string in_connection::to_error_message(const std::vector<std::string> &msgs)
+{
+    std::stringstream ss;
+    for (auto &msg : msgs) {
+	ss << "[ERROR]: " << msg << std::endl;
+    }
+    return ss.str();
+}
+
+std::string in_connection::to_error_message(const token_exception &ex)
+{
+    return to_error_message(env_.to_error_messages(ex));
+}
+
+std::string in_connection::to_error_message(const term_parse_exception &ex)
+{
+    return to_error_message(env_.to_error_messages(ex));
 }
 
 void in_connection::process_execution(const term cmd, bool in_query)
@@ -549,28 +574,35 @@ void in_connection::process_execution(const term cmd, bool in_query)
 	    term standard_out = e.empty_list();
 	    if (!session_->get_text_out().empty()) {
 		standard_out = e.string_to_list(session_->get_text_out());
+		session_->reset_text_out();
 	    }
+	    auto last_cost = static_cast<int64_t>(session_->last_cost());
 	    if (!r) {
-		reply_ok(e.new_term(e.functor("result",4),
+		reply_ok(e.new_term(e.functor("result",5),
 				    {e.functor("false",0),
 				     e.empty_list(),
 		 		     get_state_atom(),
-				     standard_out} ));
+			 	     standard_out,
+				     int_cell(last_cost) } ));
 	    } else {
 		term closure = session_->query_closure();
 		term closure_copy = e.copy(closure, session_->env(), cost);
 		term result = e.arg(closure_copy, 0);
 		term vars_term = e.arg(closure_copy, 1);
 
-		result = e.new_term(e.functor("result",4),
+		result = e.new_term(e.functor("result",5),
 				    {result, vars_term, get_state_atom(),
-				     standard_out} );
+				     standard_out,
+				     int_cell(last_cost) } );
 		reply_ok(result);
 	    }
 	}
-    } catch (std::exception &ex) {
-	reply_error(e.new_term(e.functor("remote_exception",1),
-			       {e.functor(ex.what(),0)}));
+    } catch (const token_exception &ex) {
+	reply_exception(to_error_message(ex));
+    } catch (const term_parse_exception &ex) {
+	reply_exception(to_error_message(ex));
+    } catch (const std::exception &ex) {
+	reply_exception(ex.what());
     }
 }
 

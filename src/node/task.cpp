@@ -43,7 +43,7 @@ void out_task::stop()
 term out_task::get_result() const
 {
     static const con_cell ok_1("ok",1);
-    static const con_cell result_4("result",4);
+    static const con_cell result_5("result",5);
 
     term r = get_term();
     if (r.tag() != tag_t::STR) {
@@ -53,7 +53,7 @@ term out_task::get_result() const
 	return term();
     }
     term result = env().arg(r, 0);
-    if (env().functor(result) != result_4) {
+    if (env().functor(result) != result_5) {
 	return term();
     }
     return result;
@@ -96,6 +96,20 @@ term out_task::get_result_goal() const
 	return r;
     }
     return env().arg(r, 0);
+}
+
+uint64_t out_task::get_cost() const
+{
+    term r = get_result();
+    if (r == term()) {
+	return 0;
+    }
+    term c = env().arg(r, 4);
+    if (c.tag() != tag_t::INT) {
+	return 0;
+    } else {
+	return static_cast<uint64_t>(reinterpret_cast<int_cell &>(c).value());
+    }
 }
 
 void out_task::error(const reason_t &reason)

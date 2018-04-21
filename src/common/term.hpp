@@ -140,6 +140,8 @@ class cell {
 public:
     typedef uint64_t value_t;
 
+    static const int TAG_SIZE_BITS = 3;
+
     inline cell(const heap &, const cell other) : raw_value_(other.raw_value_) { }
 
     inline cell() : raw_value_(0) { }
@@ -155,6 +157,7 @@ public:
     inline cell(const cell &other) : raw_value_(other.raw_value_) { }
 
     inline tag_t tag() const { return tag_t(static_cast<tag_t::kind_t>(raw_value_&0x7));}
+
 
     inline value_t raw_value() const { return raw_value_; }
 
@@ -358,6 +361,24 @@ public:
 
     inline int_cell(const int_cell &other) : cell(other) { }
 
+    static inline int64_t saturate(int64_t val) {
+	if (val < min().value()) {
+	    return min().value();
+	} else if (val > max().value()) {
+	    return max().value();
+	} else {
+	    return val;
+	}
+    }
+
+    static inline uint64_t saturate(uint64_t val) {
+	if (val > max().value()) {
+	    return static_cast<uint64_t>(max().value());
+	} else {
+	    return val;
+	}
+    }
+
     inline operator T () const {
 	return static_cast<T>(value_signed());
     }
@@ -393,6 +414,36 @@ public:
 
     inline bool operator == (const int_cell &other) const {
 	return value() == other.value();
+    }
+
+    inline bool operator != (const int_cell &other) const {
+	return value() != other.value();
+    }
+
+    inline bool operator > (const int_cell &other) const {
+	return value() > other.value();
+    }
+
+    inline bool operator < (const int_cell &other) const {
+	return value() < other.value();
+    }
+
+    inline bool operator >= (const int_cell &other) const {
+	return value() >= other.value();
+    }
+
+    inline bool operator <= (const int_cell &other) const {
+	return value() <= other.value();
+    }
+
+    static inline int_cell max() {
+	static const int_cell max_ = int_cell(std::numeric_limits<int64_t>::max() >> cell::TAG_SIZE_BITS);
+	return max_;
+    }
+
+    static inline int_cell min() {
+	static const int_cell min_ = int_cell(std::numeric_limits<int64_t>::min() >> cell::TAG_SIZE_BITS);
+	return min_;
     }
 
     std::string inner_str () const;

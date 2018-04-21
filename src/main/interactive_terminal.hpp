@@ -31,6 +31,7 @@ private:
     bool stopped_;
     readline readline_;
     bool ctrl_c_;
+    common::utime last_mail_check_;
 };
 
 }}

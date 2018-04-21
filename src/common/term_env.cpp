@@ -551,5 +551,102 @@ bool term_utils::is_string(const term t, heap &src)
     return src.is_empty_list(lst);
 }
 
+std::vector<std::string> term_utils::get_expected(const term_parse_exception &ex)
+{
+    std::stringstream ss("");
+    term_tokenizer tokenizer(ss);
+    term_parser parser(tokenizer, get_heap(), get_ops());
+    return parser.get_expected(ex);
+}
+
+std::vector<std::string> term_utils::get_expected_simplified(const term_parse_exception &ex)
+{
+    std::vector<std::string> simpl;
+    auto lst = get_expected(ex);
+    bool op_found = false;
+    for (auto it = lst.begin(); it != lst.end(); ++it) {
+	auto &s = *it;
+	bool is_op = s == "op_xf" || s == "op_fx" || s == "op_yf" ||
+	    s == "op_fy" || s == "op_xfx" || s == "op_xfy" ||
+	    s == "op_yfx";
+	if (is_op) {
+	    if (!op_found) {
+		simpl.push_back("operator");
+		op_found = true;
+	    }
+	} else {
+	    simpl.push_back(s);
+	}
+    }
+    return simpl;
+}
+
+std::vector<std::string> term_utils::to_error_messages(const token_exception &ex)
+{
+    const std::string &line = ex.line_string();
+    std::vector<std::string> msgs;
+    std::stringstream ss;
+    ss << "While parsing at line " << ex.line() << " and column " << ex.column() << ": ";
+    msgs.push_back(ex.what());
+    error_excerpt(line, ex.column(), msgs);
+
+    return msgs;
+}
+
+std::vector<std::string> term_utils::to_error_messages(const term_parse_exception &ex)
+{
+    const std::string &line = ex.line_string();
+    std::vector<std::string> msgs;
+    std::stringstream ss;
+    ss << "While parsing at line " << ex.line() << " and column " << ex.column() << " for state: ";
+
+    msgs.push_back(ss.str());
+    auto &desc = ex.state_description();
+    for (auto &msg : desc) {
+	msgs.push_back(msg);
+    }
+    ss.str(std::string());
+    ss << "Expected: {";
+    bool first = true;
+    for (auto exp : get_expected_simplified(ex)) {
+	if (!first) ss << ", ";
+	if (!isalnum(exp[0])) {
+	    exp = '\'' + exp + '\'';
+	}
+	ss << exp;
+	first = false;
+    }
+    ss << "}";
+    msgs.push_back(ss.str());
+    error_excerpt(line, ex.column(), msgs);
+    return msgs;
+}
+
+void term_utils::error_excerpt(const std::string &line, size_t column,
+			       std::vector<std::string> &msgs)
+{
+    int pos = column - 1;
+    int start_excerpt = std::max(pos-20, 0);
+    int end_excerpt = std::max(pos+10, static_cast<int>(line.size()));
+    int excerpt_len = end_excerpt - start_excerpt;
+    auto excerpt = line.substr(start_excerpt, excerpt_len);
+    std::stringstream ss;
+    ss.str(std::string());
+    if (start_excerpt > 0) {
+	ss << "...";
+    }
+    ss << excerpt;
+    if (excerpt_len < static_cast<int>(line.size())) {
+	ss << "...";
+    }
+    msgs.push_back(ss.str());
+    ss.str(std::string());
+    if (start_excerpt > 0) {
+	ss << "   ";
+    }
+    ss << std::string(pos-start_excerpt, ' ') << "^";
+    msgs.push_back(ss.str());
+}
+
 }}
 

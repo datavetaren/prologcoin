@@ -58,77 +58,79 @@ private:
 class token_exception : public ::std::runtime_error
 {
 public:
-    token_exception(const token_position &pos, const std::string &msg) : ::std::runtime_error(msg), pos_(pos) { }
+    token_exception(const std::string &line,const token_position &pos, const std::string &msg) : ::std::runtime_error(msg), pos_(pos) { }
 
     const token_position & pos() const { return pos_; }
     int column() const { return pos().column(); }
     int line() const { return pos().line(); }
+    const std::string & line_string() const { return line_string_; }
 
 private:
     token_position pos_;
+    std::string line_string_;
 };
 
 class token_exception_control_char : public token_exception
 {
 public:
-    token_exception_control_char(const token_position &pos, const std::string &msg = "")
-      : token_exception(pos, msg) { }
+    token_exception_control_char(const std::string &line, const token_position &pos, const std::string &msg = "")
+	: token_exception(line, pos, msg) { }
 };
 
 class token_exception_hex_code : public token_exception
 {
 public:
-    token_exception_hex_code(const token_position &pos, const std::string &msg = "")
-      : token_exception(pos, msg) { }
+    token_exception_hex_code(const std::string &line, const token_position &pos, const std::string &msg = "")
+	: token_exception(line, pos, msg) { }
 };
 
 class token_exception_no_char_code : public token_exception
 {
 public:
-    token_exception_no_char_code(const token_position &pos, const std::string &msg = "")
-      : token_exception(pos, msg) { }
+    token_exception_no_char_code(const std::string &line, const token_position &pos, const std::string &msg = "")
+	: token_exception(line, pos, msg) { }
 };
 
 class token_exception_missing_number_after_base : public token_exception
 {
 public:
-    token_exception_missing_number_after_base(const token_position &pos, const std::string &msg = "")
-      : token_exception(pos, msg) { }
+    token_exception_missing_number_after_base(const std::string &line, const token_position &pos, const std::string &msg = "")
+	: token_exception(line, pos, msg) { }
 };
 
 class token_exception_missing_decimal : public token_exception
 {
 public:
-    token_exception_missing_decimal(const token_position &pos, const std::string &msg = "")
-      : token_exception(pos, msg) { }
+    token_exception_missing_decimal(const std::string &line, const token_position &pos, const std::string &msg = "")
+	: token_exception(line, pos, msg) { }
 };
 
 class token_exception_missing_exponent : public token_exception
 {
 public:
-    token_exception_missing_exponent(const token_position &pos, const std::string &msg = "")
-      : token_exception(pos, msg) { }
+    token_exception_missing_exponent(const std::string &line, const token_position &pos, const std::string &msg = "")
+	: token_exception(line, pos, msg) { }
 };
 
 class token_exception_unterminated_string : public token_exception
 {
 public:
-    token_exception_unterminated_string(const token_position &pos, const std::string &msg = "")
-      : token_exception(pos, msg) { }
+    token_exception_unterminated_string(const std::string &line, const token_position &pos, const std::string &msg = "")
+	: token_exception(line, pos, msg) { }
 };
 
 class token_exception_unterminated_quoted_name : public token_exception
 {
 public:
-    token_exception_unterminated_quoted_name(const token_position &pos, const std::string &msg = "")
-      : token_exception(pos, msg) { }
+    token_exception_unterminated_quoted_name(const std::string &line, const token_position &pos, const std::string &msg = "")
+	: token_exception(line, pos, msg) { }
 };
 
 class token_exception_unterminated_escape : public token_exception
 {
 public:
-    token_exception_unterminated_escape(const token_position &pos, const std::string &msg = "")
-      : token_exception(pos, msg) { }
+    token_exception_unterminated_escape(const std::string &line, const token_position &pos, const std::string &msg = "")
+	: token_exception(line, pos, msg) { }
 };
 
 
@@ -213,6 +215,9 @@ public:
     void clear_token();
 
     std::istream & in() { return in_; }
+
+    const std::string & line_string() const
+    { return line_string_; }
 
 private:
     const token & next_token_helper();
@@ -316,6 +321,7 @@ private:
     std::istream &in_;
     token current_;
     token_position position_;
+    std::string line_string_;
 };
 
 }}

@@ -181,7 +181,7 @@ protected:
     }
     error_ = true;
     if (!check_mode_) {
-	throw term_parse_exception(lookahead_.token(), desc, expected, "Unexpected " + lookahead_.token().lexeme());
+	throw term_parse_exception(tokenizer().line_string(), lookahead_.token(), desc, expected, "Unexpected " + lookahead_.token().lexeme());
     }
   }
 
@@ -1052,7 +1052,7 @@ public:
     }
 
     if (candidates.empty()) {
-        throw token_exception_unrecognized_operator(tok.pos(), tok.lexeme());
+        throw token_exception_unrecognized_operator(tokenizer().line_string(), tok.pos(), tok.lexeme());
     }
 
     // Pick first candidate that doesn't yield parse error.

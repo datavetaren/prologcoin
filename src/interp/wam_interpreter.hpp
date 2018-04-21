@@ -429,6 +429,23 @@ public:
 	return is_compiled(std::make_pair(module,p));
     }
 
+    inline void remove_compiled(const qname &pn)
+    {
+	auto it = predicate_map_.find(pn);
+	if (it != predicate_map_.end()) {
+	    auto offset = it->second;
+	    predicate_map_.erase(pn);
+	    predicate_rev_map_.erase(offset);
+
+	    auto &offsets = calls_[pn];
+	    for (auto offset : offsets) {
+		auto *cp_instr = reinterpret_cast<wam_instruction_code_point *>(to_code(offset));
+		cp_instr->cp().set_wam_code(nullptr);
+	    }
+	}
+    }
+
+
 protected:
     void set_predicate(const qname &qn,
 		       wam_instruction_base *instr,
@@ -604,6 +621,11 @@ public:
 	auto *map = new wam_hash_map();
 	hash_maps_.push_back(map);
 	return map;
+    }
+
+    inline void remove_compiled(const qname &pn)
+    {
+	wam_code::remove_compiled(pn);
     }
 
     inline std::string to_string(const term t,

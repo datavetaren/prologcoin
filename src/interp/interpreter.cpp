@@ -735,10 +735,14 @@ void interpreter::print_result(std::ostream &out) const
 void interpreter::compile()
 {
     for (auto &qn : get_predicates()) {
+	if (is_updated_predicate(qn)) {
+	    remove_compiled(qn);
+	}
 	if (!is_compiled(qn)) {
 	    compile(qn);
 	}
     }
+    clear_updated_predicates();
 }
 
 void interpreter::compile(const qname &qn)

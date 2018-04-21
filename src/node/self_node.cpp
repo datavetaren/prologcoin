@@ -30,7 +30,10 @@ self_node::self_node(unsigned short port)
       num_standard_out_connections_(0),
       num_verifier_connections_(0),
       num_download_addresses_(DEFAULT_NUM_DOWNLOAD_ADDRESSES),
-      testing_mode_(false)
+      testing_mode_(false),
+      initial_funds_(DEFAULT_INITIAL_FUNDS),
+      maximum_funds_(DEFAULT_MAXIMUM_FUNDS),
+      new_funds_per_second_(DEFAULT_NEW_FUNDS_PER_SECOND)
 {
     set_timer_interval(utime::ss(DEFAULT_TIMER_INTERVAL_SECONDS));
     set_time_to_live(utime::ss(DEFAULT_TTL_SECONDS));
@@ -230,12 +233,13 @@ self_node::execute_at_return_t self_node::schedule_execute_wait_for_result(task_
     bool has_more = task->has_more();
     bool at_end = task->at_end();
     // Copy this result to the right environment
-    uint64_t cost = 0;
+    uint64_t cost = task->get_cost();
 
-    term result_copy = query_src.copy(result_term, task->env(), cost);
+    uint64_t cost_tmp = 0;
+    term result_copy = query_src.copy(result_term, task->env(), cost_tmp);
     task->consume_result();
 
-    return execute_at_return_t(result_copy, has_more, at_end);
+    return execute_at_return_t(result_copy, has_more, at_end, cost);
 }
 
 self_node::execute_at_return_t self_node::execute_at(term query, term_env &query_src, const std::string &where)
@@ -283,7 +287,7 @@ bool self_node::delete_instance_at(term_env &query_src, const std::string &where
 in_session_state * self_node::new_in_session(in_connection *conn)
 {
     auto *ss = new in_session_state(this, conn);
-
+    ss->set_available_funds( get_initial_funds() );
     boost::lock_guard<boost::recursive_mutex> guard(lock_);
     in_states_[ss->id()] = ss;
     return ss;

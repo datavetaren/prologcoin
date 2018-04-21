@@ -71,11 +71,20 @@ namespace prologcoin { namespace interp {
 
 // Syntax exceptions...
 
-class syntax_exception : public std::runtime_error
+// Interpreter exceptions...
+
+class interpreter_exception : public std::runtime_error
+{
+public:
+    interpreter_exception(const std::string &msg)
+	: std::runtime_error(msg) { }
+};
+
+class syntax_exception : public interpreter_exception
 {
 public:
     syntax_exception(const common::term &t, const std::string &msg)
-	: std::runtime_error(msg), term_(t) { }
+	: interpreter_exception(msg), term_(t) { }
     ~syntax_exception() noexcept(true) { }
 
     const common::term & get_term() const { return term_; }
@@ -113,13 +122,11 @@ public:
 	: syntax_exception(t, msg) { }
 };
 
-// Interpreter exceptions...
-
-class interpreter_exception : public std::runtime_error
+class interpreter_exception_out_of_funds : public interpreter_exception
 {
 public:
-    interpreter_exception(const std::string &msg)
-	: std::runtime_error(msg) { }
+    interpreter_exception_out_of_funds(const std::string &msg)
+	: interpreter_exception(msg) { }
 };
 
 class interpreter_exception_stack_overflow : public interpreter_exception
@@ -411,7 +418,9 @@ public:
 
     void load_clause(const std::string &str);
     void load_clause(std::istream &is);
-    void load_clause(const term t);
+    void load_clause(const term t, bool as_program = false);
+
+    void retract_predicate(con_cell pred);
 
     term clause_head(const term clause);
     term clause_body(const term clause);
@@ -427,8 +436,19 @@ public:
     inline const predicate & get_predicate(const qname &pn)
         { return program_db_[pn]; }
 
-    inline const std::vector<qname> get_predicates() const
+    void retract_predicate(const qname &pn);
+
+    inline const std::vector<qname> & get_predicates() const
         { return program_predicates_; }
+
+    inline const std::unordered_set<qname> & get_updated_predicates() const
+        { return updated_predicates_; }
+
+    inline bool is_updated_predicate(const qname &pn) const
+        { return updated_predicates_.find(pn) != updated_predicates_.end(); }
+
+    inline void clear_updated_predicates()
+        { updated_predicates_.clear(); }
 
     std::string to_string_cp(const code_point &cp)
         { return cp.to_string(*this); }
@@ -487,6 +507,8 @@ public:
 
     inline uint64_t accumulated_cost() const
         { return accumulated_cost_; }
+
+    inline void set_maximum_cost(uint64_t cost) { maximum_cost_ = cost; }
 
     inline bool unify(term a, term b)
        { uint64_t cost = 0;
@@ -955,7 +977,13 @@ protected:
         { accumulated_cost_ = value; }
 
     inline void add_accumulated_cost(uint64_t cost)
-        { accumulated_cost_ += cost; }
+        { accumulated_cost_ += cost;
+          if (accumulated_cost_ >= maximum_cost_) {
+	      throw interpreter_exception_out_of_funds(
+                        "Not enough funds to complete. Maximum is "
+			+ boost::lexical_cast<std::string>(maximum_cost_));
+	  }
+        }
 
     inline void load_builtin(con_cell f, builtin b)
         { qname qn(empty_list(), f);
@@ -1022,6 +1050,7 @@ private:
     std::unordered_map<qname, builtin_opt> builtins_opt_;
     std::unordered_map<qname, predicate> program_db_;
     std::vector<qname> program_predicates_;
+    std::unordered_set<qname> updated_predicates_;
 
     // Stack is emulated at heap offset >= 2^59 (3 bits for tag, remember!)
     // (This conforms to the WAM standard where addr(stack) > addr(heap))
@@ -1078,6 +1107,9 @@ private:
 
     // Keep track of accumulated cost while interpreter is executing
     uint64_t accumulated_cost_;
+
+    // Maximum cost allowed
+    uint64_t maximum_cost_;
 
 protected:
     size_t tidy_size;

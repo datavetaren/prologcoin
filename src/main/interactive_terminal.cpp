@@ -3,6 +3,7 @@
 #include <boost/algorithm/string/predicate.hpp>
 #include "../common/term_serializer.hpp"
 #include "../node/self_node.hpp"
+#include "../node/local_interpreter.hpp"
 #include "interactive_terminal.hpp"
 
 namespace prologcoin { namespace main {
@@ -35,7 +36,23 @@ bool interactive_terminal::key_callback(int ch)
     }
 
     if (ch == readline::TIMEOUT) {
+	// Make a call to check_mail
+	utime t0 = utime::now();
+	bool do_check_mail = (t0 - last_mail_check_) >= utime::ss(1);
+
+	if (do_check_mail) {
+	    last_mail_check_ = t0;
+	    auto query_check_mail = env().new_term(local_interpreter::COLON,
+						   {local_interpreter::ME,
+						    env().functor("check_mail",0)});
+	    bool old = is_result_to_text();
+	    set_result_to_text(false);
+	    execute(query_check_mail);
+	    set_result_to_text(old);
+	}
+
 	std::string text = flush_text();
+
 	if (!text.empty()) {
 	    readline_.clear_line();
 	    std::cout << std::string(prompt_.size(), '\b')

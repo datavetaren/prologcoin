@@ -40,8 +40,14 @@ public:
 
     inline common::term get_result() { return interp_.get_result_term(); }
     inline const std::string & get_text_out() {return interp_.get_text_out();}
+    inline void reset_text_out() { interp_.reset_text_out(); }
 
     inline bool has_more() const { return interp_.has_more(); }
+    inline uint64_t last_cost() const { return interp_.accumulated_cost(); }
+    inline uint64_t available_funds() const { return available_funds_; }
+
+    void set_available_funds(uint64_t funds) { available_funds_ = funds; }
+    void add_funds(uint64_t dfunds) { available_funds_ += dfunds; }
 
     void heartbeat();
 
@@ -55,6 +61,7 @@ private:
     bool interp_initialized_;
     common::utime heartbeat_;
     size_t heartbeat_count_;
+    uint64_t available_funds_;
 };
 
 }}

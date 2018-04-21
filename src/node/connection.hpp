@@ -162,6 +162,10 @@ public:
     inline const std::string & name() const { return name_; }
 
 private:
+    std::string to_error_message(const std::vector<std::string> &msgs);
+    std::string to_error_message(const common::token_exception &ex);
+    std::string to_error_message(const common::term_parse_exception &ex);
+
     common::con_cell get_state_atom();
     void setup_commands();
     in_session_state * get_session(const term id_term);
@@ -182,6 +186,7 @@ private:
     void process_query_reply();
     void process_execution(const term cmd, bool in_query);
 
+    void reply_exception(const std::string &msg);
     void reply_error(const common::term t);
     void reply_ok(const common::term t);
 
