@@ -47,8 +47,7 @@ public:
     inline uint64_t available_funds() const { return available_funds_; }
 
     void set_available_funds(uint64_t funds) { available_funds_ = funds; }
-    void add_funds(uint64_t dfunds) { available_funds_ += dfunds; }
-
+    void add_funds(uint64_t dfunds);
     void heartbeat();
 
 private:

@@ -38,16 +38,21 @@ bool interactive_terminal::key_callback(int ch)
     if (ch == readline::TIMEOUT) {
 	// Make a call to check_mail
 	utime t0 = utime::now();
-	bool do_check_mail = (t0 - last_mail_check_) >= utime::ss(1);
-
-	if (do_check_mail) {
-	    last_mail_check_ = t0;
-	    auto query_check_mail = env().new_term(local_interpreter::COLON,
-						   {local_interpreter::ME,
-						    env().functor("check_mail",0)});
+	bool do_pulse = (t0 - last_pulse_) >= utime::ss(1);
+	if (do_pulse) {
+	    last_pulse_ = t0;
+	    auto query_pulse = env().new_term(local_interpreter::COMMA,
+			   { env().new_term(
+				   local_interpreter::COLON,
+				   {local_interpreter::ME,
+					   env().functor("heartbeat",0)}),
+		  	     env().new_term(
+				   local_interpreter::COLON,
+				   {local_interpreter::ME,
+					   env().functor("check_mail",0)})});
 	    bool old = is_result_to_text();
 	    set_result_to_text(false);
-	    execute(query_check_mail);
+	    execute(query_pulse);
 	    set_result_to_text(old);
 	}
 

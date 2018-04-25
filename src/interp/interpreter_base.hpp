@@ -980,8 +980,8 @@ protected:
         { accumulated_cost_ += cost;
           if (accumulated_cost_ >= maximum_cost_) {
 	      throw interpreter_exception_out_of_funds(
-                        "Not enough funds to complete. Maximum is "
-			+ boost::lexical_cast<std::string>(maximum_cost_));
+                        "Not enough funds to complete. Maximum was "
+			+ boost::lexical_cast<std::string>(maximum_cost_) + ".");
 	  }
         }
 
