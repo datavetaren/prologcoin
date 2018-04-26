@@ -121,9 +121,9 @@ If we imagine that P (which is just a 256-bit big number) is an UTXO,
 then we can prove we own that UTXO, even though the rest of the world
 don't know the value of 'v'.
 
-The owner simply does P - v*H, because the owner knows 'v', he can
+The owner simply does `P - v*H`, because the owner knows 'v', he can
 easily compute v*H, and then the owner signs a message with his
-private key 'b' and everybody can confirm the signature using P - v*H
+private key 'b' and everybody can confirm the signature using `P - v*H`
 as the public key. The message to be signed can be any 256-bit number,
 e.g. the SHA256 hash of the empty string (or whatever.)
 
@@ -178,10 +178,10 @@ This means that:
 P = 20*G + 1*H + 5*G + 3*H + 17*G + 4*H ( = 42*G + 8*H)
 ```
 
-Bob wants his UTXO in 4711*G + 3*H. So Alice gives Bob 5 (one number
-of the splitted sum.) Bob then computes 4711*G+3*H and (4711-5)*G
+Bob wants his UTXO in `4711*G + 3*H`. So Alice gives Bob 5 (one number
+of the splitted sum.) Bob then computes `4711*G+3*H` and `(4711-5)*G`
 and gives both these numbers back to Alice, who know just replaces:
-5*G+3*H with difference of those two:
+`5*G+3*H` with difference of those two:
 
 ```
 P = 20*G + 1*H + (4711*G+3*H) - (4711-5)*G + 17*G + 4*H
@@ -190,11 +190,11 @@ P = 20*G + 1*H + (4711*G+3*H) - (4711-5)*G + 17*G + 4*H
 What can be seen here is that nothing has changed. Alice doesn't know
 4711, and she doesn't know 4711-5 either. But she can verify that the
 difference between those two big randomly numbers that she got from
-Bob indeed becomes the same as 5*G + 3*H.
+Bob indeed becomes the same as `5*G + 3*H`.
 
 Let's proceed with Carol. She wants her UTXO to be in `123*G+4*H`.  Bob
-gives her 17 and 4, and Carol computes: (123*G+4*H) -
-(123-17)*G. Gives those numbers back to Bob. P is now composed of:
+gives her 17 and 4, and Carol computes: `(123*G+4*H) - (123-17)*G`.
+Gives those numbers back to Bob. P is now composed of:
 
 ```
 P = 20*G + 1*H + (4711*G+3*H) - (4711-5)*G + (123*G+4*H) - (123-17)*G
@@ -234,22 +234,22 @@ funds in this process if we can prove that the difference is a valid
 point on the G curve (which it only can be if H=0).
 So what remains is proving:
 
-(4711-5)*G is a point on the G curve, and
-(123-17)*G is a point on the G curve. The law of addition also states
+`(4711-5)*G` is a point on the G curve, and
+`(123-17)*G` is a point on the G curve. The law of addition also states
 that the sum of these is also a point on the G curve.
 
 Only Bob knows 4711-5, and can use this number to sign something. That
-signature can then be verified using (4711-5)*G.
+signature can then be verified using `(4711-5)*G`.
 
 Only Carol knows 123-17, and she can use this number to sign
-something. That signature can then be verified using (123-17)*G.
+something. That signature can then be verified using `(123-17)*G`.
 
 These signatures can be given back to Bob who can then publish the
 entire transaction:
 
 1. The new UTXO set and what UTXOs that got spent.
 2. The signatures and the corresponding public keys
-   (in this example (4711-5)*G and (123-17)*G respectively.)
+   (in this example `(4711-5)*G` and `(123-17)*G` respectively.)
 
 But there's one more thing. In this process we can trick the balance
 with the use of negative numbers. It's perfectly possible to create a
@@ -286,7 +286,7 @@ transaction needs:
 
 1. The new UTXO set and what UTXOs that got spent.
 2. The signatures and the corresponding public keys
-   (in this example (4711-5)*G and (123-17)*G respectively.)
+   (in this example `(4711-5)*G` and `(123-17)*G` respectively.)
 3. Range proofs for each new UTXO (in our example we need 3 range proofs.)
 
 ### Pruning
@@ -296,18 +296,18 @@ Imgaine we have a transaction:
 P1 -> P2 -> P3
 
 The only thing that needs to be published for P2 are the proofs for
-H=0, i.e. the signatures and the public keys (4711-5)*G and
-(123-17)*G.  Unfortunately, we can't combine these signatures.  But
+H=0, i.e. the signatures and the public keys `(4711-5)*G` and
+`(123-17)*G`.  Unfortunately, we can't combine these signatures.  But
 imagine that times go by, and that old P2 transaction gets burried
 over time:
 
 P1 -> P2 -> P3 -> ... -> P100
 
 and it has been 2 years since P2 were published. Then users could
-publish the private keys (4711-5) and (123-17) and then anyone can
-create a new combined signature (4711-5+123-17) with public key
-(4711-5+123-17)*G and everybody can still confirm it's the same excess
-value because (4711-5+123-17)*G is still the difference between
+publish the private keys `(4711-5)` and `(123-17)` and then anyone can
+create a new combined signature `(4711-5+123-17)` with public key
+`(4711-5+123-17)*G` and everybody can still confirm it's the same excess
+value because `(4711-5+123-17)*G` is still the difference between
 Outputs - Inputs. Now imagine that we do this for entire blocks of
 transactions, and viola, we got a pruned blockchain. And yet it fully
 validates. Unfortunately with a small compromise to privacy.
