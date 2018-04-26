@@ -184,7 +184,7 @@ and gives both these numbers back to Alice, who know just replaces:
 5*G+3*H with difference of those two:
 
 ```
-P = 20*G + 1*H + (4711*G+3*H) - (4711-5)*G + 17*G + 7*H
+P = 20*G + 1*H + (4711*G+3*H) - (4711-5)*G + 17*G + 4*H
 ```
 
 What can be seen here is that nothing has changed. Alice doesn't know
@@ -193,7 +193,7 @@ difference between those two big randomly numbers that she got from
 Bob indeed becomes the same as 5*G + 3*H.
 
 Let's proceed with Carol. She wants her UTXO to be in 123*G+4*H.  Bob
-gives her 17 and 7, and Carol computes: (123*G+4*H) -
+gives her 17 and 4, and Carol computes: (123*G+4*H) -
 (123-17)*G. Gives those numbers back to Bob. P is now composed of:
 
 ```
