@@ -102,24 +102,66 @@ The main reason for chosing Prolog is:
 This intro to Mimblewimble is similar to the one for Grin, but I tell
 the story in a slightly different way.
 
+### Elliptic Curves
+
+Whenever you see:
+
+```
+E = a*G
+```
+
+You should know that you only can compute `a*G` if you know 'a'.  Just
+knowing `a*G` doesn't let you know 'a'. This is the foundation of
+elliptic curve cryptography. Note that a*G is really a function: G(a),
+but we use the syntax `a*G` because this function is linear and
+commutative, so algebraic operations such as adding and/or multiplying
+make sense. In fact, the function G is a so called group generator,
+and you can choose an arbitrary point on the elliptic curve as your
+generator. Encryption libraries offer standard points so you never
+have to worry about the internal details. Just think that whenever you
+see 'a' you can compute `a*G` using a library function.
+
+It's also very deceiving when you read this document. For example,
+when you see:
+
+```
+E = 42*G
+```
+
+You think that, aha! the private key is 42, but if you're just the
+recipient to its product it just looks like a big random (256 bit)
+number:
+
+```
+E = 12838747271397732182286342
+```
+
+And from this it is impossible to extract '42' from this, unless you
+already know the value. Guessing/iterating over all numbers is in fact
+the only known way of finding that value. Of course, in practice, we
+don't choose small numbers as 42 either, but rather big 256-bit random
+numbers.
+
 ### Pedersen commitments
 
 A Pedersen commitment is an arithmetic computation over an elliptic
-curve (EC) such as:
+curve such as:
 
 ```
 P = b*G + v*H
 ```
 
-where 'b' and 'v' are plugged in parameters. G is a generator for a
-elliptic curve, a precomputed constant. H is just another
-generator on the same curve that is guaranteed to be "numerically
-disjoint" (easily achieved with something like H = hash(G).)
+where 'b' and 'v' are plugged in parameters. G is a generator point
+for a elliptic curve. H is just another generator on the same curve
+that is guaranteed to be "numerically disjoint." In practice this is
+done by just setting H = hash(G). Again, an elliptic curve encryption
+library has standard values for these, so given 'b' and 'v' it will
+just compute 'P' for us.
 
-We say that 'b' is a blinding factor. The 'b' serves as a private key.
-If we imagine that P (which is just a 256-bit big number) is an UTXO,
-then we can prove we own that UTXO, even though the rest of the world
-don't know the value of 'v'.
+We say that `b*G` is a blinding factor. The 'b' serves as a private key.
+If we imagine that P (which is just a 256-bit big number) is an UTXO
+(Unspent Transaction Output), then we can prove we own that UTXO, even
+though the rest of the world don't know the value of 'v'.
 
 The owner simply does `P - v*H`, because the owner knows 'v', he can
 easily compute v*H, and then the owner signs a message with his
@@ -131,10 +173,12 @@ e.g. the SHA256 hash of the empty string (or whatever.)
 
 For Mimblewimble transactions we'll see that, unfortunately, there
 needs to be a direct connection between sender and recipient of funds.
+This is in contrast with Bitcoin where the recipient just publish a
+receiving address and the sender of funds can just broadcast a
+transaction based on that address.
 
-What will become apparent later is that the owner of an UTXO needs to
-split his private key into a sum subset. For example, the sender needs
-to be able to rewrite:
+In Mimblewimble the owner of an UTXO may need to split his private key
+into a sum subset:
 
 ```
 P = b*G + v*H = (b1+b2+...+bn)*G + (v1+v2+...+vn)*H 
@@ -142,7 +186,9 @@ P = b*G + v*H = (b1+b2+...+bn)*G + (v1+v2+...+vn)*H
 ```
 
 Some of these bi's (and vi's) need to be sent to the recipient, which
-reacts to those and will reply with some additional information.
+reacts and replies with information back to the sender. Note that this
+scheme still supports "cold storage," i.e. the recipient does not have
+to have his destination private keys online for the receiving funds.
 
 ### Transactions
 
@@ -153,8 +199,11 @@ recipients of funds. What we'll do is to compute the difference:
 Outputs - Inputs
 
 Where Inputs are just the sum of all UTXOs. And outputs are also a sum
-of all new UTXOs. Outputs = Inputs, so the difference becomes exactly
-0.
+of all new UTXOs. Then we'll prove some properties over this
+difference.  These proofs will guarantee that no theft has taking
+place and that there was no money creation either in this process,
+i.e.  the monetary inflation is solely determined by the coinbases of
+the currency.
 
 Let's say we have Alice who owns:
 
@@ -163,10 +212,9 @@ P = 42*G + 8*H
 ```
 
 (here 42 is normally a ridiciously large number, which will serve as
-the private key for Alice.)
-
-Now she wants to send 3 units to Bob and 4 units to Carol (and keep 1
-unit to herself.)  She'll split her 42 into 3 random numbers:
+the private key for Alice.) Now she wants to send 3 units to Bob and 4
+units to Carol (and keep 1 unit to herself.)  First she'll split her
+private key 42 as a sum of 3 random numbers:
 
 ```
 20 + 5 + 17 = 42
@@ -180,7 +228,7 @@ P = 20*G + 1*H + 5*G + 3*H + 17*G + 4*H ( = 42*G + 8*H)
 
 Bob wants his UTXO in `4711*G + 3*H`. So Alice gives Bob 5 (one number
 of the splitted sum.) Bob then computes `4711*G+3*H` and `(4711-5)*G`
-and gives both these numbers back to Alice, who know just replaces:
+and gives both these numbers back to Alice, who just replaces:
 `5*G+3*H` with difference of those two:
 
 ```
@@ -200,7 +248,8 @@ Gives those numbers back to Bob. P is now composed of:
 P = 20*G + 1*H + (4711*G+3*H) - (4711-5)*G + (123*G+4*H) - (123-17)*G
 ```
 
-How can the rest of the world verify that...
+Numerically, nothing has changed. But we'll only going to publish the
+new UTXOs, so how can the rest of the world verify that...
 
 1) No new money has been created?
 2) That money wasn't stolen?
@@ -211,6 +260,7 @@ So let's split the above P into three parts:
 P1 = 20*G + 1*H
 P2 = (4711*G+3*H) - (4711-5)*G
 P3 = (123*G+4*H) - (123-17)*G
+P = P1 + P2 + P3
 ```
 
 If we remove the negative terms from P2 and P3, then we get the new
@@ -224,9 +274,10 @@ P3' = 123*G + 4*H
 
 And these are the numbers we'd like on the blockchain, so
 that everyone in the world knows its new state of ownership. But then
+difference becomes:
 
 ```
-P1'+P2'+P3' - P = x*G + 0*H
+P1'+P2'+P3' - P = (4711-5)*G + (123-17)*G + 0*H
 ```
 
 This means the rest of world can be convinced we didn't create new
@@ -268,7 +319,7 @@ P = 20*G + 1000008*H + 22*G - 1000000*H
 And this become the same value as above. The H's cancel out to 0, but
 now we get a new UTXO with a humongous amount of money, i.e. we've
 actually become a central bank. We'd like to eliminate central banks,
-not to become one, so not a very good move.
+not to become one, so it's not a very good move.
 
 But it turns out that we can fix this. For a Pedersen commitment:
 
@@ -281,8 +332,8 @@ reveal 'v' we can prove that it is within a range of values,
 e.g.  [0...1000000] (= only a positive number.)
 
 And it gets better. There's an invention called Bulletproof range
-proof, that yields in 674 bytes chunk of data. So to summarize, a
-transaction needs:
+proofs, that yields in 674 bytes chunk of data for each range
+proof. So to summarize, a transaction needs:
 
 1. The new UTXO set and what UTXOs that got spent.
 2. The signatures and the corresponding public keys
@@ -306,15 +357,160 @@ P1 -> P2 -> P3 -> ... -> P100
 and it has been 2 years since P2 were published. Then users could
 publish the private keys `(4711-5)` and `(123-17)` and then anyone can
 create a new combined signature `(4711-5+123-17)` with public key
-`(4711-5+123-17)*G` and everybody can still confirm it's the same excess
-value because `(4711-5+123-17)*G` is still the difference between
-Outputs - Inputs. Now imagine that we do this for entire blocks of
-transactions, and viola, we got a pruned blockchain. And yet it fully
-validates. Unfortunately with a small compromise to privacy.
+`(4711-5+123-17)*G` and everybody can still confirm it's the same
+excess value because `(4711-5+123-17)*G` is still the difference
+between Outputs - Inputs. Now imagine that we do this for entire
+blocks of transactions, and viola, we got a pruned blockchain. And yet
+it fully validates for monetary inflation. Unfortunately with a small
+compromise to privacy.
 
-## TODO
+For this to work in practice we need an economic incentive to publish
+old spent private keys. If we'd lock 50% of miners reward for a block,
+and the other half is collectable as a linear function of its base
+size. For example, if everything is replaced with a single proof you'd
+collect the other 50%. A miner would then need to provide a proof that
+he can do block compression. This part is still something I'm thinking
+about how do get this right. Sorry for not being more precise at this
+time.
 
-Will talk about how to add Prolog code together with the Mimblewimble transactions...
+## Adding Prolog Predicates
+
+In Mimblewimble, instead of signing the empty string, we can let the
+new UTXO be associated with a Prolog program, e.g.
+
+```
+p(Signature, output(Output)) :-
+     member(PubKey, [<hardcoded list of public keys>]),
+     check_signature(dummy(Output),Signature,PubKey).
+```
+
+i.e. we use this as the base for the signature instead of the empty
+string.
+
+p(Signature, output(Output)) is true iff
+
+* The provided signature validates the message "dummy(Output)". I added
+  the "dummy" functor to show that you can write an arbitrary term here
+  whose contents will be serialized for signature validation.
+* The signature can be validated using one of the public keys from the
+  hard coded list of public keys, so it serves as a "1 of M" signature.
+  Of course, this is inefficient compared to a Schnorr signature,
+   but this is only for illustration.
+* The last argument, wrapped in a functor output(Output),
+  becomes the blinding factor of the new UTXO. That functor acts as
+  meta knowledge to the system to identify that its argument will become
+  the new UTXO.
+* We need to incorporate Output in the signature to prevent it from being
+  malleable; an eavesdropper should not be able to rewrite
+  this transaction and send the funds to a different destination.
+
+To spend this new UTXO you need to know both its (Mimblewimble)
+private key and make the predicate evaluate to true (by providing some
+call/instance when spending it.)  Once the new UTXO is on the
+blockchain the user can simply reveal its Mimblewimble private
+key. From this point, anyone who can make that predicate evaluate to
+true can spend that UTXO. That is, we've gone from a simple
+Mimblewimble transaction to a smart contract. Unfortunately with some
+loss of privacy due to the revelation of the private key. However,
+depending on type of smart contract, that Mimblewimble private key
+could also circulate within a smaller group of people.
+
+If we know the Mimblewimlbe private key we can now spend that UTXO
+if we attach a predicate call:
+
+```
+p(<signature>, <new output>)
+```
+
+This basically enables basic bitcoin smart contracts. But it's still
+not possible to enforce rules over a longer period of time.  So let's
+enhance this a bit further.
+
+Suppose a UTXO smart contract consists of three sections:
+
+1. The predicate that needs to evaluate to true for you to spend it.
+   (What we've got at this point.)
+2. Put contraints on what the smart contract of the new UTXO must look like.
+3. A condition that allows a user to terminate the smart contract (so that
+   (2) is no longer necessary.)
+
+Let's say we have:
+
+```
+In order to spend:
+
+p(Signature, state(State), output(Output)) :-
+     tail(State, T), T = [s | _],
+     member(PubKey, [<hardcoded list of public keys>]),
+     check_signature(dummy(Output),Signature,PubKey).
+tail(X,X) :- var(X).
+tail([_|Xs],T) :- tail(Xs,T).
+
+New contract must be:
+
+p(Signature, state(State), output(Output1)) :-
+     tail(State, T), T = [s | _],
+     ... % Here you can add arbitrary code
+
+Or choose to terminate the contract, but then:
+
+p(Signature, state(State), output(Output1)) :-
+    % We don't want trailing variable get bound to the
+    % empty list, so that's the reason for the double disproof.
+    \+ \+ (length(State, N), N >= 100).
+```
+
+Here the variable State is shared, i.e. state(State) means that it
+gets unified from the result of evaluating the input. This has the
+interesting behavior that State becomes a list whose length
+corresponds to the accumulated length of transactions.
+
+The user can choose to terminate this contract (free itself from the
+constraint of its new UTXO predicate) if the number of accumulated
+transactions exceeds 100.
+
+You could also enforce a contract termination (after 100 transactions)
+with:
+
+```
+New contract must be:
+
+p(Signature, state(State), output(Output1)) :-
+     \+ \+ (length(State, N), N < 100),
+     tail(State, T), T = [s | _],
+     ... % Here you can add arbitrary code
+```
+
+You can probably come up with more interesting examples. This only
+illustrates the basic infrastructure.
+
+Once a smart contract is terminated, it has the potentional to go back
+to a regular Mimblewimble monetary transaction and if the smart
+contract gets burried enough, then we can just prune it like any other
+Mimblewimble transaction. The property we'd like to preserve is to
+prove that no (violation of) inflation has taken place. Reversing a
+spent old transaction would require an enormous amount of
+proof-of-work to outcompete the current tip of the chain, so I think
+trusting proof-of-work for this should be acceptable for the theft
+property.
+
+You may wonder how we can guarantee that the contracts terminate
+(i.e. halting problem?) In this case we use a gas based solution. In
+Prologcoin any Prolog program that gets executed has an execution cost
+associcated with it. This cost is computed as part of the consensus
+rules. So publishing the smart contract together with its expected
+cost is guaranteed to terminate and anyone on the network will be able
+to verify it.  The free market can provide a market price per
+"execution cost unit" similar to Bitcoin's Satoshis per byte.
+
+### Does it work?
+
+I'm still thinking g on whether there's some hole in the above design.
+It feels correct, but I may have made a fundamental design error, so
+it'll take some time to digest these thoughts. However, I'll start
+working on some basic primitives. The first step is to incorporate the
+basic elliptic curvature functionality in my Prolog implementation,
+and design the basic Mimblewimble transactions.
 
 ## Still a 100% bitcoin maximalist
 
