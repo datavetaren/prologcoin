@@ -415,7 +415,7 @@ loss of privacy due to the revelation of the private key. However,
 depending on type of smart contract, that Mimblewimble private key
 could also circulate within a smaller group of people.
 
-If we know the Mimblewimlbe private key we can now spend that UTXO
+If we know the Mimblewimble private key we can now spend that UTXO
 if we attach a predicate call:
 
 ```
@@ -461,9 +461,11 @@ p(Signature, state(State), output(Output1)) :-
 ```
 
 Here the variable State is shared, i.e. state(State) means that it
-gets unified from the result of evaluating the input. This has the
-interesting behavior that State becomes a list whose length
-corresponds to the accumulated length of transactions.
+gets unified from the result of evaluating the inputs. If you have
+multiple inputs, you'll do multiple unifications on the same
+term/variable. This has the interesting behavior that State becomes a
+list whose length corresponds to the accumulated length of
+transactions.
 
 The user can choose to terminate this contract (free itself from the
 constraint of its new UTXO predicate) if the number of accumulated
@@ -484,15 +486,14 @@ p(Signature, state(State), output(Output1)) :-
 You can probably come up with more interesting examples. This only
 illustrates the basic infrastructure.
 
-Once a smart contract is terminated, it has the potentional to go back
+Once a smart contract is terminated, it has the potential to go back
 to a regular Mimblewimble monetary transaction and if the smart
 contract gets burried enough, then we can just prune it like any other
 Mimblewimble transaction. The property we'd like to preserve is to
 prove that no (violation of) inflation has taken place. Reversing a
-spent old transaction would require an enormous amount of
-proof-of-work to outcompete the current tip of the chain, so I think
-trusting proof-of-work for this should be acceptable for the theft
-property.
+transaction based on an old spent transaction would require an
+enormous amount of proof-of-work to outcompete the current tip of the
+chain, so I think trusting proof-of-work for this should be acceptable.
 
 You may wonder how we can guarantee that the contracts terminate
 (i.e. halting problem?) In this case we use a gas based solution. In
