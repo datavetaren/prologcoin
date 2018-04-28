@@ -242,7 +242,7 @@ Bob indeed becomes the same as `5*G + 3*H`.
 
 Let's proceed with Carol. She wants her UTXO to be in `123*G+4*H`.  Bob
 gives her 17 and 4, and Carol computes: `(123*G+4*H) - (123-17)*G`.
-Gives those numbers back to Bob. P is now composed of:
+Gives those numbers back to Alice. P is now composed of:
 
 ```
 P = 20*G + 1*H + (4711*G+3*H) - (4711-5)*G + (123*G+4*H) - (123-17)*G
@@ -295,7 +295,7 @@ signature can then be verified using `(4711-5)*G`.
 Only Carol knows 123-17, and she can use this number to sign
 something. That signature can then be verified using `(123-17)*G`.
 
-These signatures can be given back to Bob who can then publish the
+These signatures can be given back to Alice who can then publish the
 entire transaction:
 
 1. The new UTXO set and what UTXOs that got spent.
@@ -506,7 +506,7 @@ to verify it.  The free market can provide a market price per
 
 ### Does it work?
 
-I'm still thinking g on whether there's some hole in the above design.
+I'm still thinking on whether there's some hole in the above design.
 It feels correct, but I may have made a fundamental design error, so
 it'll take some time to digest these thoughts. However, I'll start
 working on some basic primitives. The first step is to incorporate the
