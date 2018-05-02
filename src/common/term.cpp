@@ -1,4 +1,5 @@
 #include <iomanip>
+#include <algorithm>
 #include "term.hpp"
 #include "term_ops.hpp"
 
@@ -20,6 +21,8 @@ std::string cell::inner_str() const
     case tag_t::CON: return static_cast<const con_cell &>(*this).inner_str();
     case tag_t::STR: return static_cast<const str_cell &>(*this).inner_str();
     case tag_t::INT: return static_cast<const int_cell &>(*this).inner_str();
+    case tag_t::BIG: return static_cast<const big_cell &>(*this).inner_str();
+    case tag_t::DAT: return static_cast<const dat_cell &>(*this).inner_str();
     default: return "?";
     }
     
@@ -32,22 +35,34 @@ std::string cell::boxed_str() const
 	     ' ') + s + " : " + static_cast<std::string>(tag()) + " |";
 }
 
+std::string cell::boxed_str_dat() const
+{
+    std::string s = hex_str0();
+    return "|" + std::string(std::max(0,20 - static_cast<int>(s.length())),
+			     ' ') + s + " : ... |";
+}
+
 std::string cell::hex_str() const
 {
     return hex_str(raw_value());
 }
 
-std::string cell::hex_str(uint64_t value)
+std::string cell::hex_str0() const
+{
+    return hex_str(raw_value(), false);
+}
+
+std::string cell::hex_str(uint64_t value, bool skip_leading_0s)
 {
     std::string s = "0x";
-    if (value == 0) {
+    if (value == 0 && skip_leading_0s) {
 	s += "0";
 	return s;
     }
 
     // Skip leading 0s
     size_t m = 60;
-    bool leading0 = true;
+    bool leading0 = skip_leading_0s;
     for (size_t i = 0; i < 16; i++, m -= 4) {
 	auto digit = (value >> m) & 0xf;
 	if (leading0 && digit == 0) {
@@ -224,8 +239,14 @@ std::string int_cell::inner_str() const
     return s;
 }
 
-//    return "|" + std::string(std::max(0,20 - static_cast<int>(s.length())), ' ') + s + " : " + static_cast<std::string>(tag()) + " |";
-//}
+std::string dat_cell::inner_str() const
+{
+    std::stringstream ss;
+    std::string s = cell::hex_str(raw_value() >> CELL_NUM_BITS_HALF, false);
+    s = "0x" + s.substr(10);
+    ss << std::left << std::setw(14) << s << std::right << " " << num_bits();
+    return ss.str();
+}
 
 heap::heap() 
   : size_(0),
@@ -389,6 +410,32 @@ bool heap::is_list(const cell c) const
     return true;
 }
 
+std::string heap::big_to_string(cell big, size_t base) const
+{
+    using namespace boost::multiprecision;
+
+    static const char BASE_STD[37] = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+    static const char BASE_58[59] = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
+
+    assert((base >= 2 && base <= 36) || base == 58);
+
+    cpp_int val;
+    get_big(big, val);
+
+    std::string s;
+    const char *base_char = (base == 58) ? BASE_58 : BASE_STD;
+
+    while (val) {
+	size_t digit = static_cast<size_t>(val % base);
+	val -= digit;
+	val /= base;
+	char ch = base_char[digit];
+	s += ch;
+    }
+    std::reverse(s.begin(), s.end());
+    return s;
+}
+
 void heap::print(std::ostream &out) const
 {
     print(out, 0, size_);
@@ -396,11 +443,23 @@ void heap::print(std::ostream &out) const
 
 void heap::print(std::ostream &out, size_t from, size_t to) const
 {
-    out << std::setw(8) << " " << std::setw(0) << "  ." << std::string(27, '-') << "." << "\n";
+    out << std::setw(8) << " " << std::setw(0) << "  ." << std::string(27, '-') << "." << std::endl;
+    size_t dat_num = 0;
     for (size_t i = from; i < to; i++) {
-	out << std::setw(8) << i << std::setw(0) << ": " << get(i).boxed_str() << "\n";
+	out << std::setw(8) << i << std::setw(0) << ": ";
+	cell c = get(i);
+	if (dat_num > 0) {
+	    out << c.boxed_str_dat();
+	    dat_num--;
+	} else {
+	    out << c.boxed_str();
+	    if (c.tag() == tag_t::DAT) {
+		dat_num = reinterpret_cast<dat_cell &>(c).num_cells() - 1;
+	    }
+	}
+	out << std::endl;
     }
-    out << std::setw(8) << " " << std::setw(0) << "  `" << std::string(27, '-') << "´" << "\n";
+    out << std::setw(8) << " " << std::setw(0) << "  `" << std::string(27, '-') << "´" << std::endl;
 }
 
 void heap::print_status(std::ostream &out) const

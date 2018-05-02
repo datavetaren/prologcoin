@@ -31,6 +31,15 @@ SRC := $(ROOT)/src
 OUT := $(ROOT)/out
 BIN := $(ROOT)/bin
 
+REQ_CHECK := $(shell test -e $(BIN)/req_check.txt && echo yes)
+
+ifneq ($(REQ_CHECK), yes)
+     $(info Checking requirements...)
+     include $(ENV)/Makefile.req
+     $(shell mkdir $(BIN))
+     $(shell echo "Requirement checks passed" >$(BIN)/req_check.txt)
+endif
+
 .PHONY: clean run all test fast_test test_valgrind count
 
 #
@@ -100,7 +109,7 @@ $(GOAL) : $(BIN) $(OUT) $(OUT)/$(SUBDIR) $(OBJ_FILES)
 	@rm -f /tmp/err.log
 endif
 
-$(BIN)/%$(LIB_EXT) : $(BIN) $(BIN)/test/$(SUBDIR) $(OUT) $(OUT)/$(SUBDIR)/test $(OBJ_FILES)
+$(BIN)/%$(LIB_EXT) : $(BIN)/test/$(SUBDIR) $(OUT)/$(SUBDIR)/test $(OBJ_FILES)
 	@mkdir -p /tmp
 	@(echo $(green) $(bold) $@ $(off) $(white))
 	@$(AR) $(ARFLAGS) $(AROUT) $@ $(OBJ_FILES)

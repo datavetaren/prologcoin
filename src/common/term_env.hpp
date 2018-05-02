@@ -144,6 +144,8 @@ public:
         { T::get_heap()[index] = t; }
     inline term heap_get(size_t index)
         { return T::get_heap()[index]; }
+    inline untagged_cell heap_get_untagged(size_t index)
+        { return T::get_heap().untagged_at(index); }
 
     // Term management
     inline term new_ref()
@@ -160,6 +162,14 @@ public:
         { return T::get_heap().arg(t, index); }
     inline void set_arg(term t, size_t index, const term arg)
         { return T::get_heap().set_arg(t, index, arg); }
+    inline untagged_cell get_big(term t, size_t index) const
+        { return T::get_heap().get_big(t, index); }
+    inline void get_big(term t, boost::multiprecision::cpp_int &i) const
+        { T::get_heap().get_big(t, i); }
+    inline void set_big(term t, size_t index, const untagged_cell cell)
+        {  T::get_heap().set_big(t, index, cell); }
+    inline void set_big(term t, const boost::multiprecision::cpp_int &i)
+        { T::get_heap().set_big(t, i); }
     inline void trim_heap(size_t new_size)
         { return T::get_heap().trim(new_size); }
     inline size_t heap_size() const
@@ -178,6 +188,9 @@ public:
         { return T::get_heap().new_con0(functor); }
     inline term new_term_str(con_cell functor)
         { return T::get_heap().new_str0(functor); }
+    inline term new_big(size_t nbits)
+        { return T::get_heap().new_big(nbits); }
+
     inline void new_term_copy_cell(term t)
         { T::get_heap().new_cell0(t); }
     inline term new_term(con_cell functor, const std::vector<term> &args)

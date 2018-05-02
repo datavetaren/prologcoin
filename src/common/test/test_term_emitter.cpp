@@ -227,11 +227,64 @@ static void test_ops()
     assert( ss.str() == "- - (42*(1+2+3) mod 100)^123" );
 }
 
+static void test_bignum()
+{
+    using namespace boost::multiprecision;
+
+    header("test_bignum()");
+
+    cpp_int i("123456789123456789123456789123456789123456789123456789123456789123456789");
+
+    // Construct foo(...) with ... as a bignum
+    heap h;
+    big_cell big = h.new_big(i);
+    con_cell foo_1("foo", 1);
+    auto foo_str = h.new_str(foo_1);
+    h.set_arg(foo_str, 0, big);
+
+    // Check that it emits in base 58 if it cannot be fit within an int
+    term_ops ops;
+    std::stringstream ss;
+    term_emitter emit(ss, h, ops);
+    emit.print(foo_str);
+
+    std::string expect = "foo(58'4atLG7Hb9u2NH7HrRBedKHJ5hQ3z4QQcEWA3b8ACU)";
+    std::string actual = ss.str();
+    
+    std::cout << "Actual: " << actual << std::endl;
+    std::cout << "Expect: " << expect << std::endl;
+
+    assert(actual == expect);
+
+    // Check that a small integer is still displayed in base 10
+
+    // Construct foo(...) with ... as a bignum
+    cpp_int i2("123456789");
+    big_cell big2 = h.new_big(i2);
+    auto foo_str2 = h.new_str(foo_1);
+    h.set_arg(foo_str2, 0, big2);
+
+    // Check that it emits in base 58 if it cannot be fit within an int
+    std::stringstream ss2;
+    term_emitter emit2(ss2, h, ops);
+    emit2.print(foo_str2);
+
+    std::string expect2 = "foo(123456789)";
+    std::string actual2 = ss2.str();
+    
+    std::cout << "Actual: " << actual2 << std::endl;
+    std::cout << "Expect: " << expect2 << std::endl;
+
+    assert(actual2 == expect2);
+
+}
+
 int main(int argc, char *argv[])
 {
     test_simple_term();
     test_big_term();
     test_ops();
+    test_bignum();
 
     return 0;
 }

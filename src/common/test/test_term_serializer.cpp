@@ -18,8 +18,44 @@ static void test_term_serializer_simple()
     header( "test_term_serializer_simple()" );
 
     term_env env;
-    term t = env.parse("foo(1, bar(kallekula, [1,2,baz]), Foo, kallekula, world, test4711, Foo, Bar).");
+    term t = env.parse("foo(1, bar(kallekula, [1,2,baz]), Foo, kallekula, world, test4711, Foo, Bar, Bar, Bar, Bar).");
 
+    auto str1 = env.to_string(t);
+
+    std::cout << "WRITE TERM: " << str1 << "\n";
+
+    term_serializer ser(env);
+    term_serializer::buffer_t buf;
+    ser.write(buf, t);
+
+    ser.print_buffer(buf, buf.size());
+
+    term_env env2;
+    term_serializer ser2(env2);
+
+    term t2;
+    try {
+	t2 = ser2.read(buf);
+    } catch (serializer_exception &ex) {
+	std::cout << "EXCEPTION WHEN READING: " << ex.what() << "\n";
+	std::cout << "Here's the data...\n";
+	ser.print_buffer(buf, buf.size());
+	assert("No exception expected" == nullptr);
+    }
+    auto str2 = env2.to_string(t2);
+
+    std::cout << "READ TERM:  " << str2 << "\n";
+    
+    assert(str1 == str2);
+}
+
+
+static void test_term_serializer_bignum()
+{
+    header( "test_term_serializer_bignum()" );
+
+    term_env env;
+    term t = env.parse("foo(1, bar(58'4atLG7Hb9u2NH7HrRBedKHJ5hQ3z4QQcEWA3b8ACU), baz(16'110022003300440055006600770088009900AA00BB00CC00DD00EE00FF), Var).");
     auto str1 = env.to_string(t);
 
     std::cout << "WRITE TERM: " << str1 << "\n";
@@ -218,12 +254,42 @@ static void test_term_serializer_exceptions()
 					  },
 					 "Cyclic reference for 4:REF");
 
+    test_term_serializer::test_exception("BIGNUM1",
+					 {con_cell("ver1",0),
+					  con_cell("remap",0),
+					  con_cell("pamer",0),
+				 	  big_cell(4),
+					  ref_cell(3)
+					  },
+					 "Illegal data 3:REF");
+
+
+    test_term_serializer::test_exception("BIGNUM2",
+					 {con_cell("ver1",0),
+					  con_cell("remap",0),
+					  con_cell("pamer",0),
+				 	  big_cell(4),
+					  dat_cell(0)
+					  },
+					 "is too small");
+
+    test_term_serializer::test_exception("BIGNUM3",
+					 {con_cell("ver1",0),
+					  con_cell("remap",0),
+					  con_cell("pamer",0),
+				 	  big_cell(4),
+				 	  dat_cell(256),
+					  int_cell(0)
+					  },
+					 "exceeds length of serialized data");
+
 
 }
 
 int main( int argc, char *argv[] )
 {
     test_term_serializer_simple();
+    test_term_serializer_bignum();
     test_term_serializer_exceptions();
 
     return 0;

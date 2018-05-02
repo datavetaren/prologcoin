@@ -206,6 +206,32 @@ static void test_copy_term()
     assert( s1 == s2 );
 }
 
+static void test_copy_term_bignum()
+{
+    header( "test_copy_term_bignum()" );
+
+    term_env env;
+
+    std::string s = "foo(16'102030405060708090A0B0C0D0E0f0).";
+    auto t1 = env.parse(s);
+
+    std::cout << "Copy term: " << env.to_string(t1) << std::endl;
+
+    uint64_t cost = 0;
+    auto t2 = env.copy(t1, cost);
+
+    std::cout << "Copied   : " << env.to_string(t2) << std::endl;
+
+    assert( env.to_string(t1) == env.to_string(t2) );
+
+    term_env env2;
+    auto t3 = env2.copy(t1, env, cost);
+
+    std::cout << "Copied 2 : " << env2.to_string(t3) << std::endl;
+
+    assert( env.to_string(t1) == env2.to_string(t3));
+}
+
 static void test_dfs_iterator()
 {
     header( "test_dfs_iterator()" );
@@ -303,6 +329,7 @@ int main( int argc, char *argv[] )
     test_failed_unification();
     test_unify_append();
     test_copy_term();
+    test_copy_term_bignum();
     test_dfs_iterator();
     test_copy_term_heaps();
     test_list_string();

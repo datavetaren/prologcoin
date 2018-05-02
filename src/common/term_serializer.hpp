@@ -88,6 +88,17 @@ public:
 			     + boost::lexical_cast<std::string>(s_offset)) {}
 };
 
+class serializer_exception_illegal_dat : public serializer_exception
+{
+public:
+    serializer_exception_illegal_dat(const cell d, size_t d_offset,
+				     const cell s, size_t s_offset) :
+	serializer_exception("Illegal data " + d.str() + " at offset "
+			     + boost::lexical_cast<std::string>(d_offset)
+			     + " for " + s.str() + " at offset "
+			     + boost::lexical_cast<std::string>(s_offset)) {}
+};
+
 class serializer_exception_missing_argument : public serializer_exception
 {
 public:
@@ -99,6 +110,28 @@ public:
 			     + " due to " + s.str() + " at offset "
 			     + boost::lexical_cast<std::string>(s_offset)) { }
 
+};
+
+class serializer_exception_dat_too_small : public serializer_exception
+{
+public:
+    serializer_exception_dat_too_small(const cell d, size_t d_offset) :
+	serializer_exception("DAT cell " + d.str() + " at offset "
+			     + boost::lexical_cast<std::string>(d_offset)
+			     + " is too small. Minimum is 1.") { }
+};
+
+
+class serializer_exception_dat_too_big : public serializer_exception
+{
+public:
+    serializer_exception_dat_too_big(const cell d, size_t d_offset, size_t n_bytes) :
+	serializer_exception("DAT cell " + d.str() + " at offset "
+			     + boost::lexical_cast<std::string>(d_offset)
+			     + " has a size that exceeds length of "
+			       "serialized data (max "
+			     + boost::lexical_cast<std::string>(n_bytes)
+			     + " bytes)") { }
 };
 
 class serializer_exception_erroneous_argument : public serializer_exception
@@ -185,7 +218,7 @@ public:
     term read(const buffer_t &bytes);
     term read(const buffer_t &bytes, size_t n);
 
-    void print_buffer(buffer_t &bytes, size_t n);
+    void print_buffer(const buffer_t &bytes, size_t n);
 
     static inline cell read_cell(const buffer_t &bytes, size_t from_offset, const std::string &context)
         { cell::value_t raw_value = 0;
@@ -199,7 +232,7 @@ public:
 	  return cell(raw_value);
 	}
 
-    static inline void write_cell(buffer_t &bytes, size_t offset, const cell c)
+    static inline void write_cell(buffer_t &bytes, size_t offset, const untagged_cell c)
         { auto v = c.raw_value();
 	  if (offset == bytes.size()) {
 	      bytes.resize(offset+8);
@@ -239,12 +272,14 @@ private:
         { write_cell(bytes, offset, remapped_term(c, cell_count(offset))); }
 
     void write_str_cell(buffer_t &bytes, size_t offset, const str_cell c);
+    void write_big_cell(buffer_t &bytes, size_t offset, const big_cell c);
 
     inline bool is_indexed(const term t)
         { return term_index_.is_indexed(t); }
     inline term remapped_term(const term t, size_t cell_index)
         { switch (t.tag()) {
 	    case tag_t::REF:
+	    case tag_t::BIG:
 	    case tag_t::STR: {
 		return ptr_cell(t.tag(), index_term(t, cell_index));
 		}

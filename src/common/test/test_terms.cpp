@@ -108,6 +108,14 @@ static void test_heap_simple()
     h.set_arg(cp, 1, int_cell(4711));
     h.set_arg(cp, 2, con_cell("bar",0));
 
+    auto big = h.new_big( 256 ); // 256 bits
+    boost::multiprecision::cpp_int val("123456789123456789123456789123456789123456789123456789123456789123456789");
+    h.set_big(big, val);
+
+    auto big2 = h.new_big( 128 ); // 128 bits
+    boost::multiprecision::cpp_int val2("12345678912345678912345678912345");
+    h.set_big(big2, val2);
+
     h.print(std::cout);
     h.print_status(std::cout);
 
@@ -126,6 +134,34 @@ static void test_term_ops()
     ops.print(std::cout);
 }
 
+static void test_term_big()
+{
+    header( "test_term_big()" );
+
+    heap h;
+    cell big = h.new_big( 256 );
+    std::string val10 = "123456789123456789123456789123456789123456789123456789123456789123456789";
+    std::string val16 = "11E3444E07186473F6C29BFB5CD699549E6C50200673C72870B684045F15";
+    std::string val58 = "4atLG7Hb9u2NH7HrRBedKHJ5hQ3z4QQcEWA3b8ACU";
+
+    boost::multiprecision::cpp_int val(val10);
+    h.set_big(big, val);
+
+    std::string val10_cmp = h.big_to_string(big, 10);
+    std::cout << "Actual: " << val10_cmp << std::endl;
+    std::cout << "Expect: " << val10 << std::endl;
+    assert(val10 == val10_cmp);
+
+    std::string val16_cmp = h.big_to_string(big, 16);
+    std::cout << "Actual: " << val16_cmp << std::endl;
+    std::cout << "Expect: " << val16 << std::endl;
+    assert(val16 == val16_cmp);
+
+    std::string val58_cmp = h.big_to_string(big, 58);
+    std::cout << "Actual: " << val58_cmp << std::endl;
+    std::cout << "Expect: " << val58 << std::endl;
+    assert(val58 == val58_cmp);
+}
 
 int main(int argc, char *argv[])
 {
@@ -136,6 +172,8 @@ int main(int argc, char *argv[])
     test_heap_simple();
 
     test_term_ops();
+
+    test_term_big();
 
     return 0;
 }

@@ -14,6 +14,7 @@
 
 #include <boost/noncopyable.hpp>
 #include <iostream>
+#include <boost/multiprecision/cpp_int.hpp>
 
 // #define DEBUG_TERM
 
@@ -71,17 +72,6 @@
 // (An excellent book in my opinion that tells how you can compile
 //  Prolog programs into an efficient representation.)
 //
-// In Prologcoin we have a (supposed) common heap among all nodes
-// in the system. However, when we send a term from one node to
-// another, some parts may refer to the common heap whereas other
-// parts don't yet have definitive addresses. Once the term is
-// committed to the (common) heap, these addresses will be definitive.
-// Therefore, we need tentitive (relative) addresses for some cells.
-//
-// We use a separate tag GBL as a "REF cell" referring to the global heap.
-// This makes unification (among other things) slightly more complicated
-// but I like the clear distinction between local heaps and global heaps.
-//
 
 namespace prologcoin { namespace common {
 
@@ -96,7 +86,7 @@ class heap;
 //
 class tag_t {
 public:
-    enum kind_t { REF = 0, INT = 1, BIG = 2, CON = 3, STR = 4 };
+    enum kind_t { REF = 0, INT = 1, BIG = 2, CON = 3, STR = 4, DAT = 5 };
 
     inline tag_t( kind_t k ) : kind_(k) { }
 
@@ -117,6 +107,7 @@ public:
 	case STR: return "STR";
 	case INT: return "INT";
 	case BIG: return "BIG";
+	case DAT: return "DAT";
 	default : return "???";
 	}
     }
@@ -136,53 +127,137 @@ template<> struct enum_to_cell_type<tag_t::REF> {
 //
 // cell
 //
-class cell {
+class untagged_cell {
 public:
+    static const size_t CELL_NUM_BITS = 64;
+
     typedef uint64_t value_t;
 
-    static const int TAG_SIZE_BITS = 3;
-
-    inline cell(const heap &, const cell other) : raw_value_(other.raw_value_) { }
-
-    inline cell() : raw_value_(0) { }
-
-    inline cell(value_t raw_value) : raw_value_(raw_value) { }
-
-    inline cell(tag_t t) : raw_value_(static_cast<value_t>(t) & 0x7) { }
-
-    inline cell(tag_t t, value_t v)
-                        : raw_value_((static_cast<value_t>(t) & 0x7) |
-				     (v << 3)) { }
-
-    inline cell(const cell &other) : raw_value_(other.raw_value_) { }
-
-    inline tag_t tag() const { return tag_t(static_cast<tag_t::kind_t>(raw_value_&0x7));}
-
+    inline untagged_cell(const untagged_cell &other) : raw_value_(other.raw_value_) { }
+    inline untagged_cell(value_t raw_value) : raw_value_(raw_value) { }
 
     inline value_t raw_value() const { return raw_value_; }
 
-    inline value_t value() const { return raw_value_ >> 3; }
+    // inline operator value_t () const { return raw_value_; }
 
-    inline void set_value(value_t v) { raw_value_ = (v << 3) | (raw_value_ & 0x7); }
+    // inline operator value_t & () { return raw_value_; }
 
-    inline int64_t value_signed() const { return static_cast<int64_t>(raw_value_) >> 3; }
+protected:
+    inline void set_raw_value(value_t v) { raw_value_ = v; }
+
+private:
+    value_t raw_value_;
+};
+
+class untagged_half_cell {
+public:
+    static const size_t CELL_NUM_BITS_HALF = untagged_cell::CELL_NUM_BITS / 2;
+    typedef uint32_t value_t;
+    typedef value_t type;
+
+private:
+    inline void set_upper(value_t v)
+    { *cell_ = (cell_->raw_value() & static_cast<value_t>(-1)) |
+	      static_cast<untagged_cell::value_t>(v) << CELL_NUM_BITS_HALF;
+    }
+
+    inline value_t upper() const {
+	return static_cast<value_t>((cell_->raw_value() >> CELL_NUM_BITS_HALF));
+    }
+    
+    inline void set_lower(value_t v)
+    { *cell_ = (cell_->raw_value() & (static_cast<untagged_cell::value_t>(static_cast<value_t>(-1)) << CELL_NUM_BITS_HALF)) | v;
+    }
+
+    inline value_t lower() const {
+	return static_cast<value_t>(cell_->raw_value());
+    }
+
+public:
+    inline untagged_half_cell(untagged_cell &c, bool upper) :
+	cell_(&c), upper_(upper) { }
+
+    inline void set_cell(untagged_cell &c, bool upper) {
+	cell_ = &c;
+	upper_ = upper;
+    }
+
+    inline void operator >>= (size_t n)
+    { if (upper_) {
+	   set_upper(upper() >> n);
+      } else {
+	   set_lower(lower() >> n);
+      }
+    }
+
+    inline void operator = (value_t v)
+    { if (upper_) {
+	  set_upper(v);
+      } else {
+	  set_lower(v);
+      }
+    }
+
+    inline operator value_t () const
+    { return upper_ ? upper() : lower(); }
+
+    untagged_cell *cell_;
+    bool upper_;
+};
+
+}}
+
+namespace boost {
+    template<> struct make_unsigned<prologcoin::common::untagged_half_cell> {
+	typedef prologcoin::common::untagged_half_cell type;
+    };
+}
+
+namespace prologcoin { namespace common {
+
+class cell : public untagged_cell {
+public:
+    static const int TAG_SIZE_BITS = 3;
+
+    inline cell(const heap &, const cell other) : untagged_cell(other.raw_value()) { }
+
+    inline cell() : untagged_cell(0) { }
+
+    inline cell(value_t raw_value) : untagged_cell(raw_value) { }
+
+    inline cell(tag_t t) : untagged_cell(static_cast<value_t>(t) & 0x7) { }
+
+    inline cell(tag_t t, value_t v)
+                        : untagged_cell((static_cast<value_t>(t) & 0x7) |
+				     (v << 3)) { }
+
+    inline cell(const cell &other) : untagged_cell(other) { }
+
+    inline tag_t tag() const { return tag_t(static_cast<tag_t::kind_t>(raw_value()&0x7));}
+
+    // inline operator value_t () { return raw_value() >> 3; }
+
+    inline value_t value() const { return raw_value() >> 3; }
+
+    inline void set_value(value_t v) { set_raw_value((v << 3) | (raw_value() & 0x7)); }
+
+    inline int64_t value_signed() const { return static_cast<int64_t>(raw_value()) >> 3; }
 
     inline bool operator == (const cell other) const { return raw_value() == other.raw_value(); }
     inline bool operator != (const cell other) const { return raw_value() != other.raw_value(); }
 
-    inline operator bool () const { return raw_value_ != 0; }
+    inline operator bool () const { return raw_value() != 0; }
 
     std::string str() const;
     std::string inner_str() const;
     std::string boxed_str() const;
+    std::string boxed_str_dat() const;
 
     std::string hex_str() const;
+    std::string hex_str0() const;
 
 protected:
-    static std::string hex_str(uint64_t value);
-
-private:
-    value_t raw_value_;
+    static std::string hex_str(uint64_t value, bool skip_leading_0s = true);
 };
 
 typedef cell term;
@@ -198,8 +273,8 @@ public:
 
 class heap_index_out_of_range_exception : public term_exception {
 public:
-    heap_index_out_of_range_exception(size_t index, size_t max)
-	: term_exception( std::string("Heap index ") + boost::lexical_cast<std::string>(index) + " exceeded " + boost::lexical_cast<std::string>(max)) { }
+    heap_index_out_of_range_exception(size_t index, size_t max_sz)
+	: term_exception( std::string("Heap index ") + boost::lexical_cast<std::string>(index) + " exceeded " + boost::lexical_cast<std::string>(max_sz-1)) { }
 };
 
 class expected_con_cell_exception : public term_exception {
@@ -354,6 +429,9 @@ private:
 	return int_cell(f((T)a,(T)b));
     }
 
+protected:
+    inline int_cell(tag_t t, int64_t val) : cell(t, val) { }
+
 public:
     inline int_cell(size_t val) : cell(tag_t::INT, val) { }
     inline int_cell(int64_t val) : cell(tag_t::INT, val) { }
@@ -436,12 +514,12 @@ public:
 	return value() <= other.value();
     }
 
-    static inline int_cell max() {
+    static inline const int_cell max() {
 	static const int_cell max_ = int_cell(std::numeric_limits<int64_t>::max() >> cell::TAG_SIZE_BITS);
 	return max_;
     }
 
-    static inline int_cell min() {
+    static inline const int_cell min() {
 	static const int_cell min_ = int_cell(std::numeric_limits<int64_t>::min() >> cell::TAG_SIZE_BITS);
 	return min_;
     }
@@ -480,6 +558,115 @@ public:
     inline big_cell(size_t index) : ptr_cell(tag_t::BIG, index) { }
 };
 
+class dat_cell : public int_cell {
+public:
+    static const size_t CELL_NUM_BITS_HALF = CELL_NUM_BITS / 2;
+
+    // Lower 4 bytes (half cell) = number of bits
+    // Upper 4 bytes (half cell) = binary data
+    inline dat_cell(size_t num_bits)
+        : int_cell(tag_t::DAT, static_cast<int64_t>(num_bits)) { }
+
+    inline size_t num_bits() const
+    { auto mask = (static_cast<untagged_half_cell::value_t>(1) << (CELL_NUM_BITS_HALF - TAG_SIZE_BITS)) - 1;
+      return value() & mask;
+    }
+
+    // [32] means reserved for 32 bits storing size.
+    //
+    // 288 bits = 5 cells (fits within [32] + 32 + 64 + 64 + 64 + 64)
+    // 256 bits = 5 cells (fits within [32] + 32 + 64 + 64 + 64 + 32)
+    // 224 bits = 4 cells (fits within [32] + 32 + 64 + 64 + 64)
+    //
+    // This means that 33 bytes (typical bitcoin private key, 32 bytes
+    // + 1 byte for meta data = 264 bits) can be stored within 5 cells.
+    // (6 cells if you count the BIG reference.)
+    //
+    // Not optimal, but it is convenient to have everything represented
+    // as terms.
+    //
+    inline size_t num_half_cells() const
+    { return (num_bits() + CELL_NUM_BITS_HALF - 1) / CELL_NUM_BITS_HALF; }
+
+    inline size_t num_cells() const
+    { return (num_half_cells() + 1) / 2 + 1; }
+
+    std::string inner_str() const;    
+};
+
+class big_header : public dat_cell {
+public:
+    inline big_header(size_t num_bits) : dat_cell(num_bits) { }
+};
+
+template<typename T> class big_iterator_base : public T {
+public:
+    big_iterator_base(heap &h, size_t index, size_t num);
+    big_iterator_base(heap &h, size_t index, size_t num, bool);
+    big_iterator_base(const big_iterator_base<T> &other);
+    big_iterator_base<T> & operator ++();
+
+    inline int operator - (const big_iterator_base<T> &other) const
+    { return i_ - other.i_; }
+
+    inline bool operator == (const big_iterator_base<T> &other) const {
+	return i_ == other.i_;
+    }
+    inline bool operator != (const big_iterator_base<T> &other) const {
+	return ! operator == (other);
+    }
+    
+protected:
+    heap &heap_;
+    size_t index_;
+    int i_;
+    int end_;
+    untagged_half_cell half_cell_;
+};
+
+class big_iterator : public big_iterator_base<std::iterator<std::random_access_iterator_tag, untagged_half_cell> > {
+    using it = std::iterator<std::random_access_iterator_tag, untagged_half_cell>;
+public:
+    inline big_iterator(heap &h, size_t index, size_t num) : big_iterator_base<it>(h, index, num) { }
+    inline big_iterator(heap &h, size_t index, size_t num, bool b) : big_iterator_base<it>(h, index, num, b) { }
+    inline big_iterator(const big_iterator &other) : big_iterator_base<it>(other) { }
+
+    untagged_half_cell & operator * ();
+};
+
+class const_big_iterator : public big_iterator_base<std::iterator<std::random_access_iterator_tag, untagged_half_cell> > {
+    using it = std::iterator<std::random_access_iterator_tag, untagged_half_cell>;
+public:
+    inline const_big_iterator(const heap &h, size_t index, size_t num) : big_iterator_base<it>(const_cast<heap &>(h), index, num) { }
+    inline const_big_iterator(const heap &h, size_t index, size_t num, bool b) : big_iterator_base<it>(const_cast<heap &>(h), index, num, b) { }
+    inline const_big_iterator(const big_iterator &other) : big_iterator_base<it>(other) { }
+
+    const untagged_half_cell & operator * () const;
+};
+
+class big_inserter {
+public:
+    big_inserter(heap &heap, big_cell big);
+
+    /*
+    inline void push_back(untagged_half_cell::value_t val) {
+	*it_ = val;
+	++it_;
+    }
+    */
+
+    inline untagged_half_cell & operator *() {
+	return *it_;
+    }
+
+    inline void operator ++ () {
+	++it_;
+    }
+
+private:
+    big_iterator it_;
+};
+ 
 //
 // heap_block
 //
@@ -669,6 +856,14 @@ public:
 
     inline const cell & operator [] (size_t addr) const
     {
+	return get(addr);
+    }
+
+    inline untagged_cell & untagged_at(size_t addr) {
+	return (*this)[addr];
+    }
+
+    inline const untagged_cell & untagged_at(size_t addr) const {
 	return get(addr);
     }
 
@@ -886,6 +1081,125 @@ public:
 	return str_cell(index+1);
     }
 
+    inline size_t num_bits(const big_cell &big) const {
+	auto &hdr = reinterpret_cast<const big_header &>(get(big.index()));
+	return hdr.num_bits();
+    }
+
+    inline size_t num_cells(const big_cell &big) const {
+	auto &hdr = reinterpret_cast<const big_header &>(get(big.index()));
+	return hdr.num_cells();
+    }
+
+    inline size_t num_half_cells(const big_cell &big) const {
+	auto &hdr = reinterpret_cast<const big_header &>(get(big.index()));
+	return hdr.num_half_cells();
+    }
+
+    inline big_iterator begin(const big_cell &big) {
+	auto dc = deref(big);
+	big_cell &b = reinterpret_cast<big_cell &>(dc);
+	size_t n = num_half_cells(b);
+	return big_iterator(*this, b.index(), n);
+    }
+
+    inline big_iterator end(const big_cell &big) {
+	auto dc = deref(big);
+	big_cell &b = reinterpret_cast<big_cell &>(dc);
+	size_t n = num_half_cells(b);
+	return big_iterator(*this, b.index(), n, true);
+    }
+
+    inline const_big_iterator begin(const big_cell &big) const {
+	auto dc = deref(big);
+	big_cell &b = reinterpret_cast<big_cell &>(dc);
+	size_t n = num_half_cells(b);
+	return const_big_iterator(*this, b.index(), n);
+    }
+
+    inline const_big_iterator end(const big_cell &big) const {
+	auto dc = deref(big);
+	big_cell &b = reinterpret_cast<big_cell &>(dc);
+	size_t n = num_half_cells(b);
+	return const_big_iterator(*this, b.index(), n, true);
+    }
+
+    inline big_cell new_big(const boost::multiprecision::cpp_int &i)
+    {
+	using namespace boost::multiprecision;
+	size_t nbits = i ? msb(i)+1 : 1;
+	nbits = ((nbits + untagged_half_cell::CELL_NUM_BITS_HALF - 1) /
+		        untagged_half_cell::CELL_NUM_BITS_HALF)
+	            * untagged_half_cell::CELL_NUM_BITS_HALF;
+	big_cell big = new_big(nbits);
+	set_big(big, i);
+	return big;
+    }
+
+    inline big_cell new_big(size_t num_bits)
+    {
+	auto num_cells = (((num_bits + untagged_half_cell::CELL_NUM_BITS_HALF - 1)
+			   / untagged_half_cell::CELL_NUM_BITS_HALF) + 2) / 2;
+	big_header header(num_bits);
+
+	cell *p;
+	size_t index;
+	size_t n = num_cells;
+	ensure_allocate(n+1);
+	std::tie(p, index) = allocate(tag_t::BIG, n+1);
+	static_cast<big_cell &>(*p).set_index(index+1);
+	p[1] = header;
+	// 0 the data to ensure a consistent state (across all platforms)
+	memset(&p[2], 0, sizeof(cell)*(n-1));
+	return big_cell(index+1);
+    }
+
+    inline untagged_cell get_big(cell big, size_t index) const
+    {
+	auto dc = deref(big);
+	const big_cell &b = static_cast<const big_cell &>(dc);
+	check_index(b.index()+index);
+	return untagged_at(b.index()+index);
+    }
+
+    inline void set_big(cell big, size_t index, untagged_cell value)
+    {
+	auto dc = deref(big);
+	big_cell &b = static_cast<big_cell &>(dc);
+	check_index(b.index()+index);
+	untagged_at(b.index()+index) = value;
+    }
+
+    std::string big_to_string(cell big, size_t base) const;
+
+    inline size_t num_cells(const boost::multiprecision::cpp_int &i)
+    {
+	using namespace boost::multiprecision;
+	return (msb(i) + untagged_cell::CELL_NUM_BITS) /
+	    untagged_cell::CELL_NUM_BITS;
+    }
+
+    inline void set_big(cell big, const boost::multiprecision::cpp_int &i)
+    {
+	using namespace boost::multiprecision;
+
+	cell dc = deref(big);
+	big_cell &b = reinterpret_cast<big_cell &>(dc);
+	big_inserter bi(*this, b);
+	export_bits(i, bi, untagged_half_cell::CELL_NUM_BITS_HALF);
+    }
+
+    inline void get_big(cell big, boost::multiprecision::cpp_int &i) const
+    {
+	using namespace boost::multiprecision;
+	
+	cell dc = deref(big);
+	auto &b = reinterpret_cast<const big_cell &>(dc);
+	// auto &hdr = reinterpret_cast<const big_header &>(get(b.index()));
+	// bit_set(i, hdr.num_bits()-1);
+	import_bits(i, begin(b), end(b), untagged_half_cell::CELL_NUM_BITS_HALF);
+    }
+    
     inline void new_cell0(cell c)
     {
         cell *p;
@@ -1073,6 +1387,49 @@ private:
     template<typename T> friend class ext;
 };
 
+template<typename T> inline big_iterator_base<T>::big_iterator_base(heap &h, size_t index, size_t num) 
+ : heap_(h),
+   index_(index),
+   i_(0),
+   end_(num),
+   half_cell_(h.untagged_at(index), true) { }
+
+template<typename T> inline big_iterator_base<T>::big_iterator_base(heap &h, size_t index, size_t num, bool b)
+ : heap_(h),
+   index_(index),
+   i_(num),
+   end_(num),
+   half_cell_(h.untagged_at(index), true) { }
+
+template<typename T> inline big_iterator_base<T>::big_iterator_base(const big_iterator_base<T> &it)
+ : heap_(it.heap_),
+   index_(it.index_),
+   i_(it.i_),
+   end_(it.end_),
+   half_cell_(it.half_cell_) { }
+
+template<typename T> inline big_iterator_base<T> & big_iterator_base<T>::operator ++()
+{
+    i_++;
+    half_cell_.set_cell(heap_.untagged_at(index_+(i_+1)/2), (i_ % 2) != 0);
+    return *this;
+}
+
+inline untagged_half_cell & big_iterator::operator * ()
+{
+    return half_cell_;
+}
+
+inline const untagged_half_cell & const_big_iterator::operator * () const
+{
+    return half_cell_;
+}
+
+inline big_inserter::big_inserter(heap &h, big_cell big) :
+    it_(h.begin(big))
+{
+}
+
 //
 //  register and unregister for ref.
 //
@@ -1134,6 +1491,12 @@ template<typename T> ext<T>::operator const T & () const
 
 } }
 
+namespace boost {
+    template<> struct make_unsigned<prologcoin::common::untagged_cell> {
+	typedef prologcoin::common::untagged_cell::value_t type;
+    };
+}
+
 namespace std {
     template<> struct hash<prologcoin::common::cell> {
         size_t operator()(const prologcoin::common::cell k) const {
@@ -1169,7 +1532,6 @@ namespace std {
 #endif
 
 }
-
 
 #endif
 

@@ -1,0 +1,98 @@
+#
+# Requirements checking
+# (Most people use ./configure, but I felt that in practice
+#  you don't need a complicated requirements checker. A simple one should
+#  suffice.)
+
+#
+# BASE REQUIREMENTS
+#
+BOOST_REQ := 106600
+BOOST_REQ_STR := 1_66
+
+#
+# My error function
+#
+
+define err
+    $(info ERROR $(1))
+    $(info Requirements:
+           1. sed command
+           2. g++ with C++11 support
+           3. pthread support
+           4. Boost version $(BOOST_REQ_STR) or later
+           5. libsecp256k1-zkp (git clone https://github.com/datavetaren/secp256k1-zkp) )
+    $(error requirements check failed)
+endef
+
+#
+# Check existance of SED
+#
+CHECK_SED := $(shell command 2>&1 echo "foo" | sed 2>&1 ; echo "exit is $$?")
+
+ifeq "$(findstring foo exit is 0, $(CHECK_SED))" ""
+      $(call err, Could not run sed. Please check environment.)
+endif
+
+
+#
+# Check existance of GCC (G++)
+#
+
+CHECK_GCC := $(shell command 2>&1 g++ >/dev/null --version ; echo "exit is $$?")
+
+ifneq "$(findstring not found, $(CHECK_GCC))" ""
+    $(call err, Could not run g++. Please install g++.)
+endif
+
+ifeq "$(findstring exit is 0, $(CHECK_GCC))" ""
+    $(call err, Error while running g++ --version. Check installation.)
+endif
+
+#
+# Check g++ support for c++11
+#
+
+CHECK_C11 := $(shell echo "int main(int argc, char *argv[]) { auto x = 0; return x; }" >/tmp/check_c11.cpp; g++ -std=c++11 2>&1 /tmp/check_c11.cpp -o /tmp/c11_check.out)
+
+ifneq "$(CHECK_C11)" ""
+   $(call err, Error while checking support for C++11 for g++. Please check installation.)
+endif
+
+#
+# Check for pthread
+#
+
+CHECK_PTHREAD := $(shell echo "\#include <pthread.h>\nint main(int argc, char *argv[]) { (void)pthread_self(); return 0; }" >/tmp/check_pthread.cpp; g++ -std=c++11 -lpthread 2>&1 /tmp/check_pthread.cpp -o /tmp/check_phtread.out)
+
+ifneq "$(CHECK_PTHREAD)" ""
+   $(call err, Error while checking pthread. Please check if pthread.h is available and link against it.)
+endif
+
+#
+# Check for BOOST
+#
+
+CHECK_BOOST := $(shell echo "\#include <boost/version.hpp>\nint main(int argc, char *argv[]) { return 0; }" >/tmp/check_boost.cpp; g++ -std=c++11 2>&1 /tmp/check_boost.cpp -o /tmp/check_boost.out)
+
+ifneq "$(CHECK_BOOST)" ""
+   $(call err, Couldn't find BOOST. Please download and install BOOST v$(BOOST_REQ_STR) or later.)
+endif
+
+CHECK_BOOST_VERSION := $(shell echo "\#include <stdio.h>\n\#include <boost/version.hpp>\nint main(int argc, char *argv[]) { printf(\"version %s\", BOOST_LIB_VERSION); return !(BOOST_VERSION >= $(BOOST_REQ)); }" >/tmp/check_boost_ver.cpp; g++ -std=c++11 2>&1 /tmp/check_boost_ver.cpp -o /tmp/check_boost_ver.out; /tmp/check_boost_ver.out; echo exit is $$?)
+
+ifeq "$(findstring exit is 0, $(CHECK_BOOST_VERSION))" ""
+   FOUND_VER := $(shell echo $(CHECK_BOOST_VERSION) | sed -n 's/.*version \([[:digit:]]*_[[:digit:]]*\).*/\1/p')
+   $(call err, BOOST version $(FOUND_VER) was found but version $(BOOST_REQ_STR) is required)
+endif
+
+#
+# Check for libsecp256k1-zkp
+# [Not yet activated]
+#
+
+#CHECK_SECP256K1 := $(shell echo "\#include <secp256k1.h>\nint main(int argc, char *argv[]) { return 0; }" >/tmp/check_secp256k1.cpp; g++ -std=c++11 2>&1 /tmp/check_secp256k1.cpp -o /tmp/check_secp256k1.out; /tmp/check_secp256k1.out; echo exit is $$?)
+#
+#ifeq "$(findstring exit is 0, $(CHECK_SECP256K1))" ""
+#   $(call err, Couldn't find secp256k1. Please download and install.)
+#endif

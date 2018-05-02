@@ -402,7 +402,7 @@ int term_utils::standard_order(term a, term b, uint64_t &cost)
 term term_utils::copy(term c, naming_map &names,
 		      heap &src, naming_map &src_names, uint64_t &cost)
 {
-    std::unordered_map<term, term> var_map;
+    std::unordered_map<term, term> term_map;
     std::unordered_map<con_cell, con_cell> con_map;
 
     size_t current_stack = stack_size();
@@ -417,20 +417,22 @@ term term_utils::copy(term c, naming_map &names,
 
         bool processed = pop() == int_cell(1);
         c = pop();
+
+	auto search_c = term_map.find(c);
+	if (search_c != term_map.end()) {
+	    auto new_c = search_c->second;
+	    temp_push(new_c);
+	    continue;
+	}
+
         switch (c.tag()) {
 	case tag_t::REF:
 	  {
-	    cell v;
-	    auto search = var_map.find(c);
-	    if (search == var_map.end()) {
-	        v = new_ref();
-		var_map[c] = v;
-		auto vn = src_names.find(c);
-		if (vn != src_names.end()) {
-		    names[v] = vn->second;
-		}
-	    } else {
-  	        v = search->second;
+	    cell v = new_ref();
+	    term_map[c] = v;
+	    auto vn = src_names.find(c);
+	    if (vn != src_names.end()) {
+		names[v] = vn->second;
 	    }
 	    temp_push(v);
 	  }
@@ -458,7 +460,8 @@ term term_utils::copy(term c, naming_map &names,
 	  break;
 
 	case tag_t::STR:
-	  { con_cell f = src.functor(c);
+	  { 
+	    con_cell f = src.functor(c);
 	    auto search_f = con_map.find(f);
 	    con_cell dst_f;
             if (search_f == con_map.end()) {
@@ -489,8 +492,21 @@ term term_utils::copy(term c, naming_map &names,
 	  }
 	  break;
 
-	// TODO: Implement hese later...
-	case tag_t::BIG: assert(false); break;
+	case tag_t::BIG: {
+	  auto &big = reinterpret_cast<big_cell &>(c);
+	  size_t index = big.index();
+	  auto datc = src[index];
+          auto &dat = reinterpret_cast<const dat_cell &>(datc);
+	  auto newbigc = new_big(dat.num_bits());
+          auto &newbig = reinterpret_cast<const big_cell &>(newbigc);
+	  auto newindex = newbig.index();
+	  size_t n = dat.num_cells();
+	  for (size_t i = 0; i < n; i++) {
+	      heap_set(newindex+i, src[index+i]);
+	  }
+	  temp_push(newbig);
+	  break;
+	  }
 	}
     }
 

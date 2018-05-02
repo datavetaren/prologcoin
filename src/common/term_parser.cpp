@@ -1,9 +1,32 @@
+#include <boost/multiprecision/cpp_int.hpp>
+#include <boost/range/adaptor/reversed.hpp>
 #include "term_env.hpp"
 #include "term_parser.hpp"
 #include "term_parser_gen.hpp"
 #include "term_emitter.hpp"
 
 namespace prologcoin { namespace common {
+
+static const int BASE_STANDARD_CONV [128] = 
+      { -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, // 00
+	-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, // 10
+	-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, // 20
+	 0,  1,  2,  3,  4,  5,  6,  7,  8,  9, -1, -1, -1, -1, -1, -1, // 30
+	-1, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, // 40
+        25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, -1, -1, -1, -1, -1, // 50
+        -1, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, // 60
+	25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, -1, -1, -1, -1, -1  // 70
+      };
+static const int BASE_58_CONV [128] =
+      { -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, // 00
+	-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, // 10
+	-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, // 20
+	-1,  0,  1,  2,  3,  4,  5,  6,  7,  8, -1, -1, -1, -1, -1, -1, // 30
+	-1,  9, 10, 11, 12, 13, 14, 15, 16, -1, 17, 18, 19, 20, 21, -1, // 40
+	22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, -1, -1, -1, -1, -1, // 50
+	-1, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, -1, 44, 45, 46, // 60
+	47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, -1, -1, -1, -1, -1  // 70
+      };
 
 //
 // This is a custom shift/reduce parser.
@@ -741,16 +764,106 @@ protected:
 
   // unsigned_number :- ...
 
+  void get_number_and_base(const std::string &str, std::string &num, int &base)
+  {
+      base = 10;
+      size_t n = str.size();
+      for (size_t i = 0; i < n; i++) {
+	  auto ch = str[i];
+	  if (ch == '\'') {
+	      try {
+		  base = boost::lexical_cast<int>(str.substr(0,i));
+	      } catch (std::runtime_error &ex) {
+		  base = -1;
+		  num = str.substr(0,i);
+		  return;
+	      }
+	      num = str.substr(i+1);
+	      return;
+	  }
+      }
+      // No quote, so it's an ordinary base 10 number
+      num = str;
+  }
+
+  static inline int get_base_digit(const char ch, int base)
+  {
+      uint8_t code = static_cast<uint8_t>(ch);
+      if (code >= 128) {
+	  return -1;
+      }
+      if (base == 58) {
+	  return BASE_58_CONV[code];
+      } else {
+	  return BASE_STANDARD_CONV[code];
+      }
+  }
+
+  static inline bool is_inside_int(const std::string &num, int base)
+  {
+      using namespace boost::multiprecision;
+
+      uint128_t current = 0;
+      for (auto ch : num) {
+	  int d = get_base_digit(ch, base);
+	  current = current*base + d;
+	  if (current > int_cell::max().value()) {
+	      return false;
+	  }
+      }
+      return true;
+  }
+
+  static inline int64_t get_int(const std::string &num, int base)
+  {
+      int64_t current = 0;
+      for (auto ch : num) {
+	  int d = get_base_digit(ch, base);
+	  current = current*base + d;
+      }
+      return current;
+  }
+
+  static inline void to_cpp_int(const std::string &num, int base,
+				boost::multiprecision::cpp_int &out)
+  {
+      out = 0;
+      for (auto ch : num) {
+	  int d = get_base_digit(ch, base);
+	  out = out*base + d;
+      }
+  }
+
   sym reduce_unsigned_number__natural_number(args_t &args)
   {
+    using namespace boost::multiprecision;
     if (check_mode_) return sym();
 
     auto &tok = args[0].token();
-    int_cell val(boost::lexical_cast<int>(tok.lexeme()));
-    if (track_positions()) {
-	return sym(val, make_pos(tok.pos(),0));
+    auto &lexeme = tok.lexeme();
+
+    int base = 0;
+    std::string number;
+
+    // Check if there's a base
+    get_number_and_base(lexeme, number, base);
+    if (is_inside_int(number, base)) {
+	int_cell val(get_int(number, base));
+	if (track_positions()) {
+	    return sym(val, make_pos(tok.pos(),0));
+	} else {
+	    return sym(val, term());
+	}
     } else {
-        return sym(val, term());
+	// Construct a bignum
+	cpp_int val;
+	to_cpp_int(number, base, val);
+	big_cell big = heap_.new_big(val);
+	if (track_positions()) {
+	    return sym(big, make_pos(tok.pos(),0));
+	} else {
+	    return sym(big, term());
+	}
     }
   }
 

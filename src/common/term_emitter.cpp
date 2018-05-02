@@ -838,6 +838,24 @@ void term_emitter::emit_int(const term_emitter::elem &e)
     emit_token(boost::lexical_cast<std::string>(i.value()));
 }
 
+void term_emitter::emit_big(const term_emitter::elem &e)
+{
+    const big_cell &b = static_cast<const big_cell &>(e.cell_);
+    std::string str;
+    size_t limit = untagged_cell::CELL_NUM_BITS;
+    if (heap_.num_bits(b) <= limit) {
+	str = heap_.big_to_string(b, 10);
+    } else {
+	// TODO: Should be controlled with an option so we can retain
+	// backward compatibility wtih Prolog. But in Prologcoin we'd
+	// like to have a compact representation of binary data.
+	// Especially if we get bitcoin compatibility for private keys.
+	str += "58'";
+	str += heap_.big_to_string(b, 58);
+    }
+    emit_token(str);
+}
+
 void term_emitter::print_from_stack(size_t top)
 {
     static const con_cell comma(",", 2);
@@ -896,6 +914,9 @@ void term_emitter::print_from_stack(size_t top)
 		break;
 	    case tag_t::REF:
 		emit_ref(e);
+		break;
+	    case tag_t::BIG:
+		emit_big(e);
 		break;
 	    }
 	}

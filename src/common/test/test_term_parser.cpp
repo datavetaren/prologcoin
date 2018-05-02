@@ -160,12 +160,51 @@ static void test_complicated_parse()
     }
 }
 
+static void test_bignum_parse()
+{
+    header( "test_bignum_parse()" );
+
+    std::string expect58 = "4atLG7Hb9u2NH7HrRBedKHJ5hQ3z4QQcEWA3b8ACU";
+
+    std::stringstream sin("foo(58'" + expect58 + ").");
+    heap h;
+    term_ops ops;
+    term_tokenizer tokenizer(sin);
+    term_parser parser(tokenizer, h, ops);
+    term result = parser.parse();
+
+    assert(result.tag() == tag_t::STR);
+    assert(h.functor(result) == con_cell("foo",1));
+    term arg = h.arg(result,0);
+    assert(arg.tag() == tag_t::BIG);
+
+    std::string actual58 = h.big_to_string(arg, 58);
+    std::cout << "Actual: " << actual58 << std::endl;
+    std::cout << "Expect: " << expect58 << std::endl;
+    assert(actual58 == expect58);
+    
+    std::string expect10 = "123456789123456789123456789123456789123456789123456789123456789123456789";
+    std::string actual10 = h.big_to_string(arg, 10);
+
+    std::cout << "Actual: " << actual10 << std::endl;
+    std::cout << "Expect: " << expect10 << std::endl;
+    assert(actual10 == expect10);
+
+    std::string expect16 = "11E3444E07186473F6C29BFB5CD699549E6C50200673C72870B684045F15";
+    std::string actual16 = h.big_to_string(arg, 16);
+    std::cout << "Actual: " << actual16 << std::endl;
+    std::cout << "Expect: " << expect16 << std::endl;
+    assert(actual16 == expect16);
+
+}
+
 int main( int argc, char *argv[] )
 {
     find_home_dir(argv[0]);   
 
     test_simple_parse();
     test_complicated_parse();
+    test_bignum_parse();
 
     return 0;
 }

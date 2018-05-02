@@ -45,7 +45,7 @@ void term_serializer::write(buffer_t &bytes, const term t)
 	    write_str_cell(bytes,offset,reinterpret_cast<const str_cell &>(t1));
 	    break;
 	case tag_t::BIG:
-	    assert("TODO: Not implemented yet" == nullptr);
+	    write_big_cell(bytes,offset,reinterpret_cast<const big_cell &>(t1));
 	    break;
 	}
     }
@@ -86,6 +86,7 @@ void term_serializer::write_all_header(buffer_t &bytes,const term t)
 	    }
 	    break;
 	    }
+	case tag_t::BIG: break;
         }
     }
     write_con_cell(bytes, bytes.size(), con_cell("pamer", 0));
@@ -110,6 +111,33 @@ void term_serializer::write_str_cell(buffer_t &bytes, size_t offset,
 	term arg = env_.arg(c, i);
 	size_t arg_offset = new_offset + i*sizeof(cell);
 	stack_.push_back(std::make_pair(arg_offset,arg));
+    }
+}
+
+void term_serializer::write_big_cell(buffer_t &bytes, size_t offset,
+				     const big_cell c)
+{
+    // If we've seen this before, then we just reuse what we have
+    if (is_indexed(c)) {
+	write_cell(bytes, offset, remapped_term(c, 0));
+	return;
+    }
+
+    // First write BIG ptr
+    write_cell(bytes, offset, remapped_term(c, cell_count(bytes)));
+    offset = bytes.size();
+
+    auto index = reinterpret_cast<const big_cell &>(c).index();
+    auto big_header = env_.heap_get(index);
+    auto dat = reinterpret_cast<const dat_cell &>(big_header);
+    auto num_dat = dat.num_cells();
+
+    // Write DAT cell followed by untagged data
+    bytes.resize(offset + sizeof(cell)*num_dat);
+    for (size_t i = 0; i < num_dat; i++) {
+	untagged_cell dc = env_.heap_get_untagged(index+i);
+	write_cell(bytes, offset, dc);
+	offset += sizeof(cell);
     }
 }
 
@@ -149,8 +177,18 @@ term term_serializer::read(const buffer_t &bytes, size_t n,
     old_header_size = old_hdr_size;
     new_header_size = new_hdr_size;
 
+    size_t num_dat = 0;
+
     while (offset < n) {
 	cell c = read_cell(bytes, offset, "reading for term construction");
+
+	// Process as untagged cells if num_dat > 0
+	if (num_dat > 0) {
+	    env_.new_cell0(c);
+	    num_dat--;
+	    offset += sizeof(cell);
+	    continue;
+	}
 
 	switch (c.tag()) {
 	case tag_t::INT: env_.new_cell0(c); break;
@@ -168,6 +206,7 @@ term term_serializer::read(const buffer_t &bytes, size_t n,
 	    }
 	    break;
    	    }
+	case tag_t::BIG:
 	case tag_t::REF:
 	case tag_t::STR: {
 	    auto &pc = reinterpret_cast<const ptr_cell&>(c);
@@ -176,7 +215,7 @@ term term_serializer::read(const buffer_t &bytes, size_t n,
 		if (!is_indexed(c)) {
 		    throw serializer_exception_missing_index(pc);
 		}
-		new_addr = ref_cell(index_term(c, 0));
+		new_addr = index_term(c, 0);
 	    } else {
 		new_addr = pc.index() - old_hdr + new_addr_base + new_hdr_size;
 	    }
@@ -185,9 +224,19 @@ term term_serializer::read(const buffer_t &bytes, size_t n,
 	    new_to_old_[new_cell] = c;
 	    break;
    	    }
-	case tag_t::BIG:
-	    assert("To be implemented" == nullptr);
+	case tag_t::DAT: {
+	    auto &dc = reinterpret_cast<const dat_cell&>(c);
+	    size_t nc = dc.num_cells();
+	    if (dc.num_bits() < 1 || dc.num_cells() == 0) {
+		throw serializer_exception_dat_too_small(c, offset);
+	    }
+	    if (offset + nc*sizeof(cell) > n) {
+		throw serializer_exception_dat_too_big(c, offset, n);
+	    }
+	    env_.new_cell0(c);
+	    num_dat = nc - 1;
 	    break;
+	    }
 	}
 	offset += sizeof(cell);
     }
@@ -331,7 +380,19 @@ void term_serializer::integrity_check(size_t heap_start, size_t heap_end,
 				compute_old_offset(heap_index));
 	}
     };
-   
+
+    auto check_bignum = [&](ptr_cell bigcell, size_t heap_index) {
+	size_t index = bigcell.index();
+	auto c = env_.heap_get(index);
+	if (c.tag() != tag_t::DAT) {
+	    throw serializer_exception_illegal_dat(
+		       compute_old_cell(c),
+		       compute_old_offset(index),
+		       compute_old_cell(bigcell), 
+		       compute_old_offset(heap_index));
+	}
+    };
+
     auto check_functor = [&](str_cell strcell, size_t heap_index) {
 	size_t index = strcell.index();
 	auto c = env_.heap_get(index);
@@ -433,6 +494,19 @@ void term_serializer::integrity_check(size_t heap_start, size_t heap_end,
 	}
 	cell c = env_.heap_get(i);
 	switch (c.tag()) {
+	case tag_t::DAT: {
+	    auto &datcell = reinterpret_cast<const dat_cell &>(c);
+	    // Skip untagged cells after DAT cell
+	    // (We've already checked the size of the DAT)
+	    i += (datcell.num_cells()-1);
+	    break;
+	    }
+	case tag_t::BIG: {
+	    auto &bigcell = reinterpret_cast<const big_cell &>(c);
+	    check_pointer(bigcell, i);
+	    check_bignum(bigcell, i);
+	    break;
+	    }
 	case tag_t::STR: {
 	    auto &strcell = reinterpret_cast<const str_cell &>(c);
 	    check_pointer(strcell, i);
@@ -449,11 +523,25 @@ void term_serializer::integrity_check(size_t heap_start, size_t heap_end,
     }
 }
 
-void term_serializer::print_buffer(buffer_t &bytes, size_t n)
+void term_serializer::print_buffer(const buffer_t &bytes, size_t n)
 {
+    size_t num_dat = 0;
     for (size_t i = 0; i < n; i += sizeof(cell::value_t)) {
 	cell c = read_cell(bytes, i, "print_buffer");
-	std::cout << "[" << std::setw(5) << cell_count(i) << "]: " << c.boxed_str() << " [offset:" << std::setw(5) << i << "]\n";
+	std::cout << "[" << std::setw(5) << cell_count(i) << "]: ";
+	if (num_dat > 0) {
+	    std::cout << c.boxed_str_dat();
+	    num_dat--;
+	} else {
+    	    std::cout << c.boxed_str();
+	    if (c.tag() == tag_t::DAT) {
+		auto &dc = reinterpret_cast<const dat_cell &>(c);
+		num_dat = dc.num_cells();
+		assert(num_dat > 0);
+		num_dat--;
+	    }
+	}
+       std::cout << " [offset:" << std::setw(5) << i << "]\n";
     }
 }
 

@@ -135,6 +135,7 @@ private:
     void push_functor_args(size_t index, size_t arity, bool with_paren);
     void emit_ref(const elem &a);
     void emit_int(const elem &a);
+    void emit_big(const elem &a);
     void increment_indent_level();
     void decrement_indent_level();
     void wrap_paren(const term_emitter::elem &e);
