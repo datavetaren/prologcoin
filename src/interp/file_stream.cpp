@@ -112,9 +112,8 @@ void file_stream::ensure_emitter()
 
     if (emitter_ == nullptr) {
 	emitter_ = new term_emitter(*out_, env_, env_);
-        emitter_->set_style(term_emitter::STYLE_TERM);
-	emitter_->set_option_quoted(false);
-	emitter_->set_option_nl(false);
+	emitter_->options().clear(emitter_option::EMIT_QUOTED);
+	emitter_->options().clear(emitter_option::EMIT_NEWLINE);
         emitter_->set_var_naming(env_.var_naming());
     }
 }

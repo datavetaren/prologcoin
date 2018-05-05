@@ -149,67 +149,85 @@ private:
     value_t raw_value_;
 };
 
-class untagged_half_cell {
+class cell_byte {
 public:
-    static const size_t CELL_NUM_BITS_HALF = untagged_cell::CELL_NUM_BITS / 2;
-    typedef uint32_t value_t;
+    typedef uint8_t value_t;
     typedef value_t type;
 
 private:
-    inline void set_upper(value_t v)
-    { *cell_ = (cell_->raw_value() & static_cast<value_t>(-1)) |
-	      static_cast<untagged_cell::value_t>(v) << CELL_NUM_BITS_HALF;
+    inline void set_byte(size_t index, value_t v)
+    { auto bit_off = untagged_cell::CELL_NUM_BITS-(8*(index+1));
+      auto bit_mask = ~(static_cast<untagged_cell::value_t>(0xff) << bit_off);
+      auto bit_val = static_cast<untagged_cell::value_t>(v) << bit_off;
+      cached_ = (cached_.raw_value() & bit_mask) | bit_val;
     }
 
-    inline value_t upper() const {
-	return static_cast<value_t>((cell_->raw_value() >> CELL_NUM_BITS_HALF));
-    }
-    
-    inline void set_lower(value_t v)
-    { *cell_ = (cell_->raw_value() & (static_cast<untagged_cell::value_t>(static_cast<value_t>(-1)) << CELL_NUM_BITS_HALF)) | v;
+    inline value_t get_byte(size_t index) const
+    { auto bit_off = untagged_cell::CELL_NUM_BITS-(8*(index+1));
+      return static_cast<value_t>(cached_.raw_value() >> bit_off);
     }
 
-    inline value_t lower() const {
-	return static_cast<value_t>(cell_->raw_value());
+    static inline untagged_cell * flush_and_invalidate(const cell_byte &cb0) {
+	cell_byte &cb = const_cast<cell_byte &>(cb0);
+	if (cb.cell_) *cb.cell_ = cb.cached_;
+	auto *r = cb.cell_;
+	cb.cell_ = nullptr;
+	return r;
     }
 
 public:
-    inline untagged_half_cell(untagged_cell &c, bool upper) :
-	cell_(&c), upper_(upper) { }
+    inline cell_byte(untagged_cell &c, size_t index) :
+	cell_(&c), index_(index), cached_(c) { }
 
-    inline void set_cell(untagged_cell &c, bool upper) {
+    inline cell_byte(const cell_byte &other)
+	: cell_(flush_and_invalidate(other)),
+	  index_(other.index_),
+	  cached_(other.cached_) { }
+
+    inline cell_byte(cell_byte &&other) :
+	cell_(flush_and_invalidate(other)),
+	index_(other.index_),
+	cached_(other.cached_) { }
+
+    inline ~cell_byte() { if (cell_) *cell_ = cached_; }
+
+    inline void operator = (const cell_byte &other) {
+	*cell_ = cached_;
+	cell_ = other.cell_;
+	index_ = other.index_;
+	cached_ = other.cached_;
+    }
+	
+    inline void operator ++ () {
+	index_++;
+    }
+
+    inline void set_address(untagged_cell &c, size_t index) {
+	if (cell_) *cell_ = cached_;
 	cell_ = &c;
-	upper_ = upper;
+	index_ = index;
+	cached_ = *cell_;
     }
 
     inline void operator >>= (size_t n)
-    { if (upper_) {
-	   set_upper(upper() >> n);
-      } else {
-	   set_lower(lower() >> n);
-      }
-    }
+    { set_byte(index_, get_byte(index_) >> n); }
 
     inline void operator = (value_t v)
-    { if (upper_) {
-	  set_upper(v);
-      } else {
-	  set_lower(v);
-      }
-    }
+    { set_byte(index_, v); }
 
     inline operator value_t () const
-    { return upper_ ? upper() : lower(); }
+    { return get_byte(index_); }
 
     untagged_cell *cell_;
-    bool upper_;
+    size_t index_;
+    untagged_cell cached_;
 };
 
 }}
 
 namespace boost {
-    template<> struct make_unsigned<prologcoin::common::untagged_half_cell> {
-	typedef prologcoin::common::untagged_half_cell type;
+    template<> struct make_unsigned<prologcoin::common::cell_byte> {
+	typedef prologcoin::common::cell_byte type;
     };
 }
 
@@ -559,8 +577,11 @@ public:
 };
 
 class dat_cell : public int_cell {
-public:
+private:
     static const size_t CELL_NUM_BITS_HALF = CELL_NUM_BITS / 2;
+
+public:
+    static const size_t CELL_NUM_BYTES_HALF = CELL_NUM_BITS / 2 / 8;
 
     // Lower 4 bytes (half cell) = number of bits
     // Upper 4 bytes (half cell) = binary data
@@ -568,7 +589,7 @@ public:
         : int_cell(tag_t::DAT, static_cast<int64_t>(num_bits)) { }
 
     inline size_t num_bits() const
-    { auto mask = (static_cast<untagged_half_cell::value_t>(1) << (CELL_NUM_BITS_HALF - TAG_SIZE_BITS)) - 1;
+    { auto mask = (static_cast<untagged_cell::value_t>(1) << (CELL_NUM_BITS_HALF - TAG_SIZE_BITS)) - 1;
       return value() & mask;
     }
 
@@ -621,41 +642,34 @@ protected:
     size_t index_;
     int i_;
     int end_;
-    untagged_half_cell half_cell_;
+    cell_byte cell_byte_;
 };
 
-class big_iterator : public big_iterator_base<std::iterator<std::random_access_iterator_tag, untagged_half_cell> > {
-    using it = std::iterator<std::random_access_iterator_tag, untagged_half_cell>;
+class big_iterator : public big_iterator_base<std::iterator<std::random_access_iterator_tag, cell_byte> > {
+    using it = std::iterator<std::random_access_iterator_tag, cell_byte>;
 public:
     inline big_iterator(heap &h, size_t index, size_t num) : big_iterator_base<it>(h, index, num) { }
     inline big_iterator(heap &h, size_t index, size_t num, bool b) : big_iterator_base<it>(h, index, num, b) { }
     inline big_iterator(const big_iterator &other) : big_iterator_base<it>(other) { }
 
-    untagged_half_cell & operator * ();
+    cell_byte & operator * ();
 };
 
-class const_big_iterator : public big_iterator_base<std::iterator<std::random_access_iterator_tag, untagged_half_cell> > {
-    using it = std::iterator<std::random_access_iterator_tag, untagged_half_cell>;
+class const_big_iterator : public big_iterator_base<std::iterator<std::random_access_iterator_tag, cell_byte> > {
+    using it = std::iterator<std::random_access_iterator_tag, cell_byte>;
 public:
     inline const_big_iterator(const heap &h, size_t index, size_t num) : big_iterator_base<it>(const_cast<heap &>(h), index, num) { }
     inline const_big_iterator(const heap &h, size_t index, size_t num, bool b) : big_iterator_base<it>(const_cast<heap &>(h), index, num, b) { }
     inline const_big_iterator(const big_iterator &other) : big_iterator_base<it>(other) { }
 
-    const untagged_half_cell & operator * () const;
+    const cell_byte & operator * () const;
 };
 
 class big_inserter {
 public:
     big_inserter(heap &heap, big_cell big);
 
-    /*
-    inline void push_back(untagged_half_cell::value_t val) {
-	*it_ = val;
-	++it_;
-    }
-    */
-
-    inline untagged_half_cell & operator *() {
+    inline cell_byte & operator *() {
 	return *it_;
     }
 
@@ -909,6 +923,29 @@ public:
 	return contain_printables;
     }
 
+    inline bool is_prefer_string(term lst) const
+    {
+	if (is_empty_list(lst)) {
+	    return false;
+	}
+        size_t printables = 0;
+	while (is_dotted_pair(lst)) {
+	    term head = arg(lst, 0);
+	    if (head.tag() != tag_t::INT) {
+		return false;
+	    }
+	    auto val = static_cast<const int_cell &>(head).value();
+	    if (val < 0 || val > 255) {
+		return false;
+	    }
+	    if (val >= ' ') {
+		printables++;
+	    }
+	    lst = arg(lst, 1);
+	}
+	return printables >= 7;
+    }
+
     inline std::string list_to_string(term lst) const
     {
 	std::string s;
@@ -1091,36 +1128,35 @@ public:
 	return hdr.num_cells();
     }
 
-    inline size_t num_half_cells(const big_cell &big) const {
-	auto &hdr = reinterpret_cast<const big_header &>(get(big.index()));
-	return hdr.num_half_cells();
-    }
-
     inline big_iterator begin(const big_cell &big) {
 	auto dc = deref(big);
 	big_cell &b = reinterpret_cast<big_cell &>(dc);
-	size_t n = num_half_cells(b);
+	auto &hdr = reinterpret_cast<const big_header &>(untagged_at(b.index()));
+	size_t n = (hdr.num_bits() + 7) / 8;
 	return big_iterator(*this, b.index(), n);
     }
 
     inline big_iterator end(const big_cell &big) {
 	auto dc = deref(big);
 	big_cell &b = reinterpret_cast<big_cell &>(dc);
-	size_t n = num_half_cells(b);
+	auto &hdr = reinterpret_cast<const big_header &>(untagged_at(b.index()));
+	size_t n = (hdr.num_bits() + 7) / 8;
 	return big_iterator(*this, b.index(), n, true);
     }
 
     inline const_big_iterator begin(const big_cell &big) const {
 	auto dc = deref(big);
 	big_cell &b = reinterpret_cast<big_cell &>(dc);
-	size_t n = num_half_cells(b);
+	auto &hdr = reinterpret_cast<const big_header &>(untagged_at(b.index()));
+	size_t n = (hdr.num_bits() + 7) / 8;
 	return const_big_iterator(*this, b.index(), n);
     }
 
     inline const_big_iterator end(const big_cell &big) const {
 	auto dc = deref(big);
 	big_cell &b = reinterpret_cast<big_cell &>(dc);
-	size_t n = num_half_cells(b);
+	auto &hdr = reinterpret_cast<const big_header &>(untagged_at(b.index()));
+	size_t n = (hdr.num_bits() + 7) / 8;
 	return const_big_iterator(*this, b.index(), n, true);
     }
 
@@ -1128,9 +1164,7 @@ public:
     {
 	using namespace boost::multiprecision;
 	size_t nbits = i ? msb(i)+1 : 1;
-	nbits = ((nbits + untagged_half_cell::CELL_NUM_BITS_HALF - 1) /
-		        untagged_half_cell::CELL_NUM_BITS_HALF)
-	            * untagged_half_cell::CELL_NUM_BITS_HALF;
+	nbits = ((nbits + 8 - 1) / 8) * 8;
 	big_cell big = new_big(nbits);
 	set_big(big, i);
 	return big;
@@ -1138,8 +1172,9 @@ public:
 
     inline big_cell new_big(size_t num_bits)
     {
-	auto num_cells = (((num_bits + untagged_half_cell::CELL_NUM_BITS_HALF - 1)
-			   / untagged_half_cell::CELL_NUM_BITS_HALF) + 2) / 2;
+	auto num_bytes = (num_bits + 7) / 8;
+	auto num_cells = (num_bytes <= 4) ? 1 : 1+(((num_bytes-4) + sizeof(cell) - 1) / sizeof(cell));
+
 	big_header header(num_bits);
 
 	cell *p;
@@ -1154,23 +1189,11 @@ public:
 	return big_cell(index+1);
     }
 
-    inline untagged_cell get_big(cell big, size_t index) const
-    {
-	auto dc = deref(big);
-	const big_cell &b = static_cast<const big_cell &>(dc);
-	check_index(b.index()+index);
-	return untagged_at(b.index()+index);
-    }
+    void get_big(cell big, uint8_t *bytes, size_t n) const;
+    void set_big(cell big, const uint8_t *bytes, size_t n);
 
-    inline void set_big(cell big, size_t index, untagged_cell value)
-    {
-	auto dc = deref(big);
-	big_cell &b = static_cast<big_cell &>(dc);
-	check_index(b.index()+index);
-	untagged_at(b.index()+index) = value;
-    }
-
-    std::string big_to_string(cell big, size_t base) const;
+    std::string big_to_string(const boost::multiprecision::cpp_int &i, size_t base) const;
+    std::string big_to_string(cell big, size_t base, bool capital = false) const;
 
     inline size_t num_cells(const boost::multiprecision::cpp_int &i)
     {
@@ -1186,7 +1209,7 @@ public:
 	cell dc = deref(big);
 	big_cell &b = reinterpret_cast<big_cell &>(dc);
 	big_inserter bi(*this, b);
-	export_bits(i, bi, untagged_half_cell::CELL_NUM_BITS_HALF);
+	export_bits(i, bi, 8);
     }
 
     inline void get_big(cell big, boost::multiprecision::cpp_int &i) const
@@ -1197,7 +1220,7 @@ public:
 	auto &b = reinterpret_cast<const big_cell &>(dc);
 	// auto &hdr = reinterpret_cast<const big_header &>(get(b.index()));
 	// bit_set(i, hdr.num_bits()-1);
-	import_bits(i, begin(b), end(b), untagged_half_cell::CELL_NUM_BITS_HALF);
+	import_bits(i, begin(b), end(b), 8);
     }
     
     inline void new_cell0(cell c)
@@ -1392,37 +1415,46 @@ template<typename T> inline big_iterator_base<T>::big_iterator_base(heap &h, siz
    index_(index),
    i_(0),
    end_(num),
-   half_cell_(h.untagged_at(index), true) { }
+   cell_byte_(h.untagged_at(index), 0) { }
 
 template<typename T> inline big_iterator_base<T>::big_iterator_base(heap &h, size_t index, size_t num, bool b)
  : heap_(h),
    index_(index),
    i_(num),
    end_(num),
-   half_cell_(h.untagged_at(index), true) { }
+   cell_byte_(h.untagged_at(index), 0) { }
 
 template<typename T> inline big_iterator_base<T>::big_iterator_base(const big_iterator_base<T> &it)
  : heap_(it.heap_),
    index_(it.index_),
    i_(it.i_),
    end_(it.end_),
-   half_cell_(it.half_cell_) { }
+   cell_byte_(it.cell_byte_) { }
 
 template<typename T> inline big_iterator_base<T> & big_iterator_base<T>::operator ++()
 {
     i_++;
-    half_cell_.set_cell(heap_.untagged_at(index_+(i_+1)/2), (i_ % 2) != 0);
+    ++cell_byte_;
+    if (i_ < dat_cell::CELL_NUM_BYTES_HALF) {
+	return *this;
+    }
+    size_t ii = i_ - dat_cell::CELL_NUM_BYTES_HALF;
+    if ((ii % sizeof(cell)) != 0) {
+	return *this;
+    }
+    size_t iic = ii / sizeof(cell) + 1;
+    cell_byte_.set_address(heap_.untagged_at(index_+iic), 0);
     return *this;
 }
 
-inline untagged_half_cell & big_iterator::operator * ()
+inline cell_byte & big_iterator::operator * ()
 {
-    return half_cell_;
+    return cell_byte_;
 }
 
-inline const untagged_half_cell & const_big_iterator::operator * () const
+inline const cell_byte & const_big_iterator::operator * () const
 {
-    return half_cell_;
+    return cell_byte_;
 }
 
 inline big_inserter::big_inserter(heap &h, big_cell big) :

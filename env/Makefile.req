@@ -6,9 +6,10 @@
 
 #
 # BASE REQUIREMENTS
+# TODO: Check if 1.49 works...
 #
-BOOST_REQ := 106600
-BOOST_REQ_STR := 1_66
+BOOST_REQ := 104900
+BOOST_REQ_STR := 1_49
 
 #
 # My error function
@@ -91,8 +92,8 @@ endif
 # [Not yet activated]
 #
 
-#CHECK_SECP256K1 := $(shell echo "\#include <secp256k1.h>\nint main(int argc, char *argv[]) { return 0; }" >/tmp/check_secp256k1.cpp; g++ -std=c++11 2>&1 /tmp/check_secp256k1.cpp -o /tmp/check_secp256k1.out; /tmp/check_secp256k1.out; echo exit is $$?)
-#
-#ifeq "$(findstring exit is 0, $(CHECK_SECP256K1))" ""
-#   $(call err, Couldn't find secp256k1. Please download and install.)
-#endif
+CHECK_SECP256K1 := $(shell echo "\#include <secp256k1.h>\nint main(int argc, char *argv[]) { return 0; }" >/tmp/check_secp256k1.cpp; g++ -std=c++11 2>&1 /tmp/check_secp256k1.cpp -o /tmp/check_secp256k1.out; /tmp/check_secp256k1.out; echo exit is $$?)
+
+ifeq "$(findstring exit is 0, $(CHECK_SECP256K1))" ""
+   $(call err, Couldn't find secp256k1. Please download and install.)
+endif

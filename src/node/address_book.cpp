@@ -326,7 +326,7 @@ std::string address_entry::str() const
     term_env env;
     std::stringstream ss;
     term_emitter emitter(ss, env);
-    emitter.set_option_nl(false);
+    emitter.options().clear(emitter_option::EMIT_NEWLINE);
     write(env, emitter);
     return ss.str();
 }
@@ -742,7 +742,7 @@ void address_book::save(const std::string &path)
     std::ofstream out(path);
     term_env env;
     term_emitter emitter(out, env);
-    emitter.set_option_nl(false);
+    emitter.options().clear(emitter_option::EMIT_NEWLINE);
     for (auto &p : id_to_entry_) {
 	auto &e = p.second;
 	e.write(env, emitter);

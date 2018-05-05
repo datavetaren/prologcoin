@@ -81,8 +81,7 @@ public:
     using interperter_base = interp::interpreter_base;
     using term = common::term;
 
-    inline local_interpreter(in_session_state &session)
-        :session_(session), initialized_(false), ignore_text_(false) { }
+    local_interpreter(in_session_state &session);
 
     void ensure_initialized();
 
@@ -95,6 +94,12 @@ public:
 
     inline const std::string & get_text_out() { return text_out_; }
     inline void reset_text_out() { text_out_.clear(); }
+
+    inline void flush_standard_output()
+    {
+	add_text(standard_output_.str());
+	standard_output_.str("");
+    }
 
     inline void add_text(const std::string &str)
     { if (!ignore_text()) { text_out_ += str; } }
@@ -117,6 +122,7 @@ private:
     bool initialized_;
     std::string text_out_;
     bool ignore_text_;
+    std::stringstream standard_output_;
 };
 
 }}

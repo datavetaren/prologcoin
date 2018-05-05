@@ -628,11 +628,15 @@ public:
 	wam_code::remove_compiled(pn);
     }
 
-    inline std::string to_string(const term t,
-				 common::term_emitter::style style
-			  	    = common::term_emitter::STYLE_TERM) const
+    inline std::string to_string(const term t) const
     {
-	return interpreter_base::to_string(t, style);
+	common::emitter_options opt;
+	return interpreter_base::to_string(t, opt);
+    }
+
+    inline std::string to_string(const term t, const common::emitter_options &opt) const
+    {
+	return interpreter_base::to_string(t, opt);
     }
 
     inline std::string to_string(const code_point &cp) const

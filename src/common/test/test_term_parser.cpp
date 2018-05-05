@@ -112,7 +112,7 @@ static void test_complicated_parse()
 				  const std::string &name)
 			      { emitter.set_var_name(ref, name); } );
 
-    emitter.set_style(term_emitter::STYLE_PROGRAM);
+    emitter.options().set(emitter_option::EMIT_PROGRAM);
 
     for (auto clause : clauses) {
 	emitter.print(clause);
@@ -191,7 +191,7 @@ static void test_bignum_parse()
     assert(actual10 == expect10);
 
     std::string expect16 = "11E3444E07186473F6C29BFB5CD699549E6C50200673C72870B684045F15";
-    std::string actual16 = h.big_to_string(arg, 16);
+    std::string actual16 = h.big_to_string(arg, 16, true);
     std::cout << "Actual: " << actual16 << std::endl;
     std::cout << "Expect: " << expect16 << std::endl;
     assert(actual16 == expect16);

@@ -2,7 +2,7 @@
 # Recurse into sub-directories and build and test
 #
 
-MODULES := common interp node main
+MODULES := common interp ec node main
 
 yellow="\033[0;33m"
 off="\033[0m"

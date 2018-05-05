@@ -1,5 +1,6 @@
 #include <iomanip>
 #include <algorithm>
+#include <boost/algorithm/string.hpp>
 #include "term.hpp"
 #include "term_ops.hpp"
 
@@ -410,20 +411,19 @@ bool heap::is_list(const cell c) const
     return true;
 }
 
-std::string heap::big_to_string(cell big, size_t base) const
+std::string heap::big_to_string(const boost::multiprecision::cpp_int &i, size_t base) const
 {
     using namespace boost::multiprecision;
 
-    static const char BASE_STD[37] = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+    static const char BASE_STD[37] = "0123456789abcdefghijklmnopqrstuvwxyz";
     static const char BASE_58[59] = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
 
     assert((base >= 2 && base <= 36) || base == 58);
 
-    cpp_int val;
-    get_big(big, val);
-
     std::string s;
     const char *base_char = (base == 58) ? BASE_58 : BASE_STD;
+
+    cpp_int val = i;
 
     while (val) {
 	size_t digit = static_cast<size_t>(val % base);
@@ -434,6 +434,44 @@ std::string heap::big_to_string(cell big, size_t base) const
     }
     std::reverse(s.begin(), s.end());
     return s;
+}
+
+std::string heap::big_to_string(cell big, size_t base, bool capital) const
+{
+    using namespace boost::multiprecision;
+
+    cpp_int val;
+    get_big(big, val);
+    std::string s = big_to_string(val,base);
+    if (capital) {
+	boost::to_upper(s);
+    }
+    return s;
+}
+
+void heap::set_big(cell big, const uint8_t *bytes, size_t n)
+{
+    auto dc = deref(big);
+    big_cell &b = static_cast<big_cell &>(dc);
+    size_t index = b.index();
+    check_index(index);
+    big_inserter bi(*this, b);
+    for (size_t i = 0; i < n; i++, ++bi) {
+	*bi = bytes[i];
+    }
+}
+
+void heap::get_big(cell big, uint8_t *bytes, size_t n) const
+{
+    auto dc = deref(big);
+    big_cell &b = static_cast<big_cell &>(dc);
+    size_t index = b.index();
+    check_index(index);
+    check_index(index+(n+sizeof(cell)-1)/sizeof(cell));
+    auto bi = begin(b);
+    for (size_t i = 0; i < n; i++, ++bi) {
+	bytes[i] = *bi;
+    }
 }
 
 void heap::print(std::ostream &out) const

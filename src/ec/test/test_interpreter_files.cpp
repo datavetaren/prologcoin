@@ -1,4 +1,5 @@
-#include "test_files_infrastructure.hpp"
+#include "../../interp/test/test_files_infrastructure.hpp"
+#include "../builtins.hpp"
 
 static void header( const std::string &str )
 {
@@ -14,12 +15,12 @@ int main( int argc, char *argv[] )
     find_home_dir(argv[0]);
     fast_mode = is_fast(argc, argv);
 
-    const std::string dir = "/src/interp/test/pl_files";
+    const std::string dir = "/src/ec/test/pl_files";
 
     if (argc == 2) {
-	test_interpreter_files(dir, [](interpreter &){}, argv[1]);
+	test_interpreter_files(dir, [](interpreter &i){prologcoin::ec::builtins::load(i);}, argv[1]);
     } else {
-	test_interpreter_files(dir, [](interpreter &){});
+	test_interpreter_files(dir, [](interpreter &i){prologcoin::ec::builtins::load(i);});
     }
 
     return 0;

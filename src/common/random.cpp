@@ -67,4 +67,11 @@ int random::next_int(int max)
     }
 }
 
+void random::next_bytes(uint8_t *bytes, size_t n)
+{
+    for (size_t i = 0; i < n; i++) {
+	bytes[i] = next_int(256);
+    }
+}
+
 }}

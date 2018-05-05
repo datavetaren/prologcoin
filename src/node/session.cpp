@@ -32,6 +32,7 @@ bool in_session_state::execute(const term query)
     bool r = false;
     try {
 	r = interp_.execute(query);
+	interp_.flush_standard_output();
 	auto cost = interp_.accumulated_cost();
 	if (cost > available_funds_) {
 	    available_funds_ = 0;
@@ -39,6 +40,7 @@ bool in_session_state::execute(const term query)
 	    available_funds_ -= cost;
 	}
     } catch (const interpreter_exception_out_of_funds &ex) {
+	interp_.flush_standard_output();
 	available_funds_ = 0;
 	throw ex;
     }
@@ -54,6 +56,7 @@ bool in_session_state::next()
     bool r = false;
     try {
 	r = interp_.next();
+	interp_.flush_standard_output();
 	auto cost = interp_.accumulated_cost();
 	if (cost > available_funds_) {
 	    available_funds_ = 0;
@@ -61,6 +64,7 @@ bool in_session_state::next()
 	    available_funds_ -= cost;
 	}
     } catch (const interpreter_exception_out_of_funds &ex) {
+	interp_.flush_standard_output();
 	available_funds_ = 0;
 	throw ex;
     }

@@ -55,7 +55,7 @@ namespace prologcoin { namespace interp {
     {
 	load_fns();
 
-	term result;
+	term result = expr;
 	size_t stack_start = interp_.stack_size();
 	interp_.push(expr);
 	interp_.push(int_cell(0));
@@ -63,7 +63,7 @@ namespace prologcoin { namespace interp {
 	    cell visited0 = interp_.pop();
 	    term t = interp_.pop();
 	    const int_cell &visited = static_cast<const int_cell &>(visited0);
-            if (t.tag() == tag_t::INT) {
+            if (t.tag() == tag_t::INT || t.tag() == tag_t::BIG) {
 		args_.push_back(t);
 		continue;
 	    }

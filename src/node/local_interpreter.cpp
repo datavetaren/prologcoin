@@ -430,6 +430,16 @@ bool me_builtins::funds_1(interpreter_base &interp0, size_t arity, term args[] )
     return interp.unify(arg, int_cell(funds));
 }
 
+local_interpreter::local_interpreter(in_session_state &session)
+    :session_(session), initialized_(false), ignore_text_(false)
+{
+    // Redirect standard output (standard std::cout) to an internal
+    // stringstream.
+    auto &fs = new_file_stream("<stdout>");
+    fs.open(standard_output_);
+    tell_standard_output(fs);
+}
+
 self_node & local_interpreter::self()
 {
     return session_.self();
@@ -440,6 +450,10 @@ void local_interpreter::ensure_initialized()
     if (!initialized_) {
 	initialized_ = true;
 	setup_standard_lib();
+
+	// TODO: Only do this for authorized clients.
+	load_builtins_file_io();
+
 	setup_modules();
     }
 }

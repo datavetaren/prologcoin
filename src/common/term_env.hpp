@@ -166,10 +166,14 @@ public:
         { return T::get_heap().get_big(t, index); }
     inline void get_big(term t, boost::multiprecision::cpp_int &i) const
         { T::get_heap().get_big(t, i); }
+    inline void get_big(term t, uint8_t *bytes, size_t n) const
+        { T::get_heap().get_big(t, bytes, n); }
     inline void set_big(term t, size_t index, const untagged_cell cell)
         {  T::get_heap().set_big(t, index, cell); }
     inline void set_big(term t, const boost::multiprecision::cpp_int &i)
         { T::get_heap().set_big(t, i); }
+    inline void set_big(term t, const uint8_t *bytes, size_t n)
+        { T::get_heap().set_big(t, bytes, n); }
     inline void trim_heap(size_t new_size)
         { return T::get_heap().trim(new_size); }
     inline size_t heap_size() const
@@ -587,10 +591,10 @@ public:
 
   class term_range {
   public:
-      term_range(term_env_dock &env, const term t) : env_(env), term_(t) { }
+      inline term_range(term_env_dock &env, const term t) : env_(env), term_(t) { }
 
-      term_dfs_iterator_templ<HT,ST,OT> begin() { return env_.begin(term_); }
-      term_dfs_iterator_templ<HT,ST,OT> end() { return env_.end(term_); }
+      inline term_dfs_iterator_templ<HT,ST,OT> begin() { return env_.begin(term_); }
+      inline term_dfs_iterator_templ<HT,ST,OT> end() { return env_.end(term_); }
   private:
       term_env_dock &env_;
       term term_;
@@ -598,25 +602,25 @@ public:
 
   class const_term_range {
   public:
-      const_term_range(const term_env_dock &env, const term t)
+      inline const_term_range(const term_env_dock &env, const term t)
            : env_(env), term_(t) { }
 
-      const_term_dfs_iterator_templ<HT,ST,OT> begin() const
+      inline const_term_dfs_iterator_templ<HT,ST,OT> begin() const
       { return env_.begin(term_); }
-      const_term_dfs_iterator_templ<HT,ST,OT> end() const
+      inline const_term_dfs_iterator_templ<HT,ST,OT> end() const
       { return env_.end(term_); }
   private:
       const term_env_dock &env_;
       term term_;
   };
 
-  term_range iterate_over(const term t)
+  inline term_range iterate_over(const term t)
       { return term_range(*this, t); }
 
-  const_term_range iterate_over(const term t) const
+  inline const_term_range iterate_over(const term t) const
       { return const_term_range(*this, t); }
 
-  std::string status() const
+  inline std::string status() const
   { 
     std::stringstream ss;
     ss << "term_env::status() { heap_size=" << heap_dock<HT>::heap_size()
@@ -625,7 +629,7 @@ public:
     return ss.str();
   }
 
-  term parse(std::istream &in)
+  inline term parse(std::istream &in)
   {
       term_tokenizer tokenizer(in);
       term_parser parser(tokenizer, heap_dock<HT>::get_heap(),
@@ -640,29 +644,41 @@ public:
       return r;
   }
  
-  term parse(const std::string &str)
+  inline term parse(const std::string &str)
   {
       std::stringstream ss(str);
       return parse(ss);
   }
 
-  std::string to_string(const term t,
-			term_emitter::style style = term_emitter::STYLE_TERM) const
+  inline std::string to_string(const term t) const
+  {
+      emitter_options default_opt;
+      return to_string(t, default_opt);
+  }
+
+  inline std::string to_string(const term t,const emitter_options &opt) const
   {
       term t1 = heap_dock<HT>::deref(t);
       std::stringstream ss;
       term_emitter emitter(ss, heap_dock<HT>::get_heap(),
 			   ops_dock<OT>::get_ops());
-      emitter.set_style(style);
+      emitter.set_options(opt);
       emitter.set_var_naming(var_naming_);
       emitter.print(t1);
       return ss.str();
   }
 
-  std::string safe_to_string(const term t, term_emitter::style style = term_emitter::STYLE_TERM) const
+  inline std::string safe_to_string(const term t, const emitter_options &opt) const
   {
-      return to_string(t, style);
+      return to_string(t, opt);
   }
+
+  inline std::string safe_to_string(const term t) const
+  {
+      emitter_options default_opt;
+      return to_string(t, default_opt);
+  }
+
 
   term_dfs_iterator_templ<HT,ST,OT> begin(const term t)
   {

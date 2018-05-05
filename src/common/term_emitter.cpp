@@ -25,9 +25,6 @@ void term_emitter::init()
     empty_list_ = con_cell("[]", 0);
     var_naming_ = nullptr;
     var_naming_owned_ = false;
-    style_ = STYLE_TERM;
-    option_quoted_ = true;
-    option_nl_ = true;
     set_max_column(78);
 }
 
@@ -36,31 +33,6 @@ term_emitter::~term_emitter()
     if (var_naming_owned_ && var_naming_) {
         delete var_naming_;
     }
-}
-
-void term_emitter::set_style(term_emitter::style st)
-{
-    style_ = st;
-}
-
-void term_emitter::set_option_quoted(bool q)
-{
-    option_quoted_ = q;
-}
-
-bool term_emitter::is_option_quoted() const
-{
-    return option_quoted_;
-}
-
-void term_emitter::set_option_nl(bool n)
-{
-    option_nl_ = n;
-}
-
-bool term_emitter::is_option_nl() const
-{
-    return option_nl_;
 }
 
 void term_emitter::reset()
@@ -74,7 +46,7 @@ void term_emitter::reset()
 void term_emitter::print(cell c)
 {
     elem el(deref(c));
-    if (style_ == STYLE_PROGRAM) {
+    if (options().test(emitter_option::EMIT_PROGRAM)) {
 	el.set_is_def(true);
     }
     stack_.push_back(el);
@@ -111,7 +83,7 @@ void term_emitter::set_max_column(size_t max_column)
 
 void term_emitter::indent()
 {
-    if (!option_nl_) {
+    if (!options().test(emitter_option::EMIT_NEWLINE)) {
 	return;
     }
     if (indent_level_ == 0) {
@@ -160,7 +132,7 @@ void term_emitter::mark_indent_column()
 
 bool term_emitter::will_wrap(size_t len) const
 {
-    if (!option_nl_) {
+    if (!options().test(emitter_option::EMIT_NEWLINE)) {
 	return false;
     }
     return column_ + len >= max_column_;
@@ -182,7 +154,7 @@ bool term_emitter::at_beginning() const
 
 size_t term_emitter::get_emit_length(cell c)
 {
-    if (!option_nl_) {
+    if (!options().test(emitter_option::EMIT_NEWLINE)) {
 	return 0;
     }
     size_t current_column = column_;
@@ -399,7 +371,7 @@ void term_emitter::wrap_curly(const term_emitter::elem &e)
 
 bool term_emitter::atom_name_needs_quotes(const std::string &name) const
 {
-    if (!option_quoted_) {
+    if (!options().test(emitter_option::EMIT_QUOTED)) {
 	return false;
     }
     auto first = name[0];
@@ -676,7 +648,7 @@ void term_emitter::emit_xfy(bool is_def, cell x, con_cell f, cell y, bool x_ok, 
 void term_emitter::emit_functor_elem(const term_emitter::elem &e)
 {
     elem e1 = e;
-    if (style_ == STYLE_PROGRAM) {
+    if (options().test(emitter_option::EMIT_PROGRAM)) {
 	if (!e1.check_paren() && !e1.has_paren() && !e1.is_def()) {
 	    e1.set_check_paren(true);
 	    check_wrap_paren(e1, 1100, 1200);
@@ -717,7 +689,7 @@ void term_emitter::emit_functor_elem_helper(const term_emitter::elem &e)
     bool is_def = e.is_def();
 
     // No operator or arity == 0? Then emit functor and exit.
-    if (f_prec == 0 || f.arity() == 0 || f.arity() > 2) {
+    if (options().test(emitter_option::EMIT_CANONICAL) || f_prec == 0 || f.arity() == 0 || f.arity() > 2) {
 	if (is_def) {
 	    emit_dot();
 	}
@@ -757,13 +729,22 @@ void term_emitter::emit_functor_elem_helper(const term_emitter::elem &e)
 
 void term_emitter::emit_string(const cell lst0)
 {
-    std::string literal = "\"" + heap_.list_to_string(lst0) + "\"";
+    std::string s = heap_.list_to_string(lst0);
+    if (token_chars::should_be_escaped(s)) {
+	s = token_chars::escape_pretty(s);
+    }
+    std::string literal = "\"" + s + "\"";
     emit_token(literal);
 }
 
 void term_emitter::emit_list(const cell lst0)
 {
     cell lst = lst0;
+
+    if (heap_.is_prefer_string(lst0)) {
+	emit_string(lst0);
+	return;
+    }
 
     auto lbracket = elem(con_cell("[",0));
     lbracket.set_as_token(true);

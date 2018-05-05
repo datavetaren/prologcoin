@@ -303,10 +303,10 @@ static void test_list_string()
 
     std::string str = "this is a string with a \t tab";
     term lst = env.string_to_list(str);
-    std::string expect = "[116,104,105,115,32,105,115,32,97,32,115,116,114,105,110,103,32,119,105,116,104,32,97,32,9,32,116,97,98]";
+    std::string expect = "\"this is a string with a \\t tab\""; // "[116,104,105,115,32,105,115,32,97,32,115,116,114,105,110,103,32,119,105,116,104,32,97,32,9,32,116,97,98]";
     std::stringstream ss_actual;
     term_emitter emit(ss_actual, env);
-    emit.set_option_nl(false);
+    emit.options().clear(emitter_option::EMIT_NEWLINE);
     emit.print(lst);
     std::string actual = ss_actual.str();
     

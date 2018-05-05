@@ -18,9 +18,15 @@ namespace prologcoin { namespace interp {
 	static bool nl_0(interpreter_base &interp, size_t arity, common::term args[]);
 	static bool tell_1(interpreter_base &interp, size_t arity, common::term args[]);
 	static bool told_0(interpreter_base &interp, size_t arity, common::term args[]);
+	static bool format_2(interpreter_base &interp, size_t arity, common::term args[]);
+	static bool sformat_3(interpreter_base &interp, size_t arity, common::term args[]);
+
     private:
         static size_t get_stream_id(interpreter_base &interp, common::term &stream,
 		  		    const std::string &from_fun);
+
+        static bool format_helper(const std::string &name, interpreter_base &interp, common::term format_term, common::term format_args, std::string &out);
+
     };
 
 }}

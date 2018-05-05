@@ -31,7 +31,7 @@ meta_context::meta_context(interpreter_base &i, meta_fn mfn)
     old_hb = i.get_register_hb();
 }
 
-interpreter_base::interpreter_base() : register_pr_("", 0), comma_(",",2), empty_list_("[]", 0), implied_by_(":-", 2), arith_(*this)
+interpreter_base::interpreter_base() : register_pr_("", 0), comma_(",",2), empty_list_("[]", 0), implied_by_(":-", 2), arith_(*this), locale_(*this)
 {
     init();
 
@@ -336,6 +336,8 @@ void interpreter_base::load_builtins_file_io()
     load_builtin(con_cell("nl", 0), &builtins_fileio::nl_0);
     load_builtin(con_cell("tell",1), &builtins_fileio::tell_1);
     load_builtin(con_cell("told",0), &builtins_fileio::told_0);
+    load_builtin(con_cell("format",2), builtin(&builtins_fileio::format_2,true));
+    load_builtin(con_cell("sformat",3), builtin(&builtins_fileio::sformat_3,true));
 }
 
 void interpreter_base::load_program(const term t)
@@ -501,11 +503,12 @@ void interpreter_base::print_db(std::ostream &out) const
 	if (do_nl_p) {
 	    out << "\n";
 	}
+	emitter_options opt;
+	opt.set(emitter_option::EMIT_PROGRAM);
 	bool do_nl = false;
 	for (auto &m_clause : m_clauses) {
 	    if (do_nl) out << "\n";
-	    auto str = to_string(m_clause.clause(),
-				 term_emitter::STYLE_PROGRAM);
+	    auto str = to_string(m_clause.clause(), opt);
 	    out << str;
 	    do_nl = true;
 	}

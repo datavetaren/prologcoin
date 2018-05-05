@@ -238,6 +238,9 @@ static void test_bignum()
     // Construct foo(...) with ... as a bignum
     heap h;
     big_cell big = h.new_big(i);
+
+    h.print(std::cout);
+
     con_cell foo_1("foo", 1);
     auto foo_str = h.new_str(foo_1);
     h.set_arg(foo_str, 0, big);

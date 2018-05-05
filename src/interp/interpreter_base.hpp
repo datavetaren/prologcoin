@@ -12,6 +12,7 @@
 #include "builtins_opt.hpp"
 #include "file_stream.hpp"
 #include "arithmetics.hpp"
+#include "locale.hpp"
 
 namespace prologcoin { namespace interp {
 // This pair represents functor with first argument. If first argument
@@ -148,6 +149,13 @@ class interpreter_exception_wrong_arg_type : public interpreter_exception
 public:
       interpreter_exception_wrong_arg_type(const std::string &msg)
 	  : interpreter_exception(msg) { }
+};
+
+class interpreter_exception_missing_arg : public interpreter_exception 
+{
+public:
+      interpreter_exception_missing_arg(const std::string &msg)
+	  : interpreter_exception(msg) { }    
 };
 
 class interpreter_exception_file_not_found : public interpreter_exception
@@ -394,6 +402,9 @@ public:
 
     static const size_t MAX_ARGS = 256;
 
+    inline const locale & current_locale() const { return locale_; }
+    inline locale & current_locale() { return locale_; }
+
     inline bool is_debug() const { return debug_; }
     inline void set_debug(bool dbg) { debug_ = dbg; arith_.set_debug(dbg); }
     inline void debug_check() { debug_check_fn_(); }
@@ -415,6 +426,16 @@ public:
     void reset_files();
 
     inline arithmetics & arith() { return arith_; }
+
+    inline void load_builtin(con_cell f, builtin b)
+        { qname qn(empty_list(), f);
+	  load_builtin(qn, b);
+	}
+
+    inline void load_builtin(con_cell module, con_cell f, builtin b)
+        { qname qn(module, f);
+	  load_builtin(qn, b);
+	}
 
     void load_clause(const std::string &str);
     void load_clause(std::istream &is);
@@ -985,28 +1006,7 @@ protected:
 	  }
         }
 
-    inline void load_builtin(con_cell f, builtin b)
-        { qname qn(empty_list(), f);
-	  load_builtin(qn, b);
-	}
-
-    inline void load_builtin(con_cell module, con_cell f, builtin b)
-        { qname qn(module, f);
-	  load_builtin(qn, b);
-	}
-
-private:
-    void load_builtin(const qname &qn, builtin b);
-
-    inline void load_builtin_opt(con_cell f, builtin_opt b)
-        { qname qn(empty_list(), f);
-	  load_builtin_opt(qn, b);
-	}
-
-    void load_builtin_opt(const qname &qn, builtin_opt b);
-    void load_builtins();
-    void load_builtins_file_io();
-    void load_builtins_opt();
+protected:
     file_stream & new_file_stream(const std::string &path);
     void close_file_stream(size_t id);
     file_stream & get_file_stream(size_t id);
@@ -1014,6 +1014,18 @@ private:
     void tell_standard_output(file_stream &fs);
     void told_standard_output();
     bool has_told_standard_outputs();
+    void load_builtins_file_io();
+
+private:
+    void load_builtin(const qname &qn, builtin b);
+    inline void load_builtin_opt(con_cell f, builtin_opt b)
+        { qname qn(empty_list(), f);
+	  load_builtin_opt(qn, b);
+	}
+
+    void load_builtin_opt(const qname &qn, builtin_opt b);
+    void load_builtins();
+    void load_builtins_opt();
 
     void init();
     void tidy_trail();
@@ -1110,6 +1122,9 @@ private:
 
     // Maximum cost allowed
     uint64_t maximum_cost_;
+
+    // Locale
+    locale locale_;
 
 protected:
     size_t tidy_size;

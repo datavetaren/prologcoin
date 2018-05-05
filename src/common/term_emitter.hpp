@@ -6,6 +6,7 @@
 #include <vector>
 #include "term.hpp"
 #include "term_ops.hpp"
+#include "flags.hpp"
 
 namespace prologcoin { namespace common {
 
@@ -17,23 +18,40 @@ namespace prologcoin { namespace common {
 
 class term_env;
 
+enum class emitter_option {
+    EMIT_PROGRAM,
+    EMIT_NEWLINE,
+    EMIT_QUOTED,
+    EMIT_CANONICAL
+};
+
+class emitter_options : public flags<emitter_option> {
+public:
+    inline emitter_options() {
+	set(emitter_option::EMIT_NEWLINE);
+	set(emitter_option::EMIT_QUOTED);
+    }
+};
+
 class term_emitter {
 public:
-  enum style { STYLE_TERM, STYLE_PROGRAM };
-
     term_emitter(std::ostream &out, const term_env &e);
     term_emitter(std::ostream &out, const heap &h, const term_ops &ops);
     ~term_emitter();
 
     void init();
 
-    void set_style( style s );
+    inline emitter_options & options() {
+	return options_;
+    }
 
-    void set_option_quoted( bool q );
-    bool is_option_quoted() const;
-
-    void set_option_nl( bool n);
-    bool is_option_nl() const;
+    inline const emitter_options & options() const {
+	return options_;
+    }
+    
+    inline void set_options(const emitter_options &opt) {
+	options_ = opt;
+    }
 
     void set_var_naming(const std::unordered_map<term, std::string> &var_naming);
 
@@ -173,10 +191,7 @@ private:
     std::unordered_map<term, std::string> *var_naming_;
     bool var_naming_owned_;
 
-    style style_;
-
-    bool option_quoted_;
-    bool option_nl_;
+    emitter_options options_;
 };
 
 }}

@@ -50,6 +50,15 @@ public:
 	return is_layout_char(ch) || is_quote_char(ch);
     }
 
+    inline static bool should_be_escaped(const std::string &str) {
+	for (auto ch : str) {
+	    if (should_be_escaped(ch)) {
+		return true;
+	    }
+	}
+	return false;
+    }
+
     static std::string escape(const std::string &str);
     static std::string escape_ascii(const std::string &str);
     static std::string escape_pretty(const std::string &str);
