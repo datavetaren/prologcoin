@@ -45,6 +45,10 @@ bool builtins::privkey_1(interpreter_base &interp, size_t arity, term args[])
 	    random::next_bytes(&bytes[1], 32);
 	    ok = secp256k1_ec_seckey_verify(ctx, &bytes[1]);
 	} while (!ok);
+	uint8_t checksum[4];
+	bytes[33] = 0x01;
+	get_checksum(&bytes[0], 34, checksum);
+	memcpy(&bytes[34], checksum, 4);
     } else if (args[0].tag() == tag_t::BIG) {
 	auto &big = reinterpret_cast<const big_cell &>(args[0]);
 	size_t nbits = interp.num_bits(big);
@@ -80,7 +84,7 @@ bool builtins::privkey_1(interpreter_base &interp, size_t arity, term args[])
 
     secp256k1_context_destroy(ctx);
 
-    term big = interp.new_big(256);
+    term big = interp.new_big(8+256+8+32);
     interp.set_big(big, bytes, sizeof(bytes));
 
     return interp.unify(args[0], big);

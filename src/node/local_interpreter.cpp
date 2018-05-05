@@ -3,6 +3,7 @@
 #include "local_interpreter.hpp"
 #include "session.hpp"
 #include "task_reset.hpp"
+#include "../ec/builtins.hpp"
 
 namespace prologcoin { namespace node {
 
@@ -453,6 +454,8 @@ void local_interpreter::ensure_initialized()
 
 	// TODO: Only do this for authorized clients.
 	load_builtins_file_io();
+
+	ec::builtins::load(*this);
 
 	setup_modules();
     }
