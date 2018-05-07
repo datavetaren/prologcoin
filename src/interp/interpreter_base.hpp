@@ -365,6 +365,10 @@ struct meta_context {
 	return reinterpret_cast<void *>(where);
     }
 
+    // Silence warning
+    inline void operator delete (void *, word_t *) {
+    }
+
     size_t size_in_words;
     meta_fn fn;
     meta_context *old_m;

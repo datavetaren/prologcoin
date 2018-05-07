@@ -1,9 +1,9 @@
-#include <secp256k1.h>
 #include "builtins.hpp"
 #include "../common/random.hpp"
 #include "../interp/interpreter_base.hpp"
-#include "hash.h" // Copied from secp256k1
-#include "hash_impl.h" // Copied from secp256k1
+#include "secp256k1.h"
+#include "hash.h"
+#include "hash_impl.h"
 
 namespace prologcoin { namespace ec {
 
@@ -13,9 +13,9 @@ using namespace prologcoin::interp;
 static void get_checksum(uint8_t *bytes, size_t n, uint8_t checksum[4])
 {
     // Silence unused warnings
-    (void) secp256k1_rfc6979_hmac_sha256_initialize;
-    (void) secp256k1_rfc6979_hmac_sha256_generate;
-    (void) secp256k1_rfc6979_hmac_sha256_finalize;
+    (void) &secp256k1_rfc6979_hmac_sha256_initialize;
+    (void) &secp256k1_rfc6979_hmac_sha256_generate;
+    (void) &secp256k1_rfc6979_hmac_sha256_finalize;
 
     secp256k1_sha256 ctx;
     secp256k1_sha256_initialize(&ctx);

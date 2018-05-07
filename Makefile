@@ -15,11 +15,11 @@ all:
 	echo $(yellow)$(bold) --------------------------------------- $(off); \
 	echo $(yellow)$(bold)  Building $$dir $(off); \
 	echo $(yellow)$(bold) --------------------------------------- $(off); \
-	   $(MAKE) -C $$dir; \
+	$(MAKE) -C $$dir || exit 1; \
 	echo $(yellow)$(bold) --------------------------------------- $(off); \
 	echo $(yellow)$(bold)  Testing $$dir $(off); \
 	echo $(yellow)$(bold) --------------------------------------- $(off); \
-	   $(MAKE) -C $$dir test; \
+	$(MAKE) -C $$dir test; \
 	done;
 
 clean:

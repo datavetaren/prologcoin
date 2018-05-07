@@ -67,12 +67,12 @@ length([X|Xs], N) :- length(Xs, N0), N is N0 + 1.
 % Expect: Q6 = "12 345 678,9"
 ?- sformat(Q7, '~1D', 123456789).
 % Expect: Q7 = "12,345,678.9"
-?- sformat(Q8, '~e', 12345).
-% Expect: Q8 = "1.234500e+04"
-?- sformat(Q8, '~3e', 12345).
-% Expect: Q8 = "1.234e+04"
-?- sformat(Q9, '~3E', 12345).
-% Expect: Q9 = "1.234E+04"
+?- sformat(Q8, '~e', 1234).
+% Expect: Q8 = "1.234000e+03"
+?- sformat(QX, '~3e', 1234).
+% Expect: QX = "1.234e+03"
+?- sformat(Q9, '~3E', 1234).
+% Expect: Q9 = "1.234E+03"
 ?- sformat(Q10, '~3f', 12345).
 % Expect: Q10 = "12345.000"
 ?- sformat(Q11, '~3g', 12345).

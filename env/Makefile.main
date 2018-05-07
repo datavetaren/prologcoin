@@ -18,6 +18,10 @@ HAS_BOOST_THREAD_MT := $(strip $(foreach d, $(GCCLIBPATH), $(wildcard $(d)/*boos
 BOOST_THREAD_LIB := $(if $(HAS_BOOST_THREAD_MT),boost_thread-mt,boost_thread)
 EXT := $(subst boost_thread, $(BOOST_THREAD_LIB), $(EXT))
 
+ifneq ($(INCDIR),)
+   CCFLAGS := $(CCFLAGS) $(CCINC) $(INCDIR)
+endif
+
 green="\033[0;32m"
 yellow="\033[0;33m"
 red="\033[0;31m"

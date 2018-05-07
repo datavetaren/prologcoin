@@ -85,10 +85,10 @@ public:
     inline bool is_stopped() const { return stopped_; }
 
     void close();
-    inline bool is_closed() const { return get_state() == CLOSED; }
+    inline bool is_closed() const { return get_state() == STATE_CLOSED; }
 
-    inline void prepare_receive() { set_state(RECEIVE_LENGTH); }
-    inline void prepare_send() { set_state(SEND_LENGTH); }
+    inline void prepare_receive() { set_state(STATE_RECEIVE_LENGTH); }
+    inline void prepare_send() { set_state(STATE_SEND_LENGTH); }
 
     void send_error(const term t);
     void send_ok(const term t);
@@ -106,16 +106,16 @@ public:
 
 protected:
     enum state {
-	IDLE,
-	RECEIVE_LENGTH,
-	RECEIVE,
-	RECEIVED,
-	SEND_LENGTH,
-	SEND,
-	SENT,
-	ERROR,
-	KILLED,
-	CLOSED
+	STATE_IDLE,
+	STATE_RECEIVE_LENGTH,
+	STATE_RECEIVE,
+	STATE_RECEIVED,
+	STATE_SEND_LENGTH,
+	STATE_SEND,
+	STATE_SENT,
+	STATE_ERROR,
+	STATE_KILLED,
+	STATE_CLOSED
     };
 
     inline state get_state() const { return state_; }

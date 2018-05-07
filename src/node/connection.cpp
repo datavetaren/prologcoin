@@ -24,7 +24,7 @@ connection::connection(self_node &self,
       strand_(self.get_io_service()),
       socket_(self.get_io_service()),
       timer_(self.get_io_service()),
-      state_(IDLE),
+      state_(STATE_IDLE),
       received_bytes_(0),
       receive_length_(0),
       sent_bytes_(0),
@@ -70,7 +70,7 @@ void connection::delete_connection(connection *conn)
 void connection::close()
 {
     self().close(this);
-    set_state(CLOSED);
+    set_state(STATE_CLOSED);
 }
 
 void connection::send_error(const term t)
@@ -92,7 +92,7 @@ void connection::send(const term t)
     ser.write_cell(buffer_len_, 0, int_cell(buffer_.size()));
     sent_bytes_ = 0;
     send_length_ = buffer_.size();
-    state_ = SEND_LENGTH;
+    state_ = STATE_SEND_LENGTH;
 }
 
 bool connection::received_length()
@@ -127,7 +127,7 @@ bool connection::received_length()
 	    return false;
 	} else {
 	    receive_length_ = ic.value();
-	    state_ = RECEIVE;
+	    state_ = STATE_RECEIVE;
 	    received_bytes_ = 0;
 	    buffer_.resize(receive_length_);
 	    return true;
@@ -162,7 +162,7 @@ void connection::run()
     using namespace boost::system;
 
     switch (state_) {
-    case RECEIVE_LENGTH:
+    case STATE_RECEIVE_LENGTH:
         buffer_len_.resize(sizeof(cell));
 	get_socket().async_read_some(buffer(&buffer_len_[received_bytes_],
 					    sizeof(cell) - received_bytes_),
@@ -173,18 +173,18 @@ void connection::run()
 			     if (received_bytes_ >= sizeof(cell)) {
 				 bool r = received_length();
 				 if (!r && !auto_send()) {
-				     set_state(IDLE);
+				     set_state(STATE_IDLE);
 				 }
 			     }
 			     run();
 			 } else {
-			     set_state(ERROR);
+			     set_state(STATE_ERROR);
 			     dispatch();
 			     close();
 			 }
 		  }));
 	break;
-    case RECEIVE: {
+    case STATE_RECEIVE: {
 	size_t to_read = buffer_.size() - received_bytes_;
 	if (to_read > receive_length_ - received_bytes_) {
 	    to_read = receive_length_ - received_bytes_;
@@ -195,19 +195,19 @@ void connection::run()
 			 if (!ec) {
 			     received_bytes_ += n;
 			     if (received_bytes_ >= receive_length_) {
-				 state_ = RECEIVED;
+				 state_ = STATE_RECEIVED;
 			     }
 			     dispatch();
 			     run();
 			 } else {
-			     set_state(ERROR);
+			     set_state(STATE_ERROR);
 			     dispatch();
 			     close();
 			 }
 		  }));
 	break;
         }
-    case SEND_LENGTH:
+    case STATE_SEND_LENGTH:
 	get_socket().async_write_some(buffer(&buffer_len_[sent_bytes_],
 					     sizeof(cell) - sent_bytes_),
              strand_.wrap(
@@ -215,18 +215,18 @@ void connection::run()
 		      if (!ec) {
 			  sent_bytes_ += n;
 			  if (sent_bytes_ >= sizeof(cell)) {
-			      state_ = SEND;
+			      state_ = STATE_SEND;
 			      sent_bytes_ = 0;
 			  }
 			  run();
 		      } else {
-			  set_state(ERROR);
+			  set_state(STATE_ERROR);
 			  dispatch();
 			  close();
 		      }
 		  }));
 	break;
-    case SEND:
+    case STATE_SEND:
 	get_socket().async_write_some(buffer(&buffer_[sent_bytes_],
 					     send_length_ - sent_bytes_),
 	     strand_.wrap(
@@ -234,31 +234,31 @@ void connection::run()
 		         if (!ec) {
 			     sent_bytes_ += n;
 			     if (sent_bytes_ >= buffer_.size()) {
-				 state_ = SENT;
+				 state_ = STATE_SENT;
 				 received_bytes_ = 0;
 				 sent_bytes_ = 0;
 				 dispatch();
 			     }
 			     run();
 		         } else {
-			     set_state(ERROR);
+			     set_state(STATE_ERROR);
 			     dispatch();
 			     close();
 			 }
 		  }));
 	break;
-    case RECEIVED: // These are never hit, because the state machine
-    case SENT:     // has switched to another state already (if RECEIVED
-    case CLOSED:   // or SENT.) Otherwise the connection is closed.
+    case STATE_RECEIVED: // These are never hit, because the state machine
+    case STATE_SENT:     // has switched to another state already (if RECEIVED
+    case STATE_CLOSED:   // or SENT.) Otherwise the connection is closed.
 	break;
-    case KILLED:
+    case STATE_KILLED:
 	dispatch();
 	close();
 	break;
-    case ERROR:
+    case STATE_ERROR:
 	close();
 	break;
-    case IDLE:
+    case STATE_IDLE:
 	timer_.expires_from_now(boost::posix_time::microseconds(
 			self().get_fast_timer_interval_microseconds()));
 	timer_.async_wait(
@@ -269,7 +269,7 @@ void connection::run()
 			     run();
 			 } else {
 			     if (is_stopped()) {
-				 set_state(ERROR);
+				 set_state(STATE_ERROR);
 				 dispatch();
 				 close();
 			     } else {
@@ -321,8 +321,8 @@ void in_connection::setup_commands()
 void in_connection::on_state()
 {
     switch (get_state()) {
-    case RECEIVED: process_query(); break;
-    case SENT: prepare_receive(); break;
+    case STATE_RECEIVED: process_query(); break;
+    case STATE_SENT: prepare_receive(); break;
     default: break;
     }
 }
@@ -668,7 +668,7 @@ task_reset * out_connection::create_reset_task()
 
 void out_connection::idle_state()
 {
-    set_state(IDLE);
+    set_state(STATE_IDLE);
     // If 'id' is empty, then we don't have a session, so we need to
     // issue a command to create one.
     if (id_.empty() && !init_in_progress_) {
@@ -788,11 +788,11 @@ void out_connection::send_next_task()
     next_task->set_term(term());
     next_task->process();
     if (next_task->get_term() == term()) {
-	set_state(IDLE);
+	set_state(STATE_IDLE);
     } else {
 	send(next_task->get_term());
     }
-    if (get_state() == IDLE) {
+    if (get_state() == STATE_IDLE) {
 	idle_state();
     }
 }
@@ -802,8 +802,8 @@ void out_connection::on_state()
     boost::lock_guard<boost::recursive_mutex> guard(work_lock_);
 
     switch (get_state()) {
-    case IDLE: if (!is_stopped()) send_next_task(); break;
-    case RECEIVED: {
+    case STATE_IDLE: if (!is_stopped()) send_next_task(); break;
+    case STATE_RECEIVED: {
 	auto task = work_.top();
 	work_.pop();
 	auto r = received(task->env());
@@ -818,10 +818,10 @@ void out_connection::on_state()
 	}
 	break;
         }
-    case SENT:
+    case STATE_SENT:
 	prepare_receive();
 	break;
-    case ERROR:
+    case STATE_ERROR:
 	error(reason_t::ERROR_UNRECOGNIZED, "Probable node shutdown.");
 	break;
     default:
@@ -829,7 +829,7 @@ void out_connection::on_state()
     }
 
     if (is_stopped()) {
-	set_state(KILLED);
+	set_state(STATE_KILLED);
     }
 }
 
