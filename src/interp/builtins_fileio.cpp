@@ -200,7 +200,6 @@ namespace prologcoin { namespace interp {
 	    }
 	};
 
-	std::vector<size_t> tab_stops;
 	std::string str;
 
 	auto format_tilde_val = [&](){
@@ -216,6 +215,7 @@ namespace prologcoin { namespace interp {
 		++it;
 		unexpected_end_check();
 		val = static_cast<int32_t>(*it);
+		++it;
 	    } else if (*it == '*') {
 		auto arg = next_arg();
 		if (arg.tag() != tag_t::INT) {
@@ -614,6 +614,62 @@ namespace prologcoin { namespace interp {
 	    str += interp.to_string(arg);
 	};
 
+	size_t tab_prev_pos = 0;
+	struct expander {
+	    size_t pos;
+	    char ch;
+	};
+	std::vector<expander> expanders;
+
+	auto format_expander = [&](int32_t val) {
+	    if (val == -1) val = ' ';
+	    expander e = {str.size(), static_cast<char>(val)};
+	    expanders.push_back(e);
+	};
+
+	auto format_expand = [&](size_t next_pos) {
+	    if (next_pos <= str.size()) {
+		tab_prev_pos = str.size();
+		return;
+	    }
+	    auto num_ch = next_pos - str.size();
+	    auto expander_i = 0;
+	    auto from = tab_prev_pos;
+	    std::string s = str.substr(0, from);
+	    auto comp = num_ch % expanders.size();
+	    auto num0 = num_ch / expanders.size();
+	    auto comp_inv = expanders.size() - comp;
+	    for (auto expander : expanders) {
+	        auto num = num0 + ((expander_i >= comp_inv) ? 1 : 0);
+		s += str.substr(from, expander.pos - from);
+		s.append(num, expander.ch);
+		from = expander.pos;
+		expander_i++;
+	    }
+	    s += str.substr(from);
+	    expanders.clear();
+	    tab_prev_pos = next_pos;
+	    str = s;
+	};
+
+	auto format_tab_stop = [&](int32_t val) {
+	    size_t next_pos;
+	    if (val == -1) {
+		next_pos = str.size();
+	    } else {
+		next_pos = static_cast<size_t>(val);
+	    }
+	    format_expand(next_pos);
+	};
+
+	auto format_tab_stop_relative = [&](int32_t val) {
+	    size_t next_pos = str.size();
+	    if (val != -1) {
+		next_pos = static_cast<size_t>(val) + tab_prev_pos;
+	    }
+	    format_expand(next_pos);
+	};
+
 	auto format_tilde = [&](){
 	    ++it;
 	    auto val = format_tilde_val();
@@ -641,7 +697,9 @@ namespace prologcoin { namespace interp {
 	    case 'R': format_capital_radix(val, mod); break;
 	    case 's': format_string(); break;
 	    case '@': if (!format_goal()) return false; break;
-	    // TOOD: ~t ~| ~+ (tabs and expand)
+	    case 't': format_expander(val); break;
+	    case '|': format_tab_stop(val); break;
+	    case '+': format_tab_stop_relative(val); break;
 	    case 'w': format_write(); break;
 	    default: 
 	        throw interpreter_exception_unsupported(name + ": format ~" + *it + " does not exist.");

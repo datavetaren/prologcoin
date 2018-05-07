@@ -38,6 +38,12 @@ bool builtins::privkey_1(interpreter_base &interp, size_t arity, term args[])
 
     auto *ctx = secp256k1_context_create(SECP256K1_CONTEXT_SIGN);
 
+    struct cleanup {
+	cleanup(secp256k1_context *ctx) : ctx_(ctx) { }
+	~cleanup() { secp256k1_context_destroy(ctx_); }
+	secp256k1_context *ctx_;
+    } cleanup_(ctx);
+
     if (args[0].tag() == tag_t::REF) {
 	bytes[0] = 0x80;
 	bool ok = true;
@@ -53,7 +59,6 @@ bool builtins::privkey_1(interpreter_base &interp, size_t arity, term args[])
 	auto &big = reinterpret_cast<const big_cell &>(args[0]);
 	size_t nbits = interp.num_bits(big);
 	if (nbits != 256 && nbits != 8+256+8 && nbits != 8+256+8+32) {
-	    secp256k1_context_destroy(ctx);
 	    return false;
 	}
 	if (nbits == 256) {
@@ -61,28 +66,22 @@ bool builtins::privkey_1(interpreter_base &interp, size_t arity, term args[])
 	} else {
 	    interp.get_big(big, &bytes[0], nbits/8);
 	    if (bytes[0] != 0x80 || bytes[33] != 0x01) {
-		secp256k1_context_destroy(ctx);
 		return false;
 	    }
 	    if (nbits == 8+256+8+32) {
 		uint8_t checksum[4];
 		get_checksum(&bytes[0], 34, checksum);
 		if (memcmp(&bytes[34], checksum, 4) != 0) {
-		    secp256k1_context_destroy(ctx);
 		    return false;
 		}
 	    }
 	}
 	bool ok = secp256k1_ec_seckey_verify(ctx, &bytes[1]);
-	secp256k1_context_destroy(ctx);
 	return ok;
     } else {
 	// Unrecognized format
-	secp256k1_context_destroy(ctx);
 	return false;
     }
-
-    secp256k1_context_destroy(ctx);
 
     term big = interp.new_big(8+256+8+32);
     interp.set_big(big, bytes, sizeof(bytes));

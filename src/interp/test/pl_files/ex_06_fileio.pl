@@ -107,7 +107,27 @@ length([X|Xs], N) :- length(Xs, N0), N is N0 + 1.
 % Expect: Q25 = "testing F FFF"
 ?- sformat(Q26, 'testing ~s', ["some string"]).
 % Expect: Q26 = "testing some string"
-
-
-
+?- sformat(Q27, 'a~tb~tc~20|', []).
+% Expect: Q27 = "a        b         c"
+?- sformat(Q28, 'a1~tb~tc~20|', []).
+% Expect: Q28 = "a1        b        c"
+?- sformat(Q29, 'a123456789~tb~tc~20|', []).
+% Expect: Q29 = "a123456789    b    c"
+?- sformat(Q30, 'a123456789~tb~tc123~20|', []).
+% Expect: Q30 = "a123456789  b   c123"
+?- sformat(Q31, 'a123456789~tbabc~tc123~20|', []).
+% Expect: Q31 = "a123456789 babc c123"
+?- sformat(Q32, 'a123456789~tbabcd~tc123~20|', []).
+% Expect: Q32 = "a123456789babcd c123"
+?- sformat(Q33, 'a123456789~tbabcd~tc123x~20|', []).
+% Expect: Q33 = "a123456789babcdc123x"
+?- sformat(Q34, 'a123456789~tbabcde~tc123x~20|', []).
+% Expect: Q34 = "a123456789babcdec123x"
+?- sformat(Q35, 'Runtime: ~`.t ~2f~34|  Inferences: ~`.t ~D~72|~n', [10, 20]).
+% Expect: Q35 = "Runtime: ................... 10.00  Inferences: ..................... 20\n"
+?- sformat(Q36, 'a~`1t~a~30|b~`2tx~`3tr~10+',[xyz]). 
+% Expect: Q36 = "a11111111111111111111111111xyzb222x3333r"
+?- sformat(Q37, 'a~`1t~a~30|b~`2t~`3tr~10+',[xyz]). 
+% Expect: Q37 = "a11111111111111111111111111xyzb22223333r"
+% (SWI-Prolog is wrong on this one)
 
