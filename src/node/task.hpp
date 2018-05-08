@@ -27,7 +27,7 @@ public:
     };
 
     out_task(const char *description, out_connection &out);
-    virtual ~out_task() = default;
+    virtual ~out_task();
 
     static bool comparator(const out_task *t1, const out_task *t2);
 

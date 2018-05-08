@@ -2,7 +2,7 @@
 SET ROOT=..\..
 SET SUBDIR=ec
 SET DOLIB=ec
+SET DOEXE=
 SET DEPENDS=common interp
-rem
 CALL ..\..\env\make.bat %*
 

@@ -4,6 +4,7 @@ using System;
 using System.Linq;
 using System.Collections.Generic;
 using System.Xml;
+using System.Diagnostics;
 using Microsoft.Build.Construction;
 using Microsoft.Build.Evaluation;
 
@@ -18,8 +19,19 @@ public class make_vssln
 
    class FileComp : IComparer<string>
    {
+       public FileComp(string main)
+       {
+	   thisMain = main;
+       }
+       
        public int Compare(string x, string y)
        {
+	   if (x == y) {
+	       return 0;
+	   }
+	   if (x == thisMain) {
+	       return -1;
+	   }
            if (x.Contains("_test") && !y.Contains("_test")) {
 	       return -1;
 	   }
@@ -28,6 +40,8 @@ public class make_vssln
 	   }
 	   return x.CompareTo(y);
        }
+
+private string thisMain;
    }
 
    public static string [] GetDependingLibs(string srcDir, string subdir)
@@ -74,9 +88,9 @@ public class make_vssln
        return relPath;
    }
 
-   private static void ComputeDepsDir(string srcDir, string subdir, bool isTest)
+   private static void ComputeDepsDir(string srcDir, string subdir, bool isTest, string exeName)
    {
-       string name = subdir.Replace(@"\", "_");
+       string name = exeName != null ? exeName : subdir.Replace(@"\", "_");
 
        if (!isTest) {
            string [] deps = GetDependingLibs(srcDir, subdir);
@@ -90,6 +104,26 @@ public class make_vssln
        }
    }
 
+   public static string GetExeName(string dir)
+   {
+       string makeEnvFile = dir + @"\Makefile.env";
+       try {
+              StreamReader fs = new StreamReader(makeEnvFile);
+       	      string exeName = null;
+       	      string line = null;
+	      while((line = fs.ReadLine()) != null) {
+                  if (line.StartsWith("EXE := ")) {
+	      	      exeName = line.Substring(7).Trim();
+	      	      break;
+	          }
+	      }
+              fs.Close();
+	      return exeName;
+       } catch {
+              return null;
+       }
+   }
+   
    public static void ComputeDeps(string srcDir)
    {	  
        Stack<string> stack = new Stack<string>();
@@ -102,8 +136,9 @@ public class make_vssln
 	         if (dir.EndsWith(@"\test")) {
 		     isTestDir = true;
 		 }
+		 string exeName = GetExeName(dir);
     	         string subdir = MakeRelative(dir, srcDir);
-	         ComputeDepsDir(srcDir, subdir, isTestDir);
+	         ComputeDepsDir(srcDir, subdir, isTestDir, exeName);
              }
 
 	     string [] subdirs = Directory.GetDirectories(dir);
@@ -121,6 +156,35 @@ public class make_vssln
             sw.WriteLine("\t\t" + depGuid + " = " + depGuid);
             sw.WriteLine("\tEndProjectSection");
        }
+   }
+
+   public static bool IsLibrary(string vcxPath)
+   {
+       StreamReader fs = new StreamReader(vcxPath);
+       bool isLib = false;
+       string line;
+       while((line = fs.ReadLine()) != null) {
+          if (line.Contains("StaticLibrary")) {
+	      isLib = true;
+	      break;
+	  }
+       }
+       fs.Close();
+       return isLib;
+   }
+
+   public static string FindMainProj(string [] projs)
+   {
+	foreach (string proj in projs) {
+	    if (IsLibrary(proj)) {
+	         continue;
+	    }
+	    if (proj.EndsWith("_test.vcxproj")) {
+	         continue;
+	    }
+	    return proj;
+        }
+        return null;
    }
 
    public static void Main(string [] args)
@@ -164,7 +228,14 @@ public class make_vssln
        // Open all vcxproj files and find GUIDs.
 
        string [] projFiles = Directory.GetFiles(binDir, "*.vcxproj");
-       var projs = new SortedDictionary<string,string>(new FileComp());
+       //
+       // Find the main vcxporj file
+       //
+       var mainProj = FindMainProj(projFiles);
+
+       Console.WriteLine("Main project is: " + mainProj);
+
+       var projs = new SortedDictionary<string,string>(new FileComp(mainProj));
        var names = new Dictionary<string,string>();
        foreach (var projFile in projFiles) {
            XmlDocument xml = new XmlDocument();
@@ -182,9 +253,18 @@ public class make_vssln
            sw.WriteLine("Project(\"{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}\") = \"" + Path.GetFileNameWithoutExtension(projFile) + "\", \"" + projFile + "\", \"" + projGuid + "\"");
 
 	   // Is this a unittest?
-	   if (projFile.EndsWith("_test.vcxproj")) {
-	       // Extract the non-unittest lib project
-	        var depLib = projFile.Substring(0, projFile.Length - "_test.vcxproj".Length);
+	   if (!IsLibrary(binDir + @"\" + projFile)) {
+	        var depLib = projFile.Substring(0, projFile.Length);
+	        // Extract the non-unittest lib project
+	        if (projFile.EndsWith("_test.vcxproj")) {
+	           depLib = projFile.Substring(0, projFile.Length
+		   	            - "_test.vcxproj".Length);
+	        } else if (projFile.EndsWith(".vcxproj")) {
+		   depLib = projFile.Substring(0, projFile.Length
+		   	            - ".vcxproj".Length);
+		} else {	    
+		   Debug.Assert(false, "Unknown project vcxproj file" );
+		}
 		AddDep(names, depLib, sw);
 
 		// Add all dependent libs

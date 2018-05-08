@@ -1071,7 +1071,7 @@ private:
     // Stack is emulated at heap offset >= 2^59 (3 bits for tag, remember!)
     // (This conforms to the WAM standard where addr(stack) > addr(heap))
     const size_t STACK_BASE = 0x80000000000000;
-    const size_t MAX_STACK_SIZE = 1024*1024*1024;
+    const size_t MAX_STACK_SIZE = 1024*1024;
     const size_t MAX_STACK_SIZE_WORDS = MAX_STACK_SIZE / sizeof(word_t);
     const size_t MAX_STACK_FRAME_WORDS = 4096 / sizeof(word_t);
 

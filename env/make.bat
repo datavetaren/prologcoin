@@ -137,6 +137,10 @@ IF "%DEBUGMODE%"=="1" (
 IF NOT "%DOLIB%"=="" (
    SET LINKFLAGS=!LINKFLAGS:/debug=!
 )
+IF NOT "%DOEXE%"=="" (
+   SET LINKFLAGS=!LINKFLAGS:/debug=!
+   SET LINKFLAGS=!LINKFLAGS! /SUBSYSTEM:CONSOLE
+)
 
 SET CCFLAGS=!CCFLAGS! /I"!BOOST!"
 SET LINKFLAGS=!LINKFLAGS! /LIBPATH:"!BOOST!\lib!BIT!-msvc-!VCVER!.0"
@@ -154,6 +158,10 @@ REM
 IF NOT "%DOLIB%"=="" (
    SET GOAL=%BIN%\%DOLIB%.lib
    SET LINKCMD=lib.exe
+)
+IF NOT "%DOEXE%"=="" (
+   SET GOAL=%BIN%\%DOEXE%.exe
+   SET LINKCMD=link.exe
 )
 
 IF "%1"=="clean" (
@@ -201,7 +209,9 @@ mkdir %OUT%\%SUBDIR%
 REM
 REM Compute all dependent .lib files
 REM
-set LIB_FILES=!BIN!\!DOLIB!.lib
+IF NOT "%DOLIB%"=="" (
+    SET LIB_FILES=!BIN!\!DOLIB!.lib
+)
 for %%i in (!DEPENDS!) DO (
     set LIBFILE=!BIN!\%%i.lib
     set LIB_FILES=!LIB_FILES! "!LIBFILE!"
@@ -261,11 +271,19 @@ REM )
 REM
 REM Link final goal
 REM
-ECHO %GOAL%
+ECHO !GOAL!
 
 set PDBFILE=
 IF "!DEBUGMODE!"=="1" IF "!DOLIB!"=="" set PDBFILE=/pdb:"!GOAL:.exe=.pdb!"
-%LINKCMD% %LINKFLAGS% /out:"!GOAL!" !PDBFILE! !OBJ_FILES! !DEPEND_LIBS!
+IF NOT "%DOEXE%"=="" (
+    SET DEPEND_LIBS=!LIB_FILES!
+@echo %LINKCMD% %LINKFLAGS% /out:"!GOAL!" !PDBFILE! !DEPEND_LIBS! !OBJ_FILES!
+    %LINKCMD% %LINKFLAGS% /out:"!GOAL!" !PDBFILE! !DEPEND_LIBS! !OBJ_FILES!
+    
+)
+IF NOT "%DOLIB%"=="" (
+    %LINKCMD% %LINKFLAGS% /out:"!GOAL!" !PDBFILE! !DEPEND_LIBS! !OBJ_FILES!
+)
 
 GOTO :EOF
 
@@ -432,11 +450,7 @@ REM
 
 SET VCVER=%1
 
-SET BOOSTVER=boost_1_55_0
-
-IF "!VCVER!"=="14" (
-   SET BOOSTVER=boost_1_59_0
-)
+SET BOOSTVER=boost_1_62_0
 
 SET BOOST=
 

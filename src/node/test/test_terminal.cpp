@@ -68,4 +68,5 @@ static void test_terminal()
 int main(int argc, char *argv[])
 {
     test_terminal();
+    return 0;
 }

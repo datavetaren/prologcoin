@@ -1,3 +1,4 @@
+#include <node/asio_win32_check.hpp>
 #include <iostream>
 #include <stdio.h>
 #include <stdlib.h>

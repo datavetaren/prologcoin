@@ -2,6 +2,7 @@
 SET ROOT=..\..
 SET SUBDIR=node
 SET DOLIB=node
-SET DEPENDS=common interp
+SET DOEXE=
+SET DEPENDS=common interp ec
 CALL ..\..\env\make.bat %*
 

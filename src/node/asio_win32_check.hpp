@@ -8,12 +8,12 @@
 // problem.
 //
 
-#if _WIN32
+#ifndef _WIN32_WINNT
+#define _WIN32_WINNT 0x0501
+#endif
 
 #if !defined(BOOST_ASIO_ERROR_CATEGORY_NOEXCEPT)
 #define BOOST_ASIO_ERROR_CATEGORY_NOEXCEPT noexcept(true)
-#endif
-
 #endif
 
 #endif

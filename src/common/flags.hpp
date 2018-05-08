@@ -4,6 +4,7 @@
 #define _common_flags_hpp
 
 #include <type_traits>
+#include <bitset>
 
 namespace prologcoin { namespace common {
 

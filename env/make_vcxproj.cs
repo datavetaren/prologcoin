@@ -83,7 +83,7 @@ public class make_vcproj
    }
    
 
-   internal static void InitProject(Project project, string subdir, string what)
+   internal static void InitProject(Project project, string subdir, string name, string what)
    {
        string root = theRootDir;
 
@@ -95,6 +95,8 @@ public class make_vcproj
        string includeDirs = theBoostDir + ";" + "$(SolutionDir)" + MakeRelative(Path.GetFullPath(theSrcDir), theRootDir);
 
        clDef.AddMetadata("AdditionalIncludeDirectories", includeDirs);
+
+       clDef.AddMetadata("PreprocessorDefinitions", "_WIN32_WINNT=0x0501");
 
        project.SetProperty("DefaultTargets", "Build");
 
@@ -129,8 +131,6 @@ public class make_vcproj
        //
        // Configurations (debug | release) applications
        //
-
-       string name = subdir.Replace('\\', '_');
 
        var propDebug = project.Xml.AddPropertyGroup();
        propDebug.Condition = "'$(Configuration)|$(Platform)'=='Debug|" + platform + "'";
@@ -170,10 +170,8 @@ public class make_vcproj
        // propRelease.SetProperty("CharacterSet", "MultiByte");
    }
 
-   public static void CreateLibProject(Project project, string subdir)
+   public static void AddSourceFiles(Project project, string subdir)
    {
-       InitProject(project, subdir, "StaticLibrary");
-
        string srcDir = theSrcDir;
        string [] srcFiles = Directory.GetFiles(srcDir + @"\" + subdir);
        foreach (string srcFile in srcFiles) {
@@ -189,23 +187,119 @@ public class make_vcproj
        }
    }
 
-   public static string [] GetDependingLibs(string subdir)
+   public static void CreateLibProject(Project project, string subdir)
+   {
+       InitProject(project, subdir, subdir, "StaticLibrary");
+       AddSourceFiles(project, subdir);
+   }
+
+   public static void CreateExeProject(Project project, string subdir, string name)
+   {
+       InitProject(project, subdir, name, "Application");
+       AddSourceFiles(project, subdir);
+
+       // Get depending libs from parent Makefile.env
+       List<string> importLibs = GetDependingLibs(subdir);
+       SetupApplication(project, name, importLibs);
+
+       string args = GetDefaultArgs(subdir);
+       if (args != null) {
+           var platform = (theBit == "64") ? "x64" : "Win32";
+           var propDebug = project.Xml.AddPropertyGroup();
+           propDebug.Condition = "'$(Configuration)|$(Platform)'=='Debug|" + platform + "'";
+           propDebug.SetProperty("LocalDebuggerCommandArguments", args);
+           var propRelease = project.Xml.AddPropertyGroup();
+           propRelease.Condition = "'$(Configuration)|$(Platform)'=='Release|" + platform + "'";
+           propRelease.SetProperty("LocalDebuggerCommandArguments", args);
+       }
+   }
+
+   public static List<string> GetDependingLibs(string subdir)
    {
        string srcDir = theSrcDir;
        string makeEnvFile = srcDir + @"\" + subdir + @"\Makefile.env";
        StreamReader fs = new StreamReader(makeEnvFile);
        string line = null;
-       string [] deps = null;
+       List<string> deps = new List<string>();
        while((line = fs.ReadLine()) != null) {
           if (line.StartsWith("DEPENDS :=")) {
-	      deps = line.Substring(11).Trim().Split(' ');
+	      string [] strDeps = line.Substring(11).Trim().Split(' ');
+	      foreach (var dep in strDeps) {
+	          deps.Add(dep);
+	      }
 	  }
        }
        fs.Close();
-       if (deps == null) {
-           deps = new string[0];
-       }
        return deps;
+   }
+
+   public static string GetExeName(string subdir)
+   {
+       string srcDir = theSrcDir;
+       string makeEnvFile = srcDir + @"\" + subdir + @"\Makefile.env";
+       StreamReader fs = new StreamReader(makeEnvFile);
+       string exeName = null;
+       string line = null;
+       while((line = fs.ReadLine()) != null) {
+          if (line.StartsWith("EXE := ")) {
+	      exeName = line.Substring(7).Trim();
+	      break;
+	  }
+       }
+       fs.Close();
+       return exeName;
+   }
+
+   public static string GetDefaultArgs(string subdir)
+   {
+       string srcDir = theSrcDir;
+       string makeEnvFile = srcDir + @"\" + subdir + @"\Makefile.env";
+       StreamReader fs = new StreamReader(makeEnvFile);
+       string exeName = null;
+       string line = null;
+       while((line = fs.ReadLine()) != null) {
+          if (line.StartsWith("DEFAULT_ARGS := ")) {
+	      exeName = line.Substring(16).Trim();
+	      break;
+	  }
+       }
+       fs.Close();
+       return exeName;
+   }
+
+   public static void SetupApplication(Project project, string name, List<string> importLibs)
+   {
+       foreach (var lib in importLibs) {
+           string libFile = @"$(OutDir)" + lib + ".lib";
+           project.AddItem("Link", libFile);
+       }
+
+       var itemDefGroup = project.Xml.AddItemDefinitionGroup();
+       var clDef = itemDefGroup.AddItemDefinition("ClCompile");
+       clDef.AddMetadata("DebugInformationFormat", "ProgramDatabase");
+       clDef.AddMetadata("ProgramDataBaseFileName", @"$(OutDir)" + name + ".pdb");
+
+       var platform = (theBit == "64") ? "x64" : "Win32";
+
+       var linkDefGroup = project.Xml.AddItemDefinitionGroup();
+       var linkDef = linkDefGroup.AddItemDefinition("Link");
+       linkDef.Condition =  "'$(Configuration)|$(Platform)'=='Debug|" + platform + "'";
+       linkDef.AddMetadata("GenerateDebugInformation", "true");
+       linkDef.AddMetadata("SubSystem", "Console");
+
+       // Extract numbers from thePlatformToolset
+       string vcVer = "";
+       foreach (char c in thePlatformToolset) {
+           if (c >= '0' && c <= '9') vcVer += c;
+       }
+       vcVer = vcVer.Substring(0, vcVer.Length-1) + "." + vcVer[vcVer.Length-1];
+       string boostLibDir = theBoostDir + @"\" + "lib" + theBit + "-msvc-" + vcVer;
+       // Console.WriteLine("BoostLibDir: " + boostLibDir);
+       linkDef.AddMetadata("AdditionalLibraryDirectories", boostLibDir);
+
+       var propDebug = project.Xml.AddPropertyGroup();
+       propDebug.Condition = "'$(Configuration)|$(Platform)'=='Debug|" + platform + "'";
+       propDebug.SetProperty("BuildLinkTargets", "");
    }
 
    public static void CreateUnittestProject(Project project,
@@ -213,14 +307,14 @@ public class make_vcproj
                                             string [] srcFiles,
    	  	      		            string libName)
    {
-       InitProject(project, subdir, "Application");
-
        string name = subdir.Replace(@"\", "_");
 
-       string mandatoryImportLib = @"$(OutDir)" + libName + ".lib";
+       InitProject(project, subdir, name, "Application");
+
+       string mandatoryImportLib = libName;
 
        // Get depending libs from parent Makefile.env
-       string [] importLibs = GetDependingLibs(subdir + @"\..\");
+       List<string> importLibs = GetDependingLibs(subdir + @"\..\");
 
        string unittestMainPre = "";
        string unittestMainBody = "";
@@ -254,45 +348,11 @@ public class make_vcproj
        unittestMainFile.Write(unittestMain);
        unittestMainFile.Close();
 
+       importLibs.Add(mandatoryImportLib);
+
        project.AddItem("ClCompile", unittestMainPath1);
 
-       project.AddItem("Link", mandatoryImportLib);
-       foreach (var lib in importLibs) {
-           string libFile = @"$(OutDir)" + lib + ".lib";
-           project.AddItem("Link", libFile);
-       }
-
-       var itemDefGroup = project.Xml.AddItemDefinitionGroup();
-       var clDef = itemDefGroup.AddItemDefinition("ClCompile");
-       clDef.AddMetadata("DebugInformationFormat", "ProgramDatabase");
-       clDef.AddMetadata("ProgramDataBaseFileName", @"$(OutDir)" + name + ".pdb");
-
-       var platform = (theBit == "64") ? "x64" : "Win32";
-
-       var linkDefGroup = project.Xml.AddItemDefinitionGroup();
-       var linkDef = linkDefGroup.AddItemDefinition("Link");
-       linkDef.Condition =  "'$(Configuration)|$(Platform)'=='Debug|" + platform + "'";
-       linkDef.AddMetadata("GenerateDebugInformation", "true");
-       linkDef.AddMetadata("SubSystem", "Console");
-
-       // Extract numbers from thePlatformToolset
-       string vcVer = "";
-       foreach (char c in thePlatformToolset) {
-           if (c >= '0' && c <= '9') vcVer += c;
-       }
-       vcVer = vcVer.Substring(0, vcVer.Length-1) + "." + vcVer[vcVer.Length-1];
-       string boostLibDir = theBoostDir + @"\" + "lib" + theBit + "-msvc-" + vcVer;
-       // Console.WriteLine("BoostLibDir: " + boostLibDir);
-       linkDef.AddMetadata("AdditionalLibraryDirectories", boostLibDir);
-
-       var propDebug = project.Xml.AddPropertyGroup();
-       propDebug.Condition = "'$(Configuration)|$(Platform)'=='Debug|" + platform + "'";
-       propDebug.SetProperty("BuildLinkTargets", "");
-
-       /*
-       var custStepDep = project.Xml.AddPropertyGroup();
-       custStepDep.SetProperty("CustomBuildAfterTargets", "Link");
-       */
+       SetupApplication(project, name, importLibs);
    }
 
    private static void processDirectory(string srcDir, string subdir, bool isTest)
@@ -302,14 +362,31 @@ public class make_vcproj
        string name = subdir.Replace(@"\", "_");
 
        if (!isTest) {
-          //
-          // Library project
-	  //
-       	  Project libProject = new Project();
-       	  CreateLibProject(libProject, subdir);
-	  string libFile = name;
-       	  Console.WriteLine("Saving " + (theBinDir + @"\" + libFile + ".vcxproj"));
-       	  libProject.Save(theBinDir + @"\" + libFile + ".vcxproj", Encoding.ASCII);
+
+          string exeName = GetExeName(subdir);
+	  bool isLib = exeName == null;
+
+	  if (isLib) {
+              //
+              // Library project
+	      //
+       	      Project libProject = new Project();
+       	      CreateLibProject(libProject, subdir);
+	      string libFile = name;
+       	      Console.WriteLine("Saving " + (theBinDir + @"\" + libFile + ".vcxproj"));
+       	      libProject.Save(theBinDir + @"\" + libFile + ".vcxproj", Encoding.ASCII);
+	  } else {
+	      //
+	      // Exe project
+	      //
+	      Project exeProject = new Project();
+	      CreateExeProject(exeProject, subdir, exeName);
+	      
+
+	      Console.WriteLine("Saving " + (theBinDir + @"\" + exeName + ".vcxproj"));
+	      exeProject.Save(theBinDir + @"\" + exeName + ".vcxproj", Encoding.ASCII);
+	  }
+	  
           // projs.Add(libFile, NextGuid());
        } else {
           //
@@ -362,6 +439,7 @@ public class make_vcproj
 	      boost = x.Substring(6);
 	   }
        }
+
        Console.WriteLine("srcDir=" + srcDir);
        Console.WriteLine("outDir=" + outDir);
        Console.WriteLine("binDir=" + binDir);

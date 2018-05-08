@@ -636,7 +636,8 @@ out_connection::~out_connection()
     boost::lock_guard<boost::recursive_mutex> guard(work_lock_);
 
     while (!work_.empty()) {
-	delete work_.top();
+	out_task *t = work_.top();
+        delete t;
 	work_.pop();
     }
 }

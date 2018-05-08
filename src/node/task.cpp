@@ -11,6 +11,11 @@ out_task::out_task(const char *description, out_connection &out)
 {
 }
 
+out_task::~out_task()
+{
+    printf("Deleted: %p\n", this);
+}
+
 bool out_task::comparator(const out_task *t1, const out_task *t2)
 {
     return t1->get_when() > t2->get_when();

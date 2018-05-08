@@ -1,5 +1,7 @@
 extern "C" {
 
+#pragma warning( disable : 4319)
+  
 #define USE_BASIC_CONFIG 1
 
 #include "../../../secp256k1-zkp/src/basic-config.h"
