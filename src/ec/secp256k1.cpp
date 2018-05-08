@@ -1,6 +1,8 @@
 extern "C" {
 
+#ifdef _WIN32_WINNT
 #pragma warning( disable : 4319)
+#endif
   
 #define USE_BASIC_CONFIG 1
 
