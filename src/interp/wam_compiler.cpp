@@ -200,6 +200,8 @@ std::vector<wam_compiler::prim_unification> wam_compiler::flatten(
 	  wam_compiler::compile_type for_type,
 	  bool is_predicate_call)
 {
+    static const common::con_cell colon(":", 2);
+
     std::vector<prim_unification> prims;
 
     std::queue<prim_unification> worklist;
@@ -214,13 +216,20 @@ std::vector<wam_compiler::prim_unification> wam_compiler::flatten(
     while (!worklist.empty()) {
 	prim_unification p = worklist.front();
 	worklist.pop();
+
 	switch (p.rhs().tag()) {
 	case common::tag_t::STR: {
-	    auto f = env_.functor(p.rhs());
+	    auto rhs = p.rhs();
+	    auto f = env_.functor(rhs);
+	    if (f == colon && is_predicate) {
+		// This is a module predicate call, so look under colon
+		rhs = env_.arg(rhs, 1);
+		f = env_.functor(rhs);
+	    }
 	    size_t n = f.arity();
 	    for (size_t i = 0; i < n; i++) {
 	        auto pos = (for_type == COMPILE_QUERY) ? n - i - 1 : i;
-		auto arg = env_.arg(p.rhs(), pos);
+		auto arg = env_.arg(rhs, pos);
 
 		// Only flatten constants if we're at the top-level predicate
 		if (!is_predicate) {
@@ -247,7 +256,7 @@ std::vector<wam_compiler::prim_unification> wam_compiler::flatten(
 		}
 
 		prim_unification p1 = new_unification(ref, arg);
-		env_.set_arg(p.rhs(), pos, ref);
+		env_.set_arg(rhs, pos, ref);
 		if (!is_found || is_predicate) {
 		    worklist.push(p1);
 		}

@@ -85,7 +85,7 @@ bool builtins::privkey_1(interpreter_base &interp, size_t arity, term args[])
 {
     // Generate a new private key. We'll use the bitcoin private key
     // format where first byte is 0x80 followed by 
-    
+
     uint8_t bytes[1+32+8];
 
     auto *ctx = secp256k1_context_create(SECP256K1_CONTEXT_SIGN);
@@ -97,6 +97,7 @@ bool builtins::privkey_1(interpreter_base &interp, size_t arity, term args[])
     } cleanup_(ctx);
 
     if (args[0].tag() == tag_t::REF) {
+
 	bytes[0] = 0x80;
 	bool ok = true;
 	do {

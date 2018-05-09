@@ -793,6 +793,8 @@ void interpreter::bind_code_point(std::unordered_map<size_t, size_t> &label_map,
 
 void interpreter::load_code(wam_interim_code &instrs)
 {
+    // instrs.print(std::cout);
+
     std::unordered_map<size_t, size_t> label_map;
     size_t first_offset = next_offset();
     size_t offset = first_offset;

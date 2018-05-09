@@ -1365,7 +1365,7 @@ private:
 
     inline bool builtin(wam_instruction_base *p0)
     {
-        auto bn = reinterpret_cast<wam_instruction<BUILTIN_R> *>(p0);
+        auto bn = reinterpret_cast<wam_instruction<BUILTIN> *>(p0);
 	size_t num_args = bn->arity();
 	set_num_of_args(num_args);
 	goto_next_instruction();

@@ -741,6 +741,9 @@ namespace prologcoin { namespace interp {
 
 	interp.standard_output().write(out_str);
 
+	interp.set_p(interp.empty_list());
+	interp.set_cp(interp.empty_list());
+
 	return true;
     }
 
@@ -756,8 +759,12 @@ namespace prologcoin { namespace interp {
 	}
 
 	term out = interp.string_to_list(out_str);
+	bool ok = interp.unify(out, args[0]);
 
-	return interp.unify(out, args[0]);
+	interp.set_p(interp.empty_list());
+	interp.set_cp(interp.empty_list());
+
+	return ok;
     }
 	
 }}
