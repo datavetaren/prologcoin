@@ -830,7 +830,8 @@ protected:
       out = 0;
       for (auto ch : num) {
 	  int d = get_base_digit(ch, base);
-	  out = out*base + d;
+	  out *= base;
+	  out += d;
       }
   }
 

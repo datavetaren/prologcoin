@@ -411,7 +411,7 @@ bool heap::is_list(const cell c) const
     return true;
 }
 
-std::string heap::big_to_string(const boost::multiprecision::cpp_int &i, size_t base) const
+std::string heap::big_to_string(const boost::multiprecision::cpp_int &i, size_t base, size_t nbits) const
 {
     using namespace boost::multiprecision;
 
@@ -423,12 +423,24 @@ std::string heap::big_to_string(const boost::multiprecision::cpp_int &i, size_t 
     std::string s;
     const char *base_char = (base == 58) ? BASE_58 : BASE_STD;
 
-    cpp_int val = i;
+    // Only pad with whole bit size in base58 to make it compatible
+    // with bitcoin representation.
 
-    while (val) {
+    cpp_int val = i;
+    cpp_int maxval = 1;
+    // When we use base 16 or base 58 we pad with 0s to make it compatible
+    // with the common bitcoin representations.
+    if (base == 16 || base == 58) {
+	maxval <<= (nbits-1);
+    } else {
+	maxval = val;
+    }
+
+    while (maxval) {
 	size_t digit = static_cast<size_t>(val % base);
 	val -= digit;
 	val /= base;
+	maxval /= base;
 	char ch = base_char[digit];
 	s += ch;
     }
@@ -441,8 +453,9 @@ std::string heap::big_to_string(cell big, size_t base, bool capital) const
     using namespace boost::multiprecision;
 
     cpp_int val;
-    get_big(big, val);
-    std::string s = big_to_string(val,base);
+    size_t nbits = 0;
+    get_big(big, val, nbits);
+    std::string s = big_to_string(val, base, nbits);
     if (capital) {
 	boost::to_upper(s);
     }
@@ -455,7 +468,7 @@ void heap::set_big(cell big, const uint8_t *bytes, size_t n)
     big_cell &b = static_cast<big_cell &>(dc);
     size_t index = b.index();
     check_index(index);
-    big_inserter bi(*this, b);
+    auto bi = begin(b);
     for (size_t i = 0; i < n; i++, ++bi) {
 	*bi = bytes[i];
     }
@@ -467,7 +480,7 @@ void heap::get_big(cell big, uint8_t *bytes, size_t n) const
     big_cell &b = static_cast<big_cell &>(dc);
     size_t index = b.index();
     check_index(index);
-    check_index(index+(n+sizeof(cell)-1)/sizeof(cell));
+    check_index(index+(n+sizeof(cell)-1)/sizeof(cell)-1);
     auto bi = begin(b);
     for (size_t i = 0; i < n; i++, ++bi) {
 	bytes[i] = *bi;

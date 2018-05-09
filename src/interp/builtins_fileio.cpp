@@ -301,7 +301,12 @@ namespace prologcoin { namespace interp {
 	    if (base != 10) {
 		if (arg.tag() == tag_t::INT) {
 		    cpp_int ci(reinterpret_cast<const int_cell &>(arg).value());
-		    s = interp.big_to_string(ci, base);
+		    size_t nbits = 8; // Minimum
+		    if (ci != 0) {
+			// Quantized to nereast byte
+			nbits = ((msb(ci) + 7) / 8) * 8;
+		    }
+		    s = interp.big_to_string(ci, base, nbits);
 		} else {
 		    s = interp.big_to_string(arg, base);
 		}
@@ -412,7 +417,8 @@ namespace prologcoin { namespace interp {
 	    if (arg.tag() == tag_t::INT) {
 		i = reinterpret_cast<const int_cell &>(arg).value();
 	    } else {
-		interp.get_big(arg, i);
+		size_t nbits = 0;
+		interp.get_big(arg, i, nbits);
 	    }
 	    double d = static_cast<double>(i);
 	    std::stringstream ss;

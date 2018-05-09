@@ -669,7 +669,7 @@ class big_inserter {
 public:
     big_inserter(heap &heap, big_cell big);
 
-    inline cell_byte & operator *() {
+    inline cell_byte & operator * () {
 	return *it_;
     }
 
@@ -1192,7 +1192,7 @@ public:
     void get_big(cell big, uint8_t *bytes, size_t n) const;
     void set_big(cell big, const uint8_t *bytes, size_t n);
 
-    std::string big_to_string(const boost::multiprecision::cpp_int &i, size_t base) const;
+    std::string big_to_string(const boost::multiprecision::cpp_int &i, size_t base, size_t nbits) const;
     std::string big_to_string(cell big, size_t base, bool capital = false) const;
 
     inline size_t num_cells(const boost::multiprecision::cpp_int &i)
@@ -1212,14 +1212,14 @@ public:
 	export_bits(i, bi, 8);
     }
 
-    inline void get_big(cell big, boost::multiprecision::cpp_int &i) const
+    inline void get_big(cell big, boost::multiprecision::cpp_int &i,
+			size_t &nbits) const
     {
 	using namespace boost::multiprecision;
 	
 	cell dc = deref(big);
 	auto &b = reinterpret_cast<const big_cell &>(dc);
-	// auto &hdr = reinterpret_cast<const big_header &>(get(b.index()));
-	// bit_set(i, hdr.num_bits()-1);
+	nbits = num_bits(b);
 	import_bits(i, begin(b), end(b), 8);
     }
     
