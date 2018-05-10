@@ -99,6 +99,8 @@ The main reason for chosing Prolog is:
 
 ## Mimblewimble recap
 
+(Still under construction. Still a bit sloppy.)
+
 This intro to Mimblewimble is similar to the one for Grin, but I tell
 the story in a slightly different way.
 
@@ -112,14 +114,13 @@ E = a*G
 
 You should know that you only can compute `a*G` if you know 'a'.  Just
 knowing `a*G` doesn't let you know 'a'. This is the foundation of
-elliptic curve cryptography. Note that a*G is really a function: G(a),
-but we use the syntax `a*G` because this function is linear and
-commutative, so algebraic operations such as adding and/or multiplying
-make sense. In fact, the function G is a so called group generator,
-and you can choose an arbitrary point on the elliptic curve as your
-generator. Encryption libraries offer standard points so you never
-have to worry about the internal details. Just think that whenever you
-see 'a' you can compute `a*G` using a library function.
+elliptic curve cryptography. Note that a*G is really an exponentiation
+`G^a` but it is common in group theory to use `*` operator so we'll
+use the syntax `a*G`. G is a so called group generator, and you can
+choose an arbitrary G as a starting point.  Encryption libraries offer
+standard values so you never have to worry about the internal
+details. Just think that whenever you see 'a' you can compute `a*G`
+using a library function.
 
 It's also very deceiving when you read this document. For example,
 when you see:
@@ -133,41 +134,41 @@ recipient to its product it just looks like a big random (256 bit)
 number:
 
 ```
-E = 12838747271397732182286342
+E = 346720979295089224585136096788761830732827064365906751723101446124752950059439
 ```
 
 And from this it is impossible to extract '42' from this, unless you
 already know the value. Guessing/iterating over all numbers is in fact
 the only known way of finding that value. Of course, in practice, we
-don't choose small numbers as 42 either, but rather big 256-bit random
+wouldn't choose small numbers as 42; instead big 256-bit random
 numbers.
 
 ### Pedersen commitments
 
-A Pedersen commitment is an arithmetic computation over an elliptic
-curve such as:
+A Pedersen commitment is an arithmetic computation:
 
 ```
 P = b*G + v*H
 ```
 
-where 'b' and 'v' are plugged in parameters. G is a generator point
-for a elliptic curve. H is just another generator on the same curve
-that is guaranteed to be "numerically disjoint." In practice this is
-done by just setting H = hash(G). Again, an elliptic curve encryption
-library has standard values for these, so given 'b' and 'v' it will
-just compute 'P' for us.
+where 'b' and 'v' are plugged in parameters. G is the standard
+generator point.  H is just another generator that is guaranteed to be
+"numerically disjoint."  In practice this is done by just setting H =
+hash(G). Again, a standard library has standard values for these, so
+given 'b' and 'v' it will just compute 'P' for us.
 
-We say that `b*G` is a blinding factor. The 'b' serves as a private key.
-If we imagine that P (which is just a 256-bit big number) is an UTXO
-(Unspent Transaction Output), then we can prove we own that UTXO, even
-though the rest of the world don't know the value of 'v'.
+We say that `b*G` is a blinding factor. The 'b' serves as a private
+key.  If we imagine that P (which is just a 256-bit big number) is an
+UTXO (Unspent Transaction Output.) To prove the world we own this UTXO
+without revealing too much information we can do:
 
-The owner simply does `P - v*H`, because the owner knows 'v', he can
-easily compute v*H, and then the owner signs a message with his
-private key 'b' and everybody can confirm the signature using `P - v*H`
-as the public key. The message to be signed can be any 256-bit number,
-e.g. the SHA256 hash of the empty string (or whatever.)
+1. Compute b' = b + a (add an arbitrary offset to your private key 'b')
+2. Publish (b'*G + v*H) 
+3. Let world compute (b'*G + v*H) - (b*G + v*H) = a*G
+4. Publish any signature (e.g. the signature of an empty string) using 'a'
+5. World can verify that the signature using a*G (the computed difference)
+   as the public key and thus the owner knows 'b' and 'v' without revealing
+   any information.
 
 ### Double Communication. Unfortunately.
 

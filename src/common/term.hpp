@@ -1160,10 +1160,10 @@ public:
 	return const_big_iterator(*this, b.index(), n, true);
     }
 
-    inline big_cell new_big(const boost::multiprecision::cpp_int &i)
+    inline big_cell new_big(const boost::multiprecision::cpp_int &i, size_t nbits0)
     {
 	using namespace boost::multiprecision;
-	size_t nbits = i ? msb(i)+1 : 1;
+	size_t nbits = nbits0 == 0 ? (i ? msb(i)+1 : 1) : nbits0;
 	nbits = ((nbits + 8 - 1) / 8) * 8;
 	big_cell big = new_big(nbits);
 	set_big(big, i);
@@ -1202,15 +1202,7 @@ public:
 	    untagged_cell::CELL_NUM_BITS;
     }
 
-    inline void set_big(cell big, const boost::multiprecision::cpp_int &i)
-    {
-	using namespace boost::multiprecision;
-
-	cell dc = deref(big);
-	big_cell &b = reinterpret_cast<big_cell &>(dc);
-	big_inserter bi(*this, b);
-	export_bits(i, bi, 8);
-    }
+    void set_big(cell big, const boost::multiprecision::cpp_int &i);
 
     inline void get_big(cell big, boost::multiprecision::cpp_int &i,
 			size_t &nbits) const

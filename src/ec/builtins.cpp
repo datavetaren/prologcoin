@@ -1,6 +1,7 @@
 #include "builtins.hpp"
 #include "../common/random.hpp"
 #include "../interp/interpreter_base.hpp"
+#include "../common/term_serializer.hpp"
 #include "secp256k1.h"
 #include "hash.h"
 #include "hash_impl.h"
@@ -194,6 +195,116 @@ bool builtins::address_2(interpreter_base &interp, size_t arity, term args[])
     return interp.unify(args[1], big);
 }
 
+bool builtins::get_hashed_data(interpreter_base &interp, const term data,
+			       uint8_t hash[32])
+{
+    if (data.tag() == tag_t::BIG) {
+	auto &big_data = reinterpret_cast<const big_cell &>(data);
+	big_iterator bi = interp.get_heap().begin(big_data);
+	big_iterator bi_end = interp.get_heap().end(big_data);
+
+	// If the data size is exactly 32 bytes, then don't hash anything.
+	// Just return the data as is. This enables compatibility with
+	// computing signatures over data that has already been hashed.
+	size_t data_size = bi_end - bi;
+	if (data_size == 32) {
+	    for (size_t i = 0; i < data_size; i++, ++bi) {
+		hash[i] = *bi;
+	    }
+	    return true;
+	}
+
+	// If the data is a bignum with more (or less) than 32 bytes, then
+	// use SHA256 on it and return the hashed value.
+	static const size_t BUFFER_CAPACITY = 32;
+	uint8_t buffer[BUFFER_CAPACITY];
+	size_t buffer_len = 0;
+
+	secp256k1_sha256 ctx;
+	secp256k1_sha256_initialize(&ctx);
+	while (bi != bi_end) {
+	    while (bi != bi_end && buffer_len < sizeof(buffer)) {
+		buffer[buffer_len++] = *bi;
+		++bi;
+	    }
+	    secp256k1_sha256_write(&ctx, buffer, buffer_len);
+	    buffer_len = 0;
+	}
+	secp256k1_sha256_finalize(&ctx, hash);
+
+	return true;
+    }
+
+    // The data is anything but a bignum. We'll serialize the data and
+    // then compute the SHA256 hash of it.
+    term_serializer ser(interp);
+    term_serializer::buffer_t buf;
+    ser.write(buf, data);
+
+    secp256k1_sha256 ctx;
+    secp256k1_sha256_initialize(&ctx);
+    secp256k1_sha256_write(&ctx, &buf[0], buf.size());
+    secp256k1_sha256_finalize(&ctx, hash);
+
+    return true;
+}
+
+bool builtins::compute_signature(interpreter_base &interp, const term data,
+				 const term privkey, term &out_signature)
+{
+    uint8_t rawkey[32];
+    if (!get_private_key(interp, privkey, rawkey)) {
+	return false;
+    }
+
+    uint8_t hash[32];
+    if (!get_hashed_data(interp, data, hash)) {
+	return false;
+    }
+
+    // Generate a new private key. We'll use the bitcoin private key
+    // format where first byte is 0x80 followed by 
+    
+    auto *ctx = secp256k1_context_create(SECP256K1_CONTEXT_SIGN);
+
+    struct cleanup {
+	cleanup(secp256k1_context *ctx) : ctx_(ctx) { }
+	~cleanup() { secp256k1_context_destroy(ctx_); }
+	secp256k1_context *ctx_;
+    } cleanup_(ctx);
+
+    secp256k1_ecdsa_signature sig;
+    if (!secp256k1_ecdsa_sign(ctx, &sig, hash, rawkey, nullptr, nullptr)) {
+	return false;
+    }
+
+    uint8_t out[64];
+    if (!secp256k1_ecdsa_signature_serialize_compact(ctx, out, &sig)) {
+	return false;
+    }
+
+    term bigsig = interp.new_big(64*8);
+    interp.set_big(bigsig, out, 64);
+
+    out_signature = bigsig;
+    
+    return true;
+}
+
+bool builtins::sign_3(interpreter_base &interp, size_t arity, term args[] )
+{
+    if (args[2].tag() == tag_t::REF) {
+	term out;
+	if (!compute_signature(interp, args[1], args[0], out)) {
+	    return false;
+	}
+	return interp.unify(args[2], out);
+
+    } else {
+	return false;
+    }
+}
+
 void builtins::load(interpreter_base &interp)
 {
     const con_cell EC("ec", 0);
@@ -201,6 +312,7 @@ void builtins::load(interpreter_base &interp)
     interp.load_builtin(EC, con_cell("privkey", 1), &builtins::privkey_1);
     interp.load_builtin(EC, con_cell("pubkey", 2), &builtins::pubkey_2);
     interp.load_builtin(EC, con_cell("address", 2), &builtins::address_2);
+    interp.load_builtin(EC, con_cell("sign", 3), &builtins::sign_3);
 }
 
 }}

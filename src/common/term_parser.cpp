@@ -835,6 +835,17 @@ protected:
       }
   }
 
+  static inline size_t get_num_bits(const std::string &num, int base)
+  {
+      using namespace boost::multiprecision;
+      cpp_int i = 1;
+      for (auto ch : num) {
+	  static_cast<void>(ch);
+	  i *= base;
+      }
+      return msb(i);
+  }
+
   sym reduce_unsigned_number__natural_number(args_t &args)
   {
     using namespace boost::multiprecision;
@@ -848,7 +859,8 @@ protected:
 
     // Check if there's a base
     get_number_and_base(lexeme, number, base);
-    if (is_inside_int(number, base)) {
+    auto nbits = get_num_bits(number, base);
+    if (nbits < 64 && is_inside_int(number, base)) {
 	int_cell val(get_int(number, base));
 	if (track_positions()) {
 	    return sym(val, make_pos(tok.pos(),0));
@@ -859,7 +871,7 @@ protected:
 	// Construct a bignum
 	cpp_int val;
 	to_cpp_int(number, base, val);
-	big_cell big = heap_.new_big(val);
+	big_cell big = heap_.new_big(val, nbits);
 	if (track_positions()) {
 	    return sym(big, make_pos(tok.pos(),0));
 	} else {

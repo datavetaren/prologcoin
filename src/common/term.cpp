@@ -474,6 +474,26 @@ void heap::set_big(cell big, const uint8_t *bytes, size_t n)
     }
 }
 
+void heap::set_big(cell big, const boost::multiprecision::cpp_int &i)
+{
+    using namespace boost::multiprecision;
+
+    cell dc = deref(big);
+    big_cell &b = reinterpret_cast<big_cell &>(dc);
+    size_t nbits = num_bits(b);
+    big_inserter bi(*this, b);
+    if (i != 0) {
+	// It needs to be in the right most position of the bignum
+	// (the bignum is in big endian form)
+	auto nbytes = (nbits - ((msb(i) + 7) / 8)*8) / 8;
+	while (nbytes) {
+	    ++bi;
+	    nbytes--;
+	}
+    }
+    export_bits(i, bi, 8);
+}
+
 void heap::get_big(cell big, uint8_t *bytes, size_t n) const
 {
     auto dc = deref(big);
