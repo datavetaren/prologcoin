@@ -157,20 +157,21 @@ generator point.  H is just another generator that is guaranteed to be
 hash(G). Again, a standard library has standard values for these, so
 given 'b' and 'v' it will just compute 'P' for us.
 
-We say that `b*G` is a blinding factor. The 'b' serves as a private
-key.  If we imagine that P (which is just a 256-bit big number) is an
+We say that `b` is a blinding factor and 'b' serves as a private
+key.  We imagine that P (which is just a 256-bit big number) is an
 UTXO (Unspent Transaction Output.) To prove the world we own this UTXO
-without revealing too much information we can do:
+without revealing any information we can do:
 
-1. Compute b' = b + a (add an arbitrary offset to your private key 'b')
-2. Publish (b'*G + v*H) 
-3. Let world compute (b'*G + v*H) - (b*G + v*H) = a*G
-4. Publish any signature (e.g. the signature of an empty string) using 'a'
-5. World can verify that the signature using a*G (the computed difference)
-   as the public key and thus the owner knows 'b' and 'v' without revealing
-   any information.
+1. Compute P' = b*G + v*H' where H' = H + b'*G =>
+   P' = b*G + v*(H + b'*G) = b*G + v*H + v*b'*G
+2. Publish P'
+3. Let world compute P' - P = (b*G + v*H + v*b'*G) - (b*G + v*H) = v*b'*G
+4. Publish any signature (e.g. the signature of an empty string) using v*b'
+   as private key.
+5. World can verify the signature using v*b'*G (= P' - P) as public key.
+6. Only the owner of P can do this.
 
-### Double Communication. Unfortunately.
+### Double Communication. Unfortunately. (Not sure if this is correct...)
 
 For Mimblewimble transactions we'll see that, unfortunately, there
 needs to be a direct connection between sender and recipient of funds.
