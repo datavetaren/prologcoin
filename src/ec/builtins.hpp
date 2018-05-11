@@ -37,8 +37,12 @@ private:
     static bool get_address(uint8_t pubkey[32], uint8_t address[20]);
     static bool compute_signature(interpreter_base &interp, const term data,
 				  const term privkey, term &out_signature);
+    static bool verify_signature(interpreter_base &interp, const term data,
+				 const term pubkey, const term signature);
     static bool get_hashed_data(interpreter_base &interp, const term data,
 				uint8_t hash[32]);
+    static bool get_signature_data(interpreter_base &interp, const term sign,
+				   uint8_t sign_data[64]);
 
 };
 

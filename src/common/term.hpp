@@ -1164,7 +1164,7 @@ public:
     {
 	using namespace boost::multiprecision;
 	size_t nbits = nbits0 == 0 ? (i ? msb(i)+1 : 1) : nbits0;
-	nbits = ((nbits + 8 - 1) / 8) * 8;
+	nbits = ((nbits + 7) / 8) * 8;
 	big_cell big = new_big(nbits);
 	set_big(big, i);
 	return big;

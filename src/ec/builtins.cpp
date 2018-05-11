@@ -291,8 +291,78 @@ bool builtins::compute_signature(interpreter_base &interp, const term data,
     return true;
 }
 
+bool builtins::get_signature_data(interpreter_base &interp, term big0, uint8_t sign[64])
+{
+    if (big0.tag() != tag_t::BIG) {
+	return false;
+    }
+
+    auto &big = reinterpret_cast<const big_cell &>(big0);
+    size_t nbits = interp.num_bits(big);
+    if (nbits != 512) {
+	return false;
+    }
+    interp.get_big(big, &sign[0], nbits/8);
+    return true;
+}
+
+bool builtins::verify_signature(interpreter_base &interp,
+				const term data,
+				const term pubkey,
+				const term signature)
+{
+    uint8_t rawkey[33];
+    if (!get_public_key(interp, pubkey, rawkey)) {
+	return false;
+    }
+
+    uint8_t sign_data[64];
+    if (!get_signature_data(interp, signature, sign_data)) {
+	return false;
+    }
+
+    uint8_t hash[32];
+    if (!get_hashed_data(interp, data, hash)) {
+	return false;
+    }
+
+    // Generate a new private key. We'll use the bitcoin private key
+    // format where first byte is 0x80 followed by 
+    
+    auto *ctx = secp256k1_context_create(SECP256K1_CONTEXT_VERIFY);
+
+    struct cleanup {
+	cleanup(secp256k1_context *ctx) : ctx_(ctx) { }
+	~cleanup() { secp256k1_context_destroy(ctx_); }
+	secp256k1_context *ctx_;
+    } cleanup_(ctx);
+
+
+    secp256k1_pubkey pubkey1;
+    if (!secp256k1_ec_pubkey_parse(ctx, &pubkey1, rawkey, 33)) {
+	return false;
+    }
+
+    secp256k1_ecdsa_signature sig;
+    if (!secp256k1_ecdsa_signature_parse_compact(ctx, &sig, sign_data)) {
+	return false;
+    }
+
+    if (!secp256k1_ecdsa_verify(ctx, &sig, hash, &pubkey1)) {
+	return false;
+    }
+    
+    return true;
+}
+
 bool builtins::sign_3(interpreter_base &interp, size_t arity, term args[] )
 {
+    if (args[0].tag() == tag_t::REF) {
+	throw interpreter_exception_not_sufficiently_instantiated(
+		  "ec:sign/3: First argument, a public or private key"
+                  " (private for signing), must be given.");
+    }
+
     if (args[2].tag() == tag_t::REF) {
 	term out;
 	if (!compute_signature(interp, args[1], args[0], out)) {
@@ -301,7 +371,10 @@ bool builtins::sign_3(interpreter_base &interp, size_t arity, term args[] )
 	return interp.unify(args[2], out);
 
     } else {
-	return false;
+	if (!verify_signature(interp, args[1], args[0], args[2])) {
+	    return false;
+	}
+	return true;
     }
 }
 
