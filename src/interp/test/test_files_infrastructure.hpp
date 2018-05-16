@@ -176,7 +176,11 @@ static bool test_run_once(interpreter &interp,
     }
     std::cout << "Actual: " << actual << " (Cost " << interp.accumulated_cost() << ")" <<  std::endl;
     std::cout << "Expect: " << expected[iteration] << std::endl;
-    assert(match_strings(actual, expected[iteration]));
+    if (expected[iteration] == "true/*") {
+	assert(r);
+    } else {
+	assert(match_strings(actual, expected[iteration]));
+    }
 
     for (auto files : expected_files) {
 	auto gen_file = files.first;

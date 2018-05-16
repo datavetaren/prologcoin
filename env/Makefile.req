@@ -21,7 +21,10 @@ define err
            2. g++ with C++11 support
            3. pthread support
            4. Boost version $(BOOST_REQ_STR) or later
-           5. libsecp256k1-zkp (git clone https://github.com/datavetaren/secp256k1-zkp) )
+           5. libsecp256k1-zkp (git clone https://github.com/datavetaren/secp256k1-zkp)
+	      Install this parallel to prologcoin, so that
+	      git/prologcoin/src
+	      git/sec256k1-zkp/ )
     $(error requirements check failed)
 endef
 
@@ -90,7 +93,7 @@ endif
 # Check for libsecp256k1-zkp
 #
 
-CHECK_SECP256K1 := $(shell echo "\#include \"../../src/ec/secp256k1.h\"\nint main(int argc, char *argv[]) { return 0; }" >/tmp/check_secp256k1.cpp; rm -f /tmp/check_secp256k1.out; g++ -I ../../src/ec -std=c++11 2>&1 /tmp/check_secp256k1.cpp -o /tmp/check_secp256k1.out; /tmp/check_secp256k1.out; echo exit is $$?)
+CHECK_SECP256K1 := $(shell echo "\#include \"../../src/secp256k1/secp256k1.h\"\nint main(int argc, char *argv[]) { return 0; }" >/tmp/check_secp256k1.cpp; rm -f /tmp/check_secp256k1.out; g++ -I ../../src/ec -std=c++11 2>&1 /tmp/check_secp256k1.cpp -o /tmp/check_secp256k1.out; /tmp/check_secp256k1.out; echo exit is $$?)
 
 ifeq "$(findstring exit is 0, $(CHECK_SECP256K1))" ""
    $(call err, Couldn't find secp256k1-zkp. Issue git clone https://github.com/datavetaren/secp256k1-zkp parallel to prologcoin.)

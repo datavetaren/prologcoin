@@ -67,6 +67,15 @@ int random::next_int(int max)
     }
 }
 
+uint64_t random::next_int(uint64_t max)
+{
+    if (for_testing_) {
+	return static_cast<uint64_t>(for_testing_random_() % max);
+    } else {
+	return static_cast<uint64_t>(static_cast<unsigned int>(random_()) % max);
+    }
+}
+
 void random::next_bytes(uint8_t *bytes, size_t n)
 {
     for (size_t i = 0; i < n; i++) {

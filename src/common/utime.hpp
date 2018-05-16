@@ -108,6 +108,23 @@ public:
     inline uint64_t in_hh() const { return time_ / 3600000000; }
     inline uint64_t in_dd() const { return time_ / 86400000000; }
 
+    // In big endian form
+    inline void to_bytes(uint8_t data[8]) {
+	uint64_t t = time_;
+	for (size_t i = 0; i < 8; i++) {
+	    data[8-i-1] = static_cast<uint8_t>(t & 0xff);
+	    t >>= 8;
+	}
+    }
+
+    inline void from_bytes(uint8_t data[8]) {
+	time_ = 0;
+	for (size_t i = 0; i < 8; i++) {
+	    time_ |= data[i];
+	    time_ <<= 8;
+	}
+    }
+
     static utime from_string(const std::string &str);
 
     bool parse(const std::string &str);

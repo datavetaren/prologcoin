@@ -160,18 +160,48 @@ given 'b' and 'v' it will just compute 'P' for us.
 We say that `b` is a blinding factor and 'b' serves as a private
 key.  We imagine that P (which is just a 256-bit big number) is an
 UTXO (Unspent Transaction Output.) To prove the world we own this UTXO
-without revealing any information we can do:
+one could imagine something like this:
 
-1. Compute P' = b*G + v*H' where H' = H + b'*G =>
-   P' = b*G + v*(H + b'*G) = b*G + v*H + v*b'*G
-2. Publish P'
-3. Let world compute P' - P = (b*G + v*H + v*b'*G) - (b*G + v*H) = v*b'*G
-4. Publish any signature (e.g. the signature of an empty string) using v*b'
-   as private key.
-5. World can verify the signature using v*b'*G (= P' - P) as public key.
-6. Only the owner of P can do this.
+0. What is known is `P = b*G + v*H`
+1. Compute `P' = b'*G + v*H`
+2. `P' - P = (b-b')*G`
+3. Sign something with (b-b')
+4. World can verify signature using `(b-b')*G` as public key
 
-### Double Communication. Unfortunately. (Not sure if this is correct...)
+But this doesn't work! Because it's impossible to independently
+verify that b' is related to b. Because, imagine we do
+
+0. What is known is `P = b*G + v*H`
+1. An outsider can compute `P' = P - b'*G`
+2. `P' - P = b'*G`
+3. Sign something with b'
+4. World can verify signature using `b'*G` as public key
+
+This means that someone other than the owner can compute it and theft
+is possible. So we need to take one step further. Let's split the
+blinding factor and the value into multiple terms:
+
+0. What is known is `P = b*G + v*H`
+1. Define `P = (b1+b2+b3)*G + (v1+v2)*H`
+2. Compute: `P' = b1*G + v1*H`, `P'' = b2*G + v2*H`
+3. Publish P', P'' and `b3*G`
+4. Let world verify that `P = P' + P'' + b3*G`, for example
+   `P - P' - P'' = b3*G`
+5. Sign something with b3
+6. World can verify signature using `b3*G` as public key
+
+In this scenario it's difficult to spoof cancelling the v's. But we do
+need some additional constraints: P' and P'' are not be allowed to be
+0 (lucky for us that 0 isn't a legal value on the elliptic curve.)
+Otherwise you can set `P' = 0` and `P'' = P - x*G`, which would work
+for any x.
+
+I don't think this is so bad in practice, because transactions will
+have fees. If you enforce a minimum fee (anything but 0), then that
+would make P' and P'' non-trivial. And as soon you introduce a change,
+you need the blinding factors to construct the correct excess value.
+
+### Double Communication. Unfortunately.
 
 For Mimblewimble transactions we'll see that, unfortunately, there
 needs to be a direct connection between sender and recipient of funds.
@@ -372,8 +402,13 @@ and the other half is collectable as a linear function of its base
 size. For example, if everything is replaced with a single proof you'd
 collect the other 50%. A miner would then need to provide a proof that
 he can do block compression. This part is still something I'm thinking
-about how do get this right. Sorry for not being more precise at this
-time.
+about how do get this right.
+
+Worst case scenario is to have two blockchains, where the second one
+is lagging with 2 years. That blockchain will be the "compressed"
+version and the state can be computed by downloading blocks for either
+one depending on the block number. They should be both compatible as
+the only difference is how the excess values are computed.
 
 ## Adding Prolog Predicates
 
