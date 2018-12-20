@@ -2,7 +2,7 @@
 # Recurse into sub-directories and build and test
 #
 
-MODULES := secp256k1 common interp ec node main
+MODULES := secp256k1 common interp ec node pow main
 
 yellow="\033[0;33m"
 off="\033[0m"
