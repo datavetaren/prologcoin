@@ -1,0 +1,236 @@
+<html>
+<head>
+<script>
+
+var x = 0.0, y = 0.0, z = 0.0;
+var radius = [[radius]], theta = [[theta]], phi = [[phi]];
+var scale = 0.0001;
+
+function onload() {
+    document.addEventListener('keydown',
+        function (event) {
+            if (event.keyCode == 74) {
+                phi += scale/radius;
+                doRenderStars();
+            } else if (event.keyCode == 76) {
+                phi -= scale/radius;
+                doRenderStars();
+            } else if (event.keyCode == 73) {
+                theta += scale/radius;
+                doRenderStars();
+            } else if (event.keyCode == 75) {
+                theta -= scale/radius;
+                doRenderStars();
+            } else if (event.keyCode == 65) {
+                radius *= 1.05;
+                doRenderStars();
+            } else if (event.keyCode == 90) {
+                radius /= 1.05;
+                if (radius <= 0.1) radius = 0.1;
+                doRenderStars();
+            }
+        });
+                      
+    doRenderStars();
+}
+function doRenderStars() {
+    var req = new XMLHttpRequest();
+    req.onreadystatechange = function() { doRenderStarsCallback(this); };
+    var cmd = "render?x=0&y=0&z=0&r=" + radius + "&th=" + theta + "&phi=" + phi;
+    req.open("GET", cmd, true);
+    req.send();
+}
+function getExcerpt(s) {
+    if (s.length() > 16) {
+         return s.substring(0,16) + "...";
+    } else {
+         return s;
+    }
+}
+function errAt(msg, s, i) {
+    alert(msg + ": " + getExcerpt(s.substring(i)));
+}
+
+function parseName(s, ref_i)
+{
+    var n = s.length;
+    var i = ref_i.i;
+    var start = i;
+    while (i < n && s[i] != '=') {
+        i++;
+    }
+    var name = s.substring(start, i);
+    ref_i.i = i;
+    return name;
+}
+
+function parseValue(s, ref_i)
+{
+    var n = s.length;
+    var i = ref_i.i;
+    var start = i;
+    if (n > 0 && s[i] == '[') {
+	 while (i < n && s[i] != ']') {
+	    i++;
+	 }
+         i++;
+         var val = s.substring(start, i);
+         ref_i.i = i;
+         return val;
+    }
+    while (i < n && s[i] != ',' && s[i] != '}' && s[i] != ']') i++;
+    var val = s.substring(start, i);
+    ref_i.i = i;
+    return val;
+}
+
+function parseVarAssign(s, ref_i, varval)
+{
+    var name = parseName(s, ref_i);
+    ref_i.i++;
+    var val = parseValue(s, ref_i);
+    varval.name = name;
+    varval.value = val;
+}
+
+function parseCoordinate(s, ref_i, ref_coord)
+{
+    var n = s.length;
+    var varval = {name: '', value: ''};
+    while (ref_i.i < n && s[ref_i.i] != '}') {
+        if (s[ref_i.i] == '{') ref_i.i++;
+        parseVarAssign(s, ref_i, varval);
+        if (varval.name == 'i') {
+            ref_coord.i = parseInt(varval.value);
+        } else if (varval.name == 'x') {
+            ref_coord.x = parseInt(varval.value);
+        } else if (varval.name == 'y') {
+            ref_coord.y = parseInt(varval.value);
+        } else if (varval.name == 'r') {
+            ref_coord.r = parseInt(varval.value);
+        }
+        if (s[ref_i.i] == ',') {
+            ref_i.i++;
+        }
+    }
+    ref_i.i++;
+}
+
+function drawLine(ctx, w, h, x0, y0, x1, y1, col)
+{
+    ctx.strokeStyle = 'rgb(' + col[0] + ',' + col[1] + ',' + col[2] + ')';
+    ctx.lineWidth = 2;
+    ctx.moveTo(x0, y0);
+    ctx.lineTo(x1, y1);
+    ctx.stroke();
+}
+
+function drawStar(ctx, w, h, x, y, r)
+{
+    var col = Math.round(127*(100-r)/100+128);
+    ctx.beginPath();
+    ctx.arc(x, y, (100-r)/20, 0, 2*Math.PI, false);
+    ctx.fillStyle = 'rgb(' + col + ',' + col + ',' + col + ')';
+    ctx.fill();
+}
+
+function interpretConstellation(ctx, w, h, stars, value)
+{
+    var star_sys = [];
+    var ref_j = {i:1}; // Skip '['
+    var val_list = value;
+    var cnt = 0;
+    while (ref_j.i < val_list.length && val_list[ref_j.i] != ']') {
+        var val = parseValue(val_list, ref_j);
+        if (val_list[ref_j.i] == ',') ref_j.i++; // Skip comma
+        star_sys[cnt] = val;
+        cnt++;
+    }
+
+    var col = [255, 0, 0];
+    for (var i = 0; i < star_sys.length - 1; i++) {
+        var x0 = stars[star_sys[i]].x;
+        var y0 = stars[star_sys[i]].y;
+        var x1 = stars[star_sys[i+1]].x;
+        var y1 = stars[star_sys[i+1]].y;
+        drawLine(ctx, w, h, x0, y0, x1, y1, col);
+        drawStar(ctx, w, h, x0, y0, 1);
+    }
+    var x6 = stars[star_sys[6]].x;
+    var y6 = stars[star_sys[6]].y;
+    var x3 = stars[star_sys[3]].x;
+    var y3 = stars[star_sys[3]].y;
+    drawLine(ctx, w, h, x6, y6, x3, y3, col);
+    drawStar(ctx, w, h, x6, y6, 1);
+}
+
+function interpretVarAssign(ctx, w, h, stars, name, value)
+{
+    if (name == 's') {
+        interpretConstellation(ctx, w, h, stars, value);
+    } else if (name == 'x') {
+	x = parseFloat(value);
+    } else if (name == 'y') {
+	y = parseFloat(value);
+    } else if (name == 'z') {
+        z = parseFloat(value);
+    } else if (name == 'radius') {
+	radius = parseFloat(value);
+    } else if (name == 'theta') {
+        theta = parseFloat(value);
+    } else if (name == 'phi') {
+        phi = parseFloat(value);
+    }
+}
+
+function doRenderStarsCallback(req) {
+    if (req.readyState != 4) {
+        return;
+    }
+
+    var str = req.responseText;
+    var n = str.length;
+    if (n < 1 || str[0] != '[') {
+        return;
+    }
+
+    var canvas = document.getElementById('canvas');
+    var w = canvas.width;
+    var h = canvas.height;
+    var ctx = canvas.getContext('2d');
+    ctx.fillStyle = 'black';
+    ctx.fillRect(0,0,w,h);
+
+    var ref_i = {i: 1};
+    var coord = {id:0, x:0.0, y:0.0, r:0.0};
+    var stars = [];
+    while (ref_i.i < n) {
+        var ch = str[ref_i.i].toLowerCase();
+        if (ch == ']') {
+            break;
+        }
+        if (ch >= 'a' && ch <= 'z') {
+            var varval = {name:'', value:''};
+	    parseVarAssign(str, ref_i, varval);
+            interpretVarAssign(ctx, w, h, stars, varval.name, varval.value);
+        } else if (ch >= '{') {
+            parseCoordinate(str, ref_i, coord);
+            var x = Math.round(coord.x / (4096 / w));
+            var y = Math.round(coord.y / (4096 / h));
+            var r = Math.round(coord.r / (4096 / 100));
+            stars[coord.i] = {x:x, y:y, r:r};
+            drawStar(ctx, w, h, x, y, r);
+        } else {
+	    // Ignored
+	}
+        if (ref_i.i < n && str[ref_i.i] == ',') ref_i.i++;
+    }
+    // ctx.putImageData(im, 0, 0);
+}
+</script>
+</head>
+<body onload="onload()">
+<h1> Observing Galaxy </h1>
+<canvas id="canvas" width=512 height=512></canvas>
+</body>
+</ntml>

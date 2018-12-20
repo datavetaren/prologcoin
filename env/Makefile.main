@@ -4,7 +4,10 @@ LIB_EXT := .a
 LINK := g++
 CC := g++
 CCFLAGS := -c -g -Werror -Wall -std=c++11 -pthread
-#CCFLAGS := -c -O3 -Werror -Wall -std=c++11 -pthread
+ifeq ($(NODEBUG),1)
+    CCFLAGS := -c -O3 -Werror -Wall -std=c++11 -pthread
+endif
+CCFLAGS += $(CC_EXTRA)
 CCINC := -I
 CCOUT := -o
 LINKOUT := -o
