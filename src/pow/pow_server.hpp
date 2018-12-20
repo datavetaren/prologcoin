@@ -65,8 +65,8 @@ id=14503809 x=715 y=312
 
 */
 
-typedef fxp1648 arith_t;
-	// typedef double arith_t;
+// typedef fxp1648 arith_t;
+typedef double arith_t;
 
 class connections;
 class pow_server;

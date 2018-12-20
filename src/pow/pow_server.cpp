@@ -234,10 +234,8 @@ void connection::parse_content()
 void connection::do_action()
 {
     arith_t x(0), y(0), z(0);
-    arith_t r(1), th(0), phi(0);
+    arith_t r = arith_t(1)/10, th = arith_t(3141)/1000/2, phi(0);
     size_t proof_num = 0, nonce = 0;
-
-    r /= 10;
 
     // std::cout << "URI: " << uri_ << std::endl;
 
@@ -286,6 +284,7 @@ void connection::do_action()
 	th = target.theta();
 	phi = target.phi();
     } else {
+	// std::cout << "SETTING TARGET: " << r << " " << th << " " << phi << std::endl;
 	server.set_target(r, th, phi);
     }
 
