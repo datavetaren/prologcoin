@@ -382,8 +382,8 @@ pow_server::pow_server(const std::string &address, const std::string &port,
     socket_(io_service_),
     connections_(*this) {
 
-    observatory_ = new observatory<8,arith_t>();
-    o<8,arith_t>(observatory_).init("hello42", 7);
+    siphash_keys keys("hello42", 7);
+    observatory_ = new observatory<8,arith_t>(keys);
 
     std::cout << "Galaxy initialized" << std::endl;
     o<8,arith_t>(observatory_).status();

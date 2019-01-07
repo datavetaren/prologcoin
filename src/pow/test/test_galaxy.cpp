@@ -106,9 +106,9 @@ static void test_scan()
     header("test_scan");
 
     char msg[8] = "hello42";
+    siphash_keys keys(msg, strlen(msg));
 
-    observatory<8,double> obs;
-    obs.init(msg, strlen(msg));
+    observatory<8,double> obs(keys);
     obs.status();
 
     for (int i = 0; i < 100; i++) {
@@ -124,8 +124,8 @@ static void test_simple()
 
     char msg[8] = "hello42";
 
-    observatory<7,double> obs;
-    obs.init(msg, strlen(msg));
+    siphash_keys keys(msg, strlen(msg));
+    observatory<7,double> obs(keys);
     obs.status();
 
     std::ofstream outfile("stars.txt");

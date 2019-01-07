@@ -92,6 +92,28 @@ public:
 	}
     }
 
+    inline void write(uint8_t bytes[8]) const {
+	bytes[0] = (data_ >> 56) & 0xff;
+	bytes[1] = (data_ >> 48) & 0xff;
+	bytes[2] = (data_ >> 40) & 0xff;
+	bytes[3] = (data_ >> 32) & 0xff;
+	bytes[4] = (data_ >> 24) & 0xff;
+	bytes[5] = (data_ >> 16) & 0xff;
+	bytes[6] = (data_ >>  8) & 0xff;
+	bytes[7] = (data_ >>  0) & 0xff;
+    }
+
+    inline void read(const uint8_t bytes[8]) {
+	data_ = (static_cast<uint64_t>(bytes[0]) << 56) |
+	        (static_cast<uint64_t>(bytes[1]) << 48) |
+	        (static_cast<uint64_t>(bytes[2]) << 40) |
+	        (static_cast<uint64_t>(bytes[3]) << 32) |
+	        (static_cast<uint64_t>(bytes[4]) << 24) |
+	        (static_cast<uint64_t>(bytes[5]) << 16) |
+	        (static_cast<uint64_t>(bytes[6]) << 8) |
+	        (static_cast<uint64_t>(bytes[7]) << 0);
+    }
+
     inline void operator = (const double x) {
 	data_ = fxp1648(x).raw_value();
     }
@@ -182,17 +204,25 @@ public:
 	}
     }
 
+    inline fxp1648 shift_right_no_saturation(size_t n) const {
+	if (n > 63) {
+	    return is_negative() ? fxp1648::raw(static_cast<uint64_t>(-1))
+		                 : fxp1648::raw(0);
+	}
+        return fxp1648::raw(static_cast<uint64_t>(static_cast<int64_t>(data_) >> n));
+    }
+
     inline fxp1648 operator >> (size_t n) const {
 	if (data_ == 0) {
 	    return *this;
 	}
-	auto v = static_cast<uint64_t>(static_cast<int64_t>(data_) >> n);
-	if (v == 0 || v == static_cast<uint64_t>(-1)) {
+	auto v = shift_right_no_saturation(n);
+	if (v.raw_value() == 0 || v.raw_value() == static_cast<uint64_t>(-1)) {
 	    // Underflow, saturate on positive. Return smallest representable
 	    // number.
 	    return fxp1648::eps(!is_negative());
 	} else {
-	    return fxp1648::raw(static_cast<uint64_t>(static_cast<int64_t>(data_) >> n));
+	    return v;
 	}
     }
 

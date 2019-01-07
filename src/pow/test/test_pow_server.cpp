@@ -35,8 +35,8 @@ static void run_scan()
 
     char msg[8] = "hello42";
 
-    observatory<8,double> obs;
-    obs.init(msg, strlen(msg));
+    siphash_keys keys(msg, strlen(msg));
+    observatory<8,double> obs(keys);
     obs.status();
 
     for (size_t proof_number = 0; proof_number < 32; proof_number++) {

@@ -5,12 +5,43 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <assert.h>
 #include "siphash.hpp"
 #include "fxp.hpp"
+#include "flt.hpp"
 #include "galaxy.hpp"
 #include "camera.hpp"
 
 namespace prologcoin { namespace pow {
+
+//
+// pow difficulty is a value beteen 0..1 (we use fixed-point to represent it)
+// It's inverse (1-difficulty) * (2^256)-1 determines the target value
+// (hashes must be below target value.)
+class pow_difficulty {
+public:
+    inline pow_difficulty(const flt1648 &val) : difficulty_(val) { 
+    }
+
+    // Increase (or decrease) difficulty with a scaling factor 'val'
+    inline pow_difficulty scale(const flt1648 &val) const {
+	return difficulty_ * val;
+    }
+
+    inline void get_target(uint8_t target[32]) const {
+	static const flt1648 ONE(1);
+	if (difficulty_ == ONE) {
+	    memset(target, 0xff, 32);
+	    return;
+	}
+	// Copy inverse difficulty to MSB
+	flt1648 normalized_target = difficulty_.reciprocal();
+	normalized_target.to_integer(&target[0], 32);
+    }
+
+private:
+    flt1648 difficulty_;
+};
 
 // The PoW proof consists of 32 rows, where each row consists of
 // 1 + 7 (i.e. 8) 32-bit integers. The last 7 integers are the id numbers of
@@ -22,19 +53,57 @@ public:
     static const size_t NUM_ROWS = 32;
     static const size_t ROW_SIZE = 8;
     static const size_t TOTAL_SIZE = ROW_SIZE*NUM_ROWS;
+    static const size_t TOTAL_SIZE_BYTES = TOTAL_SIZE*sizeof(uint32_t);
+
+    inline pow_proof() {
+	memset(&data_[0], 0, TOTAL_SIZE_BYTES);
+    }
 
     inline pow_proof(uint32_t proof[TOTAL_SIZE]) {
-	memcpy(&data_[0], &proof[0], TOTAL_SIZE*sizeof(uint32_t));
+	memcpy(&data_[0], &proof[0], TOTAL_SIZE_BYTES);
+    }
+
+    inline void write(uint8_t *bytes) const {
+	size_t i = 0;
+	for (size_t row = 0; row < NUM_ROWS; row++) {
+	    for (size_t j = 0; j < ROW_SIZE; j++) {
+		uint32_t word = data_[row*ROW_SIZE+j];
+		bytes[i++] = static_cast<uint8_t>((word >> 24) & 0xff);
+		bytes[i++] = static_cast<uint8_t>((word >> 16) & 0xff);
+		bytes[i++] = static_cast<uint8_t>((word >> 8) & 0xff);
+		bytes[i++] = static_cast<uint8_t>((word >> 0) & 0xff);
+	    }
+	}
     }
 
     inline size_t num_rows() const { return NUM_ROWS; }
 
+    inline void set_row(size_t row_number, uint32_t row[ROW_SIZE]) {
+	memcpy(&data_[row_number*ROW_SIZE], &row[0], ROW_SIZE*sizeof(uint32_t));
+    }
+
     inline void get_row(size_t row_number, uint32_t row[ROW_SIZE]) const {
 	memcpy(&row[0], &data_[row_number*ROW_SIZE], ROW_SIZE*sizeof(uint32_t));
     }
+
+    inline size_t mean_nonce() const {
+	size_t sum = 0;
+	for (size_t row = 0; row < NUM_ROWS; row++) {
+	    sum += data_[row*ROW_SIZE+7];
+	}
+	return sum / NUM_ROWS;
+    }
+
+    inline size_t geometric_mean_nonce() const {
+	double sumlog = 0;
+	for (size_t row = 0; row < NUM_ROWS; row++) {
+	    sumlog += log(data_[row*ROW_SIZE+7]);
+	}
+	return static_cast<size_t>(std::exp(sumlog/NUM_ROWS));
+    }
     
 private:
-    uint32_t data_[8*NUM_ROWS];
+    uint32_t data_[ROW_SIZE*NUM_ROWS];
 };
 
 class pow_verifier {

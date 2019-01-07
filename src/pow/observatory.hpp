@@ -15,9 +15,15 @@ namespace prologcoin { namespace pow {
 
 template<size_t N, typename T> class observatory {
 public:
-    inline observatory() : keys_("hella42", 7), galaxy_(keys_) { }
+    inline observatory(const siphash_keys &keys) : keys_(keys), galaxy_(keys_) { init(); }
 
-    void init(const char *msg, size_t len, size_t num_stars = 0);
+    void init(size_t num_stars = 0);
+
+    inline void set_keys(const siphash_keys &keys) {
+	keys_ = keys;
+	galaxy_.clear();
+	init();
+    }
 
     inline const siphash_keys & keys() const {
 	return keys_;
@@ -68,9 +74,8 @@ private:
     std::vector<camera<N, T> > cameras_;
 };
 
-template<size_t N, typename T> void observatory<N,T>::init(const char *msg, size_t len, size_t num_stars)
+template<size_t N, typename T> void observatory<N,T>::init(size_t num_stars)
 {
-    keys_ = siphash_keys(msg, len);
     if (num_stars == 0) {
 	galaxy_.init();
     } else {
@@ -139,17 +144,16 @@ public:
 
     inline void kill() {
 	killed_ = true;
-	set_ready(false);
+	set_idle(false);
     }
 
-    inline bool is_ready() const {
-	return ready_;
+    inline void wait_idle() const {
     }
 
-    inline void set_ready(bool r) {
-	boost::unique_lock<boost::mutex> lockit(ready_lock_);
-	ready_ = r;
-	ready_cv_.notify_one();
+    inline void set_idle(bool r) {
+	boost::unique_lock<boost::mutex> lockit(idle_lock_);
+	idle_ = r;
+	idle_cv_.notify_one();
     }
 
     inline bool is_done() const {
@@ -181,19 +185,20 @@ private:
     std::vector<projected_star> found_;
     dipper_detector detector_;
     size_t cam_id_;
-    bool ready_;
+    bool idle_;
     bool killed_;
-    boost::mutex ready_lock_;
-    boost::condition_variable ready_cv_;
+    boost::mutex idle_lock_;
+    boost::condition_variable idle_cv_;
     size_t proof_num_, index_, index_end_;
     bool found_done_;
 };
 
 template<size_t N, typename T> class worker_pool {
 public:
-    static const size_t DEFAULT_NUM_WORKERS = 1;
+    static const size_t DEFAULT_NUM_WORKERS = 16;
 
     worker_pool(observatory<N,T> &obs, size_t num_workers = DEFAULT_NUM_WORKERS) : observatory_(obs), num_workers_(num_workers), busy_count_(0) {
+	smallest_index_ = std::numeric_limits<size_t>::max();
 	for (size_t i = 0; i < num_workers_; i++) {
 	    auto *w = new worker<N,T>(*this);
 	    all_workers_.push_back(w);
@@ -205,9 +210,27 @@ public:
     }
 
     void kill_all_workers() {
-	boost::unique_lock<boost::mutex> lockit(workers_lock_);
-	for (auto *w : all_workers_) {
+	std::vector<worker<N,T> *> all_workers;
+	{
+	    boost::unique_lock<boost::mutex> lockit(workers_lock_);
+	    for (auto *w : all_workers_) {
+		all_workers.push_back(w);
+	    }
+	}
+	for (auto *w : all_workers) {
 	    w->kill();
+	}
+    }
+
+    size_t smallest_index() {
+	boost::unique_lock<boost::mutex> lockit(workers_lock_);
+	return smallest_index_;
+    }
+
+    void found_index(size_t index) {
+	boost::unique_lock<boost::mutex> lockit(workers_lock_);
+	if (index < smallest_index_) {
+	    smallest_index_ = index;
 	}
     }
     
@@ -233,24 +256,21 @@ public:
     }
 
     worker<N,T> * find_successful_worker() {
+	worker<N,T> *best_worker = nullptr;
 	for (auto *worker : all_workers_) {
 	    if (worker->is_done()) {
-		return worker;
+		if (best_worker == nullptr || worker->index() < best_worker->index()) {
+		    best_worker = worker;
+		}
 	    }
 	}
-	return nullptr;
+	return best_worker;
     }
 
     void add_ready_worker(worker<N,T> *w) {
 	boost::unique_lock<boost::mutex> lockit(workers_lock_);
 	busy_count_--;
 	ready_workers_.push_back(w);
-	workers_cv_.notify_all();
-    }
-
-    void remove_worker(worker<N,T> *w) {
-	boost::unique_lock<boost::mutex> lockit(workers_lock_);
-	busy_count_--;
 	workers_cv_.notify_all();
     }
 
@@ -263,12 +283,13 @@ private:
     boost::condition_variable workers_cv_;
     size_t busy_count_;
     boost::thread_group threads_;
+    size_t smallest_index_;
 
     friend class worker<N,T>;
 };
 
 template<size_t N, typename T> worker<N,T>::worker(worker_pool<N,T> &workers) 
-    : workers_(workers), detector_(stars_), ready_(true), killed_(false), proof_num_(0), index_(0), index_end_(0), found_done_(false) {
+    : workers_(workers), detector_(stars_), idle_(true), killed_(false), proof_num_(0), index_(0), index_end_(0), found_done_(false) {
     cam_id_ = workers_.observatory_.new_camera();
 }
 
@@ -281,29 +302,26 @@ template<size_t N, typename T> void worker<N,T>::take_picture() {
 }
 
 template<size_t N, typename T> void worker<N,T>::run() {
-    while (!killed_) {
-	boost::unique_lock<boost::mutex> lockit(ready_lock_);
-	while (ready_) {
-	    ready_cv_.wait(lockit);
+    for (;;) {
+	boost::unique_lock<boost::mutex> lockit(idle_lock_);
+	while (idle_ && !killed_) {
+	    idle_cv_.wait(lockit);
 	}
-	if (!killed_) {
-	    // std::cout << "Worker: " << cam_id_ << " index=" << index_ << std::endl;
-	    for (; index_ != index_end_; index_++) {
-		set_target(proof_num_, index_);
-		take_picture();
-		if (detector_.search(found_)) {
-		    // std::cout << "FOUND IT!" << std::endl;
-		    found_done_ = true;
-		    break;
-		}
+	if (killed_) {
+	    break;
+	}
+	for (; index_ != index_end_ && index_ < workers_.smallest_index(); index_++) {
+	    set_target(proof_num_, index_);
+	    take_picture();
+	    if (detector_.search(found_)) {
+		workers_.found_index(index_);
+		found_done_ = true;
+		break;
 	    }
-    	    ready_ = true;
-	    workers_.add_ready_worker(this);
 	}
+	idle_ = true;
+	workers_.add_ready_worker(this);
     }
-    // Don't add this to the ready queue (as it is killed) but
-    // reduce busy count as we go out of scope and the thread will die.
-    workers_.remove_worker(this);
 }
 
 template<size_t N, typename T> bool observatory<N,T>::scan(size_t proof_num, std::vector<projected_star> &found, size_t &nonce)
@@ -315,21 +333,18 @@ template<size_t N, typename T> bool observatory<N,T>::scan(size_t proof_num, std
     auto start_clock = utime::now_seconds();
 
     size_t index = 0, index_delta = 100;
-    bool is_done = false;
 
-    while (!is_done) {
+    for (;;) {
 	auto &worker = workers.find_ready_worker();
 	if (worker.is_done()) {
-	    is_done = true;
+	    workers.add_ready_worker(&worker);
 	    break;
 	}
 	worker.set_index_range(proof_num, index, index + index_delta);
 	index += index_delta;
-	worker.set_ready(false);
+	worker.set_idle(false);
     }
-    // std::cout << "kill all workers..." << std::endl;
     workers.kill_all_workers();
-    // std::cout << "wait until all workers notify..." << std::endl;
     workers.wait_until_no_more_busy_workers();
     auto *w = workers.find_successful_worker();
     if (w) {

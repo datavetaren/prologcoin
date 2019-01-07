@@ -11,6 +11,12 @@ public:
 
     inline buckets() { buckets_ = new T[N]; }
 
+    inline void clear() {
+	for (size_t i = 0; i < N; i++) {
+	    buckets_[i].clear();
+	}
+    }
+
     inline void put(const V &v) {
 	buckets_[P(v)()].put(v);
     }
@@ -61,6 +67,11 @@ public:
     typedef bucket<N,P,T>  bucket_type;
 
     inline bucket() : bucket_(new index_type[N]), sz_(0) { }
+
+    inline void clear() {
+	sz_ = 0;
+    }
+
     inline void put(const T &v) {
 	assert(sz_ < N);
 	bucket_[sz_++] = P(v)();

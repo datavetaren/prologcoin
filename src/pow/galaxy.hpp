@@ -72,6 +72,10 @@ public:
 			uint64_to_T<T>(s.z()) );
     }
 
+    inline void clear() {
+	stars_.clear();
+    }
+
     void init(size_t num_stars = 1 << (3*NumBits+3));
     void check();
     void memory() const;
