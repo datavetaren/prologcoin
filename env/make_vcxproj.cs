@@ -98,6 +98,11 @@ public class make_vcproj
 
        clDef.AddMetadata("PreprocessorDefinitions", "_WIN32_WINNT=0x0501");
 
+       string ccExtra = GetWinCCExtra(subdir);
+       if (ccExtra != null) {
+           clDef.AddMetadata("AdditionalOptions", ccExtra);
+       }
+
        project.SetProperty("DefaultTargets", "Build");
 
        project.Xml.AddImport("$(VCTargetsPath)\\Microsoft.Cpp.Default.props");
@@ -225,7 +230,9 @@ public class make_vcproj
           if (line.StartsWith("DEPENDS :=")) {
 	      string [] strDeps = line.Substring(11).Trim().Split(' ');
 	      foreach (var dep in strDeps) {
-	          deps.Add(dep);
+	          if (dep.Trim().Length != 0) {
+	              deps.Add(dep);
+		  }
 	      }
 	  }
        }
@@ -259,6 +266,30 @@ public class make_vcproj
        string line = null;
        while((line = fs.ReadLine()) != null) {
           if (line.StartsWith("DEFAULT_ARGS := ")) {
+	      exeName = line.Substring(16).Trim();
+	      break;
+	  }
+       }
+       fs.Close();
+       return exeName;
+   }
+
+   public static string GetWinCCExtra(string subdir)
+   {
+       if (subdir.EndsWith(@"\test")) {
+       	  subdir = subdir + @"\..";
+       }
+       string srcDir = theSrcDir;
+       string makeEnvFile = srcDir + @"\" + subdir + @"\Makefile.env";
+       if (!File.Exists(makeEnvFile)) {
+           return null;
+       }
+
+       StreamReader fs = new StreamReader(makeEnvFile);
+       string exeName = null;
+       string line = null;
+       while((line = fs.ReadLine()) != null) {
+          if (line.StartsWith("WIN_CC_EXTRA := ")) {
 	      exeName = line.Substring(16).Trim();
 	      break;
 	  }

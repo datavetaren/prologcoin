@@ -37,7 +37,7 @@ static void test_pow_mining()
 
     char msg[8] = "hello42";
 
-    spin(msg, 780);
+    // spin(msg, 780);
 
     for (size_t i = 0; i < 10000; i++) {
 	siphash_keys keys(msg, strlen(msg));
@@ -56,6 +56,8 @@ int main(int argc, char *argv[])
 {
     if (argc == 2 && strcmp(argv[1], "-mining") == 0) {
 	test_pow_mining();
+    } else {
+        header("main");
     }
 
     return 0;

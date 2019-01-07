@@ -3,6 +3,10 @@
 #ifndef _ec_secp256k1_h
 #define _ec_secp256k1_h
 
+#ifdef _WIN32
+#pragma warning( disable : 4319)
+#endif
+  
 #ifndef USE_BASIC_CONFIG
 #define USE_BASIC_CONFIG 1
 #endif

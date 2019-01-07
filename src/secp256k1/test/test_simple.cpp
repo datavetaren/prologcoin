@@ -1,3 +1,4 @@
+#include <iostream>
 #include "../secp256k1.h"
 
 int main(int argc, char *argv[])
@@ -18,8 +19,11 @@ int main(int argc, char *argv[])
     secp256k1_pedersen_commitment commit;
     if (!secp256k1_pedersen_commit(ctx, &commit, blinding_raw, value_raw,
 				   secp256k1_generator_h)) {
+        std::cout << "Failed pedersen commit." << std::endl;
 	return 1;
     }
+
+    std::cout << "Pedersen commit ok." << std::endl;
 
     return 0;
 }

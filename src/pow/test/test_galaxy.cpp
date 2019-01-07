@@ -127,20 +127,6 @@ static void test_simple()
     siphash_keys keys(msg, strlen(msg));
     observatory<7,double> obs(keys);
     obs.status();
-
-    std::ofstream outfile("stars.txt");
-
-    outfile.imbue(std::locale("sv_SE"));
-
-    for (int i = 0; i < 1000; i++) {
-	auto v = obs.get_star(i);
-	outfile
-	        << uint64_to_T<double>(v.x()) << " "
-	        << uint64_to_T<double>(v.y()) << " "
-		<< uint64_to_T<double>(v.z()) << std::endl;
-    }
-
-    outfile.close();
 }
 
 int main(int argc, char *argv[])

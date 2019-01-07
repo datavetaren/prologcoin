@@ -16,6 +16,22 @@ inline double inv_sqrt(const double v) {
     return 1.0/::sqrt(v);
 }
 
+inline double atan2(const double a, const double b) {
+    return ::atan2(a,b);
+}
+
+inline double acos(const double a) {
+    return ::acos(a);
+}
+
+inline double sin(const double x) {
+    return ::sin(x);
+}
+
+inline double cos(const double x) {
+    return ::cos(x);
+}
+    
 template<typename T> class vec3 {
 public:
     struct SPHERICAL { };

@@ -3,6 +3,6 @@ SET ROOT=..\..
 SET SUBDIR=main
 SET DOLIB=
 SET DOEXE=prologcoind
-SET DEPENDS=node ec interp common
+SET DEPENDS=secp256k1 node ec interp common
 CALL ..\..\env\make.bat %*
 

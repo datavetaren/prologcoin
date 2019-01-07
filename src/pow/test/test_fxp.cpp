@@ -2,6 +2,7 @@
 #include <sstream>
 #include <assert.h>
 #include <math.h>
+#include <algorithm>
 #include "../fxp.hpp"
 #include "../vec3.hpp"
 

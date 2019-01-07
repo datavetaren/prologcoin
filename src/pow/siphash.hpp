@@ -183,10 +183,11 @@ static inline void siphash_4(const siphash_keys &keys, uint64_t in1, uint64_t in
   v2 = SIP_XOR(v2,_mm256_set1_epi64x(0xffLL));
   SIPROUNDXN; SIPROUNDXN; SIPROUNDXN; SIPROUNDXN;
   packet = SIP_XOR(SIP_XOR(v0,v1),SIP_XOR(v2,v3));
-  out1 = _mm256_extract_epi64(packet, 0);
-  out2 = _mm256_extract_epi64(packet, 1);
-  out3 = _mm256_extract_epi64(packet, 2);
-  out4 = _mm256_extract_epi64(packet, 3);
+  uint64_t *out64 = reinterpret_cast<uint64_t *>(&packet);
+  out1 = out64[0]; // _mm256_extract_epi64(packet, 0);
+  out2 = out64[1]; // _mm256_extract_epi64(packet, 1);
+  out3 = out64[2]; // _mm256_extract_epi64(packet, 2);
+  out4 = out64[3]; // _mm256_extract_epi64(packet, 3);
 }
 
 static inline void siphash_8(const siphash_keys &keys, uint64_t in1, uint64_t in2, uint64_t in3, uint64_t in4, uint64_t in5, uint64_t in6, uint64_t in7, uint64_t in8, uint64_t &out1, uint64_t &out2, uint64_t &out3, uint64_t &out4, uint64_t &out5, uint64_t &out6, uint64_t &out7, uint64_t &out8) {
@@ -206,6 +207,19 @@ static inline void siphash_8(const siphash_keys &keys, uint64_t in1, uint64_t in
   SIPROUNDX2N; SIPROUNDX2N; SIPROUNDX2N; SIPROUNDX2N;
   packet0 = SIP_XOR(SIP_XOR(v0,v1),SIP_XOR(v2,v3));
   packet4 = SIP_XOR(SIP_XOR(v4,v5),SIP_XOR(v6,v7));
+  uint64_t *out64_0 = reinterpret_cast<uint64_t *>(&packet0);
+  out1 = out64_0[0]; // _mm256_extract_epi64(packet, 0);
+  out2 = out64_0[1]; // _mm256_extract_epi64(packet, 1);
+  out3 = out64_0[2]; // _mm256_extract_epi64(packet, 2);
+  out4 = out64_0[3]; // _mm256_extract_epi64(packet, 3);
+  uint64_t *out64_4 = reinterpret_cast<uint64_t *>(&packet4);
+
+  out5 = out64_4[0]; // _mm256_extract_epi64(packet, 0);
+  out6 = out64_4[1]; // _mm256_extract_epi64(packet, 1);
+  out7 = out64_4[2]; // _mm256_extract_epi64(packet, 2);
+  out8 = out64_4[3]; // _mm256_extract_epi64(packet, 3);
+
+  /*
   out1 = _mm256_extract_epi64(packet0, 0);
   out2 = _mm256_extract_epi64(packet0, 1);
   out3 = _mm256_extract_epi64(packet0, 2);
@@ -214,6 +228,7 @@ static inline void siphash_8(const siphash_keys &keys, uint64_t in1, uint64_t in
   out6 = _mm256_extract_epi64(packet4, 1);
   out7 = _mm256_extract_epi64(packet4, 2);
   out8 = _mm256_extract_epi64(packet4, 3);
+  */
 }
 
 #elif defined __SSE2__

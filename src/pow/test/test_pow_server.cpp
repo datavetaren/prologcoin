@@ -1,6 +1,13 @@
 #include <assert.h>
 #include <iostream>
 #include <boost/filesystem.hpp>
+
+#ifdef _WIN32
+#ifndef _WIN32_WINNT
+#define _WIN32_WINNT 0x0501
+#endif
+#endif
+
 #include "../pow_server.hpp"
 #include "../observatory.hpp"
 #include "../pow_verifier.hpp"
@@ -20,7 +27,7 @@ static void run_server()
     const std::string home_dir = find_home_dir();
 
     // auto dir = boost::filesystem::path(home_dir);
-
+    
     std::string pow_dir = (boost::filesystem::path(home_dir) / "src" / "pow" / "test").string();
 
     header("Running server at port 8080");

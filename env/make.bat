@@ -11,11 +11,10 @@ SET BIT=64
 REM To set debug mode, set DEBUGMODE=1
 SET DEBUGMODE=1
 
-
-SET CCFLAGS=/nologo /c /EHsc /D_WIN32_WINNT=0x0501
+SET CCFLAGS=/nologo /c /EHsc /D_WIN32_WINNT=0x0501 %CC_EXTRA%
 SET LINKFLAGS=/nologo
 
-SET CCFLAGS_DEBUG=/nologo /DDEBUG /c /EHsc /Zi /D_WIN32_WINNT=0x0501
+SET CCFLAGS_DEBUG=/nologo /DDEBUG /c /EHsc /Zi /D_WIN32_WINNT=0x0501 %CC_EXTRA%
 SET LINKFLAGS_DEBUG=/nologo /debug
 
 REM -------------------------------------------------------------------
