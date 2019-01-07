@@ -163,9 +163,7 @@ void connection::parse(char *buffer, size_t n)
 void connection::parse_consume(size_t n)
 {
     size_t remaining = parsed_index_ - n;
-    stdext::checked_array_iterator<const char *> src(parsed_.data() + n, remaining);
-    stdext::checked_array_iterator<char *> dst(parsed_.data(), parsed_.size());
-    std::copy_n(src, remaining, dst);
+    std::copy_n(parsed_.data() + n, remaining, parsed_.data());
     parsed_index_ = remaining;
 }
 
