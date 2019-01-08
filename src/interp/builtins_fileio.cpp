@@ -325,7 +325,7 @@ namespace prologcoin { namespace interp {
 	    std::vector<std::string> parts;
 	    for (auto g : grouping) {
 		if (g > 0) {
-		    if (g > pos) {
+		    if (static_cast<size_t>(g) > pos) {
 			// Nothing more to group
 			break;
 		    }
@@ -334,7 +334,7 @@ namespace prologcoin { namespace interp {
 		} else if (g < 0) {
 		    // Repeat until done
 	 	    g = -g;
-		    while (g < pos) {
+		    while (static_cast<size_t>(g) < pos) {
 			parts.push_back(int_part.substr(pos-g, g));
 			pos -= g;
 		    }
@@ -366,7 +366,7 @@ namespace prologcoin { namespace interp {
 	    std::string int_part = s;
 	    std::string dec_part;
 	    if (val > 0) {
-		if (val < slen) {
+		if (static_cast<size_t>(val) < slen) {
 		    // Put decimal point in place
 		    dec_part = s.substr(slen-val);
 		    int_part = s.substr(0, slen-val);
@@ -639,7 +639,7 @@ namespace prologcoin { namespace interp {
 		return;
 	    }
 	    auto num_ch = next_pos - str.size();
-	    auto expander_i = 0;
+	    auto expander_i = static_cast<size_t>(0);
 	    auto from = tab_prev_pos;
 	    std::string s = str.substr(0, from);
 	    auto comp = num_ch % expanders.size();

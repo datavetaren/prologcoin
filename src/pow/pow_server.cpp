@@ -282,6 +282,10 @@ void connection::do_action()
 	    }
 	}
     }
+   
+    static_cast<void>(x);
+    static_cast<void>(y);
+    static_cast<void>(z);
 
     pow_server &server = connections_.pow_server();
     if (nonce != 0) {

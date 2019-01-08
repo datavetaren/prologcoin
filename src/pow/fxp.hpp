@@ -69,7 +69,7 @@ public:
 
     // inline explicit constexpr fxp1648(const uint64_t i) : data_(i) { }
 
-    inline explicit fxp1648(double v) {
+    inline explicit fxp1648(const double v) {
         static const double p2_48 = static_cast<double>(static_cast<uint64_t>(1) << 48);
 	bool is_neg = v < 0 ? true : false;
 	double v0 = is_neg ? -v : v;
@@ -234,11 +234,11 @@ public:
 	PROLOGCOIN_FXP_ASSERT(overflow_check(to_int()<<1));
 
 	if (is_negative()) {
-	    if (is_min() || 62 - msb(~data_ + 1) < n) {
+	    if (is_min() || static_cast<size_t>(62) - msb(~data_ + 1) < n) {
 		return fxp1648::min();
 	    }
 	} else {
-	    if (62 - msb(data_) < n) {
+	    if (static_cast<size_t>(62) - msb(data_) < n) {
 		return fxp1648::max();
 	    }
 	}

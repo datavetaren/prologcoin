@@ -369,7 +369,7 @@ bool terminal::execute_query(const term query)
 
 void terminal::handle_error(const std::string &msg)
 {
-    auto from = 0;
+    auto from = static_cast<size_t>(0);
     while (from != std::string::npos) {
 	auto end = msg.find("\n", from);
 	if (end == std::string::npos) {

@@ -68,5 +68,9 @@ static void * secp256k1_refs[] = {
     (void *)&secp256k1_eckey_pubkey_tweak_mul,
 };
 
+inline void * dummy_secp2561k1_refs() {
+   return secp256k1_refs;
+}
+
 
 #endif

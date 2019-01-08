@@ -5,6 +5,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <math.h>
 #include <assert.h>
 #include "siphash.hpp"
 #include "fxp.hpp"
@@ -15,8 +16,8 @@
 namespace prologcoin { namespace pow {
 
 //
-// pow difficulty is a value beteen 0..1 (we use fixed-point to represent it)
-// It's inverse (1-difficulty) * (2^256)-1 determines the target value
+// pow difficulty is a value beteen 1..inf (we use floating-point to represent it)
+// It's inverse (1/difficulty) * (2^256)-1 determines the target value
 // (hashes must be below target value.)
 class pow_difficulty {
 public:
@@ -99,7 +100,7 @@ public:
 	for (size_t row = 0; row < NUM_ROWS; row++) {
 	    sumlog += log(data_[row*ROW_SIZE+7]);
 	}
-	return static_cast<size_t>(std::exp(sumlog/NUM_ROWS));
+	return static_cast<size_t>(::exp(sumlog/NUM_ROWS));
     }
     
 private:

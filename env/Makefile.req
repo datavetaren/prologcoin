@@ -31,9 +31,9 @@ endef
 #
 # Check existance of SED
 #
-CHECK_SED := $(shell command 2>&1 echo "foo" | sed 2>&1 ; echo "exit is $$?")
+CHECK_SED := $(shell command 2>&1 echo "foo" | sed 's/foo/bar/g' 2>&1 ; echo "exit is $$?")
 
-ifeq "$(findstring foo exit is 0, $(CHECK_SED))" ""
+ifeq "$(findstring bar exit is 0, $(CHECK_SED))" ""
       $(call err, Could not run sed. Please check environment.)
 endif
 

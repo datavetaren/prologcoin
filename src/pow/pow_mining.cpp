@@ -20,6 +20,7 @@ static void scan(void *obs, size_t super_difficulty, size_t proof_number,
 		  proof_number, found, nonce); break;
     default: assert("Not implemented" == nullptr);
     }
+    static_cast<void>(r);
 
     std::cout << nonce << std::endl;
     outfile << nonce << std::endl;

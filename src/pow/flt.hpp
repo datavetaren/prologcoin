@@ -5,6 +5,7 @@
 
 #include <math.h>
 #include <iomanip>
+#include <string.h>
 #include "fxp.hpp"
 
 namespace prologcoin { namespace pow {
@@ -103,7 +104,7 @@ public:
 	auto bits = mantissa().raw_value();
 	int exp_max = exponent();
 	auto offset_end = bytes_len*8;
-        assert(exp_max <= offset_end);
+        assert(static_cast<size_t>(exp_max) <= offset_end);
 	auto offset = exp_max;
 	auto bits_offset = offset % 8;
 	auto byte_offset = offset / 8;

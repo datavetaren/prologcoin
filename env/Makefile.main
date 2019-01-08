@@ -11,7 +11,7 @@ CCFLAGS += $(CC_EXTRA)
 CCINC := -I
 CCOUT := -o
 LINKOUT := -o
-LINKFLAGS := -g
+LINKFLAGS := -g -pthread -L/usr/local/lib
 CP := cp -f
 AR := ar 
 ARFLAGS :=
@@ -112,7 +112,7 @@ $(GOAL) : $(BIN) $(OUT) $(OUT)/$(SUBDIR) $(OBJ_FILES)
 	@mkdir -p $(BIN)/$(SUBDIR)
 	@rm -f /tmp/err.log
 	@(echo $(green) $(bold) $@ $(off) $(white))
-	@($(LINK) $(LINKFKLAGS) $(LINKOUT)$@ $(OBJ_FILES) $(LINK_DEP_FILES) 2>/tmp/err.log 1>&2) || $(printerr)
+	@($(LINK) $(LINKFLAGS) $(LINKOUT)$@ $(OBJ_FILES) $(LINK_DEP_FILES) 2>/tmp/err.log 1>&2) || $(printerr)
 	@rm -f /tmp/err.log
 endif
 

@@ -281,6 +281,11 @@ static inline void siphash_4(const siphash_keys &keys, uint64_t in1, uint64_t in
   out3 = _mm_extract_epi64(m2, 0);
   out4 = _mm_extract_epi64(m2, 1);
 }
+   
+static inline void siphash_8(const siphash_keys &keys, uint64_t in1, uint64_t in2, uint64_t in3, uint64_t in4, uint64_t in5, uint64_t in6, uint64_t in7, uint64_t in8, uint64_t &out1, uint64_t &out2, uint64_t &out3, uint64_t &out4, uint64_t &out5, uint64_t &out6, uint64_t &out7, uint64_t &out8) {
+   siphash_4(keys, in1, in2, in3, in4, out1, out2, out3, out4);
+   siphash_4(keys, in5, in6, in7, in8, out5, out6, out7, out8);
+}
 
 #endif
 

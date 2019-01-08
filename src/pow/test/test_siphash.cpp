@@ -1,6 +1,7 @@
 #include <iostream>
 #include <sstream>
 #include <assert.h>
+#include <string.h>
 #include "../../common/random.hpp"
 #include "../../common/utime.hpp"
 #include "../siphash.hpp"

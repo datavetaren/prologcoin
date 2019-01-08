@@ -19,7 +19,7 @@ all:
 	echo $(yellow)$(bold) --------------------------------------- $(off); \
 	echo $(yellow)$(bold)  Testing $$dir $(off); \
 	echo $(yellow)$(bold) --------------------------------------- $(off); \
-	$(MAKE) -C $$dir test; \
+	$(MAKE) -C $$dir test || exit 1; \
 	done;
 
 clean:

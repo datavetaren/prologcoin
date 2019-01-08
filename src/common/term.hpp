@@ -468,7 +468,7 @@ public:
     }
 
     static inline uint64_t saturate(uint64_t val) {
-	if (val > max().value()) {
+	if (val > static_cast<uint64_t>(max().value())) {
 	    return static_cast<uint64_t>(max().value());
 	} else {
 	    return val;
@@ -1427,10 +1427,10 @@ template<typename T> inline big_iterator_base<T> & big_iterator_base<T>::operato
 {
     i_++;
     ++cell_byte_;
-    if (i_ < dat_cell::CELL_NUM_BYTES_HALF) {
+    if (i_ < static_cast<int>(dat_cell::CELL_NUM_BYTES_HALF)) {
 	return *this;
     }
-    size_t ii = i_ - dat_cell::CELL_NUM_BYTES_HALF;
+    size_t ii = static_cast<size_t>(i_ - static_cast<int>(dat_cell::CELL_NUM_BYTES_HALF));
     if ((ii % sizeof(cell)) != 0) {
 	return *this;
     }

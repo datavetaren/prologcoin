@@ -126,9 +126,7 @@ static void test_fxp_inv_sqrt()
 	double d = qt[i];
 	fxp1648 f(d);
 	std::cout << "double: " << d << ": inv_sqrt()=" << 1.0/::sqrt(d) << std::endl;
-	std::cout << "fixed : " << f << ": inv_sqrt()=" << f.inv_sqrt() 
-		  << " err=" << (abs(1.0/::sqrt(d) - f.inv_sqrt().to_double())
-				 / abs(1.0/::sqrt(d))) << std::endl;
+        std::cout << "fixed : " << f << ": inv_sqrt()=" << f.inv_sqrt() << std::endl;
 	tol_check(1.0/::sqrt(d), f.inv_sqrt());
     }
 
