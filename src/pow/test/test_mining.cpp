@@ -37,9 +37,9 @@ static void test_pow_mining()
 
     char msg[8] = "hello42";
 
-    // spin(msg, 780);
+    // spin(msg, 33);
 
-    for (size_t i = 0; i < 10000; i++) {
+    for (size_t i = 0; i < 39; i++) {
 	siphash_keys keys(msg, strlen(msg));
 	pow_difficulty difficulty(flt1648(1));
 	pow_proof proof;

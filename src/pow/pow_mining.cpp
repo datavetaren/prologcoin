@@ -5,25 +5,24 @@ using namespace prologcoin::common;
 
 namespace prologcoin { namespace pow {
 
-static void scan(void *obs, size_t super_difficulty, size_t proof_number,
-		 std::vector<projected_star> &found, size_t &nonce) {
+static void scan(void *obs, size_t super_difficulty, uint64_t nonce_offset,
+		 std::vector<projected_star> &found, uint32_t &nonce) {
 
     static std::ofstream outfile("xxx.txt");
 
     bool r = false;
     switch (super_difficulty) {
     case 7: r = reinterpret_cast<observatory<7, double> *>(obs)->scan(
-		  proof_number, found, nonce); break;
+		  nonce_offset, found, nonce); break;
     case 8: r = reinterpret_cast<observatory<8, double> *>(obs)->scan(
-		  proof_number, found, nonce); break;
+		  nonce_offset, found, nonce); break;
     case 9: r = reinterpret_cast<observatory<9, double> *>(obs)->scan(
-		  proof_number, found, nonce); break;
+		  nonce_offset, found, nonce); break;
     default: assert("Not implemented" == nullptr);
     }
     static_cast<void>(r);
 
     std::cout << nonce << std::endl;
-    outfile << nonce << std::endl;
 }
 
 bool search_proof(const siphash_keys &key, size_t super_difficulty, const pow_difficulty &difficulty, pow_proof &out_proof) {
@@ -33,10 +32,13 @@ bool search_proof(const siphash_keys &key, size_t super_difficulty, const pow_di
     case 8: obs = new observatory<8, double>(key); break;
     case 9: obs = new observatory<9, double>(key); break;
     }
+    uint32_t nonce_sum = 0;
     for (size_t proof_no = 0; proof_no < pow_proof::NUM_ROWS; proof_no++) {
-	size_t nonce = 0;
+	uint32_t nonce = 0;
+	uint64_t nonce_offset = static_cast<uint64_t>(nonce_sum) << 32;
 	std::vector<projected_star> found;
-	scan(obs, super_difficulty, proof_no, found, nonce);
+	scan(obs, super_difficulty, nonce_offset, found, nonce);
+	nonce_sum += nonce + 1;
 	uint32_t proof_round[8];
 	size_t i = 0;
 	for (auto &star : found) {

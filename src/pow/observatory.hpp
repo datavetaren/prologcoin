@@ -31,7 +31,7 @@ public:
 
     void set_target(const vec3<T> &v, size_t cam_id = 0);
     const vec3<T> & get_target(size_t cam_id = 0) const;
-    void set_target(size_t proof_num, size_t index, size_t cam_id = 0);
+    void set_target(uint64_t nonce_offset, uint32_t nonce, size_t cam_id = 0);
 
     size_t new_camera();
 
@@ -44,7 +44,7 @@ public:
 
     void take_picture(std::vector<projected_star> &stars, size_t cam_id = 0) const;
 
-    bool scan(size_t proof_num, std::vector<projected_star> &found, size_t &nonce);
+    bool scan(uint64_t nonce_offset, std::vector<projected_star> &found, uint32_t &nonce);
 
     void status() const; 
     void memory() const; 
@@ -114,9 +114,9 @@ template<size_t N, typename T> void observatory<N,T>::set_target(const vec3<T> &
     get_camera(cam_id).set_target(v);
 }
 
-template<size_t N, typename T> void observatory<N,T>::set_target(size_t proof_num, size_t index, size_t cam_id)
+template<size_t N, typename T> void observatory<N,T>::set_target(uint64_t nonce_offset, uint32_t nonce, size_t cam_id)
 {
-    get_camera(cam_id).set_target(proof_num, index);
+    get_camera(cam_id).set_target(nonce_offset, nonce);
 }
 
 template<size_t N, typename T> const vec3<T> & observatory<N,T>::get_target(size_t cam_id) const
@@ -160,18 +160,18 @@ public:
 	return found_done_;
     }
     
-    inline void set_index_range(size_t proof_num, size_t index_start, size_t index_end) {
-	proof_num_ = proof_num;
-	index_ = index_start;
-	index_end_ = index_end;
+    inline void set_nonce_range(size_t nonce_offset, size_t nonce_start, size_t nonce_end) {
+	nonce_offset_ = nonce_offset;
+	nonce_ = nonce_start;
+	nonce_end_ = nonce_end;
 	found_done_ = false;
     }
 
-    inline size_t index() const {
-	return index_;
+    inline size_t nonce() const {
+	return nonce_;
     }
 
-    void set_target(size_t proof_num, size_t index);
+    void set_target(uint64_t nonce_offset, uint32_t nonce);
     void take_picture();
     void run();
 
@@ -189,7 +189,7 @@ private:
     bool killed_;
     boost::mutex idle_lock_;
     boost::condition_variable idle_cv_;
-    size_t proof_num_, index_, index_end_;
+    size_t nonce_offset_, nonce_, nonce_end_;
     bool found_done_;
 };
 
@@ -198,7 +198,7 @@ public:
     static const size_t DEFAULT_NUM_WORKERS = 16;
 
     worker_pool(observatory<N,T> &obs, size_t num_workers = DEFAULT_NUM_WORKERS) : observatory_(obs), num_workers_(num_workers), busy_count_(0) {
-	smallest_index_ = std::numeric_limits<size_t>::max();
+	smallest_nonce_ = std::numeric_limits<size_t>::max();
 	for (size_t i = 0; i < num_workers_; i++) {
 	    auto *w = new worker<N,T>(*this);
 	    all_workers_.push_back(w);
@@ -222,15 +222,15 @@ public:
 	}
     }
 
-    size_t smallest_index() {
+    size_t smallest_nonce() {
 	boost::unique_lock<boost::mutex> lockit(workers_lock_);
-	return smallest_index_;
+	return smallest_nonce_;
     }
 
-    void found_index(size_t index) {
+    void found_nonce(size_t nonce) {
 	boost::unique_lock<boost::mutex> lockit(workers_lock_);
-	if (index < smallest_index_) {
-	    smallest_index_ = index;
+	if (nonce < smallest_nonce_) {
+	    smallest_nonce_ = nonce;
 	}
     }
     
@@ -259,7 +259,7 @@ public:
 	worker<N,T> *best_worker = nullptr;
 	for (auto *worker : all_workers_) {
 	    if (worker->is_done()) {
-		if (best_worker == nullptr || worker->index() < best_worker->index()) {
+		if (best_worker == nullptr || worker->nonce() < best_worker->nonce()) {
 		    best_worker = worker;
 		}
 	    }
@@ -283,18 +283,18 @@ private:
     boost::condition_variable workers_cv_;
     size_t busy_count_;
     boost::thread_group threads_;
-    size_t smallest_index_;
+    size_t smallest_nonce_;
 
     friend class worker<N,T>;
 };
 
 template<size_t N, typename T> worker<N,T>::worker(worker_pool<N,T> &workers) 
-    : workers_(workers), detector_(stars_), idle_(true), killed_(false), proof_num_(0), index_(0), index_end_(0), found_done_(false) {
+    : workers_(workers), detector_(stars_), idle_(true), killed_(false), nonce_offset_(0), nonce_(0), nonce_end_(0), found_done_(false) {
     cam_id_ = workers_.observatory_.new_camera();
 }
 
-template<size_t N, typename T> void worker<N,T>::set_target(size_t proof_num, size_t index) {
-    workers_.observatory_.set_target(proof_num, index, cam_id_);
+template<size_t N, typename T> void worker<N,T>::set_target(uint64_t nonce_offset, uint32_t nonce) {
+    workers_.observatory_.set_target(nonce_offset, nonce, cam_id_);
 }
 
 template<size_t N, typename T> void worker<N,T>::take_picture() {
@@ -310,11 +310,11 @@ template<size_t N, typename T> void worker<N,T>::run() {
 	if (killed_) {
 	    break;
 	}
-	for (; index_ != index_end_ && index_ < workers_.smallest_index(); index_++) {
-	    set_target(proof_num_, index_);
+	for (; nonce_ != nonce_end_ && nonce_ < workers_.smallest_nonce(); nonce_++) {
+	    set_target(nonce_offset_, nonce_);
 	    take_picture();
 	    if (detector_.search(found_)) {
-		workers_.found_index(index_);
+		workers_.found_nonce(nonce_);
 		found_done_ = true;
 		break;
 	    }
@@ -324,7 +324,7 @@ template<size_t N, typename T> void worker<N,T>::run() {
     }
 }
 
-template<size_t N, typename T> bool observatory<N,T>::scan(size_t proof_num, std::vector<projected_star> &found, size_t &nonce)
+template<size_t N, typename T> bool observatory<N,T>::scan(uint64_t nonce_offset, std::vector<projected_star> &found, uint32_t &nonce_out)
 {
     using namespace prologcoin::common;
 
@@ -332,7 +332,7 @@ template<size_t N, typename T> bool observatory<N,T>::scan(size_t proof_num, std
 
     auto start_clock = utime::now_seconds();
 
-    size_t index = 0, index_delta = 100;
+    uint32_t nonce = 0, nonce_delta = 100;
 
     for (;;) {
 	auto &worker = workers.find_ready_worker();
@@ -340,8 +340,8 @@ template<size_t N, typename T> bool observatory<N,T>::scan(size_t proof_num, std
 	    workers.add_ready_worker(&worker);
 	    break;
 	}
-	worker.set_index_range(proof_num, index, index + index_delta);
-	index += index_delta;
+	worker.set_nonce_range(nonce_offset, nonce, nonce + nonce_delta);
+	nonce += nonce_delta;
 	worker.set_idle(false);
     }
     workers.kill_all_workers();
@@ -349,7 +349,7 @@ template<size_t N, typename T> bool observatory<N,T>::scan(size_t proof_num, std
     auto *w = workers.find_successful_worker();
     if (w) {
 	found = w->get_found();
-	nonce = w->index();
+	nonce_out = w->nonce();
     }
 
     auto end_clock = utime::now_seconds();

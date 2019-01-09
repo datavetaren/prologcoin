@@ -178,7 +178,7 @@ public:
     void set_target(arith_t r, arith_t th, arith_t phi);
     void set_target(size_t proof_num, size_t nonce);
     vec3<arith_t> get_target() const;
-    bool scan(size_t proof_num, std::vector<projected_star> &stars, size_t &nonce);
+    bool scan(uint64_t nonce_offset, std::vector<projected_star> &stars, uint32_t &nonce);
 
 private:
     void do_accept();

@@ -69,9 +69,9 @@ public:
     // based on siphash). Then mask the resulting value and apply the fixed
     // value (sets of bits that should have a constant value.)
 
-    inline void set_target(size_t proof_num, size_t index) {
+    inline void set_target(uint64_t nonce_offset, uint32_t nonce) {
 	uint64_t out[3];
-	uint64_t nonce_begin = (static_cast<uint64_t>(proof_num) << 32) + 3*index;
+	uint64_t nonce_begin = nonce_offset + 3*nonce;
 	uint64_t nonce_end = nonce_begin + 3;
 	siphash(galaxy_.keys(), nonce_begin, nonce_end, out);
 	set_target(vec3<T>(uint64_to_T<T>(out[0]), uint64_to_T<T>(out[1]), uint64_to_T<T>(out[2])));

@@ -46,10 +46,12 @@ static void run_scan()
     observatory<8,double> obs(keys);
     obs.status();
 
+    uint32_t nonce_sum = 0;
     for (size_t proof_number = 0; proof_number < 32; proof_number++) {
+	uint64_t nonce_offset = static_cast<uint64_t>(nonce_sum) << 32;
 	std::vector<projected_star> found;
-	size_t nonce = 0;
-	if (obs.scan(proof_number, found, nonce)) {
+	uint32_t nonce = 0;
+	if (obs.scan(nonce_offset, found, nonce)) {
 	    std::cout << "Found dipper for proof_number=" << proof_number << " at nonce=" << nonce;
 	    uint32_t star_ids[7];
 	    size_t i = 0;
@@ -59,8 +61,10 @@ static void run_scan()
 	    }
 	    if (i == 7 && verify_dipper(obs.keys(), 8, proof_number, nonce, star_ids)) {
 		std::cout << ": Verified! OK" << std::endl;
+		nonce_sum += nonce + 1;
 	    } else {
 		std::cout << ": ERROR - failed to verify!" << std::endl;
+		break;
 	    }
 	}
     }

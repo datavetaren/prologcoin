@@ -349,7 +349,7 @@ void connection::do_action()
     } else if (boost::starts_with(uri_, "/scan")) {
 	std::vector<projected_star> stars;
 	pow_server &server = connections_.pow_server();
-	size_t nonce = 0;
+	uint32_t nonce = 0;
 	server.scan(0, stars, nonce);
     } else {
 	do_reply_ok("<html><body><h1>Hello World</h1></body></html>\r\n\r\n");
@@ -426,9 +426,9 @@ vec3<arith_t> pow_server::get_target() const
     return o<8,arith_t>(observatory_).get_target();
 }
 
-bool pow_server::scan(size_t proof_num, std::vector<projected_star> &stars, size_t &nonce)
+bool pow_server::scan(uint64_t nonce_offset, std::vector<projected_star> &stars, uint32_t &nonce)
 {
-    return o<8,arith_t>(observatory_).scan(proof_num, stars, nonce);
+    return o<8,arith_t>(observatory_).scan(nonce_offset, stars, nonce);
 }
 
 void pow_server::run()

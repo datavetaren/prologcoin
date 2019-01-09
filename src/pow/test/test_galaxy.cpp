@@ -113,7 +113,7 @@ static void test_scan()
 
     for (int i = 0; i < 100; i++) {
 	std::vector<projected_star> found;
-	size_t nonce = 0;
+	uint32_t nonce = 0;
 	obs.scan(i, found, nonce);
     }
 }
