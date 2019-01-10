@@ -6,7 +6,6 @@
 #include "camera.hpp"
 #include "siphash.hpp"
 #include "dipper_detector.hpp"
-#include "../common/utime.hpp"
 #include <boost/thread.hpp>
 #include <fstream>
 #include <math.h>
@@ -44,7 +43,7 @@ public:
 
     void take_picture(std::vector<projected_star> &stars, size_t cam_id = 0) const;
 
-    bool scan(uint64_t nonce_offset, std::vector<projected_star> &found, uint32_t &nonce);
+    bool scan(uint64_t nonce_offset, projected_star &first_visible, std::vector<projected_star> &found, uint32_t &nonce);
 
     void status() const; 
     void memory() const; 
@@ -163,12 +162,31 @@ public:
     inline void set_nonce_range(size_t nonce_offset, size_t nonce_start, size_t nonce_end) {
 	nonce_offset_ = nonce_offset;
 	nonce_ = nonce_start;
+	nonce_start_ = nonce_start;
 	nonce_end_ = nonce_end;
 	found_done_ = false;
+	has_first_visible_ = false;
+	first_visible_.clear();
     }
 
+    inline size_t nonce_start() const {
+        return nonce_start_;
+    }
+
+    inline size_t nonce_end() const {
+        return nonce_end_;
+    }
+  
     inline size_t nonce() const {
 	return nonce_;
+    }
+
+    inline const projected_star & first_visible() const {
+        return first_visible_;
+    }
+
+    inline bool has_first_visible() const {
+        return has_first_visible_;
     }
 
     void set_target(uint64_t nonce_offset, uint32_t nonce);
@@ -183,13 +201,15 @@ private:
     worker_pool<N,T> &workers_;
     std::vector<projected_star> stars_;
     std::vector<projected_star> found_;
+    projected_star first_visible_;
+    bool has_first_visible_;
     dipper_detector detector_;
     size_t cam_id_;
     bool idle_;
     bool killed_;
     boost::mutex idle_lock_;
     boost::condition_variable idle_cv_;
-    size_t nonce_offset_, nonce_, nonce_end_;
+    size_t nonce_offset_, nonce_, nonce_start_, nonce_end_;
     bool found_done_;
 };
 
@@ -267,6 +287,15 @@ public:
 	return best_worker;
     }
 
+    worker<N,T> * find_first_nonce_worker() {
+	for (auto *worker : all_workers_) {
+	    if (worker->nonce_start() == 0) {
+	        return worker;
+	    }
+	}
+	return nullptr;
+    }
+
     void add_ready_worker(worker<N,T> *w) {
 	boost::unique_lock<boost::mutex> lockit(workers_lock_);
 	busy_count_--;
@@ -313,10 +342,14 @@ template<size_t N, typename T> void worker<N,T>::run() {
 	for (; nonce_ != nonce_end_ && nonce_ < workers_.smallest_nonce(); nonce_++) {
 	    set_target(nonce_offset_, nonce_);
 	    take_picture();
+	    if (nonce_ == 0 && stars_.size() >= 1) {
+	        has_first_visible_ = true;
+	        first_visible_ = stars_[0];
+	    }
 	    if (detector_.search(found_)) {
-		workers_.found_nonce(nonce_);
-		found_done_ = true;
-		break;
+	         workers_.found_nonce(nonce_);
+	         found_done_ = true;
+	         break;
 	    }
 	}
 	idle_ = true;
@@ -324,18 +357,25 @@ template<size_t N, typename T> void worker<N,T>::run() {
     }
 }
 
-template<size_t N, typename T> bool observatory<N,T>::scan(uint64_t nonce_offset, std::vector<projected_star> &found, uint32_t &nonce_out)
+template<size_t N, typename T> bool observatory<N,T>::scan(uint64_t nonce_offset, projected_star &first_visible, std::vector<projected_star> &found, uint32_t &nonce_out)
 {
     using namespace prologcoin::common;
 
     worker_pool<N,T> workers(*this);
 
-    auto start_clock = utime::now_seconds();
-
     uint32_t nonce = 0, nonce_delta = 100;
+    bool first_visible_found = false;
+
+    first_visible.clear();
 
     for (;;) {
 	auto &worker = workers.find_ready_worker();
+	if (worker.nonce_start() == 0) {
+	    if (worker.has_first_visible()) {
+	        first_visible_found = true;
+	        first_visible = worker.first_visible();
+	    }
+	}
 	if (worker.is_done()) {
 	    workers.add_ready_worker(&worker);
 	    break;
@@ -346,19 +386,23 @@ template<size_t N, typename T> bool observatory<N,T>::scan(uint64_t nonce_offset
     }
     workers.kill_all_workers();
     workers.wait_until_no_more_busy_workers();
+
+    if (!first_visible_found) {
+        if (auto *wn = workers.find_first_nonce_worker()) {
+	    if (wn->has_first_visible()) {
+	        first_visible_found = true;
+		first_visible = wn->first_visible();
+	    }
+	}
+    }
+    
     auto *w = workers.find_successful_worker();
     if (w) {
 	found = w->get_found();
 	nonce_out = w->nonce();
     }
 
-    auto end_clock = utime::now_seconds();
-    auto dt = end_clock - start_clock;
-    (void)dt;
-
-    // std::cout << "observatory::scan end: total_time=" << dt.in_ss() << std::endl;
-
-    return w != nullptr;
+    return w != nullptr && first_visible_found;
 }    
 
 }}

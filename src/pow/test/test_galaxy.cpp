@@ -114,7 +114,8 @@ static void test_scan()
     for (int i = 0; i < 100; i++) {
 	std::vector<projected_star> found;
 	uint32_t nonce = 0;
-	obs.scan(i, found, nonce);
+	projected_star first_visible;
+	obs.scan(i, first_visible, found, nonce);
     }
 }
 

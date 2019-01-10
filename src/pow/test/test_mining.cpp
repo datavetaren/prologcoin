@@ -1,5 +1,11 @@
 #include <assert.h>
 #include <iostream>
+
+#include <boost/chrono.hpp>
+#include <boost/date_time/gregorian/gregorian.hpp>
+#include <boost/date_time/posix_time/posix_time.hpp>
+#include <boost/date_time/posix_time/posix_time_duration.hpp>
+
 #include "../pow_verifier.hpp"
 #include "../pow_mining.hpp"
 
@@ -43,7 +49,16 @@ static void test_pow_mining()
 	siphash_keys keys(msg, strlen(msg));
 	pow_difficulty difficulty(flt1648(1));
 	pow_proof proof;
-	search_proof( keys, 8, difficulty, proof);
+
+	auto start_time = boost::posix_time::microsec_clock::universal_time();
+
+	if (!search_proof( keys, 8, difficulty, proof)) {
+	    std::cout << "Failed to find proof for '" << msg << "' " << std::endl;
+	}
+	
+	auto end_time = boost::posix_time::microsec_clock::universal_time();
+
+	std::cout << "==> Proof took " << (end_time - start_time) << " seconds" << std::endl;
 
 	spin(msg, 1);
 

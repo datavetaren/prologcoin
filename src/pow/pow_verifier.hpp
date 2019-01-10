@@ -44,15 +44,16 @@ private:
     flt1648 difficulty_;
 };
 
-// The PoW proof consists of 32 rows, where each row consists of
-// 1 + 7 (i.e. 8) 32-bit integers. The last 7 integers are the id numbers of
-// the stars. The first integer is the nonce used for that proof number
-// (which is determined by the row number.)
+// The PoW proof consists of 16 rows, where each row consists of
+// 3 + 7 (i.e. 8) 32-bit integers. The last 7 integers are the id numbers of
+// the stars. The first integer is the nonce sum used to compute nonce offset.
+// The second is a star identifier that is visible for that nonce offset and
+// the third is the nonce found for the detected dipper.
 //
 class pow_proof {
 public:
-    static const size_t NUM_ROWS = 32;
-    static const size_t ROW_SIZE = 8;
+    static const size_t NUM_ROWS = 3;
+    static const size_t ROW_SIZE = 10;
     static const size_t TOTAL_SIZE = ROW_SIZE*NUM_ROWS;
     static const size_t TOTAL_SIZE_BYTES = TOTAL_SIZE*sizeof(uint32_t);
 
@@ -86,22 +87,6 @@ public:
     inline void get_row(size_t row_number, uint32_t row[ROW_SIZE]) const {
 	memcpy(&row[0], &data_[row_number*ROW_SIZE], ROW_SIZE*sizeof(uint32_t));
     }
-
-    inline size_t mean_nonce() const {
-	size_t sum = 0;
-	for (size_t row = 0; row < NUM_ROWS; row++) {
-	    sum += data_[row*ROW_SIZE+7];
-	}
-	return sum / NUM_ROWS;
-    }
-
-    inline size_t geometric_mean_nonce() const {
-	double sumlog = 0;
-	for (size_t row = 0; row < NUM_ROWS; row++) {
-	    sumlog += log(data_[row*ROW_SIZE+7]);
-	}
-	return static_cast<size_t>(::exp(sumlog/NUM_ROWS));
-    }
     
 private:
     uint32_t data_[ROW_SIZE*NUM_ROWS];
@@ -120,11 +105,11 @@ public:
     inline ~pow_verifier() { cleanup(); }
 
     bool project_star(size_t id, projected_star &star);
-    void setup(size_t proof_number, size_t nonce);
+    void setup(uint64_t nonce_offset, uint32_t nonce);
     void cleanup();
 
 private:
-    template<size_t N> void setup_t(size_t proof_number, size_t nonce) {
+  template<size_t N> void setup_t(uint64_t nonce_offset, uint32_t nonce) {
 	if (galaxy_ == nullptr) {
 	    auto *gal = new galaxy<N,fxp1648>(key_);
 	    auto *cam = new camera<N,fxp1648>(*gal,0);
@@ -132,7 +117,7 @@ private:
 	    camera_ = cam;
 	}
 	auto *cam = reinterpret_cast<camera<N,fxp1648> *>(camera_);
-	cam->set_target(proof_number, nonce);
+	cam->set_target(nonce_offset, nonce);
     }
 
     template<size_t N> bool project_star_t(size_t id, projected_star &star) {
@@ -155,7 +140,7 @@ private:
 
 bool verify_pow(const siphash_keys &key, size_t super_difficulty, const pow_proof &proof);
 
-bool verify_dipper(const siphash_keys &key, size_t super_difficulty, size_t proof_number, size_t nonce, const uint32_t star_ids[7]);
+bool verify_dipper(const siphash_keys &key, size_t super_difficulty, uint64_t nonce_offset, uint32_t nonce, const uint32_t star_ids[7]);
 
 }}
 

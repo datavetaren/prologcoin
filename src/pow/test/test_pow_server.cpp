@@ -50,8 +50,9 @@ static void run_scan()
     for (size_t proof_number = 0; proof_number < 32; proof_number++) {
 	uint64_t nonce_offset = static_cast<uint64_t>(nonce_sum) << 32;
 	std::vector<projected_star> found;
+	projected_star first_visible;
 	uint32_t nonce = 0;
-	if (obs.scan(nonce_offset, found, nonce)) {
+	if (obs.scan(nonce_offset, first_visible, found, nonce)) {
 	    std::cout << "Found dipper for proof_number=" << proof_number << " at nonce=" << nonce;
 	    uint32_t star_ids[7];
 	    size_t i = 0;

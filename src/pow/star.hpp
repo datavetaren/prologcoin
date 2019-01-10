@@ -45,6 +45,8 @@ public:
     projected_star(uint32_t id, uint32_t x, uint32_t y, uint32_t r) : id_(id), x_(x), y_(y), r_(r) {
     }
 
+    inline void clear() { id_ = 0; x_ = 0; y_ = 0; r_ = 0; }
+
     inline uint32_t id() const { return id_; }
     inline uint32_t x() const { return x_; }
     inline uint32_t y() const { return y_; }
