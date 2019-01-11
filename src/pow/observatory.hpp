@@ -6,11 +6,14 @@
 #include "camera.hpp"
 #include "siphash.hpp"
 #include "dipper_detector.hpp"
+#include "checked_cast.hpp"
 #include <boost/thread.hpp>
 #include <fstream>
 #include <math.h>
 
+#ifndef DIPPER_DONT_USE_NAMESPACE
 namespace prologcoin { namespace pow {
+#endif
 
 template<size_t N, typename T> class observatory {
 public:
@@ -36,8 +39,8 @@ public:
 
     inline star get_star(uint32_t id) const {
 	uint64_t out[3];
-	siphash(keys_, common::checked_cast<uint64_t>(3*id),
-		common::checked_cast<uint64_t>(3*id+3), out);
+	siphash(keys_, checked_cast<uint64_t>(3*id),
+		       checked_cast<uint64_t>(3*id+3), out);
 	return star(id, out[0], out[1], out[2]);
     }
 
@@ -289,7 +292,7 @@ public:
 
     worker<N,T> * find_first_nonce_worker() {
 	for (auto *worker : all_workers_) {
-	    if (worker->nonce_start() == 0) {
+	    if (worker->has_first_visible()) {
 	        return worker;
 	    }
 	}
@@ -318,7 +321,7 @@ private:
 };
 
 template<size_t N, typename T> worker<N,T>::worker(worker_pool<N,T> &workers) 
-    : workers_(workers), detector_(stars_), idle_(true), killed_(false), nonce_offset_(0), nonce_(0), nonce_end_(0), found_done_(false) {
+    : workers_(workers), has_first_visible_(false), detector_(stars_), idle_(true), killed_(false), nonce_offset_(0), nonce_(0), nonce_end_(0), found_done_(false) {
     cam_id_ = workers_.observatory_.new_camera();
 }
 
@@ -359,8 +362,6 @@ template<size_t N, typename T> void worker<N,T>::run() {
 
 template<size_t N, typename T> bool observatory<N,T>::scan(uint64_t nonce_offset, projected_star &first_visible, std::vector<projected_star> &found, uint32_t &nonce_out)
 {
-    using namespace prologcoin::common;
-
     worker_pool<N,T> workers(*this);
 
     uint32_t nonce = 0, nonce_delta = 100;
@@ -405,6 +406,8 @@ template<size_t N, typename T> bool observatory<N,T>::scan(uint64_t nonce_offset
     return w != nullptr && first_visible_found;
 }    
 
+#ifndef DIPPER_DONT_USE_NAMESPACE
 }}
+#endif
 
 #endif

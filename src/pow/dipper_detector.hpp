@@ -6,7 +6,9 @@
 #include "star.hpp"
 #include "camera.hpp"
 
+#ifndef DIPPER_DONT_USE_NAMESPACE
 namespace prologcoin { namespace pow {
+#endif
 
 class dipper_detector {
 public:
@@ -32,7 +34,9 @@ private:
     std::vector<projected_star> sorted_[GRID_SIZE][GRID_SIZE];
 };
 
+#ifndef DIPPER_DONT_USE_NAMESPACE
 }}
+#endif
 
 #endif
 

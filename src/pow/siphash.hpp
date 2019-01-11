@@ -6,10 +6,12 @@
 #include <stdint.h>
 #include <immintrin.h>
 #include <assert.h>
-#include "../common/checked_cast.hpp"
-#include "../common/blake2.hpp"
+#include "checked_cast.hpp"
+#include "blake2.hpp"
 
+#ifndef DIPPER_DONT_USE_NAMESPACE
 namespace prologcoin { namespace pow {
+#endif
 
 struct siphash_compat {};
 
@@ -36,21 +38,21 @@ public:
     inline siphash_keys(const char *msg, size_t len) 
     {
 	uint8_t d32[32];
-	prologcoin::common::blake2b(d32, sizeof(d32), msg, len, nullptr, 0);
+        blake2b(d32, sizeof(d32), msg, len, nullptr, 0);
 	set_internal(d32);
     }
 
     inline siphash_keys(const uint8_t *msg, size_t len)
     {
 	uint8_t d32[32];
-	prologcoin::common::blake2b(d32, sizeof(d32), msg, len, nullptr, 0);
+	blake2b(d32, sizeof(d32), msg, len, nullptr, 0);
 	set_internal(d32);
     }
 
     inline siphash_keys(const uint8_t *msg, size_t len, siphash_compat)
     {
 	uint8_t d32[32];
-	prologcoin::common::blake2b(d32, sizeof(d32), msg, len, nullptr, 0);
+	blake2b(d32, sizeof(d32), msg, len, nullptr, 0);
 	set_internal(d32);
 	uint64_t k0 = k0_;
 	uint64_t k1 = k1_;
@@ -318,7 +320,7 @@ template<size_t N> inline void siphash(const siphash_keys &keys, const uint64_t 
 
 inline void siphash(const siphash_keys &keys, const uint64_t from, const uint64_t to, uint64_t *out)
 {
-    size_t n = common::checked_cast<size_t>(to - from);
+    size_t n = checked_cast<size_t>(to - from);
     size_t i = 0;
     for (; i + 8 < n; i += 8) {
 	siphash<8>(keys, from+i, &out[i]);
@@ -331,6 +333,8 @@ inline void siphash(const siphash_keys &keys, const uint64_t from, const uint64_
     }
 }
 
+#ifndef DIPPER_DONT_USE_NAMESPACE
 }}
+#endif
 
 #endif

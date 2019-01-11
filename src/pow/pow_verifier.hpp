@@ -13,7 +13,9 @@
 #include "galaxy.hpp"
 #include "camera.hpp"
 
+#ifndef DIPPER_DONT_USE_NAMESPACE
 namespace prologcoin { namespace pow {
+#endif
 
 //
 // pow difficulty is a value beteen 1..inf (we use floating-point to represent it)
@@ -52,8 +54,8 @@ private:
 //
 class pow_proof {
 public:
-    static const size_t NUM_ROWS = 3;
-    static const size_t ROW_SIZE = 10;
+    static const size_t NUM_ROWS = 16;
+    static const size_t ROW_SIZE = 9;
     static const size_t TOTAL_SIZE = ROW_SIZE*NUM_ROWS;
     static const size_t TOTAL_SIZE_BYTES = TOTAL_SIZE*sizeof(uint32_t);
 
@@ -138,10 +140,12 @@ private:
     void *camera_;
 };
 
-bool verify_pow(const siphash_keys &key, size_t super_difficulty, const pow_proof &proof);
+bool verify_pow(const siphash_keys &key, size_t super_difficulty, const pow_difficulty &difficulty, const pow_proof &proof);
 
 bool verify_dipper(const siphash_keys &key, size_t super_difficulty, uint64_t nonce_offset, uint32_t nonce, const uint32_t star_ids[7]);
 
+#ifndef DIPPER_DONT_USE_NAMESPACE
 }}
+#endif
 
 #endif

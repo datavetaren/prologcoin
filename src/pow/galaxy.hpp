@@ -8,9 +8,11 @@
 #include "vec3.hpp"
 #include "star.hpp"
 #include "conv.hpp"
-#include "../common/checked_cast.hpp"
+#include "checked_cast.hpp"
 
+#ifndef DIPPER_DONT_USE_NAMESPACE
 namespace prologcoin { namespace pow {
+#endif
 
 //
 // galaxy. It's not really a "real" galaxy in the sense that the distribution
@@ -42,8 +44,8 @@ public:
 
     inline star get_star(uint32_t id) const {
 	uint64_t out[3];
-	siphash(keys_, common::checked_cast<uint64_t>(3*id),
-		common::checked_cast<uint64_t>(3*id+3), out);
+	siphash(keys_, checked_cast<uint64_t>(3*id),
+		       checked_cast<uint64_t>(3*id+3), out);
 	return star(id, out[0], out[1], out[2]);
     }
 
@@ -148,8 +150,6 @@ private:
 
 template<size_t NumBits, typename T> void galaxy<NumBits,T>::init(size_t num_stars) 
 {
-    using namespace prologcoin::common;
-
     const size_t N = 32;
     uint64_t chunk[3*N];
 
@@ -166,17 +166,16 @@ template<size_t NumBits, typename T> void galaxy<NumBits,T>::init(size_t num_sta
 	siphash(keys_, checked_cast<uint64_t>(3*i), checked_cast<uint64_t>(3*i_end), chunk);
 	for (size_t j = 0; j < nn; j++) {
 	    star s(i+j, chunk[j*3], chunk[j*3+1], chunk[j*3+2]);
+	    // No luck in cheating...
 	    // if (s.x() & ((uint64_t)(1) << 63)) {
 	        stars_.put(s);
-		// }
+	    // }
 	}
     }
     // std::cout << std::endl;
 }
 
 template<size_t NumBits,typename T> void galaxy<NumBits,T>::status() const {
-    using namespace prologcoin::common;
-
     size_t cnt = 0;
     size_t max_bucket_size = 0;
     for (size_t i = 0; i < N; i++) {
@@ -229,6 +228,8 @@ template<size_t NumBits, typename T> void galaxy<NumBits,T>::memory() const {
     std::cout << "Galaxy memory: " << mb << " MB" << std::endl;
 }
 
+#ifndef DIPPER_DONT_USE_NAMESPACE
 }}
+#endif
 
 #endif

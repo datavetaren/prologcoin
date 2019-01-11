@@ -8,7 +8,9 @@
 #include <string.h>
 #include "fxp.hpp"
 
+#ifndef DIPPER_DONT_USE_NAMESPACE
 namespace prologcoin { namespace pow {
+#endif
 
 // Custom floating point based. We don't support too many operations and
 // we reuse the fixed-point implementation under the hood. We need the
@@ -176,7 +178,9 @@ inline std::ostream & operator << (std::ostream &out, const flt1648 &v)
     return out;
 }
 
+#ifndef DIPPER_DONT_USE_NAMESPACE
 }}
+#endif
 
 #endif
 

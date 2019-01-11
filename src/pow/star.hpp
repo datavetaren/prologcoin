@@ -3,7 +3,9 @@
 #ifndef _pow_star_hpp
 #define _pow_star_hpp
 
+#ifndef DIPPER_DONT_USE_NAMESPACE
 namespace prologcoin { namespace pow {
+#endif
 
 //
 // A star at coordinates (x,y,z) with id represented in space of
@@ -63,6 +65,8 @@ inline std::ostream & operator << (std::ostream &out, const projected_star &s) {
     return out << "projected_star(" << s.id() << "," << s.x() << "," << s.y() << "," << s.r() << ")";
 }
 
+#ifndef DIPPER_DONT_USE_NAMESPACE
 }}
+#endif
 
 #endif

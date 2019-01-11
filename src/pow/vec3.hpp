@@ -6,7 +6,9 @@
 #include <math.h>
 #include <iostream>
 
+#ifndef DIPPER_DONT_USE_NAMESPACE
 namespace prologcoin { namespace pow {
+#endif
 
 inline double sqrt(const double v) {
     return ::sqrt(v);
@@ -140,6 +142,8 @@ private:
     T x_, y_, z_;
 };
 
+#ifndef DIPPER_DONT_USE_NAMESPACE
 }}
+#endif
 
 #endif

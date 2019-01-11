@@ -18,52 +18,9 @@
 #include "vec3.hpp"
 #include "fxp.hpp"
 
+#ifndef DIPPER_DONT_USE_NAMESPACE
 namespace prologcoin { namespace pow {
-
-/*
-
-DOUBLE
-id=12167299 x=154 y=2135
-id=12604631 x=896 y=2103
-id=42653494 x=1220 y=1791
-id=10929535 x=1768 y=1433
-id=26613849 x=1745 y=904
-id=13695352 x=2605 y=684
-id=14503809 x=2861 y=1248
-
-FXP
-id=12167299 x=156 y=2134
-id=12604631 x=897 y=2103
-id=42653494 x=1222 y=1791
-id=10929535 x=1769 y=1433
-id=26613849 x=1746 y=904
-id=13695352 x=2606 y=684
-id=14503809 x=2862 y=1247
-FOUND...
-
-
-DOUBLE
-
-id=12167299 x=38 y=533
-id=12604631 x=224 y=525
-id=42653494 x=305 y=447
-id=10929535 x=442 y=358
-id=26613849 x=436 y=226
-id=13695352 x=651 y=171
-id=14503809 x=715 y=312
-
-FXP
-
-id=12167299 x=38 y=533
-id=12604631 x=224 y=525
-id=42653494 x=305 y=447
-id=10929535 x=442 y=358
-id=26613849 x=436 y=226
-id=13695352 x=651 y=171
-id=14503809 x=715 y=312
-
-
-*/
+#endif
 
 // typedef fxp1648 arith_t;
 typedef double arith_t;
@@ -199,6 +156,8 @@ private:
     void *observatory_;
 };
 
+#ifndef DIPPER_DONT_USE_NAMESPACE
 }}
+#endif
 
 #endif

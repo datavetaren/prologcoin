@@ -1,11 +1,14 @@
 #include <iostream>
 #include "dipper_detector.hpp"
-#include "../common/isqrt.hpp"
+#include "isqrt.hpp"
 #include "camera.hpp"
 #include <fstream>
 #include "pow_verifier.hpp"
 
+
+#ifndef DIPPER_DONT_USE_NAMESPACE
 namespace prologcoin { namespace pow {
+#endif
 
 dipper_detector::dipper_detector(std::vector<projected_star> &stars) : stars_(stars) {
 }
@@ -65,8 +68,6 @@ bool dipper_detector::find_star(int32_t dx0, int32_t dy0, int32_t dr0, int32_t t
 
 bool dipper_detector::search_n(std::vector<std::vector<projected_star> > &found, size_t n)
 {
-    using namespace prologcoin::common;
-
     sort();
 
     //
@@ -192,5 +193,8 @@ bool dipper_detector::search(std::vector<projected_star> &found)
 	return false;
     }
 }
-	
+
+#ifndef DIPPER_DONT_USE_NAMESPACE	
 }}
+#endif
+

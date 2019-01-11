@@ -1,15 +1,15 @@
 #include "pow_mining.hpp"
 #include "observatory.hpp"
+#include "blake2.hpp"
 
-using namespace prologcoin::common;
-
+#ifndef DIPPER_DONT_USE_NAMESPACE
 namespace prologcoin { namespace pow {
+#endif
 
 static bool scan(void *obs, size_t super_difficulty, uint64_t nonce_offset,
 		 projected_star &first_visible,
 		 std::vector<projected_star> &found, uint32_t &nonce) {
-
-    static std::ofstream outfile("xxx.txt");
+    // static std::ofstream outfile("xxx.txt");
 
     bool r = false;
     switch (super_difficulty) {
@@ -22,7 +22,7 @@ static bool scan(void *obs, size_t super_difficulty, uint64_t nonce_offset,
     default: assert("Not implemented" == nullptr);
     }
     if (r) {
-        std::cout << nonce << std::endl;
+        // std::cout << nonce << std::endl;
 	return true;
     } else {
         return false;
@@ -64,11 +64,10 @@ bool search_proof(const siphash_keys &key, size_t super_difficulty, const pow_di
 	    return false;
 	}
 
-	uint32_t proof_round[10];
-	proof_round[0] = nonce_sum;
-	proof_round[1] = first_visible.id();
-	proof_round[2] = nonce;
-	size_t i = 3;
+	uint32_t proof_round[pow_proof::ROW_SIZE];
+	proof_round[0] = first_visible.id();
+	proof_round[1] = nonce;
+	size_t i = 2;
 	for (auto &star : found) {
 	    proof_round[i++] = star.id();
 	}
@@ -91,7 +90,7 @@ bool search_proof(const siphash_keys &key, size_t super_difficulty, const pow_di
         return false;
     }
 
-    if (!verify_pow(key, super_difficulty, out_proof)) {
+    if (!verify_pow(key, super_difficulty, difficulty, out_proof)) {
         std::cout << "Failed verification of proof!" << std::endl;
 	return false;
     }
@@ -99,4 +98,7 @@ bool search_proof(const siphash_keys &key, size_t super_difficulty, const pow_di
     return true;
 }
 
+#ifndef DIPPER_DONT_USE_NAMESPACE
 }}
+#endif
+

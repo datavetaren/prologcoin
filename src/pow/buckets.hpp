@@ -3,6 +3,10 @@
 #ifndef _pow_buckets_hpp
 #define _pow_buckets_hpp
 
+#ifndef DIPPER_DONT_USE_NAMESPACE
+namespace prologcoin { namespace pow {
+#endif
+
 template<size_t N, typename P, typename T> class buckets {
 public:
     typedef typename T::value_type value_type;
@@ -96,5 +100,9 @@ private:
     index_type *bucket_;
     size_t sz_;
 };
+
+#ifndef DIPPER_DONT_USE_NAMESPACE
+}}
+#endif
 
 #endif

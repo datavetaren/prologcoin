@@ -14,7 +14,9 @@
 #define PROLOGCOIN_FXP_ASSERT(x)
 #endif
 
+#ifndef DIPPER_DONT_USE_NAMESPACE
 namespace prologcoin { namespace pow {
+#endif
 
 #ifdef USE_PROLOGCOIN_FXP_ASSERT
 static void fxp_assert(bool x) {
@@ -620,7 +622,9 @@ template<> inline uint64_t T_to_uint64<fxp1648>(const fxp1648 a) {
     return (a + c_1_2).raw_value() << 16;
 }
 
+#ifndef DIPPER_DONT_USE_NAMESPACE
 }}
+#endif
 
 #endif
 

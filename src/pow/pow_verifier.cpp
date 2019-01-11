@@ -2,8 +2,11 @@
 #include "galaxy.hpp"
 #include "camera.hpp"
 #include "dipper_detector.hpp"
+#include "blake2.hpp"
 
+#ifndef DIPPER_DONT_USE_NAMESPACE
 namespace prologcoin { namespace pow {
+#endif
 
 void pow_verifier::setup(uint64_t nonce_offset, uint32_t nonce) {
     switch (super_difficulty_) {
@@ -54,7 +57,7 @@ bool verify_dipper(const siphash_keys &key, size_t super_difficulty, uint64_t no
     return true;
 }
 
-bool verify_pow(const siphash_keys &key, size_t super_difficulty, const pow_proof &proof) {
+bool verify_pow(const siphash_keys &key, size_t super_difficulty, const pow_difficulty &difficulty, const pow_proof &proof) {
     pow_verifier verifier(key, super_difficulty);
     std::vector<projected_star> stars;
     projected_star star;
@@ -67,31 +70,22 @@ bool verify_pow(const siphash_keys &key, size_t super_difficulty, const pow_proo
 
 	proof.get_row(row_no, row);
 
-	// First column in this row is the stored nonce_sum. This is
-	// strictly not needed to verify it, but it is still stored to
-	// enable future parallelization of the verification process.
-	uint32_t verify_nonce_sum = row[0];
-	if (verify_nonce_sum != nonce_sum) {
-	    std::cout << "Failed nonce sum check" << std::endl;
-	    return false;
-	}
-	
 	// First check that the first entry in this row is a visible
 	// star using the current nonce_offset.
 	verifier.setup(nonce_offset, 0);
-	uint32_t first_visible_star_id = row[1];
+	uint32_t first_visible_star_id = row[0];
 	projected_star first_visible_star;
 	if (!verifier.project_star(first_visible_star_id, first_visible_star)) {
   	    std::cout << "Failed first visible star check (id=" << first_visible_star_id << ")" << std::endl;
 	    return false;
 	}
 	// Then extract nonce and redirect camera to nonce_offset + nonce.
-	uint32_t nonce = row[2];
+	uint32_t nonce = row[1];
 	verifier.setup(nonce_offset, nonce);
 	// Project the stars (remaining 7 entries)
 	stars.clear();
 	for (size_t star_no = 0; star_no < 7; star_no++) {
-	    if (verifier.project_star(row[3+star_no], star)) {
+	    if (verifier.project_star(row[2+star_no], star)) {
 		stars.push_back(star);
 	    }
 	}
@@ -109,7 +103,26 @@ bool verify_pow(const siphash_keys &key, size_t super_difficulty, const pow_proo
 	nonce_sum += static_cast<uint64_t>(nonce) + 1;
     }
 
+    // Final check is to ensure SHA256(proof) is below target.
+
+    uint8_t proof_hash[32];
+    uint8_t proof_bytes[pow_proof::TOTAL_SIZE_BYTES];
+    proof.write(proof_bytes);
+
+    blake2(proof_hash, sizeof(proof_hash), proof_bytes, pow_proof::TOTAL_SIZE_BYTES, nullptr, 0);
+
+    uint8_t target[32];
+    difficulty.get_target(target);
+    int cmp = memcmp(proof_bytes, target, sizeof(target));
+
+    if (cmp > 0) {
+        return false;
+    }
+
     return true;
 }
 
+#ifndef DIPPER_DONT_USE_NAMESPACE
 }}
+#endif
+
