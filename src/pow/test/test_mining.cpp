@@ -42,12 +42,12 @@ static void test_pow_mining()
     header("test_pow_mining");
 
     char msg[8] = "hello42";
+    pow_difficulty difficulty(flt1648(1));
 
     // spin(msg, 33);
 
     for (size_t i = 0; i < 39; i++) {
 	siphash_keys keys(msg, strlen(msg));
-	pow_difficulty difficulty(flt1648(1));
 	pow_proof proof;
 
 	auto start_time = boost::posix_time::microsec_clock::universal_time();
@@ -60,16 +60,35 @@ static void test_pow_mining()
 
 	std::cout << "==> Proof took " << (end_time - start_time) << " seconds" << std::endl;
 
+        // proof.write( "proof.bin" );
+
 	spin(msg, 1);
 
 	// std::cout << msg << ": mean=" << proof.mean_nonce() << " geometric=" << proof.geometric_mean_nonce() << std::endl;
-
     }
+
+#if 0
+    pow_proof proof;
+    proof.read("proof.bin");
+    
+    auto start_time = boost::posix_time::microsec_clock::universal_time();    
+    const size_t ITER = 1;
+    for (size_t i = 0; i < ITER; i++) {
+	siphash_keys keys(msg, strlen(msg)); 
+	if (!verify_pow( keys, 8, difficulty, proof )) {
+	    std::cout << "Proof is not ok" << std::endl;
+	}
+    }
+    auto end_time = boost::posix_time::microsec_clock::universal_time();
+
+    std::cout << "==> Verification took " << ((end_time - start_time)/ITER).total_microseconds() << " u_seconds" << std::endl;
+#endif
+
 }
 
 int main(int argc, char *argv[])
 {
-    if (argc == 2 && strcmp(argv[1], "-mining") == 0) {
+    if (argc == 2 && strcmp(argv[1], "--mining") == 0) {
 	test_pow_mining();
     } else {
         header("main");

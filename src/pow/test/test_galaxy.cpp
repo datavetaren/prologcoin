@@ -3,14 +3,11 @@
 #include <assert.h>
 #include <vector>
 #include <cmath>
-#include "../../common/random.hpp"
-#include "../../common/utime.hpp"
 #include "../galaxy.hpp"
 #include "../camera.hpp"
 #include "../dipper_detector.hpp"
 #include "../observatory.hpp"
 
-using namespace prologcoin::common;
 using namespace prologcoin::pow;
 
 static void header( const std::string &str )

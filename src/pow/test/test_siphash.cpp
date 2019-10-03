@@ -2,11 +2,8 @@
 #include <sstream>
 #include <assert.h>
 #include <string.h>
-#include "../../common/random.hpp"
-#include "../../common/utime.hpp"
 #include "../siphash.hpp"
 
-using namespace prologcoin::common;
 using namespace prologcoin::pow;
 
 static void header( const std::string &str )

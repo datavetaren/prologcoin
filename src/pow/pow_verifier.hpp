@@ -7,6 +7,7 @@
 #include <stdlib.h>
 #include <math.h>
 #include <assert.h>
+#include <fstream>
 #include "siphash.hpp"
 #include "fxp.hpp"
 #include "flt.hpp"
@@ -67,6 +68,17 @@ public:
 	memcpy(&data_[0], &proof[0], TOTAL_SIZE_BYTES);
     }
 
+    inline void write(const std::string &path) const {
+	std::ofstream f(path, std::ios::out | std::ios::binary);
+	write(f);
+    }
+
+    inline void write(std::ostream &out) const {
+	uint8_t all_bytes[TOTAL_SIZE_BYTES];
+	write(&all_bytes[0]);
+	out.write(reinterpret_cast<char *>(&all_bytes[0]), TOTAL_SIZE_BYTES);
+    }
+
     inline void write(uint8_t *bytes) const {
 	size_t i = 0;
 	for (size_t row = 0; row < NUM_ROWS; row++) {
@@ -80,7 +92,46 @@ public:
 	}
     }
 
+    inline void read(const uint8_t *bytes) {
+	for (size_t row = 0; row < NUM_ROWS; row++) {
+	    for (size_t j = 0; j < ROW_SIZE; j++) {
+		uint8_t b0 = bytes[sizeof(uint32_t)*(row*ROW_SIZE+j)];
+		uint8_t b1 = bytes[sizeof(uint32_t)*(row*ROW_SIZE+j)+1];
+		uint8_t b2 = bytes[sizeof(uint32_t)*(row*ROW_SIZE+j)+2];
+		uint8_t b3 = bytes[sizeof(uint32_t)*(row*ROW_SIZE+j)+3];
+		uint32_t word = (static_cast<uint32_t>(b0) << 24) |
+	    	                (static_cast<uint32_t>(b1) << 16) |
+	   	                (static_cast<uint32_t>(b2) << 8) |
+	  	                static_cast<uint32_t>(b3);
+	        data_[row*ROW_SIZE+j] = word;
+	    }
+	}
+    }
+
+    inline void read(std::istream &in) {
+	uint8_t bytes[TOTAL_SIZE_BYTES];
+	in.read(reinterpret_cast<char *>(&bytes[0]), TOTAL_SIZE_BYTES);
+	read(&bytes[0]);
+    }
+
+    inline void read(const std::string &f) {
+	std::ifstream in(f);
+	read(in);
+    }
+
     inline size_t num_rows() const { return NUM_ROWS; }
+
+    inline void print( std::ostream &out ) const {
+	for (size_t i = 0; i < NUM_ROWS; i++) {
+	    uint32_t row[ROW_SIZE];
+	    get_row(i, row);
+	    out << "Row " << std::dec << std::setfill(' ') << std::setw(2) << i << ": & 0x" << std::hex << std::setfill('0') << std::setw(8) << row[0] << " & " << std::dec << std::setw(5) << std::setfill(' ') << row[1];
+	    for (size_t j = 0; j < 7; j++) {
+		out << " & 0x" << std::setfill('0') << std::setw(8) << std::hex << row[2+j];
+	    }
+	    std::cout << " \\\\" << std::dec << std::setfill(' ') << std::endl;
+	}
+    }
 
     inline void set_row(size_t row_number, uint32_t row[ROW_SIZE]) {
 	memcpy(&data_[row_number*ROW_SIZE], &row[0], ROW_SIZE*sizeof(uint32_t));
@@ -96,7 +147,8 @@ private:
 
 class pow_verifier {
 public:
-    static const int32_t TOLERANCE = 100;
+    // 800 = ~8 pixels diff (100 = 1 pixel) in template coordinate system
+    static const int32_t TOLERANCE = 800;
 
     inline pow_verifier(const siphash_keys &key, size_t super_difficulty) 
         : key_(key), super_difficulty_(super_difficulty) {
@@ -120,6 +172,11 @@ private:
 	}
 	auto *cam = reinterpret_cast<camera<N,fxp1648> *>(camera_);
 	cam->set_target(nonce_offset, nonce);
+    }
+
+    template<size_t N> vec3<fxp1648> star_coord(size_t id) {
+	auto *gal = reinterpret_cast<galaxy<N,fxp1648> *>(galaxy_);
+	return gal->star_to_vector(id);
     }
 
     template<size_t N> bool project_star_t(size_t id, projected_star &star) {

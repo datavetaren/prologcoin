@@ -74,6 +74,7 @@ public:
 	uint64_t nonce_begin = nonce_offset + 3*nonce;
 	uint64_t nonce_end = nonce_begin + 3;
 	siphash(galaxy_.keys(), nonce_begin, nonce_end, out);
+
 	set_target(vec3<T>(uint64_to_T<T>(out[0]), uint64_to_T<T>(out[1]), uint64_to_T<T>(out[2])));
     }
 
@@ -86,36 +87,41 @@ public:
 
 	auto st = galaxy_.get_star(id);
 	auto sv = galaxy_.star_to_vector(st);
+
 	auto svd = sv - get_origin(); // Star relative from origin
 	auto sd = svd.length(); // Star distance from origin
 	auto diff = get_target() - get_origin();
 	auto dir = diff.norm();
 	auto h = diff.length();
+
 	T    l = sqrt(VOLUME * 3 / h);
 	auto sdl_inv = h / (l * sd);  // Expected base pyramid size
 
 	auto proxy_up = vec3<T>(0,0,1);
-	auto dir_1 = dir.cross(proxy_up).norm();
-	auto dir_2 = dir.cross(dir_1);
+	auto dir_x = dir.cross(proxy_up).norm();
+	auto dir_y = dir.cross(dir_x);
 
-	auto proj_1 = svd.dot(dir_1) * sdl_inv;
-	auto proj_2 = svd.dot(dir_2) * sdl_inv;
+	auto proj_x = svd.dot(dir_x) * sdl_inv;
+	auto proj_y = svd.dot(dir_y) * sdl_inv;
 	auto proj_r = sd/h;
-	
+
 	// Is this star within the bounding box?
 	// (Do not square to avoid overflows...)
-	if (proj_1 >= c_minus_1_2 && proj_1 < c_1_2 &&
-	    proj_2 >= c_minus_1_2 && proj_2 < c_1_2 &&
+	if (proj_x >= c_minus_1_2 && proj_x < c_1_2 &&
+	    proj_y >= c_minus_1_2 && proj_y < c_1_2 &&
 	    proj_r < c_1) {
 
 	    // Normalize coordinates to 0..4095.
 	    // Will be good enough to calculate visual observations
 	    // and it'll be relatively easy to compute dx^2+dy^2
 	    // without overflow.
-	    uint32_t x32 = static_cast<uint32_t>((proj_1+c_1_2)*SCREEN_WIDTH);
-	    uint32_t y32 = static_cast<uint32_t>((proj_2+c_1_2)*SCREEN_HEIGHT);
+	    uint32_t x32 = static_cast<uint32_t>((proj_x+c_1_2)*SCREEN_WIDTH);
+	    uint32_t y32 = static_cast<uint32_t>((proj_y+c_1_2)*SCREEN_HEIGHT);
 	    uint32_t r32 = static_cast<uint32_t>(proj_r*SCREEN_DEPTH);
-	    star = projected_star(static_cast<uint32_t>(id), x32, y32, r32);
+	    uint32_t id32 = static_cast<uint32_t>(id);
+
+	    star = projected_star(id32, x32,y32,r32);
+
 	    return true;
 	} else {
 	    return false;
@@ -219,7 +225,7 @@ template<size_t NumBits, typename T> inline void camera<NumBits,T>::take_picture
 
 		num_cubes++;
 
-		// Iterate through all stars in this bucket (= octant)
+		// Iterate through all stars in this bucket
 		
 		for (auto id : galaxy_.get_stars_ids(xp64_i, yp64_i, zp64_i) ) {
 		    total_cnt++;

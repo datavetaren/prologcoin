@@ -22,7 +22,6 @@ static bool scan(void *obs, size_t super_difficulty, uint64_t nonce_offset,
     default: assert("Not implemented" == nullptr);
     }
     if (r) {
-        // std::cout << nonce << std::endl;
 	return true;
     } else {
         return false;

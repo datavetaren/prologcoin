@@ -14,6 +14,7 @@ public:
     using V = value_type;
 
     inline buckets() { buckets_ = new T[N]; }
+    inline ~buckets() { delete [] buckets_; buckets_ = nullptr; }
 
     inline void clear() {
 	for (size_t i = 0; i < N; i++) {
@@ -33,7 +34,7 @@ public:
 	return n;
     }
 
-    template<typename ... Ts> inline bucket_type get(size_t arg, Ts... args) const {
+    template<typename ... Ts> inline const bucket_type & get(size_t arg, Ts... args) const {
 	return buckets_[arg].get(args...);
     }
 private:
@@ -71,6 +72,7 @@ public:
     typedef bucket<N,P,T>  bucket_type;
 
     inline bucket() : bucket_(new index_type[N]), sz_(0) { }
+    inline ~bucket() { delete [] bucket_; bucket_ = nullptr; }
 
     inline void clear() {
 	sz_ = 0;

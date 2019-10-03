@@ -307,7 +307,7 @@ public:
     }
 
 private:
-    observatory<N,T> observatory_;
+    observatory<N,T> &observatory_;
     size_t num_workers_;
     std::vector<worker<N,T> *> all_workers_;
     std::vector<worker<N,T> *> ready_workers_;

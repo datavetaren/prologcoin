@@ -295,11 +295,8 @@ void connection::do_action()
 	th = target.theta();
 	phi = target.phi();
     } else {
-	// std::cout << "SETTING TARGET: " << r << " " << th << " " << phi << std::endl;
 	server.set_target(r, th, phi);
     }
-
-    // std::cout << "URI: " << page << std::endl;
 
     if (page == "/render.html") {
 	std::string str = read_file("render.html");
@@ -337,12 +334,6 @@ void connection::do_action()
 	ss << "]";
 
 	std::string str = ss.str();
-
-	/*
-	if (found.size() > 0) {
-	    std::cout << "FOUND..." << std::endl;
-	}
-	*/
 
 	do_reply_ok(str);
 	

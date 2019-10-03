@@ -40,7 +40,7 @@ bool dipper_detector::find_star(int32_t dx0, int32_t dy0, int32_t dr0, int32_t t
     int32_t dy1 = (dy0*100 - tol) / 100;    
     int32_t dy2 = (dy0*100 + tol) / 100;
 
-    int32_t r2 = tol*tol;
+    int32_t r2 = tol*tol/100;
     // int32_t d2 = tol_depth*tol_depth;
     for (int32_t dx = dx1; dx < dx2; dx += GRID_SIZE) {
 	for (int32_t dy = dy1; dy < dy2; dy += GRID_SIZE) {
@@ -96,9 +96,9 @@ bool dipper_detector::search_n(std::vector<std::vector<projected_star> > &found,
     static const int32_t dipper_dy[N] = { 0, 116,  99,  93, -30,  63, 236 };
     static const int32_t dipper_dr[N] = { 9,   9,   9,  29,   9,  16,   9 };
 	    
-    const int32_t dx12 = 185;
-    const int32_t dy12 = 116;
-    const int32_t dl12 = isqrt(dx12*dx12+dy12*dy12);
+    static const int32_t dx12 = 185;
+    static const int32_t dy12 = 116;
+    static const int32_t dl12 = isqrt(dx12*dx12+dy12*dy12);
 
     static size_t best = 0;
 
@@ -124,7 +124,9 @@ bool dipper_detector::search_n(std::vector<std::vector<projected_star> > &found,
 	    
 	    // Compute rotation/scaling matrix, that takes a vector from
 	    // the dipper default coordinate system to the placement
-	    // of the coordinate system in the sky.
+	    // of the coordinate system in the sky. Note that this
+	    // rotation matrix magnifies the positions with dlij (because
+	    // the real rotation matrix is (...) / dl12 / dlij.)
 	    int32_t R_00 = (dx12*dxij+dy12*dyij) / dl12;
 	    int32_t R_01 = (dy12*dxij-dx12*dyij) / dl12;
 	    int32_t R_10 = -R_01;
@@ -156,15 +158,7 @@ bool dipper_detector::search_n(std::vector<std::vector<projected_star> > &found,
 	    	    }
 		    
 		    if (k == N - 1) {
-			// std::cout << "Found it!" << std::endl;
 			success = true;
-			/*
-			for (auto fnd : found1) {
-			    auto xs = fnd.x();
-			    auto ys = fnd.y();
-			    std::cout << "id=" << fnd.id() << " x=" << xs << " y=" << ys << std::endl;
-			}
-			*/
 		    }
 		} else {
 		    // No point in looking further...

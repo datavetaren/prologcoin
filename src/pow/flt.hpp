@@ -130,6 +130,7 @@ public:
 	for (size_t i = 0; i < bytes_len; i++) {
 	    ss << std::hex << std::setfill('0') << std::setw(2) << static_cast<int>(bytes[i]);
 	}
+	delete [] bytes;
 	return ss.str();
     }
 

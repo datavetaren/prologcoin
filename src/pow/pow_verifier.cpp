@@ -3,6 +3,7 @@
 #include "camera.hpp"
 #include "dipper_detector.hpp"
 #include "blake2.hpp"
+#include "isqrt.hpp"
 
 #ifndef DIPPER_DONT_USE_NAMESPACE
 namespace prologcoin { namespace pow {
@@ -60,12 +61,11 @@ bool verify_dipper(const siphash_keys &key, size_t super_difficulty, uint64_t no
 bool verify_pow(const siphash_keys &key, size_t super_difficulty, const pow_difficulty &difficulty, const pow_proof &proof) {
     pow_verifier verifier(key, super_difficulty);
     std::vector<projected_star> stars;
-    projected_star star;
 
     uint32_t row[pow_proof::ROW_SIZE];
     uint32_t nonce_sum = 0;
     for (size_t row_no = 0; row_no < proof.num_rows(); row_no++) {
-        std::cout << "Verify row_no " << row_no << std::endl;
+        // std::cout << "Verify row_no " << row_no << std::endl;
         uint64_t nonce_offset = static_cast<uint64_t>(nonce_sum) << 32;
 
 	proof.get_row(row_no, row);
@@ -83,23 +83,68 @@ bool verify_pow(const siphash_keys &key, size_t super_difficulty, const pow_diff
 	uint32_t nonce = row[1];
 	verifier.setup(nonce_offset, nonce);
 	// Project the stars (remaining 7 entries)
-	stars.clear();
-	for (size_t star_no = 0; star_no < 7; star_no++) {
-	    if (verifier.project_star(row[2+star_no], star)) {
-		stars.push_back(star);
+
+	static const size_t NUM_STARS = 7;
+
+	projected_star stars[NUM_STARS];
+
+	for (size_t star_no = 0; star_no < NUM_STARS; star_no++) {
+	    if (!verifier.project_star(row[2+star_no], stars[star_no])) {
+		std::cout << "Failed to project star (id=" << row[2+star_no] << ")" << std::endl;
+		return false;
 	    }
 	}
-	// We must have 7 visible stars
-	if (stars.size() != 7) {
-    	    std::cout << "Failed 7 star check" << std::endl;
+
+	// Instead of instantiating the dipper detector, we'll
+	// use the light weight version of the same thing.
+
+	static const int32_t dipper_dx[NUM_STARS] = { 0, 185, 325, 502, 588, 830, 805 };
+	static const int32_t dipper_dy[NUM_STARS] = { 0, 116,  99,  93, -30,  63, 236 };
+
+	static const int32_t dx12 = 185;
+	static const int32_t dy12 = 116;
+	static const int32_t d12 = isqrt(dx12*dx12+dy12*dy12);
+
+        int32_t x0 = stars[0].x(), y0 = stars[0].y();
+	int32_t x1 = stars[1].x(), y1 = stars[1].y();
+	int32_t dx01 = x1-x0, dy01 = y1-y0;
+
+	const int32_t d01_2 = dx01*dx01+dy01*dy01;
+
+	// If the distance between the stars is too small (5 units) then
+	// fail
+	if (d01_2 < 5*5) {
 	    return false;
 	}
-	// Check that we can detect the dipper
-	dipper_detector detector(stars);
-	if (!detector.search(stars)) {
-      	    std::cout << "Failed to detect dipper" << std::endl;
-	    return false;
+	const int32_t d01 = isqrt(d01_2);
+
+	// Scale tolerance
+	int32_t tol = pow_verifier::TOLERANCE*d01/d12;
+	int32_t r2 = tol*tol/100;
+
+	// Compute rotation/scaling matrix, that takes a vector from
+	// the dipper default coordinate system to the placement
+	// of the coordinate system in the sky.
+	int32_t R_00 = (dx12*dx01+dy12*dy01) / d12;
+	int32_t R_01 = (dy12*dx01-dx12*dy01) / d12;
+	int32_t R_10 = -R_01;
+	int32_t R_11 = R_00;
+
+	for (size_t i = 2; i < NUM_STARS; i++) {
+	    int32_t dx1i = dipper_dx[i];
+	    int32_t dy1i = dipper_dy[i];
+
+	    int32_t xip = (R_00*dx1i + R_01*dy1i) / d12 + x0;
+	    int32_t yip = (R_10*dx1i + R_11*dy1i) / d12 + y0;
+
+	    int32_t xi = stars[i].x(), yi = stars[i].y();
+	    int32_t dx = xi - xip, dy = yi - yip;
+
+	    if (100*(dx*dx+dy*dy) > r2) {
+		return false;
+	    }
 	}
+
 	nonce_sum += static_cast<uint64_t>(nonce) + 1;
     }
 

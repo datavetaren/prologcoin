@@ -36,7 +36,14 @@ public:
     static const size_t num_buckets = 1 << num_buckets_bits;
 
     inline galaxy( const siphash_keys &keys )
-	: keys_(keys) { }
+	: keys_(keys), stars_(nullptr) { }
+
+    inline ~galaxy() {
+	if (stars_ != nullptr) {
+	    delete stars_;
+	    stars_ = nullptr;
+	}
+    }
 
     inline const siphash_keys & keys() const {
 	return keys_;
@@ -56,9 +63,9 @@ public:
 	inline range_stars(const galaxy &g, size_t x, size_t y, size_t z)
 	    : g_(g), x_(x), y_(y), z_(z) { }
 	inline bucket_iterator<uint32_t> begin() const
-	    { return g_.stars_.get(x_,y_,z_).begin(); }
+	    { return g_.stars_->get(x_,y_,z_).begin(); }
 	inline bucket_iterator<uint32_t> end() const
-	    { return g_.stars_.get(x_,y_,z_).end(); }
+	    { return g_.stars_->get(x_,y_,z_).end(); }
 
 	const galaxy &g_;
 	size_t x_, y_, z_;
@@ -75,7 +82,7 @@ public:
     }
 
     inline void clear() {
-	stars_.clear();
+	stars_->clear();
     }
 
     void init(size_t num_stars = 1 << (3*NumBits+3));
@@ -137,7 +144,8 @@ private:
 
     const siphash_keys &keys_;
     size_t num_stars_;
-    buckets<N, star_x, buckets<N, star_y, buckets<N, star_z, bucket<32, star_id, star> > > > stars_;
+    typedef buckets<N, star_x, buckets<N, star_y, buckets<N, star_z, bucket<32, star_id, star> > > > buckets_type;
+    buckets_type *stars_;
 };
 
 //
@@ -154,13 +162,9 @@ template<size_t NumBits, typename T> void galaxy<NumBits,T>::init(size_t num_sta
     uint64_t chunk[3*N];
 
     num_stars_ = num_stars;
-
-    // std::cout << "galaxy<" << NumBits << ">::init(): num_stars=" << num_stars << std::endl;
+    stars_ = new buckets_type();
 
     for (size_t i = 0; i < num_stars; i += N) {
-	// if (i % (N*100000) == 0) {
-	//    std::cout << "   currently=" << i << " stars...\r";
-	// }
 	size_t nn = std::min(N, num_stars-i);
 	size_t i_end = i + nn;
 	siphash(keys_, checked_cast<uint64_t>(3*i), checked_cast<uint64_t>(3*i_end), chunk);
@@ -168,11 +172,10 @@ template<size_t NumBits, typename T> void galaxy<NumBits,T>::init(size_t num_sta
 	    star s(i+j, chunk[j*3], chunk[j*3+1], chunk[j*3+2]);
 	    // No luck in cheating...
 	    // if (s.x() & ((uint64_t)(1) << 63)) {
-	        stars_.put(s);
+	        stars_->put(s);
 	    // }
 	}
     }
-    // std::cout << std::endl;
 }
 
 template<size_t NumBits,typename T> void galaxy<NumBits,T>::status() const {
@@ -181,7 +184,7 @@ template<size_t NumBits,typename T> void galaxy<NumBits,T>::status() const {
     for (size_t i = 0; i < N; i++) {
 	for (size_t j = 0; j < N; j++) {
 	    for (size_t k = 0; k < N; k++) {
-		const auto &bucket = stars_.get(i,j,k);
+		const auto &bucket = stars_->get(i,j,k);
 		if (bucket.size() > max_bucket_size) {
 		    max_bucket_size = bucket.size();
 		}
@@ -205,7 +208,7 @@ template<size_t NumBits,typename T> void galaxy<NumBits,T>::status() const {
     for (size_t i = 0; i < N; i++) {
 	for (size_t j = 0; j < N; j++) {
 	    for (size_t k = 0; k < N; k++, num_buckets++) {
-		const auto &bucket = stars_.get(i,j,k);
+		const auto &bucket = stars_->get(i,j,k);
 		buckets_size_sum += bucket.size();
 	    }
 	}
@@ -223,7 +226,7 @@ template<size_t NumBits,typename T> void galaxy<NumBits,T>::status() const {
 }
 
 template<size_t NumBits, typename T> void galaxy<NumBits,T>::memory() const {
-    size_t n = stars_.memory();
+    size_t n = stars_->memory();
     size_t mb = n / 1000000;
     std::cout << "Galaxy memory: " << mb << " MB" << std::endl;
 }
