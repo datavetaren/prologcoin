@@ -57,6 +57,17 @@ works fine:
 ?- halt.
 ```
 
+For fun you can actually create compatible bitcoin keys with it:
+
+```
+?- ec:privkey(NewKey), ec:pubkey(NewKey,PubKey), ec:address(PubKey,Addr).
+NewKey = 58'KzV52gSQKumZu1fuTbLjzHT3KYnaB3whqUxbFGAHoiqXY8CZMwgp,
+PubKey = 58'1pneNLWqDHkAs33Gqz96YA7aRiBYwNUThjJg8k3rJdg56,
+Addr = 58'1EQUjQiTSkQnpUz6sos6QL5FJd4dPYTHf2.
+```
+
+Yeah, only legacy addresses for now. Shame on me.
+
 ## What is Prolog
 
 Prolog is a language based on predicates (= "program") and terms (=
