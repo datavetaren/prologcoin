@@ -47,17 +47,17 @@ Add another prologcoind to your address book:
 ```
 ?- member(X, [1,2,3,4]) @ bar.
 ```
-Means run the goal "member(X, [1,2,3,4])" on the node 'bar'.
 
+Run the goal "member(X, [1,2,3,4])" on the node 'bar'. (Requires a
+connection to the node 'bar'.)
 
-And to quit (interactive) prologcoind the regular 'halt/0' predicate
-works fine:
+Use the regular 'halt/0' predicate to quit (interactive) prologcoind:
 
 ```
 ?- halt.
 ```
 
-For fun you can actually create compatible bitcoin keys with it:
+For fun you can actually create compatible bitcoin keys with prologcoind:
 
 ```
 ?- ec:privkey(NewKey), ec:pubkey(NewKey,PubKey), ec:address(PubKey,Addr).
@@ -82,7 +82,7 @@ various axioms/rules (also known as consensus.) Words such as
 "proving," "validation," "axioms," and "logic" fit the Prolog
 paradigm very well.
 
-Prolog also has a pecular concept called "logic variables." The word
+Prolog also has a peculiar concept called "logic variables." The word
 "logic" should not be confused with true/false, but rather that these
 variables can be bound (to terms) in order to solve a "data structure"
 equation.
@@ -90,10 +90,10 @@ equation.
 ## Blockchain and queries
 
 In Prolog you have an axiomatic set (called the "program") and then
-you ask queries using that axiomatic set. Here we can imagine that the
-blockchain is just a query to be asked that can be continually
-extended. We'll have the constraint that users are only allowed to add
-goals to the query as long as the overall query doesn't fail.
+you ask queries based on the axiomatic set. Here we imagine that the
+blockchain is just an indefinitely global expandable query.  We have
+the constraint that users are only allowed to extend goals to the
+global query as long as the overall query doesn't fail.
 
 For example,
 
@@ -102,36 +102,36 @@ For example,
 ```
 
 Will produce a state where the logic variable 'X' is equal to the constant 1.
-If a user would attempt to extend this query with let's say X = 2:
+If a user attempts to extend this query with let's say X = 2:
 
 ```
 ?- X = 1, X = 2.
 ```
 
-... then that would fail the global query and would be rejected by the network.
+... then it would fail and the global query and would be rejected by
+the network.
 
-A user can add new code (subroutines) using the traditional assert command.
-For example,
+A user can add new code using the traditional assert command.  For
+example,
 
 ```
-?- assert( p(X) :- X = 42 ), ... predicate P is now available here ...
+?- assert( p(X) :- X = 42 ), ... predicate p/1 is now available  ...
 ```
 
 ## Special terms
 
-Terms with functors that start with '$' character are reserved and may
-only be created by the "operating system." For which "operating
-system" is not t he actual operating system, but the prologcoind
-engine.  Thus, write mode for terms are only allowed for selected
+Terms with functors that start with a '$' character are reserved and
+may only be created by the "operating system." Here, "operating
+system" is not the actual operating system, but the prologcoind
+engine.  Thus, "write mode" for terms are only allowed for selected
 (built-in) predicates. For example,
 
 ```
 ?- X = '$foo'(1,2).
 ```
 
-Will fail, because the user is attempting to write a term (or binding
-variables) on the heap that contain a functor with a leading '$'
-character.
+... will fail because the user is attempting to create a new term on
+the heap containing a functor with a leading '$' character.
 
 ## Coins
 
@@ -140,13 +140,13 @@ character.
 ```
 
 Will be reserved for monetary value. Value is bound to the amount and
-Spent is either in unbound state = coin is available / not spent, and
-if the argument is '[]' (the empty list) then it is spent.
+Spent is either unbound = coin is available / not spent, and if the
+argument is '[]' (the empty list) then it is considered spent.
 
-There are two built-in predicates (by the system) that allows you join
-or split coins (and only these preciates are allowed to work on
-'$coin'.) cjoin0/3 is a helper predicate for cjoin/2 (which also is
-allowed to work on '$coin'.)
+There are two built-in predicates (by the system) that allows you
+joining or spliting coins and only these preciates are allowed to work
+on '$coin' terms. cjoin0/3 is a helper predicate for cjoin/2 and is not
+considered available directly from the user code.
 
 ```
 cjoin(InCoins, '$coin'(Sum, _) ) :-
@@ -188,7 +188,7 @@ MyCoin3 = '$coin'(70, _)
 
 These predicates, and the constraint that only these predicates can
 write '$coin' terms, ensure that money cannot be created from thin
-air. Only the system may allow to create '$coin'/2 terms.
+air. Only the (consensus) system may create '$coin'/2 terms.
 
 ## Hashes & signatures
 
@@ -207,7 +207,8 @@ Hash = user(Value)   or   Hash = '$sys'(Value)
 ```
 
 This enables us to distinguish if the hash has been computed by the
-opearating system or from user code.
+opearating system or by user code. We'll see in a moment why this is
+important.
 
 We can compute a signature using sign/3:
 
@@ -215,7 +216,7 @@ We can compute a signature using sign/3:
 sign(Hash, PrivateKey, Sign)
 ```
 
-And we can validate a signautre using validate/3:
+And we can validate a signature using validate/3:
 
 ```
 validate(Hash, PublicKey, Sign)
@@ -228,32 +229,32 @@ A transaction can now defined as:
 ```
 tx(CoinIn, Hash, Sign, PubKey, PubKeyHash, CoinOut) :-
     CoinIn = '$coin'(V, X),
-    var(X),
-    X = [],
-    freeze([Hash, Sign, PubKey],
-        hash(PubKey, PubKeyHash),
-        ground(Hash),
-        Hash = '$sys'(_),
-        validate(Hash, PubKey, Sign),
-	CoinOut = '$coin'(V, _)).
+    var(X), % Not currently spent
+    X = [], % Spend it
+    freeze([Hash, Sign, PubKey],  % Wait until vars become bound
+        hash(PubKey, PubKeyHash), % Validate PubKey
+        ground(Hash), 
+        Hash = '$sys'(_), % Hash must not have been computed by user code
+        validate(Hash, PubKey, Sign), % Validate signature
+	CoinOut = '$coin'(V, _)). % Let CoinOut become available/spendable.
 ```
 
 When this predicate is run, it will mark CoinIn as spent and then halt
 its execution (freeze/2) until the variables Hash, Sign and PubKey have
 become bound.  Once they become bound it'll check that the provided
 Hash, Sign and PubKey validate, where Hash has been computed by the
-operating system (and not from user code.)
+operating system (and not by user code.)
 
-So for example, let's say there's some a previous transaction (on the
-global expanding query) that the user would like to spend. Then the
+So for example, let's say there's some a previous transaction with a
+coin (on the global query) that the user would like to spend. Then the
 user first computes the signatures:
 
 ```
 T = (t(SelfHash) :-
-           PubKey = <provided by the user>
-           Hash = SelfHash,
-	   % If Sign is provided this will now make "SomeCoin" spendable
-           tx(SomeCoin, OutHash, OutSign, OutPubKey, somepubkeyhashconstant, OutCoin)).
+   PubKey = <constant provided by the user>
+   Hash = SelfHash,
+   % If Sign is provided this will now make "SomeCoin" spendable
+   tx(SomeCoin, OutHash, OutSign, OutPubKey, somepubkeyhashconstant, OutCoin)).
 ```
 
 Running 'commit(T)' will make the system first compute
@@ -275,7 +276,7 @@ And the user can now create two commits:
 ```
 
 This somewhat complicated way of creating transactions is to ensure
-that once the commits are broadcasted to the network, they cannot be
+that once commits are broadcasted to the network, they cannot be
 modified by an attacker while in transit (to the miners.) The
 signatures are thus separated from the action and thus make the
 signatures non-mallable.
@@ -285,8 +286,8 @@ signatures non-mallable.
 The intent of Prologcoin is to run a regular Prolog execution of a
 query (indefinitely) with some small additional constraints on how you
 can append things to the global query. Keeping the execution model as
-close as possible to a regular execution of a Prolog query, keeps the
-mental model simple for the cryptocurrency. The API will simly be
+close as possible to a regular execution of Prolog keeps the mental
+model relatively simple for the cryptocurrency. The API will simply be
 interactions with Prolog. The only difference is that there's a global
 query that is maintained by all the nodes of the system.
 
@@ -296,10 +297,10 @@ Garbage collection. Once the heap grows we'd like to prune things that
 are irrelevant. For example, spent coins and other data structures can
 be ignored if the only relevant thing to track are the unspent coins
 (which would model the UTXOs in Bitcoin.) We could take the approach
-that terms are allowed to be joined with UTXO coins can be kept. Thus,
-any attempt to refer to logic variables where all terms are ground and
-no unspent '$coin' is referered, could be treated as failing
-unifications.
+that terms can be joined with UTXO coins to store additional data (not
+to be garbage collected.) Thus, any attempt to refer to logic
+variables where all terms are ground and where no unspent '$coin' is
+available, could be treated as failing unifications.
 
 ## Appendix
 
