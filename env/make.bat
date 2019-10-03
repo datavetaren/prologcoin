@@ -123,7 +123,7 @@ IF "!VCVER!"=="" (
 )
 
 SET BOOST=
-CALL :CHECKBOOST !VCVER! BOOST
+CALL :CHKBST !VCVER! BOOST
 IF "!BOOST!"=="" (
    GOTO :EOF
 )
@@ -441,7 +441,7 @@ REM ----------------------------------------------------
 REM  BOOST
 REM ----------------------------------------------------
 
-:CHECKBOOST
+:CHKBST
 
 REM
 REM Determine version of BOOST from version of Visual C++
