@@ -228,7 +228,7 @@ tx(CoinIn, Hash, Sign, PubKey, PubKeyHash, CoinOut) :-
 ```
 
 When this predicate is run, it will mark CoinIn as spent and then halt
-its execution (freeze/2) until the variables Hash, Sign and PubKey has
+its execution (freeze/2) until the variables Hash, Sign and PubKey have
 become bound.  Once they become bound it'll check that the provided
 Hash, Sign and PubKey validate, where Hash has been computed by the
 operating system (and not from user code.)
@@ -247,7 +247,7 @@ T = (t(SelfHash) :-
 
 Running 'commit(T)' will make the system first compute
 '$sys'(SelfHash) where the Hash is computed on the Body of the
-'t(SelfHash) :- Body' clause. The Hash is computed before the Body is
+'t(SelfHash) :- Body' clause. The hash is computed before the Body is
 run, so all unifications (e.g. Hash = SelfHash) are just unbound
 variables for the created term of T. However, running 'commit(T)' is
 not enough as we need to bind 'Sign' (so that SomeCoin is released.)
