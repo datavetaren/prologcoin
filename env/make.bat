@@ -75,6 +75,7 @@ GOTO:EOF
 set CHOOSEVC=%1
 set CHOOSEVC=%CHOOSEVC:"=%
 set VCLIST=
+call :CHECKVC VS160COMNTOOLS "!VCLIST!" VCLIST
 call :CHECKVC VS150COMNTOOLS "!VCLIST!" VCLIST
 call :CHECKVC VS140COMNTOOLS "!VCLIST!" VCLIST
 call :CHECKVC VS130COMNTOOLS "!VCLIST!" VCLIST
@@ -142,8 +143,7 @@ IF NOT "%DOEXE%"=="" (
 )
 
 SET CCFLAGS=!CCFLAGS! /I"!BOOST!"
-SET LINKFLAGS=!LINKFLAGS! /LIBPATH:"!BOOST!\lib!BIT!-msvc-!VCVER!.0"
-
+SET LINKFLAGS=!LINKFLAGS! /LIBPATH:"!BOOST!\lib!BIT!-msvc-!VCVER!"
 set ABSROOT=%~dp0
 
 set ENV=%ROOT%\env
@@ -421,17 +421,20 @@ SET VCVER=
 WHERE cl.exe >%TEMP%\cl.txt
 SET /P CLTXT=<%TEMP%\cl.txt
 
+IF "!VCVER!"=="" IF NOT "!CLTXT:14.2=!"=="!CLTXT!" (
+   SET VCVER=14.2
+)
 IF "!VCVER!"=="" IF NOT "!CLTXT:Microsoft Visual Studio 14.0=!"=="!CLTXT!" (
-   SET VCVER=14
+   SET VCVER=14.0
 )
 IF "!VCVER!"=="" IF NOT "!CLTXT:Microsoft Visual Studio 13.0=!"=="!CLTXT!" (
-   SET VCVER=13
+   SET VCVER=13.0
 )
 IF "!VCVER!"=="" IF NOT "!CLTXT:Microsoft Visual Studio 12.0=!"=="!CLTXT!" (
-   SET VCVER=12
+   SET VCVER=12.0
 )
 IF "!VCVER!"=="" IF NOT "!CLTXT:Microsoft Visual Studio 11.0=!"=="!CLTXT!" (
-   SET VCVER=11
+   SET VCVER=11.0
 )
 SET %1=!VCVER!
 

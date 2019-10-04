@@ -10,7 +10,7 @@
 
 #include <boost/asio/io_service.hpp>
 #include <boost/asio/signal_set.hpp>
-#include <boost/asio/socket_acceptor_service.hpp>
+#include <boost/asio/basic_socket_acceptor.hpp>
 #include <boost/asio/ip/tcp.hpp>
 #include <boost/lexical_cast.hpp>
 
