@@ -294,6 +294,46 @@ static void test_interpreter_multi_instance()
     }
 }
 
+static void test_interpreter_freeze_preprocess()
+{
+    header("test_interpreter_freeze_preprocess()");
+
+    interpreter interp;
+
+    const std::string program = 
+	R"PROGRAM(
+           [foo(X,Y) :- (some(Y,Z), freeze(Z, (goal1(Y), goal2(X,Z))))].
+          )PROGRAM";
+
+    /*
+    const std::string query = "build(some(term(42)),Q).";
+
+    const std::string expected = "Q = foo(some(term(42)), some(term(42)), bar(some(term(42)), 42))";
+    */
+
+    term prog = interp.parse(program);
+
+    interp.load_program(prog);
+
+    std::cout << "Program --------------------------------------\n";
+    interp.print_db(std::cout);
+    std::cout << "----------------------------------------------\n";
+
+    std::cout << "STATUS: " << interp.status() << std::endl;
+
+    /*
+    term qr = interp.parse(query);
+    std::cout << "?- " << interp.to_string(qr) << ".\n";
+
+    interp.execute(qr);
+
+    std::string result = interp.to_string(qr);
+
+    std::cout << "----------------------------------------------" << std::endl;
+    interp.print_result(std::cout);
+    std::cout << "----------------------------------------------" << std::endl;
+    */
+}
 
 int main( int argc, char *argv[] )
 {
@@ -302,6 +342,7 @@ int main( int argc, char *argv[] )
     test_backtracking_interpreter();
     test_interpreter_serialize();
     test_interpreter_multi_instance();
+    test_interpreter_freeze_preprocess();
 
     return 0;
 }

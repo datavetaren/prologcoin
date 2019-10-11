@@ -187,12 +187,123 @@ void interpreter_base::syntax_check()
     }
 }
 
+void interpreter_base::preprocess_freeze(term t)
+{
+    term body = clause_body(t);
+    preprocess_freeze_body(body);
+}
+
+void interpreter_base::preprocess_freeze_body(term goal)
+{
+    static const common::con_cell freeze_module("$freeze",0);
+    static const common::con_cell op_comma(",", 2);
+    static const common::con_cell op_semi(";", 2);
+    static const common::con_cell op_imply("->", 2);
+    static const common::con_cell freeze("freeze", 2);
+    static const common::con_cell op_clause(":-", 2);
+    static const common::con_cell op_colon(":", 2);
+
+    auto f = functor(goal);
+    if (f == op_comma || f == op_semi || f == op_imply) {
+        preprocess_freeze_body(arg(goal, 0));
+	preprocess_freeze_body(arg(goal, 1));
+	return;
+    }
+    if (f == freeze) {
+        // Rewrite
+        // freeze(Var, Body)
+        // freeze(Var, '$freeze':<id>(<Var> <Closure Vars>))
+        // where:
+        // '$freeze':'<id>'(<Var> <Closure Vars> ...) :- Body.
+        term freezeVar = arg(goal, 0);
+	term freezeBody = arg(goal, 1);
+	std::unordered_set<term> vars;
+	std::vector<term> vars_list;
+	std::unordered_map<term,term> varmap;
+
+	vars_list.push_back(freezeVar);
+	vars.insert(freezeVar);
+	for (auto t : iterate_over(freezeBody)) {
+	    if (t.tag() == common::tag_t::REF) {
+	        t = deref(t);
+		if (vars.count(t) == 0) {
+		    vars.insert(t);
+		    vars_list.push_back(t);
+		}
+  	    }
+	}
+
+	auto qname = gen_predicate(freeze_module, vars_list.size());
+	
+	auto head = new_str(qname.second);
+	for (size_t i = 0; i < vars_list.size(); i++) {
+  	    varmap[vars_list[i]] = arg(head,i);
+	}
+
+	// Remap vars (closure vars to new vars)
+	for (auto t : iterate_over(freezeBody)) {
+  	    if (t.tag() == common::tag_t::STR) {
+	        size_t num_args = functor(t).arity();
+	        for (size_t i = 0; i < num_args; i++) {
+		    term ai = arg(t, i);
+		    if (ai.tag() == common::tag_t::REF) {
+	  	        set_arg(t, i, varmap[ai]);
+		    }
+		}
+	    }
+	}
+
+	term freeze_clause = new_str(op_clause);
+	set_arg(freeze_clause, 0, head);
+	set_arg(freeze_clause, 1, freezeBody);
+
+	get_predicate(qname).push_back(managed_clause(freeze_clause,0));
+
+	auto closure_head = new_str(qname.second);
+	for (size_t i = 0; i < vars_list.size(); i++) {
+	    set_arg(closure_head, i, vars_list[i]);
+	}
+
+	auto closure_mod = new_str(op_colon);
+	set_arg(closure_mod, 0, qname.first);
+	set_arg(closure_mod, 1, closure_head);
+	
+	set_arg(goal, 1, closure_mod);
+    }
+}
+    
 void interpreter_base::load_clause(const term t, bool as_program)
 {
     syntax_check_stack_.push_back(
 		  std::bind(&interpreter_base::syntax_check_clause, this,
 			    t));
     syntax_check();
+
+    // We want to prerocess freeze/2 calls:
+    //    foo(A,X,Y) :-
+    //       bar(A,Y,Z),
+    //       freeze(Z, (baz(X,Y,Z), baz2(Z,Z1))).
+    // becomes:
+    //    foo(A,X,Y) :-
+    //       bar(A,Y,Z),
+    //       '$closure'('$frz123',Z,X,Y).
+    //
+    //    '$frz123'(Z,X,Y) :-
+    //       baz(X,Y,Z), baz2(Z,Z1).
+    //
+    // Where '$closure' will create a closure on the heap and
+    // register its first variable as "frozen." It'll automatically
+    // awake the closure and use the closure vars to create a call
+    // to the generated clause '$frz123' (which is unique for each
+    // closure construction.) This will minimize the amount of stuff
+    // created on the heap; just the closure will be created and not
+    // a duplicate of the clause body. We can also WAM compile this
+    // generated predicate separately for accelaration.
+    //
+    // However, it won't be able to manage higher order constructions
+    // of freeze; those will still be rather inefficient, but this covers
+    // the most common case.
+    preprocess_freeze(t);
 
     con_cell module = empty_list();
 
@@ -392,6 +503,30 @@ void interpreter_base::retract_predicate(const qname &pn)
     program_db_.erase(pn);
 }
 
+qname interpreter_base::gen_predicate(const common::con_cell module,
+				      size_t arity)
+{
+    static const char ALPHABET[64] = {
+      'a','b','c','d','e','f','g','h','i','j','k','l','m','n','o','p',
+      'q','r','s','t','u','v','w','x','y','z','A','B','C','D','E','F',
+      'G','H','I','J','K','L','M','N','O','P','Q','R','S','T','U','V',
+      'W','X','Y','Z','0','1','2','3','4','5','6','7','8','9','-','+'};
+    
+    size_t num = program_predicates_.size() + 1;
+    char name[7];
+    size_t i;
+    for (i = 0; i < 7 && num != 0; i++) {
+        name[6-i] = ALPHABET[num & 0x3f];
+	num >>= 6;
+    }
+    std::string atom_name(&name[6-(i-1)], i);
+
+    common::con_cell p = functor(atom_name, arity);
+    qname pn(module, p);
+    program_predicates_.push_back(pn);
+    return pn;
+}
+
 void interpreter_base::syntax_check_program(const term t)
 {
     if (!is_list(t)) {
@@ -508,7 +643,11 @@ void interpreter_base::print_db(std::ostream &out) const
 	bool do_nl = false;
 	for (auto &m_clause : m_clauses) {
 	    if (do_nl) out << "\n";
-	    auto str = to_string(m_clause.clause(), opt);
+	    std::string mod = "";
+	    if (!is_empty_list(qn.first)) {
+	        mod = to_string(qn.first)+":";
+	    }
+	    auto str = mod+to_string(m_clause.clause(), opt);
 	    out << str;
 	    do_nl = true;
 	}

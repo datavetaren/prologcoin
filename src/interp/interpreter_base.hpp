@@ -458,10 +458,12 @@ public:
     inline const predicate & get_predicate(con_cell module, con_cell f)
         { return get_predicate(std::make_pair(module, f)); }
 
-    inline const predicate & get_predicate(const qname &pn)
+    inline predicate & get_predicate(const qname &pn)
         { return program_db_[pn]; }
 
     void retract_predicate(const qname &pn);
+
+    qname gen_predicate(const con_cell module, size_t arity);
 
     inline const std::vector<qname> & get_predicates() const
         { return program_predicates_; }
@@ -1046,13 +1048,16 @@ private:
 
     common::cell first_arg_index(const term first_arg);
 
-    void syntax_check();
+      void syntax_check();
 
     void syntax_check_program(const term term);
     void syntax_check_clause(const term term);
     void syntax_check_head(const term head);
     void syntax_check_body(const term body);
     void syntax_check_goal(const term goal);
+
+    void preprocess_freeze(term term);
+    void preprocess_freeze_body(term term);
 
     // Useful for meta predicates as scratch area to temporarily
     // copy terms.
