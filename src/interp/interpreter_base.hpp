@@ -1135,6 +1135,19 @@ private:
     // Locale
     locale locale_;
 
+    struct freeze_page_128 {
+        size_t num_closures;
+        term closures;
+    };
+  
+    struct freeze_page_4096 {
+        freeze_page_128 pages[32];
+    };
+
+    typedef freeze_page_4096 * freeze_page_4096_ptr;
+
+    std::vector<freeze_page_4096_ptr> freeze_pages;
+  
 protected:
     size_t tidy_size;
 };

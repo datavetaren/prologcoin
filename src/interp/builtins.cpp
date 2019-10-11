@@ -629,4 +629,18 @@ namespace prologcoin { namespace interp {
 	return true;
     }
 
+    bool builtins::freeze_2(interpreter_base &interp, size_t arity, common::term args[])
+    {
+        term v = args[0];
+	if (v.tag() != common::tag_t::REF) {
+	    interp.set_p(args[1]);
+	    interp.set_cp(interp.empty_list());
+	    return true;
+	}
+
+	// Variable is unbound, so we need to record closure
+        
+        return true;
+    }
+
 }}
