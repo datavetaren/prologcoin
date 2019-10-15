@@ -402,6 +402,7 @@ void interpreter_base::load_builtins()
 
     // Analyzing & constructing terms
     load_builtin(functor("functor",3), &builtins::functor_3);
+    load_builtin(functor("same_term", 2), &builtins::same_term_2);
     load_builtin(functor("copy_term",2), &builtins::copy_term_2);
     load_builtin(con_cell("=..", 2), &builtins::operator_deconstruct);
 

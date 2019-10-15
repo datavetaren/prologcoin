@@ -159,6 +159,7 @@ namespace prologcoin { namespace interp {
 
 	static bool copy_term_2(interpreter_base &interp, size_t arity, common::term args[]);
 	static bool functor_3(interpreter_base &interp, size_t arity, common::term args[]);
+	static bool same_term_2(interpreter_base &interp, size_t arity, common::term args[]);
 	static bool operator_deconstruct(interpreter_base &interp, size_t arity, common::term args[]);
     private:
 	static common::term deconstruct_write_list(interpreter_base &interp,
