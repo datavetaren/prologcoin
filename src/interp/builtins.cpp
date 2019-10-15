@@ -391,7 +391,15 @@ namespace prologcoin { namespace interp {
         return false;
     }
 
-   term builtins::deconstruct_write_list(interpreter_base &interp,
+    bool builtins::same_term_2(interpreter_base &interp, size_t arity, common::term args[])
+    {
+	term t1 = args[0];
+	term t2 = args[1];
+
+	return t1 == t2;
+    }
+
+    term builtins::deconstruct_write_list(interpreter_base &interp,
 					 term &t, size_t index)
     {
 	term empty_lst = interp.empty_list();

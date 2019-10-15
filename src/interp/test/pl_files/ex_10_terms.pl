@@ -107,6 +107,44 @@ ex15(Q) :-
 % Expect: Q = {}-1
 % Expect: end
 
+%
+% Test same_term
+%
+
+ex16(T) :-
+    (same_term(X,X) -> T = true ; T = false).
+
+?- ex16(T).
+% Expect: T = true
+% Expect: end
+
+ex17(T) :-
+    (same_term(X,Y) -> T = true ; T = false).
+
+?- ex17(T).
+% Expect: T = false
+% Expect: end
+
+ex18(T) :-
+    Y = X, (same_term(X,Y) -> T = true ; T = false).
+
+?- ex18(T).
+% Expect: T = true
+% Expect: end
+
+ex19(T) :-
+    Y = foo(1),  X = foo(1), (same_term(X,Y) -> T = true ; T = false).
+
+?- ex19(T).
+% Expect: T = false
+% Expect: end
+
+ex20(T) :-
+    Y = 42,  X = 42, (same_term(X,Y) -> T = true ; T = false).
+
+?- ex20(T).
+% Expect: T = true
+% Expect: end
 
 
 
