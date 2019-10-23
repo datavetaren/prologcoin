@@ -334,6 +334,11 @@ public:
 	return static_cast<size_t>(find_maximum_y_register(instrs) + 1);
     }
 
+    inline size_t get_num_x_registers(wam_interim_code &instrs)
+    {
+        return static_cast<size_t>(find_maximum_x_register(instrs) + 1);
+    }
+
     void compile_predicate(const qname &qn, wam_interim_code &instrs);
 
     inline common::con_cell current_module()
@@ -466,6 +471,7 @@ private:
     void find_x_to_y_registers(wam_interim_code &seq,
 			       std::vector<size_t> &x_to_y);
     void allocate_y_registers(wam_interim_code &seq);
+    int find_maximum_x_register(wam_interim_code &seq);
     int find_maximum_y_register(wam_interim_code &seq);
     void update_calls_for_environment_trimming(wam_interim_code &seq);
     void find_unsafe_y_registers(wam_interim_code &seq,

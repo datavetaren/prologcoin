@@ -11,22 +11,10 @@ static void do_parent(std::string &path)
 
 // TODO: I need to rename this file. It is no longer
 // just a "home dir" utility.
-static bool is_fast(int argc, char *argv[])
-{
-    for (int i = 0; i < argc; i++) {
-	if (strcmp(argv[i], "-fast") == 0) {
-	    return true;
-	}
-    }
-    return false;
-}
 
 static const std::string & find_home_dir(const char *selfpath = nullptr)
 {
     static std::string home_dir;
-
-    // Avoid warning to unused function is_fast.
-    (void)&is_fast;
 
     if (home_dir.size() > 0) {
 	return home_dir;

@@ -859,6 +859,22 @@ void wam_compiler::remap_y_registers(wam_interim_code &instrs)
     }
 }
 
+int wam_compiler::find_maximum_x_register(wam_interim_code &instrs)
+{
+    int biggest_x = -1;
+
+    for (auto instr : instrs) {
+        if (auto x_get = x_getter(instr)) {
+	    auto x = x_get();
+	    if (static_cast<int>(x) > biggest_x) {
+		biggest_x = static_cast<int>(x);
+	    }
+	}	
+    }
+
+    return biggest_x;
+}
+
 int wam_compiler::find_maximum_y_register(wam_interim_code &instrs)
 {
     int biggest_y = -1;

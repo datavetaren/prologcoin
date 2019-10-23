@@ -22,11 +22,11 @@ namespace prologcoin { namespace common {
 //
 class term_exception_not_list : public std::runtime_error {
 public:
-    term_exception_not_list(term t)
+    inline term_exception_not_list(term t)
        : std::runtime_error("term is not a list"), term_(t) { }
-    ~term_exception_not_list() noexcept(true) { }
+    inline ~term_exception_not_list() noexcept(true) { }
 
-    term get_term() { return term_; }
+    inline term get_term() { return term_; }
 
 private:
     term term_;
@@ -240,6 +240,16 @@ public:
        { return T::get_heap().is_comma(t); }
     inline bool is_list(term t) const
        { return T::get_heap().is_list(t); }
+
+    // Watch addresses
+    inline void heap_watch(size_t addr, bool b)
+       { T::get_heap().watch(addr, b); }
+    inline const std::vector<size_t> & heap_watched() const
+       { return T::get_heap().watched(); }
+    inline bool heap_watched(size_t addr) const
+       { return T::get_heap().watched(addr); }  
+    inline void heap_clear_watched()
+       { T::get_heap().clear_watched(); }
 };
 
 class heap_bridge
@@ -796,6 +806,11 @@ public:
       return utils.to_error_messages(ex);
   }
 
+  inline std::string to_string_debug(const term t) const
+  {
+      return to_string(t);
+  }
+
 private:
   std::unordered_map<term, std::string> var_naming_;
 };
@@ -883,8 +898,6 @@ class term_env : public term_env_dock<heap, stacks, term_ops>
 {
 public:
      term_env() : term_env_dock() { }
-
-     std::string to_string_debug(const term t) const;
 };
 
 //

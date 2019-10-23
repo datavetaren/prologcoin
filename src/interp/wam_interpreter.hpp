@@ -433,9 +433,9 @@ public:
     {
 	auto it = predicate_map_.find(pn);
 	if (it != predicate_map_.end()) {
-	    auto offset = it->second;
+	    auto meta_data = it->second;
 	    predicate_map_.erase(pn);
-	    predicate_rev_map_.erase(offset);
+	    predicate_rev_map_.erase(meta_data.code_offset);
 
 	    auto &offsets = calls_[pn];
 	    for (auto offset : offsets) {
@@ -445,14 +445,29 @@ public:
 	}
     }
 
+    struct predicate_meta_data {
+        inline predicate_meta_data(size_t off, size_t num_x)
+	  : code_offset(off),
+	    num_x_registers(num_x) { }
+        predicate_meta_data() = default;
 
+        size_t code_offset;
+        size_t num_x_registers;
+    };
+
+    const predicate_meta_data & get_wam_predicate(const qname &qn)
+    {
+        return predicate_map_[qn];
+    }
+  
 protected:
     void set_predicate(const qname &qn,
 		       wam_instruction_base *instr,
-		       size_t environment_size)
+		       size_t num_x_registers)
+
     {
 	size_t predicate_offset = to_code_addr(instr);
-	predicate_map_[qn] = predicate_offset;
+	predicate_map_[qn] = predicate_meta_data(predicate_offset, num_x_registers);
 	predicate_rev_map_[predicate_offset] = qn;
 
 	auto &offsets = calls_[qn];
@@ -466,7 +481,7 @@ protected:
 					     common::con_cell predicate_name)
     {
 	if (predicate_map_.count(qname(module, predicate_name))) {
-	    return to_code(predicate_map_[qname(module, predicate_name)]);
+  	    return to_code(predicate_map_[qname(module, predicate_name)].code_offset);
 	} else {
 	    return nullptr;
 	}
@@ -503,7 +518,7 @@ private:
     size_t instrs_capacity_;
     code_t *instrs_;
 
-    std::unordered_map<qname, size_t> predicate_map_;
+    std::unordered_map<qname, predicate_meta_data> predicate_map_;
     std::unordered_map<size_t, qname> predicate_rev_map_;
     std::unordered_map<qname, std::vector<size_t> > calls_;
 };
@@ -634,6 +649,11 @@ public:
 	return interpreter_base::to_string(t, opt);
     }
 
+    inline std::string to_string(const qname &qn) const
+    {
+        return interpreter_base::to_string(qn);
+    }
+
     inline std::string to_string(const term t, const common::emitter_options &opt) const
     {
 	return interpreter_base::to_string(t, opt);
@@ -667,17 +687,65 @@ private:
 
     template<wam_instruction_type I> friend class wam_instruction;
 
-    static inline size_t num_y(interpreter_base *interp, environment_base_t *e)
+    static inline size_t num_y(interpreter_base *interp)
     {
         auto after_call = reinterpret_cast<wam_interpreter *>(interp)->cp().wam_code();
         if (after_call == nullptr) {
-	    return interpreter_base::num_y(interp, e);
+	    return interpreter_base::num_y(interp);
         } else {
 	    auto at_call = reinterpret_cast<wam_instruction_code_point_reg *>(
 		 reinterpret_cast<code_t *>(after_call) -
 		 sizeof(wam_instruction_code_point_reg)/sizeof(code_t));
-
 	    return at_call->reg();
+	}
+    }
+
+    static inline void save_state(interpreter_base *interp)
+    {
+        auto wami = reinterpret_cast<wam_interpreter *>(interp);
+        auto after_call = wami->cp().wam_code();
+        if (after_call == nullptr) {
+	    return interpreter_base::save_state(interp);
+        } else {
+	    auto at_call = reinterpret_cast<wam_instruction_code_point_reg *>(
+		 reinterpret_cast<code_t *>(after_call) -
+		 sizeof(wam_instruction_code_point_reg)/sizeof(code_t));
+	    auto qn = at_call->cp().qn();
+	    auto &meta_data = wami->get_wam_predicate(qn);
+	    auto num_x = meta_data.num_x_registers;
+	    auto num_a = at_call->cp().name().arity();
+	    auto ee = interp->ee();
+	    ee->extra[0] = int_cell(num_x);
+	    for (size_t i = 0; i < num_x; i++) {
+	        ee->extra[i+1] = wami->x(i);
+	    }
+	    ee->extra[1+num_x] = int_cell(num_a);
+	    for (size_t i = 0; i < num_a; i++) {
+	        ee->extra[1+num_x+1+i] = wami->a(i);
+	    }
+	    interp->set_qr( common::int_cell(num_x + num_a) );
+	    interp->set_p( interpreter_base::EMPTY_LIST );
+	    interp->set_cp( interpreter_base::EMPTY_LIST );
+	}
+    }
+
+    static inline void restore_state(interpreter_base *interp)
+    {
+        auto after_call = reinterpret_cast<wam_interpreter *>(interp)->cp().wam_code();
+        if (after_call == nullptr) {
+	    return interpreter_base::restore_state(interp);
+	} else {
+  	    auto wami = reinterpret_cast<wam_interpreter *>(interp);	  
+	    auto ee = interp->ee();
+	    size_t num_x = static_cast<int_cell &>(ee->extra[0]).value();
+	    for (size_t i = 0; i < num_x; i++) {
+	        wami->x(i) = ee->extra[1+i];
+	    }
+	    size_t num_a = static_cast<int_cell &>(ee->extra[1+num_x]).value();
+	    for (size_t i = 0; i < num_a; i++) {
+	        wami->a(i) = ee->extra[1+num_x+1+i];
+	    }
+	    wami->set_num_of_args(num_a);
 	}
     }
 
@@ -728,6 +796,7 @@ private:
 
     inline void unwind_trail(size_t a1, size_t a2)
     {
+        unwind_frozen_closures(a1, a2);
 	for (size_t i = a1; i < a2; i++) {
 	    size_t index = trail_get(i);
 	    if (is_stack(index)) {
@@ -735,6 +804,7 @@ private:
 		    = common::ref_cell(index);
 	    } else {
 		heap_set(index, common::ref_cell(index));
+		
 	    }
 	}
     }
@@ -1294,7 +1364,7 @@ private:
 
     inline void allocate()
     {
-        allocate_environment(true);
+        allocate_environment<ENV_WAM>();
 	goto_next_instruction();
     }
 
@@ -1315,12 +1385,12 @@ private:
         set_p(p1);
 	set_num_of_args(arity);
 	set_b0(b());
-
+	
 	if (!p1.has_wam_code()) {
 	    for (size_t i = 0; i < arity; i++) {
 		a(i) = deref(a(i));
 	    }
-	    allocate_environment(false);
+	    allocate_environment<ENV_NAIVE>();
 	    set_cp(empty_list());
 	    return; // Go back to simple interpreter
 	}
@@ -1354,7 +1424,7 @@ private:
 	prologcoin::interp::builtin_fn fn = bn->bn();
 	// A recursive predicate will return to the next instruction
 	set_cp(p());
-	allocate_environment(false);
+	allocate_environment<ENV_NAIVE>();
 	set_cp(empty_list());
 	bool r = fn(*this, bn->arity(), args);
 	if (!r) {

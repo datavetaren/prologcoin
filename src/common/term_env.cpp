@@ -48,11 +48,6 @@ private:
 };
 #endif
 
-std::string term_env::to_string_debug(const term t) const
-{
-    return to_string(t);
-}
-
 bool term_utils::equal(term a, term b, uint64_t &cost)
 {
     size_t d = stack_size();

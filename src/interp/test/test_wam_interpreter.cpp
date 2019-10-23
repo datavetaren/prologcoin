@@ -124,16 +124,13 @@ void test_wam_compiler::test_compile()
 
 void test_wam_compiler::test_compile2()
 {
-    std::string prog =
-      R"PROG(
-            append([X|Xs],Ys,[X|Zs]) :- append(Xs,Ys,Zs).
-            append([],Ys,Ys).
-            nrev([X|Xs],Ys) :- nrev(Xs,Ys0), append(Ys0,[X],Ys), Ys = 123.
-            nrev([],[]).
-       )PROG";
-
     std::string prog2 =
         R"PROG(
+          append([X|Xs],Ys,[X|Zs]) :- append(Xs,Ys,Zs).
+          append([],Ys,Ys).
+          nrev([X|Xs],Ys) :- nrev(Xs,Ys0), append(Ys0,[X],Ys), Ys = 123.
+          nrev([],[]).
+
           call(or(X,Y)) :- call(X).
           call(trace) :- trace.
           call(or(X,Y)) :- call(Y).
@@ -148,7 +145,6 @@ void test_wam_compiler::test_compile2()
         )PROG";
 
     // std::cout << std::endl << "Compile append & nrev" << std::endl << std::endl;
-
     try {
         interp_.load_program(prog2);
     } catch (std::runtime_error &err) {
@@ -157,6 +153,8 @@ void test_wam_compiler::test_compile2()
     }
 
     interp_.compile(con_cell("[]",0), con_cell("call",1));
+    interp_.compile(con_cell("[]",0), con_cell("append",3));
+    interp_.compile(con_cell("[]",0), con_cell("nrev",2));
     interp_.print_code(std::cout);
 }
 

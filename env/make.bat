@@ -347,7 +347,7 @@ REM
         IF ERRORLEVEL 1 GOTO :EOF
 	ECHO Running !BINEXEFILE!
 	ECHO   [output to !BINLOGFILE!]
-	!BINEXEFILE! 1>!BINLOGFILE! 2>&1
+	!BINEXEFILE! %2 %3 %4 %5 %6 %7 %8 %9 1>!BINLOGFILE! 2>&1
         IF ERRORLEVEL 1 GOTO :EOF
 	for %%i in (!BINLOGFILE!) do if %%~zi==0 (
 	    echo Error while running !BINEXEFILE!

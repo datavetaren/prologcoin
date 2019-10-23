@@ -11,6 +11,7 @@
 #include <unordered_set>
 #include <unordered_map>
 #include <boost/lexical_cast.hpp>
+#include <bitset>
 
 #include <boost/noncopyable.hpp>
 #include <iostream>
@@ -735,11 +736,20 @@ public:
 	size_ = MAX_SIZE;
     }
 
+    inline void watch(size_t addr, bool value) {
+        watch_[addr - offset_] = value;
+    }
+
+    inline bool watched(size_t addr) const {
+        return watch_[addr - offset_];
+    }
+
 private:
     size_t index_;
     size_t offset_;
     size_t size_;
     cell *cells_;
+    std::bitset<MAX_SIZE> watch_; // Flag if a particular cell is accessed
 };
 
 class heap; // Forward
@@ -865,7 +875,11 @@ public:
 
     inline cell & operator [] (size_t addr)
     {
-	return find_block(addr)[addr];
+	auto &block = find_block(addr);
+	if (block.watched(addr)) {
+  	    watched_.push_back(addr);
+	}
+	return block[addr];
     }
 
     inline const cell & operator [] (size_t addr) const
@@ -1281,6 +1295,26 @@ public:
     void print(std::ostream &out) const;
     void print(std::ostream &out, size_t from, size_t to) const;
 
+    inline bool has_watched() const {
+        return !watched_.empty();
+    }
+
+    inline void clear_watched() {
+        watched_.clear();
+    }
+
+    inline void watch(size_t addr, bool b) {
+        find_block(addr).watch(addr, b);
+    }
+
+    inline const std::vector<size_t> & watched() const {
+        return watched_;
+    }
+
+    inline bool watched(size_t addr) const {
+        return find_block(addr).watched(addr);
+    }  
+  
 private:
     friend class term_emitter;
 
@@ -1383,6 +1417,7 @@ private:
     size_t size_;
     std::vector<heap_block *> blocks_;
     heap_block * head_block_;
+    std::vector<size_t> watched_;
 
 #ifdef DEBUG_TERM
     mutable std::unordered_map<cell *, size_t> external_ptrs_;

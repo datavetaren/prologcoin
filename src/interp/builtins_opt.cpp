@@ -40,7 +40,7 @@ namespace prologcoin { namespace interp {
 
 	// Build list from vector
 
-	term r = interp.empty_list();
+	term r = interpreter_base::EMPTY_LIST;
 	
 	for (size_t i = 0; i < n; i++) {
 	    term el = vec[n-i-1];

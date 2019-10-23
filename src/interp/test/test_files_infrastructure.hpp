@@ -11,7 +11,7 @@ using namespace prologcoin::common;
 using namespace prologcoin::interp;
 
 static bool do_compile = true;
-static bool fast_mode = false;
+static bool full_mode = false;
 
 static std::vector<std::string> parse_x(const std::string &key, std::string &comments)
 {
@@ -221,6 +221,7 @@ static bool test_interpreter_file(const std::string &filepath,
 	bool cont = false;
 
 	std::vector<con_cell> predicates;
+	std::vector<qname> frozen_predicates;
 
 	std::unordered_map<std::string, int> opt;
 
@@ -320,15 +321,23 @@ static bool test_interpreter_file(const std::string &filepath,
 		}
 	    }
 
+	    const con_cell freeze_module("$freeze",0);
+	    
 	    if (is_query) {
 		std::cout << std::string(67, '-') << std::endl;
 
+		for (auto &qn : interp.get_module(freeze_module)) {
+		    if (interp.is_updated_predicate(qn) && !interp.is_compiled(qn)) {
+		        frozen_predicates.push_back(qn);
+		    }
+		}
+		
 		first_clause = true;
 		new_block = true;
 
 		size_t tr_mark = interp.trail_size();
 		term query = interp.arg(t, 0);
-
+		
 		// Skip the ordinary run if we have the option WAM-only
 		if (opt.count("WAM-only") == 0) {
 		    // Run this query first without WAM
@@ -347,21 +356,35 @@ static bool test_interpreter_file(const std::string &filepath,
 		// Compile recent predicates
 		if (do_compile) {
 		    std::unordered_set<std::string> dont_compile_set;
-		    for (auto p : predicates) {
+		    for (auto &p : predicates) {
 			auto p_name = interp.to_string(p) + "/"
 			       + boost::lexical_cast<std::string>(p.arity());
 			if (opt.count("dont-compile " + p_name) > 0) {
-	    	            std::cout << "[DONT compile]: "<< p_name << "\n";
+	    	            std::cout << "[DONT compile]: " << p_name << "\n";
 			} else {
 	    	            std::cout << "[Compile]: "<< p_name << "\n";
-			    interp.compile(interp.empty_list(), p);
+			    interp.compile(interpreter_base::EMPTY_LIST, p);
 			}
 	   	    }
+		    // Also compile all freeze closures
+		    for (auto &qn : frozen_predicates) {
+		         auto q_name = interp.to_string(qn) + "/"
+			   + boost::lexical_cast<std::string>(qn.second.arity());
+			 if (opt.count("dont-compile " + q_name) > 0) {
+			     std::cout << "[DONT compile]: " << q_name << "\n";
+			 } else {
+		 	     std::cout << "[Compile]: "<< q_name << "\n";
+			     interp.compile(qn);
+			 }
+		    }
+		    
 		    if (interp.is_debug()) {
 			interp.print_code(std::cout);
 		    }
 		}
 		predicates.clear();
+		frozen_predicates.clear();
+		interp.clear_updated_predicates();
 
 		interp.set_register_hb(interp.heap_size());
 		for (size_t i = 0; i < expected.size(); i++) {
@@ -426,7 +449,7 @@ static void test_interpreter_files(const std::string &dir, std::function<void (i
 
 	if (boost::starts_with(namestr, "ex_") &&
 	    boost::ends_with(filepath, ".pl")) {
-	    if (fast_mode && boost::starts_with(namestr, "ex_99")) {
+	    if (!full_mode && boost::ends_with(namestr, "full.pl")) {
 		continue;
 	    }
 	    files.push_back(filepath);

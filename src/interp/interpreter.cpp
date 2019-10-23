@@ -161,8 +161,8 @@ bool interpreter::execute(const term query)
 		       }
 		   } );
 
-    set_p(code_point(empty_list()));
-    set_cp(code_point(empty_list()));
+    set_p(code_point(interpreter_base::EMPTY_LIST));
+    set_cp(code_point(interpreter_base::EMPTY_LIST));
     set_qr(query);
 
     set_p(code_point(query));
@@ -253,7 +253,7 @@ common::term interpreter::query_var_list()
 
     static const con_cell eq_functor("=", 2);
 
-    common::term varlist = empty_list();
+    common::term varlist = interpreter_base::EMPTY_LIST;
     for (auto &binding : boost::adaptors::reverse(query_vars())) {
 	auto binding_term =
 	    new_term(eq_functor, {functor(binding.name(), 0),binding.value()});
@@ -321,9 +321,13 @@ void interpreter::fail()
 bool interpreter::unify_args(term head, const code_point &p)
 {
     static const common::con_cell colon(":",2);
-
+    
     if (p.term_code().tag() == common::tag_t::STR) {
-	return unify(head, p.term_code());
+        term goal = p.term_code();
+	if (functor(goal) == colon) {
+	    goal = arg(goal, 1);
+	}
+	return unify(head, goal);
     } else {
 	// Otherwise this is an already disected call with
 	// args. So unify with arguments.
@@ -366,6 +370,9 @@ bool interpreter::select_clause(const code_point &instruction,
 				managed_clauses &clauses,
 				size_t from_clause)
 {
+    if (is_debug()) {
+        std::cout << "select clause\n";
+    }
     if (index_id == 0) {
 	set_b(b()->b);
         if (from_clause > 1) {
@@ -378,6 +385,10 @@ bool interpreter::select_clause(const code_point &instruction,
     size_t num_clauses = clauses.size();
     bool has_choices = num_clauses > 1;
 
+    if (is_debug()) {
+        std::cout << "select clause: num_clauses=" << num_clauses << "\n";
+    }
+    
     // Let's go through clause by clause and see if we can find a match.
     for (size_t i = from_clause; i < num_clauses; i++) {
         auto &m_clause = clauses[i];
@@ -399,8 +410,8 @@ bool interpreter::select_clause(const code_point &instruction,
 		}
 	    }
 
-	    allocate_environment(false);
-	    set_cp(empty_list());
+	    allocate_environment<ENV_NAIVE>();
+	    set_cp(interpreter_base::EMPTY_LIST);
 	    set_p(copy_body);
 	    set_qr(copy_head);
 
@@ -410,6 +421,8 @@ bool interpreter::select_clause(const code_point &instruction,
 	    
 	    add_accumulated_cost(m_clause.cost());
 
+	    check_frozen(); // After unification of head we'll process
+	                    // frozen closures (so these are run first.)
 	    return true;
 	} else {
     	    // Discard garbage created on heap (due to copying clause)
@@ -417,28 +430,28 @@ bool interpreter::select_clause(const code_point &instruction,
 	}
     }
 
-    set_p(empty_list());
+    set_p(interpreter_base::EMPTY_LIST);
     // None found.
     return false;
 }
 
 void interpreter::dispatch()
 {
-    static const con_cell default_module = empty_list();
+    static const con_cell default_module = interpreter_base::EMPTY_LIST;
     static const con_cell functor_colon(":",2);
 
     set_qr(p().term_code());
 
     con_cell f = functor(qr());
 
-    if (f == empty_list()) {
+    if (f == interpreter_base::EMPTY_LIST) {
         // Return
 	if (is_debug()) {
 	    std::cout << "interpreter::dispatch(): pop\n";
 	}
 	deallocate_and_proceed();
 	if (e0() == top_e()) {
-	    if (!p().has_wam_code() && p().term_code() == empty_list()) {
+  	    if (!p().has_wam_code() && p().term_code() == interpreter_base::EMPTY_LIST) {
 		set_complete(true);
 	    }
 	}
@@ -509,11 +522,12 @@ void interpreter::dispatch()
 	if (!bf.is_recursive()) {
 	    // This enforces eventually a pop up the stack and
 	    // P becomes CP.
-	    set_cp(empty_list());
+	    set_cp(interpreter_base::EMPTY_LIST);
 	}
 	if (!(bf.fn())(*this, arity, args())) {
 	    fail();
 	}
+	check_frozen();
 	return;
     }
 
@@ -523,12 +537,13 @@ void interpreter::dispatch()
         tribool r = obf(*this, arity, args());
 	if (!indeterminate(r)) {
 	    set_p(cp());
-	    set_cp(empty_list());
+	    set_cp(interpreter_base::EMPTY_LIST);
 	    if (!r) {
 		fail();
 	    }
 	    return;
 	}
+	check_frozen();
     }
 
     if (is_wam_enabled()) {
@@ -561,7 +576,7 @@ void interpreter::dispatch()
 	    abort(interpreter_exception_undefined_predicate(msg.str()));
 	    return;
 	}
-	set_p(empty_list());
+	set_p(interpreter_base::EMPTY_LIST);
 	fail();
 	return;
     }
@@ -749,11 +764,11 @@ void interpreter::compile(const qname &qn)
 {
     wam_interim_code instrs(*this);
     compiler_->compile_predicate(qn, instrs);
-    size_t yn_size = compiler_->get_environment_size_of(instrs);
+    size_t xn_size = compiler_->get_num_x_registers(instrs);
     size_t first_offset = next_offset();
     load_code(instrs);
     auto *next_instr = to_code(first_offset);
-    set_predicate(qn, next_instr, yn_size);
+    set_predicate(qn, next_instr, xn_size);
 }
 
 void interpreter::compile(common::con_cell module, common::con_cell name)
@@ -775,7 +790,7 @@ void interpreter::bind_code_point(std::unordered_map<size_t, size_t> &label_map,
 	    }
 	} else if (term.tag() == common::tag_t::CON) {
 	    auto lbl_con = static_cast<const con_cell &>(term);
-	    if (auto instr = resolve_predicate(empty_list(), lbl_con)) {
+	    if (auto instr = resolve_predicate(interpreter_base::EMPTY_LIST, lbl_con)) {
 		cp.set_wam_code(instr);
 	    }
 	} else if (term.tag() == common::tag_t::STR) {

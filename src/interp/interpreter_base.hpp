@@ -7,6 +7,7 @@
 #include <vector>
 #include <stack>
 #include <tuple>
+#include <map>
 #include "../common/term_env.hpp"
 #include "builtins.hpp"
 #include "builtins_opt.hpp"
@@ -247,6 +248,8 @@ public:
     inline const common::int_cell & label() const { return static_cast<const common::int_cell &>(term_code_); }
     inline const common::con_cell & name() const { return static_cast<const common::con_cell &>(term_code_); }
 
+    inline const qname qn() const { return qname(module(), name()); }
+
     inline void set_wam_code(wam_instruction_base *p) { wam_code_ = p; }
     inline void set_term_code(const common::term t) { term_code_ = t; }
 
@@ -265,27 +268,30 @@ private:
 
 // Saved wrapped environment
 struct environment_base_t;
+
+enum environment_kind_t { ENV_NAIVE = 0, ENV_WAM = 1, ENV_FROZEN = 2 };
+
 struct environment_saved_t {
     uint64_t saved;
 
-    environment_saved_t(environment_base_t *e, bool is_wam)
+    environment_saved_t(environment_base_t *e, environment_kind_t k)
     {
-        saved = reinterpret_cast<uint64_t>(e) + (is_wam ? 1 : 0);
+        saved = reinterpret_cast<uint64_t>(e) + static_cast<uint64_t>(k);
     }
 
     environment_base_t * ce0()
     {
-        return reinterpret_cast<environment_base_t *>(saved & ~0x1);
+        return reinterpret_cast<environment_base_t *>(saved & ~0x3);
     }
 
-    bool is_wam()
+    environment_kind_t kind()
     {
-        return saved & 0x1;
+        return static_cast<environment_kind_t>(saved & 0x3);
     }
 
-    std::pair<environment_base_t *, bool> ce()
+    std::pair<environment_base_t *, environment_kind_t> ce()
     {
-        return std::make_pair(ce0(), is_wam());
+        return std::make_pair(ce0(), kind());
     }
 };
 
@@ -322,6 +328,7 @@ struct environment_ext_t : public environment_base_t {
     choice_point_t       *b0;
     common::term          qr;
     common::con_cell      pr;
+    common::term          extra[];
 };
 
 typedef union {
@@ -377,7 +384,7 @@ struct meta_context {
     choice_point_t *old_b0;
     environment_base_t *old_top_e;
     environment_base_t *old_e;
-    bool old_e_is_wam;
+    environment_kind_t old_e_kind;
     code_point old_p;
     code_point old_cp;
     common::term old_qr;
@@ -416,6 +423,21 @@ public:
         { debug_check_fn_ = fn; }
     void set_debug_enabled();
 
+    inline std::string to_string(const term t, const common::emitter_options &opt) const {
+        return term_env::to_string(t, opt);      
+    }
+  
+    inline std::string to_string(const term t) const {
+        return term_env::to_string(t);
+    }
+  
+    inline std::string to_string(const qname &qn) const {
+        std::string s = to_string(qn.first);
+        s += ":";
+        s += to_string(qn.second);
+	return s;
+    }
+
     void reset();
 
     bool is_track_cost() const { return track_cost_; }
@@ -432,7 +454,7 @@ public:
     inline arithmetics & arith() { return arith_; }
 
     inline void load_builtin(con_cell f, builtin b)
-        { qname qn(empty_list(), f);
+        { qname qn(EMPTY_LIST, f);
 	  load_builtin(qn, b);
 	}
 
@@ -444,8 +466,6 @@ public:
     void load_clause(const std::string &str);
     void load_clause(std::istream &is);
     void load_clause(const term t, bool as_program = false);
-
-    void retract_predicate(con_cell pred);
 
     term clause_head(const term clause);
     term clause_body(const term clause);
@@ -461,7 +481,8 @@ public:
     inline predicate & get_predicate(const qname &pn)
         { return program_db_[pn]; }
 
-    void retract_predicate(const qname &pn);
+    inline const std::vector<qname> & get_module(const con_cell name)
+        { return module_db_[name]; }
 
     qname gen_predicate(const con_cell module, size_t arity);
 
@@ -495,7 +516,7 @@ public:
 	}
 
 	list_iterator end() {
-	    return list_iterator(env(), env().empty_list());
+	    return list_iterator(env(), interpreter_base::EMPTY_LIST);
 	}
     };
 
@@ -565,12 +586,9 @@ public:
 	 return c;
        }
 
-    inline con_cell empty_list() const
-    {
-        return empty_list_;
-    }
-
 protected:
+    friend class wam_interpreter;
+  
     template<typename T> inline size_t words() const
     { return sizeof(T)/sizeof(word_t); }
 
@@ -606,16 +624,34 @@ protected:
         return static_cast<size_t>(p - stack_);
     }
 
-    typedef size_t (*num_y_fn_t)(interpreter_base *interp, environment_base_t *);
+    typedef size_t (*num_y_fn_t)(interpreter_base *interp);
+    typedef void (*save_state_fn_t)(interpreter_base *interp);
+    typedef void (*restore_state_fn_t)(interpreter_base *interp);
 
     inline num_y_fn_t num_y_fn()
     {
         return num_y_fn_;
     }
 
-    inline void set_num_y_fn( num_y_fn_t num_y_fn)
+    inline void set_num_y_fn(num_y_fn_t num_y_fn)
     {
         num_y_fn_ = num_y_fn;
+    }
+
+    inline save_state_fn_t save_state_fn()
+    {
+        return save_state_fn_;
+    }
+
+    inline restore_state_fn_t restore_state_fn()
+    {
+        return restore_state_fn_;
+    }
+
+    inline void set_save_restore_state_fns( save_state_fn_t ffn, restore_state_fn_t rfn)
+    {
+        save_state_fn_ = ffn;
+	restore_state_fn_ = rfn;
     }
 
     inline term & a(size_t i)
@@ -643,11 +679,39 @@ protected:
         num_of_args_ = n;
     }
 
-    static inline size_t num_y(interpreter_base *, environment_base_t *)
+    static inline size_t num_y(interpreter_base *interp)
     {
-        return (sizeof(environment_ext_t)-sizeof(environment_base_t))/sizeof(term);
+        size_t n = (sizeof(environment_ext_t)-sizeof(environment_base_t))/sizeof(term);
+        if (interp->e_kind() == ENV_FROZEN) {
+  	    // Extra cells to be allocated
+  	    assert(interp->qr().tag() == common::tag_t::INT);
+	    n += static_cast<int_cell &>(interp->qr()).value();
+	}
+	return n;
     }
 
+    static inline void save_state(interpreter_base *interp)
+    {
+        static common::con_cell emptylist("[]",0);
+        // Nothing being ordinary needs to be done in the naive interpreter as
+        // it is not using any registers (except argument registers) but you
+        // cannot terminate execution in the naive interpreter while those registers
+        // are being manipulated.
+        //
+        // The purpose for save_state() is to deal with frozen closures, that can be
+        // woken up (like an interrupt) after unification. Then we need to execute
+        // some code before returning to the normal continuation point.
+
+        interp->set_qr( common::int_cell(0) );
+	interp->set_cp( emptylist );
+	interp->set_p( emptylist );
+    }
+
+    static inline void restore_state(interpreter_base *)
+    {
+        // See save_state
+    }
+  
     inline code_point & p()
     {
         return register_p_;
@@ -713,31 +777,31 @@ protected:
         return reinterpret_cast<environment_ext_t *>(e0());
     }
 
-    inline bool e_is_wam()
+    inline environment_kind_t e_kind()
     {
-        return register_e_is_wam_;
+        return register_e_kind_;
     }
 
     inline environment_saved_t save_e()
     {
-        return environment_saved_t(e0(), e_is_wam());
+        return environment_saved_t(e0(), e_kind());
     }
 
     inline void set_e(environment_saved_t saved)
     {
-        std::tie(register_e_, register_e_is_wam_) = saved.ce();
+        std::tie(register_e_, register_e_kind_) = saved.ce();
     }
 
-    inline void set_e(environment_base_t *e)
+    inline void set_e(environment_base_t *e, environment_kind_t k)
     {
         register_e_ = e;
-	register_e_is_wam_ = true;
+	register_e_kind_ = k;
     }
 
     inline void set_ee(environment_ext_t *ee)
     {
         register_e_ = ee;
-	register_e_is_wam_ = false;
+	register_e_kind_ = ENV_NAIVE;
     }
 
     inline environment_base_t * top_e() const
@@ -819,7 +883,7 @@ protected:
 	if (base(m()) > base(e0()) && base(m()) > base(b())) {
 	    new_s = base(m()) + m()->size_in_words;
 	} else if (base(e0()) > base(b())) {
-	    auto n = words<term>()*(num_y_fn()(this, e0())) + words<environment_base_t>();
+	    auto n = words<term>()*(num_y_fn()(this)) + words<environment_base_t>();
 	    new_s = base(e0()) + n;
 	} else {
 	    if (b() == nullptr) {
@@ -837,43 +901,75 @@ protected:
 	return new_s;
     }
 
-    inline environment_base_t * allocate_environment(bool for_wam)
+    template<environment_kind_t K> struct env_type_from_kind { };
+    template<> struct env_type_from_kind<ENV_NAIVE> { typedef environment_ext_t * type; };
+    template<> struct env_type_from_kind<ENV_WAM> { typedef environment_t * type; };
+    template<> struct env_type_from_kind<ENV_FROZEN> { typedef environment_ext_t * type; };
+  
+    template<environment_kind_t K, typename T = env_type_from_kind<K>::type> T allocate_environment();
+
+    template<> inline environment_ext_t * allocate_environment<ENV_NAIVE>()
     {
-        word_t *new_e0 = allocate_stack();
+        environment_ext_t *new_ee = reinterpret_cast<environment_ext_t *>(allocate_stack());
+	new_ee->ce = save_e();
+	new_ee->cp = cp();
+	new_ee->b0 = b0();
+	new_ee->qr = register_qr_;
+	new_ee->pr = register_pr_;
+	
+	set_ee(new_ee);
+	return new_ee;
+    }
+  
+    template<> inline environment_t * allocate_environment<ENV_WAM>()
+    {
+        auto new_e = reinterpret_cast<environment_t *>(allocate_stack());
+	new_e->ce = save_e();
+	new_e->cp = cp();
+	set_e(new_e, ENV_WAM);
+	return new_e;
+    }
 
-	if (for_wam) {
-	    environment_t *new_e = reinterpret_cast<environment_t *>(new_e0);
-	    new_e->ce = save_e();
-	    new_e->cp = cp();
-	    set_e(new_e);
-	} else {
-	    environment_ext_t *new_ee = reinterpret_cast<environment_ext_t *>(new_e0);
-	    new_ee->ce = save_e();
-	    new_ee->cp = cp();
-	    new_ee->b0 = b0();
-	    new_ee->qr = register_qr_;
-	    new_ee->pr = register_pr_;
+    template<> inline environment_ext_t * allocate_environment<ENV_FROZEN>()
+    {
+        environment_ext_t *new_ee = reinterpret_cast<environment_ext_t *>(allocate_stack());
+	new_ee->ce = save_e();
+	new_ee->cp = cp();
+	new_ee->b0 = b0();
+	new_ee->qr = register_qr_;
+	new_ee->pr = register_pr_;
+	
+	set_e(new_ee, ENV_FROZEN);
+      
+        save_state_fn_(this);
 
-	    set_ee(new_ee);
-	}
-	// std::cout << "allocate_environment: e=" << new_e0 << " cp=" << to_string_cp(cp()) << "\n";
-	// std::cout << "allocate_environment: qr=" << to_string(qr()) << " " << qr().tag() << " " << qr().raw_value() << "\n";
-
-	return e0();
+	return new_ee;
     }
 
     inline void deallocate_environment()
     {
         // std::cout << "[before] deallocate_environment: e=" << e() << " p=" << to_string_cp(p()) << " cp=" << to_string_cp(cp()) << "\n";
-	if (!e_is_wam()) {
+
+        switch (e_kind()) {
+	case ENV_FROZEN:
+	    restore_state_fn();	// Fall through
+	case ENV_NAIVE: {
 	    environment_ext_t *ee1 = ee();
+	    set_cp(ee1->cp);
+	    set_e(ee1->ce);
 	    set_b0(ee1->b0);
 	    set_qr(ee1->qr);
 	    set_pr(ee1->pr);
+	    break;
+   	    }
+	case ENV_WAM:
+  	    set_cp(e0()->cp);
+	    set_e(e0()->ce);
+	    break;
 	}
-        set_cp(e0()->cp);
-        set_e(e0()->ce);
+	    
 	// std::cout << "[after]  deallocate_environment: e=" << e() << " p=" << to_string_cp(p()) << " cp=" << to_string_cp(cp()) << "\n";
+	
     }
 
     inline void allocate_choice_point(const code_point &cont)
@@ -908,10 +1004,10 @@ protected:
 	if (e0() != top_e()) {
 	    deallocate_environment();
 	} else {
-	    set_cp(empty_list());
+	    set_cp(EMPTY_LIST);
 	}
 	set_p(cp());
-	set_cp(empty_list());
+	set_cp(EMPTY_LIST);
     }
     
     inline void proceed_and_deallocate()
@@ -925,7 +1021,7 @@ protected:
 			  << to_string_cp(cp()) << " e=" << e0() << "\n";
 	    }
 	} else {
-	    set_cp(empty_list());
+	    set_cp(EMPTY_LIST);
 	    if (is_debug()) {
 		std::cout << "interpreter_base::proceed_and_deallocate(): p="
 			  << to_string_cp(p()) << " cp="
@@ -1025,7 +1121,7 @@ protected:
 private:
     void load_builtin(const qname &qn, builtin b);
     inline void load_builtin_opt(con_cell f, builtin_opt b)
-        { qname qn(empty_list(), f);
+        { qname qn(EMPTY_LIST, f);
 	  load_builtin_opt(qn, b);
 	}
 
@@ -1058,6 +1154,7 @@ private:
 
     void preprocess_freeze(term term);
     void preprocess_freeze_body(term term);
+    term rewrite_freeze_body(term freeze_var, term freeze_body);
 
     // Useful for meta predicates as scratch area to temporarily
     // copy terms.
@@ -1070,6 +1167,8 @@ private:
     std::unordered_map<qname, builtin> builtins_;
     std::unordered_map<qname, builtin_opt> builtins_opt_;
     std::unordered_map<qname, predicate> program_db_;
+    std::unordered_map<con_cell, std::vector<qname> > module_db_;
+    std::unordered_map<con_cell, std::unordered_set<qname> > module_db_set_;
     std::vector<qname> program_predicates_;
     std::unordered_set<qname> updated_predicates_;
 
@@ -1088,8 +1187,8 @@ private:
     code_point register_p_;
     code_point register_cp_;
 
-    bool register_e_is_wam_; // If the register_e is a WAM (compressed) env.
-    environment_base_t *register_e_;  // Points to current environment
+    environment_kind_t register_e_kind_;    // What kind of environment 'register_e_' is
+    environment_base_t *register_e_;        // Points to current environment
     environment_base_t *register_top_e_;
 
     choice_point_t *register_b_;
@@ -1105,13 +1204,17 @@ private:
     size_t num_of_args_;
 
     num_y_fn_t num_y_fn_;
+    save_state_fn_t save_state_fn_;
+    restore_state_fn_t restore_state_fn_;
 
     term register_qr_;     // Current query 
     con_cell register_pr_; // Current predicate (for profiling)
 
-    con_cell comma_;
-    con_cell empty_list_;
-    con_cell implied_by_;
+public:
+    static const con_cell COMMA;
+    static const con_cell EMPTY_LIST;
+    static const con_cell IMPLIED_BY;
+private:
 
     std::string current_dir_; // Current directory
 
@@ -1135,20 +1238,76 @@ private:
     // Locale
     locale locale_;
 
-    struct freeze_page_128 {
-        size_t num_closures;
-        term closures;
-    };
-  
-    struct freeze_page_4096 {
-        freeze_page_128 pages[32];
-    };
-
-    typedef freeze_page_4096 * freeze_page_4096_ptr;
-
-    std::vector<freeze_page_4096_ptr> freeze_pages;
+    std::map<size_t, term> frozen_closures; // Standard red-black tree for compactness
   
 protected:
+    inline void set_frozen_closure(size_t index, term closure) {
+        frozen_closures[index] = closure;
+	heap_watch(index, true);
+	trail(index);
+	if (is_debug()) {
+	    std::cout << "Set frozen closure: " << index << std::endl;
+        }
+    }
+    inline void clear_frozen_closure(size_t index) {
+        frozen_closures.erase(index);
+	heap_watch(index, false);
+	if (is_debug()) {
+	    std::cout << "Clear frozen closure: " << index << std::endl;
+	}
+    }
+    inline term get_frozen_closure(size_t index) {
+        static const common::con_cell EMPTY_LIST("[]",0);
+	auto it = frozen_closures.find(index);
+	if (it == frozen_closures.end()) {
+	    return EMPTY_LIST;
+	}
+	return it->second;
+    }
+
+    inline void unwind_frozen_closures(size_t a, size_t b) {
+        for (size_t i = a; i < b; i++) {
+            size_t addr = trail_get(i);
+            if (heap_watched(addr)) {
+	        clear_frozen_closure(addr);
+            }
+        }
+    }
+  
+    inline void trim_heap(size_t new_size) {
+        term_env::trim_heap(new_size);
+	// And we need to remove any pending frozen closures
+	for (auto it = frozen_closures.find(new_size);
+	     it != frozen_closures.end(); ++it) {
+	     size_t addr = it->first;
+	     it = frozen_closures.erase(it);
+	     heap_watch(addr, false);
+	}
+    }
+
+    inline void check_frozen() {
+        static const common::con_cell EMPTY_LIST("[]",0);
+        auto &watched = heap_watched();
+	size_t n = watched.size();
+	// Go in reverse order so the first watched is pushed last.
+	for (size_t i = 0; i < n; i++) {
+	    auto addr = watched[n-i-1];
+  	    if (heap_get(addr).tag() != common::tag_t::REF) {
+	        auto cl = get_frozen_closure(addr);
+		clear_frozen_closure(addr);
+		if (cl != EMPTY_LIST) {
+	  	     allocate_environment<ENV_FROZEN, environment_ext_t *>();
+		     allocate_environment<ENV_NAIVE, environment_ext_t *>();
+		     set_cp(EMPTY_LIST);
+		     set_p(cl);
+		     set_qr(cl);
+		}
+		heap_watch(addr, false);
+	    }
+	}
+	heap_clear_watched();
+    }
+  
     size_t tidy_size;
 };
 

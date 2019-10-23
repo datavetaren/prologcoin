@@ -57,11 +57,11 @@ namespace prologcoin { namespace interp {
     // TODO: This needs to be modified to use callbacks.
     bool builtins::operator_comma(interpreter_base &interp, size_t arity, common::term args[])
     {
-	interp.allocate_environment(false);
+        interp.allocate_environment<ENV_NAIVE>();
 	interp.set_cp(code_point(args[1]));
-	interp.allocate_environment(false);
+	interp.allocate_environment<ENV_NAIVE>();
 	interp.set_p(code_point(args[0]));
-	interp.set_cp(interp.empty_list());
+	interp.set_cp(interpreter_base::EMPTY_LIST);
 
 	return true;
     }
@@ -100,7 +100,7 @@ namespace prologcoin { namespace interp {
 
 	term arg1 = args[1];
         interp.allocate_choice_point(code_point(arg1));
-	interp.allocate_environment(false);
+	interp.allocate_environment<ENV_NAIVE>();
 	interp.set_p(code_point(arg0));
 	return true;
     }
@@ -115,11 +115,11 @@ namespace prologcoin { namespace interp {
 	term cut_if = cut_op_if;
 	term arg0 = args[0];
 	term arg1 = args[1];
-	interp.allocate_environment(false);
+	interp.allocate_environment<ENV_NAIVE>();
 	interp.set_cp(code_point(arg1));
-	interp.allocate_environment(false);
+	interp.allocate_environment<ENV_NAIVE>();
 	interp.set_cp(code_point(cut_if));
-	interp.allocate_environment(false);
+	interp.allocate_environment<ENV_NAIVE>();
 	interp.set_p(code_point(arg0));
         return true;
     }
@@ -139,11 +139,11 @@ namespace prologcoin { namespace interp {
 	// Go to 'C' the false clause if ((A->B) ; C) fails
 	interp.allocate_choice_point(code_point(if_false));
 	interp.move_cut_point_to_last_choice_point();
-	interp.allocate_environment(false);
+	interp.allocate_environment<ENV_NAIVE>();
 	interp.set_cp(code_point(if_true));
-	interp.allocate_environment(false);
+	interp.allocate_environment<ENV_NAIVE>();
 	interp.set_cp(code_point(cut_if));
-	interp.allocate_environment(false);
+	interp.allocate_environment<ENV_NAIVE>();
 	interp.set_p(code_point(cond));
         return true;
     }
@@ -394,7 +394,7 @@ namespace prologcoin { namespace interp {
    term builtins::deconstruct_write_list(interpreter_base &interp,
 					 term &t, size_t index)
     {
-	term empty_lst = interp.empty_list();
+        term empty_lst = interpreter_base::EMPTY_LIST;
 	term lst = empty_lst;
 	con_cell f = interp.functor(t);
 	size_t n = f.arity();
@@ -486,7 +486,7 @@ namespace prologcoin { namespace interp {
 	    return interp.unify(lhs, t);
 	}
 	if (lhs.tag() == tag_t::INT) {
-	    term empty = interp.empty_list();
+  	    term empty = interpreter_base::EMPTY_LIST;
 	    term lst = interp.new_dotted_pair(lhs,empty);
 	    return interp.unify(rhs, lst);
 	}
@@ -513,7 +513,7 @@ namespace prologcoin { namespace interp {
 	interp.allocate_choice_point(code_point::fail());
 	interp.set_top_b(interp.b());
 	interp.set_p(code_point(arg));
-	interp.set_cp(interp.empty_list());
+	interp.set_cp(interpreter_base::EMPTY_LIST);
 
 	return true;
     }
@@ -536,7 +536,7 @@ namespace prologcoin { namespace interp {
 	//	    interp.deallocate_environment();
 	//	}
 	interp.set_p(interp.cp());
-	interp.set_cp(interp.empty_list());
+	interp.set_cp(interpreter_base::EMPTY_LIST);
 
 	interp.set_top_fail(false);
 	interp.set_complete(false);
@@ -563,15 +563,15 @@ namespace prologcoin { namespace interp {
 	auto *context = interp.new_meta_context<meta_context_findall>(&findall_3_meta);
 	context->template_ = args[0];
 	context->result_ = args[2];
-	context->interim_ = interp.secondary_env().empty_list();
-	context->tail_ = interp.secondary_env().empty_list();
+	context->interim_ = interpreter_base::EMPTY_LIST;
+	context->tail_ = interpreter_base::EMPTY_LIST;
 	context->secondary_hb_ = interp.secondary_env().get_register_hb();
 	interp.secondary_env().set_register_hb(interp.secondary_env().heap_size());
 	interp.set_top_e();
 	interp.allocate_choice_point(code_point::fail());
 	interp.set_top_b(interp.b());
 	interp.set_p(code_point(qr));
-	interp.set_cp(interp.empty_list());
+	interp.set_cp(interpreter_base::EMPTY_LIST);
 	
 	return true;
     }
@@ -602,7 +602,7 @@ namespace prologcoin { namespace interp {
 		interp.deallocate_environment();
 	    }
 	    interp.set_p(interp.cp());
-	    interp.set_cp(interp.empty_list());
+	    interp.set_cp(interpreter_base::EMPTY_LIST);
 
 	    interp.set_top_fail(false);
 	    interp.set_complete(false);
@@ -613,8 +613,7 @@ namespace prologcoin { namespace interp {
 	uint64_t cost = 0;
 	auto elem = interp.secondary_env().copy(context->template_, interp, cost);
         interp.add_accumulated_cost(cost);
-	auto newtail = interp.secondary_env().new_dotted_pair(
-			      elem, interp.secondary_env().empty_list());
+	auto newtail = interp.secondary_env().new_dotted_pair(elem, interpreter_base::EMPTY_LIST);
 	if (interp.secondary_env().is_empty_list(context->interim_)) {
 	    context->interim_ = newtail;
 	    context->tail_ = context->interim_;
@@ -624,7 +623,7 @@ namespace prologcoin { namespace interp {
 	}
 
 	interp.set_p(common::con_cell("fail",0));
-	interp.set_cp(interp.empty_list());
+	interp.set_cp(interpreter_base::EMPTY_LIST);
 
 	return true;
     }
@@ -634,11 +633,15 @@ namespace prologcoin { namespace interp {
         term v = args[0];
 	if (v.tag() != common::tag_t::REF) {
 	    interp.set_p(args[1]);
-	    interp.set_cp(interp.empty_list());
+	    interp.set_cp(interpreter_base::EMPTY_LIST);
 	    return true;
 	}
 
-	// Variable is unbound, so we need to record closure
+	args[1] = interp.rewrite_freeze_body(args[0], args[1]);
+
+	// At this point args[1] should be '$freeze':<id>( .... )
+
+	interp.set_frozen_closure(static_cast<ref_cell &>(args[0]).index(), args[1]);
         
         return true;
     }

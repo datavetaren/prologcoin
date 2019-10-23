@@ -14,6 +14,9 @@ namespace prologcoin { namespace interp {
 using namespace prologcoin::common;
 
 const common::term code_point::fail_term_ = common::ref_cell(0);
+const common::con_cell interpreter_base::COMMA = common::con_cell(",",2);
+const common::con_cell interpreter_base::EMPTY_LIST = common::con_cell("[]",0);
+const common::con_cell interpreter_base::IMPLIED_BY = common::con_cell(":-",2);
 
 meta_context::meta_context(interpreter_base &i, meta_fn mfn)
 {
@@ -24,14 +27,14 @@ meta_context::meta_context(interpreter_base &i, meta_fn mfn)
     old_b0 = i.b0();
     old_top_e = i.top_e();
     old_e = i.e();
-    old_e_is_wam = i.e_is_wam();
+    old_e_kind = i.e_kind();
     old_p = i.p();
     old_cp = i.cp();
     old_qr = i.qr();
     old_hb = i.get_register_hb();
 }
 
-interpreter_base::interpreter_base() : register_pr_("", 0), comma_(",",2), empty_list_("[]", 0), implied_by_(":-", 2), arith_(*this), locale_(*this)
+interpreter_base::interpreter_base() : register_pr_("", 0), arith_(*this), locale_(*this)
 {
     init();
 
@@ -45,13 +48,15 @@ interpreter_base::interpreter_base() : register_pr_("", 0), comma_(",",2), empty
     register_b_ = nullptr;
     register_b0_ = nullptr;
     register_e_ = nullptr;
-    register_e_is_wam_ = false;
+    register_e_kind_ = ENV_NAIVE;
     register_p_.reset();
     register_cp_.reset();
     register_m_ = nullptr;
     num_of_args_ = 0;
     memset(&register_ai_[0], 0, sizeof(common::term)*MAX_ARGS);
     num_y_fn_ = nullptr;
+    save_state_fn_ = nullptr;
+    restore_state_fn_ = nullptr;
     maximum_cost_ = std::numeric_limits<uint64_t>::max();
 }
 
@@ -64,6 +69,8 @@ void interpreter_base::init()
     memset(register_ai_, 0, sizeof(register_ai_));
     stack_ = reinterpret_cast<word_t *>(new char[MAX_STACK_SIZE]);
     num_y_fn_ = &num_y;
+    save_state_fn_ = &save_state;
+    restore_state_fn_ = &restore_state;
     standard_output_ = nullptr;
     prepare_execution();
 }
@@ -78,6 +85,8 @@ interpreter_base::~interpreter_base()
     builtins_.clear();
     builtins_opt_.clear();
     program_db_.clear();
+    module_db_.clear();
+    module_db_set_.clear();
     program_predicates_.clear();
 }
 
@@ -195,14 +204,15 @@ void interpreter_base::preprocess_freeze(term t)
 
 void interpreter_base::preprocess_freeze_body(term goal)
 {
-    static const common::con_cell freeze_module("$freeze",0);
     static const common::con_cell op_comma(",", 2);
     static const common::con_cell op_semi(";", 2);
     static const common::con_cell op_imply("->", 2);
     static const common::con_cell freeze("freeze", 2);
-    static const common::con_cell op_clause(":-", 2);
-    static const common::con_cell op_colon(":", 2);
 
+    if (goal.tag() != common::tag_t::STR) {
+        return;
+    }
+    
     auto f = functor(goal);
     if (f == op_comma || f == op_semi || f == op_imply) {
         preprocess_freeze_body(arg(goal, 0));
@@ -217,59 +227,82 @@ void interpreter_base::preprocess_freeze_body(term goal)
         // '$freeze':'<id>'(<Var> <Closure Vars> ...) :- Body.
         term freezeVar = arg(goal, 0);
 	term freezeBody = arg(goal, 1);
-	std::unordered_set<term> vars;
-	std::vector<term> vars_list;
-	std::unordered_map<term,term> varmap;
-
-	vars_list.push_back(freezeVar);
-	vars.insert(freezeVar);
-	for (auto t : iterate_over(freezeBody)) {
-	    if (t.tag() == common::tag_t::REF) {
-	        t = deref(t);
-		if (vars.count(t) == 0) {
-		    vars.insert(t);
-		    vars_list.push_back(t);
-		}
-  	    }
-	}
-
-	auto qname = gen_predicate(freeze_module, vars_list.size());
+	preprocess_freeze_body(freezeBody);
 	
-	auto head = new_str(qname.second);
-	for (size_t i = 0; i < vars_list.size(); i++) {
-  	    varmap[vars_list[i]] = arg(head,i);
-	}
-
-	// Remap vars (closure vars to new vars)
-	for (auto t : iterate_over(freezeBody)) {
-  	    if (t.tag() == common::tag_t::STR) {
-	        size_t num_args = functor(t).arity();
-	        for (size_t i = 0; i < num_args; i++) {
-		    term ai = arg(t, i);
-		    if (ai.tag() == common::tag_t::REF) {
-	  	        set_arg(t, i, varmap[ai]);
-		    }
-		}
-	    }
-	}
-
-	term freeze_clause = new_str(op_clause);
-	set_arg(freeze_clause, 0, head);
-	set_arg(freeze_clause, 1, freezeBody);
-
-	get_predicate(qname).push_back(managed_clause(freeze_clause,0));
-
-	auto closure_head = new_str(qname.second);
-	for (size_t i = 0; i < vars_list.size(); i++) {
-	    set_arg(closure_head, i, vars_list[i]);
-	}
-
-	auto closure_mod = new_str(op_colon);
-	set_arg(closure_mod, 0, qname.first);
-	set_arg(closure_mod, 1, closure_head);
-	
-	set_arg(goal, 1, closure_mod);
+	set_arg(goal, 1, rewrite_freeze_body(freezeVar, freezeBody));
     }
+}
+
+term interpreter_base::rewrite_freeze_body(term freezeVar, term freezeBody)
+{
+    static const common::con_cell freeze_module("$freeze",0);
+    static const common::con_cell op_clause(":-", 2);
+    static const common::con_cell op_colon(":", 2);
+
+    // Not a functor?
+    if (freezeBody.tag() != common::tag_t::STR) {
+        return freezeBody;
+    }
+
+    // Already rewritten? 
+    if (functor(freezeBody) == op_colon) {
+        if (arg(freezeBody, 0) == freeze_module) {
+   	    return freezeBody;
+	}
+    }
+
+    std::unordered_set<term> vars;
+    std::vector<term> vars_list;
+    std::unordered_map<term,term> varmap;
+
+    vars_list.push_back(freezeVar);
+    vars.insert(freezeVar);
+    for (auto t : iterate_over(freezeBody)) {
+      if (t.tag() == common::tag_t::REF) {
+	t = deref(t);
+	if (vars.count(t) == 0) {
+	  vars.insert(t);
+	  vars_list.push_back(t);
+	}
+      }
+    }
+    
+    auto qname = gen_predicate(freeze_module, vars_list.size());
+	
+    auto head = new_str(qname.second);
+    for (size_t i = 0; i < vars_list.size(); i++) {
+      varmap[vars_list[i]] = arg(head,i);
+    }
+
+    // Remap vars (closure vars to new vars)
+    for (auto t : iterate_over(freezeBody)) {
+      if (t.tag() == common::tag_t::STR) {
+	size_t num_args = functor(t).arity();
+	for (size_t i = 0; i < num_args; i++) {
+	  term ai = arg(t, i);
+	  if (ai.tag() == common::tag_t::REF) {
+	    set_arg(t, i, varmap[ai]);
+	  }
+	}
+      }
+    }
+
+    term freeze_clause = new_str(op_clause);
+    set_arg(freeze_clause, 0, head);
+    set_arg(freeze_clause, 1, freezeBody);
+
+    get_predicate(qname).push_back(managed_clause(freeze_clause,0));
+
+    auto closure_head = new_str(qname.second);
+    for (size_t i = 0; i < vars_list.size(); i++) {
+        set_arg(closure_head, i, vars_list[i]);
+    }
+    
+    auto closure_mod = new_str(op_colon);
+    set_arg(closure_mod, 0, qname.first);
+    set_arg(closure_mod, 1, closure_head);
+    
+    return closure_mod;
 }
     
 void interpreter_base::load_clause(const term t, bool as_program)
@@ -305,7 +338,7 @@ void interpreter_base::load_clause(const term t, bool as_program)
     // the most common case.
     preprocess_freeze(t);
 
-    con_cell module = empty_list();
+    con_cell module = EMPTY_LIST;
 
     // This is a valid clause. Let's lookup the functor of its head.
 
@@ -330,6 +363,11 @@ void interpreter_base::load_clause(const term t, bool as_program)
     }
     updated_predicates_.insert(qn);
     program_db_[qn].push_back(managed_clause(t, cost(t)));
+
+    if (module_db_set_[module].count(qn) == 0) {
+        module_db_set_[module].insert(qn);
+	module_db_[module].push_back(qn);
+    }
 }
 
 void interpreter_base::load_builtin(const qname &qn, builtin b)
@@ -408,6 +446,7 @@ void interpreter_base::load_builtins()
     // Meta
     load_builtin(con_cell("\\+", 1), builtin(&builtins::operator_disprove,true));
     load_builtin(con_cell("findall",3), builtin(&builtins::findall_3,true));
+    load_builtin(con_cell("freeze",2), builtin(&builtins::freeze_2,true));
 }
 
 void interpreter_base::load_builtins_opt()
@@ -498,11 +537,6 @@ void interpreter_base::load_program(std::istream &in)
     load_program(clause_list);
 }
 
-void interpreter_base::retract_predicate(const qname &pn)
-{
-    program_db_.erase(pn);
-}
-
 qname interpreter_base::gen_predicate(const common::con_cell module,
 				      size_t arity)
 {
@@ -524,6 +558,13 @@ qname interpreter_base::gen_predicate(const common::con_cell module,
     common::con_cell p = functor(atom_name, arity);
     qname pn(module, p);
     program_predicates_.push_back(pn);
+    updated_predicates_.insert(pn);
+
+    if (module_db_set_[module].count(pn) == 0) {
+        module_db_set_[module].insert(pn);
+	module_db_[module].push_back(pn);
+    }
+
     return pn;
 }
 
@@ -781,7 +822,7 @@ common::cell interpreter_base::first_arg_index(const term t)
 term interpreter_base::clause_head(const term clause)
 {
     auto f = functor(clause);
-    if (f == implied_by_) {
+    if (f == IMPLIED_BY) {
 	return arg(clause, 0);
     } else {
 	return clause;
@@ -791,10 +832,10 @@ term interpreter_base::clause_head(const term clause)
 term interpreter_base::clause_body(const term clause)
 {
     auto f = functor(clause);
-    if (f == implied_by_) {
+    if (f == IMPLIED_BY) {
         return arg(clause, 1);
     } else {
-        return empty_list();
+        return EMPTY_LIST;
     }
 }
 
@@ -806,7 +847,7 @@ common::con_cell interpreter_base::clause_predicate(const term clause)
 common::term interpreter_base::get_first_arg()
 {
     if (num_of_args_ == 0) {
-        return empty_list();
+        return EMPTY_LIST;
     }
     return deref(a(0));
 }
@@ -841,12 +882,11 @@ choice_point_t * interpreter_base::reset_to_choice_point(choice_point_t *b)
 
 void interpreter_base::unwind(size_t from_tr)
 {
-    unwind_trail(from_tr, trail_size());
+    size_t n = trail_size();
+    unwind_frozen_closures(from_tr, n);
+    unwind_trail(from_tr, n);
     trim_trail(from_tr);
 }
 
-
 }}
-
-
 

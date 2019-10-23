@@ -185,7 +185,7 @@ namespace prologcoin { namespace interp {
 		format_args = interp.arg(format_args, 1);
 	    } else {
 		r = format_args;
-		format_args = interp.empty_list();
+		format_args = interpreter_base::EMPTY_LIST;
 	    }
 	    return r;
 	};
@@ -741,8 +741,8 @@ namespace prologcoin { namespace interp {
 
 	interp.standard_output().write(out_str);
 
-	interp.set_p(interp.empty_list());
-	interp.set_cp(interp.empty_list());
+	interp.set_p(interpreter_base::EMPTY_LIST);
+	interp.set_cp(interpreter_base::EMPTY_LIST);
 
 	return true;
     }
@@ -761,8 +761,8 @@ namespace prologcoin { namespace interp {
 	term out = interp.string_to_list(out_str);
 	bool ok = interp.unify(out, args[0]);
 
-	interp.set_p(interp.empty_list());
-	interp.set_cp(interp.empty_list());
+	interp.set_p(interpreter_base::EMPTY_LIST);
+	interp.set_cp(interpreter_base::EMPTY_LIST);
 
 	return ok;
     }
