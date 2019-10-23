@@ -393,6 +393,12 @@ struct meta_context {
 
 class interpreter;
 
+template<environment_kind_t K> struct env_type_from_kind { };
+template<> struct env_type_from_kind<ENV_NAIVE> { typedef environment_ext_t * type; };
+template<> struct env_type_from_kind<ENV_WAM> { typedef environment_t * type; };
+template<> struct env_type_from_kind<ENV_FROZEN> { typedef environment_ext_t * type; };
+  
+
 class interpreter_base : public common::term_env {
     friend class builtins;
     friend class builtins_opt;
@@ -685,7 +691,8 @@ protected:
         if (interp->e_kind() == ENV_FROZEN) {
   	    // Extra cells to be allocated
   	    assert(interp->qr().tag() == common::tag_t::INT);
-	    n += static_cast<int_cell &>(interp->qr()).value();
+	    term qr = interp->qr();
+	    n += reinterpret_cast<const int_cell &>(qr).value();
 	}
 	return n;
     }
@@ -901,50 +908,7 @@ protected:
 	return new_s;
     }
 
-    template<environment_kind_t K> struct env_type_from_kind { };
-    template<> struct env_type_from_kind<ENV_NAIVE> { typedef environment_ext_t * type; };
-    template<> struct env_type_from_kind<ENV_WAM> { typedef environment_t * type; };
-    template<> struct env_type_from_kind<ENV_FROZEN> { typedef environment_ext_t * type; };
-  
-    template<environment_kind_t K, typename T = env_type_from_kind<K>::type> T allocate_environment();
-
-    template<> inline environment_ext_t * allocate_environment<ENV_NAIVE>()
-    {
-        environment_ext_t *new_ee = reinterpret_cast<environment_ext_t *>(allocate_stack());
-	new_ee->ce = save_e();
-	new_ee->cp = cp();
-	new_ee->b0 = b0();
-	new_ee->qr = register_qr_;
-	new_ee->pr = register_pr_;
-	
-	set_ee(new_ee);
-	return new_ee;
-    }
-  
-    template<> inline environment_t * allocate_environment<ENV_WAM>()
-    {
-        auto new_e = reinterpret_cast<environment_t *>(allocate_stack());
-	new_e->ce = save_e();
-	new_e->cp = cp();
-	set_e(new_e, ENV_WAM);
-	return new_e;
-    }
-
-    template<> inline environment_ext_t * allocate_environment<ENV_FROZEN>()
-    {
-        environment_ext_t *new_ee = reinterpret_cast<environment_ext_t *>(allocate_stack());
-	new_ee->ce = save_e();
-	new_ee->cp = cp();
-	new_ee->b0 = b0();
-	new_ee->qr = register_qr_;
-	new_ee->pr = register_pr_;
-	
-	set_e(new_ee, ENV_FROZEN);
-      
-        save_state_fn_(this);
-
-	return new_ee;
-    }
+    template<environment_kind_t K, typename T = typename env_type_from_kind<K>::type> T allocate_environment();
 
     inline void deallocate_environment()
     {
@@ -1032,7 +996,7 @@ protected:
 
     void prepare_execution();
 
-    inline term qr() const
+    inline const term qr() const
         { return register_qr_; }
 
     inline void set_qr(term qr)
@@ -1285,31 +1249,72 @@ protected:
 	}
     }
 
-    inline void check_frozen() {
-        static const common::con_cell EMPTY_LIST("[]",0);
-        auto &watched = heap_watched();
-	size_t n = watched.size();
-	// Go in reverse order so the first watched is pushed last.
-	for (size_t i = 0; i < n; i++) {
-	    auto addr = watched[n-i-1];
-  	    if (heap_get(addr).tag() != common::tag_t::REF) {
-	        auto cl = get_frozen_closure(addr);
-		clear_frozen_closure(addr);
-		if (cl != EMPTY_LIST) {
-	  	     allocate_environment<ENV_FROZEN, environment_ext_t *>();
-		     allocate_environment<ENV_NAIVE, environment_ext_t *>();
-		     set_cp(EMPTY_LIST);
-		     set_p(cl);
-		     set_qr(cl);
-		}
-		heap_watch(addr, false);
-	    }
-	}
-	heap_clear_watched();
-    }
+    void check_frozen();
   
     size_t tidy_size;
 };
+
+template<> inline environment_ext_t * interpreter_base::allocate_environment<ENV_NAIVE>()
+{
+    environment_ext_t *new_ee = reinterpret_cast<environment_ext_t *>(allocate_stack());
+    new_ee->ce = save_e();
+    new_ee->cp = cp();
+    new_ee->b0 = b0();
+    new_ee->qr = register_qr_;
+    new_ee->pr = register_pr_;
+    
+    set_ee(new_ee);
+    return new_ee;
+}
+
+template<> inline environment_t * interpreter_base::allocate_environment<ENV_WAM>()
+{
+    auto new_e = reinterpret_cast<environment_t *>(allocate_stack());
+    new_e->ce = save_e();
+    new_e->cp = cp();
+    set_e(new_e, ENV_WAM);
+    return new_e;
+}
+
+template<> inline environment_ext_t * interpreter_base::allocate_environment<ENV_FROZEN>()
+{
+    environment_ext_t *new_ee = reinterpret_cast<environment_ext_t *>(allocate_stack());
+    new_ee->ce = save_e();
+    new_ee->cp = cp();
+    new_ee->b0 = b0();
+    new_ee->qr = register_qr_;
+    new_ee->pr = register_pr_;
+    
+    set_e(new_ee, ENV_FROZEN);
+    
+    save_state_fn_(this);
+    
+    return new_ee;
+}
+
+inline void interpreter_base::check_frozen()
+{
+    static const common::con_cell EMPTY_LIST("[]",0);
+    auto &watched = heap_watched();
+    size_t n = watched.size();
+    // Go in reverse order so the first watched is pushed last.
+    for (size_t i = 0; i < n; i++) {
+	auto addr = watched[n-i-1];
+	if (heap_get(addr).tag() != common::tag_t::REF) {
+	    auto cl = get_frozen_closure(addr);
+	    clear_frozen_closure(addr);
+	    if (cl != EMPTY_LIST) {
+		allocate_environment<ENV_FROZEN, environment_ext_t *>();
+		allocate_environment<ENV_NAIVE, environment_ext_t *>();
+		set_cp(EMPTY_LIST);
+		set_p(cl);
+		set_qr(cl);
+	    }
+	    heap_watch(addr, false);
+	}
+    }
+    heap_clear_watched();
+}
 
 }}
 
