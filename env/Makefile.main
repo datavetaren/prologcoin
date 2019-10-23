@@ -47,7 +47,7 @@ ifneq ($(REQ_CHECK), yes)
      $(shell echo "Requirement checks passed" >$(BIN)/req_check.txt)
 endif
 
-.PHONY: clean run all test fast_test test_valgrind count
+.PHONY: clean run all test test_valgrind count
 
 #
 # To fool GNU-Make that something has been done.
@@ -82,7 +82,6 @@ TEST_CPP_FILES := $(wildcard $(SRC)/$(SUBDIR)/test/*.cpp)
 TEST_OBJ_FILES := $(addprefix $(OUT)/$(SUBDIR)/test/, $(TEST_CPP_FILES:$(SRC)/$(SUBDIR)/test/%.cpp=%$(OBJ_EXT)))
 TEST_EXE_FILES := $(addprefix $(BIN)/test/$(SUBDIR)/, $(TEST_CPP_FILES:$(SRC)/$(SUBDIR)/test/%.cpp=%$(EXE_EXT)))
 TEST_OK_FILES := $(addprefix $(BIN)/test/$(SUBDIR)/, $(TEST_CPP_FILES:$(SRC)/$(SUBDIR)/test/%.cpp=%$(EXE_EXT).ok))
-TEST_OK_FAST_FILES := $(addprefix $(BIN)/test/$(SUBDIR)/, $(TEST_CPP_FILES:$(SRC)/$(SUBDIR)/test/%.cpp=%$(EXE_EXT).fast.ok))
 TEST_OK_VALGRIND_FILES := $(addprefix $(BIN)/test/$(SUBDIR)/, $(TEST_CPP_FILES:$(SRC)/$(SUBDIR)/test/%.cpp=%$(EXE_EXT).val.ok))
 TEST_LOG_FILES := $(addprefix $(BIN)/test/$(SUBDIR)/, $(TEST_CPP_FILES:$(SRC)/$(SUBDIR)/test/%.cpp=%$(EXE_EXT).log))
 
@@ -99,8 +98,6 @@ endif
 all : $(GOAL)
 
 test : $(TEST_OK_FILES)
-
-fast_test: $(TEST_OK_FAST_FILES)
 
 test_valgrind : $(TEST_OK_VALGRIND_FILES)
 
@@ -130,13 +127,7 @@ $(BIN)/test/$(SUBDIR)/%$(EXE_EXT) : $(OUT)/$(SUBDIR)/test/%$(OBJ_EXT) $(OBJ_FILE
 
 $(BIN)/test/$(SUBDIR)/%$(EXE_EXT).ok : $(BIN)/test/$(SUBDIR)/%$(EXE_EXT)
 	@$(call echon, $(yellow) $(bold) $<$(off)$(white)) 
-	@( $< >$<.log 2>&1) || ($(CP) $<.log /tmp/err.log; exit 1) || ($(call printfile, /tmp/err.log))
-	@touch $@
-	@(echo $(green)$(bold) [OK]$(off)$(white))
-
-$(BIN)/test/$(SUBDIR)/%$(EXE_EXT).fast.ok : $(BIN)/test/$(SUBDIR)/%$(EXE_EXT)
-	@$(call echon, $(yellow) $(bold) $<$(off)$(white)) 
-	@( $< -fast >$<.log 2>&1) || ($(CP) $<.log /tmp/err.log; exit 1) || ($(call printfile, /tmp/err.log))
+	@( $< $(ARGS) >$<.log 2>&1) || ($(CP) $<.log /tmp/err.log; exit 1) || ($(call printfile, /tmp/err.log))
 	@touch $@
 	@(echo $(green)$(bold) [OK]$(off)$(white))
 
