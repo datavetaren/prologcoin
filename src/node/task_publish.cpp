@@ -33,7 +33,7 @@ void task_publish::process()
 	      e.new_term(con_cell("query",1),
 		    {e.new_term(colon, {me,
 		     e.new_term(e.functor("add_address",2),
-				{e.empty_list(),
+				{e.EMPTY_LIST,
 				 int_cell(self().port())})})
 		    }
 		    ));

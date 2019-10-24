@@ -308,6 +308,12 @@ public:
       : term_exception( std::string("Expected STR cell; was " + c.tag().str())) { }
 };
 
+class coin_security_exception : public term_exception {
+public:
+  coin_security_exception()
+    : term_exception( std::string("'$coin' is not allowed to be created in this context.")) { }
+};
+
 //
 // ptr_cell this is not a real cell, but any class that uses the upper
 // bits for referencing another cell is inheriting from this class:
@@ -866,6 +872,31 @@ public:
 
     void trim(size_t new_size);
 
+    inline void coin_security_check(con_cell c) const {
+        if (!coin_security_enabled_ || c == COIN) {
+	    throw coin_security_exception();
+        }
+    }
+
+    class disabled_coin_security;
+    friend class disabled_coin_security;
+
+    class disabled_coin_security {
+    public:
+        inline disabled_coin_security(heap &h) : heap_(h), old_(h.coin_security_enabled_)
+            { heap_.coin_security_enabled_ = false; }
+        inline ~disabled_coin_security()
+            { heap_.coin_security_enabled_ = old_; }
+    private:
+        heap &heap_;
+        bool old_;
+    };
+
+    // Only a couple of builtins will use this.
+    inline disabled_coin_security disable_coin_security() {
+        return disabled_coin_security(*this);
+    }
+  
     inline void check_index(size_t index) const
     {
 	if (index >= size()) {
@@ -1047,9 +1078,9 @@ public:
     inline bool is_empty_list(const cell c) const
     {
 	if (c.tag() == tag_t::CON) {
-	    return c == empty_list_;
+	    return c == EMPTY_LIST;
 	} else if (c.tag() == tag_t::STR) {
-   	    return functor(c) == empty_list_;
+   	    return functor(c) == EMPTY_LIST;
         } else {
 	    return false;
         }
@@ -1058,9 +1089,9 @@ public:
     inline bool is_dotted_pair(const cell c) const
     {
 	if (c.tag() == tag_t::CON) {
-	    return c == dotted_pair_;
+  	    return c == DOTTED_PAIR;
 	} else if (c.tag() == tag_t::STR) {
-	    return functor(c) == dotted_pair_;
+	    return functor(c) == DOTTED_PAIR;
 	} else {
 	    return false;
 	}
@@ -1069,9 +1100,9 @@ public:
     inline bool is_comma(const cell c) const
     {
 	if (c.tag() == tag_t::CON) {
-	    return c == comma_;
+	    return c == COMMA;
 	} else if (c.tag() == tag_t::STR) {
-	    return functor(c) == comma_;
+	    return functor(c) == COMMA;
 	} else {
 	    return false;
 	}
@@ -1097,6 +1128,7 @@ public:
 
     inline term new_str(con_cell con)
     {
+        coin_security_check(con);
 	size_t arity = con.arity();
 	cell *p;
 	size_t index;
@@ -1111,6 +1143,7 @@ public:
 
     inline str_cell new_con0(con_cell con)
     {
+        coin_security_check(con);
         cell *p;
 	size_t index;
 	size_t arity = con.arity();
@@ -1122,6 +1155,7 @@ public:
 
     inline str_cell new_str0(con_cell con)
     {
+        coin_security_check(con);
         cell *p;
         size_t index;
 	size_t arity = con.arity();
@@ -1237,20 +1271,15 @@ public:
 	*p = c;
     }
 
-    inline con_cell dotted_pair()
-    {
-	return dotted_pair_;
-    }
-
     inline term new_dotted_pair()
     {
-        term t = new_str0(dotted_pair_);
+        term t = new_str0(DOTTED_PAIR);
 	return t;
     }
 
     inline term new_dotted_pair(const term a, const term b)
     {
-	term t = new_str(dotted_pair_);
+	term t = new_str(DOTTED_PAIR);
 	set_arg(t, 0, a);
 	set_arg(t, 1, b);
 	return t;
@@ -1273,16 +1302,6 @@ public:
 	for (size_t i = 0; i < cnt; i++) {
 	    static_cast<ref_cell &>(p[i]).set_index(index+i);
 	}
-    }
-
-    inline term empty_list() const
-    {
-	return empty_list_;
-    }
-
-    inline con_cell empty_list_con() const
-    {
-        return empty_list_;
     }
 
     inline size_t external_ptr_count() const
@@ -1419,6 +1438,8 @@ private:
     heap_block * head_block_;
     std::vector<size_t> watched_;
 
+    bool coin_security_enabled_;
+
 #ifdef DEBUG_TERM
     mutable std::unordered_map<cell *, size_t> external_ptrs_;
     static size_t id_counter_;
@@ -1430,9 +1451,11 @@ private:
     mutable std::vector<std::string> atom_index_to_name_table_;
     mutable std::unordered_map<std::string, size_t> atom_name_to_index_table_;
 
-    con_cell empty_list_;
-    con_cell dotted_pair_;
-    con_cell comma_;
+public:
+    static const con_cell EMPTY_LIST;
+    static const con_cell DOTTED_PAIR;
+    static const con_cell COMMA;
+    static const con_cell COIN;
 
     template<typename T> friend class ext;
 };

@@ -430,11 +430,11 @@ void in_connection::command_delete_instance(const term cmd)
 	try {
 	    session_->delete_instance();
 	    reply_ok(e.new_term(e.functor("result",5),
-				{e.empty_list(),
-				 e.empty_list(),
-			 	 e.empty_list(),
-			 	 e.empty_list(),
-	 			 e.empty_list()
+				{e.EMPTY_LIST,
+				 e.EMPTY_LIST,
+			 	 e.EMPTY_LIST,
+			 	 e.EMPTY_LIST,
+	 			 e.EMPTY_LIST
 					} ));
 	} catch (std::exception &ex) {
 	    reply_exception(ex.what());
@@ -451,11 +451,11 @@ void in_connection::command_reset(const term cmd)
 	try {
 	    session_->reset();
 	    reply_ok(e.new_term(e.functor("result",5),
-				{e.empty_list(),
-				 e.empty_list(),
-			 	 e.empty_list(),
-			 	 e.empty_list(),
-			 	 e.empty_list()
+				{e.EMPTY_LIST,
+				 e.EMPTY_LIST,
+			 	 e.EMPTY_LIST,
+			 	 e.EMPTY_LIST,
+			 	 e.EMPTY_LIST
 					} ));
 	} catch (std::exception &ex) {
 	    reply_exception(ex.what());
@@ -472,11 +472,11 @@ void in_connection::command_local_reset(const term cmd)
 	try {
 	    session_->local_reset();
 	    reply_ok(e.new_term(e.functor("result",5),
-				{e.empty_list(),
-				 e.empty_list(),
-			 	 e.empty_list(),
-			 	 e.empty_list(),
-			 	 e.empty_list()
+				{e.EMPTY_LIST,
+				 e.EMPTY_LIST,
+			 	 e.EMPTY_LIST,
+			 	 e.EMPTY_LIST,
+			 	 e.EMPTY_LIST
 					} ));
 	} catch (std::exception &ex) {
 	    reply_exception(ex.what());
@@ -571,7 +571,7 @@ void in_connection::process_execution(const term cmd, bool in_query)
 	    auto qr = cmd;
 	    // std::cout << "QUERY: " << session_->env().to_string(qr) << std::endl;
 	    bool r = in_query ? session_->next() : session_->execute(qr);
-	    term standard_out = e.empty_list();
+	    term standard_out = e.EMPTY_LIST;
 	    if (!session_->get_text_out().empty()) {
 		standard_out = e.string_to_list(session_->get_text_out());
 		session_->reset_text_out();
@@ -580,7 +580,7 @@ void in_connection::process_execution(const term cmd, bool in_query)
 	    if (!r) {
 		reply_ok(e.new_term(e.functor("result",5),
 				    {e.functor("false",0),
-				     e.empty_list(),
+				     e.EMPTY_LIST,
 		 		     get_state_atom(),
 			 	     standard_out,
 				     int_cell(last_cost) } ));

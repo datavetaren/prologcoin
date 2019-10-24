@@ -252,9 +252,7 @@ std::string dat_cell::inner_str() const
 heap::heap() 
   : size_(0),
     external_ptrs_max_(0),
-    empty_list_("[]", 0),
-    dotted_pair_(".", 2),
-    comma_(",", 2)
+    coin_security_enabled_(true)
 {
     new_block(0);
 }
@@ -274,6 +272,11 @@ heap::~heap()
 	delete b;
     }
 }
+
+const con_cell heap::EMPTY_LIST = con_cell("[]",0);
+const con_cell heap::DOTTED_PAIR = con_cell(".",2);
+const con_cell heap::COMMA = con_cell(",",2);
+const con_cell heap::COIN = con_cell("$coin",2);
 
 void heap::trim(size_t new_size)
 {
@@ -296,18 +299,18 @@ size_t heap::list_length(const cell lst0) const
     size_t n = 0;
 
     cell lst = lst0;
-    while (lst != empty_list_) {
+    while (lst != EMPTY_LIST) {
       n++;
       if (lst.tag() != tag_t::STR) {
 	  break;
       }
       con_cell f = functor(lst);
-      if (f != dotted_pair_) {
+      if (f != DOTTED_PAIR) {
 	  break;
       }
       lst = arg(lst, 1);
     }
-    if (lst != empty_list_) {
+    if (lst != EMPTY_LIST) {
       n++;
     }
     return n;
@@ -398,12 +401,12 @@ cell heap::deref_with_cost(cell c, uint64_t &cost) const
 bool heap::is_list(const cell c) const
 {
     cell l = deref(c);
-    while (l != empty_list_) {
+    while (l != EMPTY_LIST) {
 	if (!check_functor(l)) {
 	    return false;
 	}
 	con_cell f = functor(l);
-	if (f != dotted_pair_) {
+	if (f != DOTTED_PAIR) {
 	    return false;
 	}
 	l = arg(l, 1);

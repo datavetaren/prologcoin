@@ -531,7 +531,7 @@ std::string term_utils::list_to_string(const term t, heap &src)
 term term_utils::string_to_list(const std::string &str)
 {
     size_t n = str.size();
-    term lst = empty_list();
+    term lst = heap::EMPTY_LIST;
     for (size_t i = 0; i < n; i++) {
 	size_t ri = n - i - 1;
 	auto ch = str[ri];

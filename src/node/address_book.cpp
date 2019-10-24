@@ -101,7 +101,7 @@ common::term address_entry::to_term(common::term_env &env) const
 				     {int_cell(version_major()),
 				      int_cell(version_minor())});
     term_serializer ser(env);
-    term term_comment = (comment().size() > 0) ? ser.read(comment()) : env.empty_list();
+    term term_comment = (comment().size() > 0) ? ser.read(comment()) : env.EMPTY_LIST;
 
     
     term term_entry = env.new_term(env.functor("entry",8),

@@ -183,9 +183,18 @@ IF "%1"=="vssln" (
 GOTO :VSSLN
 )
 
+set DBGPRNT=0
+set WORKDONE=0
+GOTO START
+:DBG
+IF !DBGPRNT!==1 GOTO :EOF
 IF "%DEBUGMODE%"=="1" (
+   set DBGPRNT=1
    echo [DEBUG MODE]
 )
+GOTO :EOF
+
+:START
 
 REM
 REM Get all .cpp files
@@ -213,6 +222,15 @@ IF NOT "%DOLIB%"=="" (
 )
 for %%i in (!DEPENDS!) DO (
     set LIBFILE=!BIN!\%%i.lib
+    REM
+    REM check if dependent LIBFILE is never than BIN file
+    REM
+    set R=0
+    call :FCMP !LIBFILE! !GOAL! !R!
+    IF "!R!"=="1" (
+        REM Force relinking
+        set WORKDONE=1
+    )    
     set LIB_FILES=!LIB_FILES! "!LIBFILE!"
 )
 
@@ -240,8 +258,14 @@ REM
 
     IF NOT EXIST !OBJFILE! (
         set PDBFILE=
+	IF "%1"=="check" (
+	    EXIT /b 1
+	    GOTO :EOF
+	)
+	CALL :DBG
         IF "!DEBUGMODE!"=="1" set PDBFILE=/Fd:!OBJFILE:.obj=.pdb!
         cl.exe !CCFLAGS! /Fo:!OBJFILE! !PDBFILE! !CPPFILE!
+	set WORKDONE=1
 REM        echo cl.exe !CCFLAGS! /Fo:!OBJFILE! !PDBFILE! !CPPFILE!
         IF ERRORLEVEL 1 GOTO :EOF
     )
@@ -261,6 +285,8 @@ REM
 IF "%1"=="test" (
 GOTO :TEST
 )
+
+IF !WORKDONE!==0 GOTO :EOF
 
 REM IF EXIST !GOAL! (
 REM echo !GOAL! already exists. Run make clean to first to recompile.
@@ -403,7 +429,7 @@ REM ----------------------------------------------------
 
 :FCMP
 set r=0
-for /f "delims=" %%k in ('xcopy /D /Y /f /e "%1" "%2"') do (
+for /f "delims=" %%k in ('cmd ^2^>NUL /c xcopy /D /Y /f /e "%1" "%2"') do (
     if "%%k" EQU "1 File(s) copied" (
         set r=1
     )

@@ -181,10 +181,6 @@ public:
         { return T::get_heap().size(); }
 
     // Term creation
-    inline term empty_list()
-        { return T::get_heap().empty_list(); }
-    inline con_cell empty_list_con()
-        { return T::get_heap().empty_list_con(); }
     inline con_cell functor(const std::string &name, size_t arity)
         { return T::get_heap().functor(name, arity); }
     inline term new_term(con_cell functor)

@@ -338,7 +338,7 @@ void wam_compiler::compile_query_str(wam_compiler::reg lhsreg, common::ref_cell 
 	    instrs.push_back(wam_instruction<GET_VALUE_X>(xreg.num, lhsreg.num));
 	}
     } else {
-	if (f == interp_.dotted_pair()) {
+        if (f == interp_.DOTTED_PAIR) {
 	    instrs.push_back(wam_instruction<PUT_LIST_X>(lhsreg.num));
 	} else {
 	    instrs.push_back(wam_instruction<PUT_STRUCTURE_X>(f,lhsreg.num));
@@ -425,7 +425,7 @@ void wam_compiler::compile_program_str(wam_compiler::reg lhsreg, common::ref_cel
 {
     auto f = env_.functor(rhs);
     if (lhsreg.type == A_REG) {
-	if (f == interp_.dotted_pair()) {
+	if (f == interp_.DOTTED_PAIR) {
 	    instrs.push_back(wam_instruction<GET_LIST_A>(lhsreg.num));
 	} else {
 	    instrs.push_back(wam_instruction<GET_STRUCTURE_A>(f,lhsreg.num));
@@ -437,7 +437,7 @@ void wam_compiler::compile_program_str(wam_compiler::reg lhsreg, common::ref_cel
 	}
 
     } else {
-	if (f == interp_.dotted_pair()) {
+        if (f == interp_.DOTTED_PAIR) {
 	    instrs.push_back(wam_instruction<GET_LIST_X>(lhsreg.num));
 	} else {
 	    instrs.push_back(wam_instruction<GET_STRUCTURE_X>(f,lhsreg.num));
@@ -1247,7 +1247,7 @@ bool wam_compiler::clause_needs_environment(const term clause)
 	    }
 	    has_calls = true;
 	    last_call = goal;
-	} else if (module == env_.empty_list() && f == cut_op) {
+	} else if (module == env_.EMPTY_LIST && f == cut_op) {
 	    return true;
 	} else {
 	    auto &bn = get_builtin(module, f);
@@ -1277,7 +1277,7 @@ void wam_compiler::compile_builtin(common::con_cell module,
 {
     static const common::con_cell bn_true = common::con_cell("true",0);
 
-    if (module != env_.empty_list() || f != bn_true) {
+    if (module != env_.EMPTY_LIST || f != bn_true) {
 	auto &bn = get_builtin(module, f);
 	if (bn.is_recursive()) {
 	    seq.push_back(wam_instruction<BUILTIN_R>(module, f, bn.fn(), 0));

@@ -1060,17 +1060,17 @@ private:
 
     inline void get_list_a(uint32_t ai)
     {
-        get_structure_a(dotted_pair(), ai);
+        get_structure_a(DOTTED_PAIR, ai);
     }
 
     inline void get_list_x(uint32_t xn)
     {
-        get_structure_x(dotted_pair(), xn);
+        get_structure_x(DOTTED_PAIR, xn);
     }
 
     inline void get_list_y(uint32_t yn)
     {
-        get_structure_y(dotted_pair(), yn);
+        get_structure_y(DOTTED_PAIR, yn);
     }
 
     inline void get_constant(common::term c, uint32_t ai)
@@ -1371,7 +1371,7 @@ private:
     inline void deallocate()
     {
         if (e0() == top_e()) {
-	    set_cp(code_point(empty_list()));
+	    set_cp(code_point(EMPTY_LIST));
         } else {
 	    deallocate_environment();
 	}
@@ -1391,7 +1391,7 @@ private:
 		a(i) = deref(a(i));
 	    }
 	    allocate_environment<ENV_NAIVE>();
-	    set_cp(empty_list());
+	    set_cp(EMPTY_LIST);
 	    return; // Go back to simple interpreter
 	}
     }
@@ -1425,7 +1425,7 @@ private:
 	// A recursive predicate will return to the next instruction
 	set_cp(p());
 	allocate_environment<ENV_NAIVE>();
-	set_cp(empty_list());
+	set_cp(EMPTY_LIST);
 	bool r = fn(*this, bn->arity(), args);
 	if (!r) {
 	    backtrack();

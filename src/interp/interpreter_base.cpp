@@ -530,7 +530,7 @@ void interpreter_base::load_program(std::istream &in)
 	clauses.push_back(clause);
     }
 
-    term clause_list = empty_list();
+    term clause_list = EMPTY_LIST;
     for (auto clause : boost::adaptors::reverse(clauses)) {
 	clause_list = new_dotted_pair(clause, clause_list);
     }

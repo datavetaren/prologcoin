@@ -697,8 +697,8 @@ protected:
     return reduce_binary_op(".", args[0].token().pos(),
 			         args[0].result(),
   			         args[0].pos(),
-			         heap_.empty_list(),
-			         heap_.empty_list());
+		 	         heap::EMPTY_LIST,
+	 		         heap::EMPTY_LIST);
   }
 
   sym reduce_listexpr__subterm_999_comma_listexpr(args_t &args)

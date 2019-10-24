@@ -35,19 +35,21 @@ GOTO :EXIT
 
 :ALL
 
-IF "%DEBUGMODE%"=="1" (
-   echo [DEBUG MODE]
-)
-
 FOR %%X IN (%MODULES%) DO (
-   echo ------------------------------------------------------
-   echo  Build %%X
-   echo ------------------------------------------------------
-   cmd /c "cd src\%%X && make.bat"
-   echo ------------------------------------------------------
-   echo  Test %%X
-   echo ------------------------------------------------------
-   cmd /c "cd src\%%X && make.bat test"
+   cmd /c "cd src\%%X && make.bat check"
+   REM If error level is 1, then we need to build this module
+   IF ERRORLEVEL 1 (
+       echo ------------------------------------------------------
+       echo  Build %%X
+       echo ------------------------------------------------------
+       cmd /c "cd src\%%X && make.bat"
+       IF ERRORLEVEL 1 GOTO :EOF
+       echo ------------------------------------------------------
+       echo  Test %%X
+       echo ------------------------------------------------------
+       cmd /c "cd src\%%X && make.bat test"
+       IF ERRORLEVEL 1 GOTO :EOF
+   )
 )
 
 GOTO :EXIT

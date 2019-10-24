@@ -58,7 +58,7 @@ bool me_builtins::list_load_2(interpreter_base &interp0, size_t arity, term args
 	if (interp.is_dotted_pair(rest)) {
 	    filename_term = interp.arg(rest, 0);
 	} else {
-	    filename_term = interp.empty_list();
+	    filename_term = interp.EMPTY_LIST;
 	}
     }
 
@@ -99,8 +99,8 @@ bool me_builtins::operator_at_2_meta(interpreter_base &interp0, const interp::me
     auto &interp = to_local(interp0);
     auto *mc = interp.get_current_meta_context<meta_context_operator_at>();
 
-    interp.set_p(interp.empty_list());
-    interp.set_cp(interp.empty_list());
+    interp.set_p(interp.EMPTY_LIST);
+    interp.set_cp(interp.EMPTY_LIST);
 
     if (reason == interp::meta_reason_t::META_DELETE) {
 	interp.release_last_meta_context();
@@ -148,7 +148,7 @@ bool me_builtins::operator_at_2_meta(interpreter_base &interp0, const interp::me
 	return false;
     } else {
 	interp.allocate_choice_point(code_point::fail());
-	interp.set_p(interp.empty_list());
+	interp.set_p(interp.EMPTY_LIST);
     }
 
     return interp.unify(qr, r.result());
@@ -215,7 +215,7 @@ bool me_builtins::peers_2(interpreter_base &interp0, size_t arity, term args[] )
     auto rest = book().get_randomly_from_bottom_90_pt(static_cast<size_t>(n-best.size()));
 
     // Create a list out of entries
-    term result = interp.empty_list();
+    term result = interp.EMPTY_LIST;
     for (auto &e : best) {
 	result = interp.new_dotted_pair(e.to_term(interp), result);
     }

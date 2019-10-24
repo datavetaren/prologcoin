@@ -436,7 +436,7 @@ bool terminal::process_query_reply()
 	auto touched = e.prettify_var_names(result_term);
 	auto vars = e.arg(result_term,1);
 
-	if (vars == e.empty_list()) {
+	if (vars == e.EMPTY_LIST) {
 	    if (result_to_text_) {
 		if (has_more_) {
 		    add_text_output_no_nl("true ");
@@ -448,7 +448,7 @@ bool terminal::process_query_reply()
 	}
 
 	bool non_empty = false;
-	while (vars != e.empty_list()) {
+	while (vars != e.EMPTY_LIST) {
 	    if (!e.is_dotted_pair(vars)) {
 		add_error("Unexpected result. Second argument of result/4 was not a proper list. " + e.to_string(e.arg(result_term,1)));
 		return false;
