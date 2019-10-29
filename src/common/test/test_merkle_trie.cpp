@@ -12,6 +12,7 @@
 using namespace prologcoin::common;
 
 #define PERFORMANCE_TEST 0
+#define PERFORMANCE_FULL_NODE_TEST 0
 
 static void header( const std::string &str )
 {
@@ -166,6 +167,41 @@ static void test_merkle_trie_performance()
 }
 #endif
 
+#if PERFORMANCE_TEST || PERFORMANCE_FULL_NODE_TEST
+
+//
+// This test takes about 266 seconds and produces a ~3.7 GB data structure.
+//
+static void test_merkle_trie_full_node_performance()
+{
+    header( "test_merkle_trie_full_node_performance" );
+
+    static const size_t N = 100000000; // 100 million
+
+    static const uint64_t SPARSENESS = 10000000000; // 10 billion (1% density)
+    
+    merkle_trie<uint64_t,60> mtrie; mtrie.set_auto_rehash(false);
+
+    std::cout << "Insert " << N << " random keys & values." << std::endl;
+    std::cout << "Rebuild hashing from scratch to simulate full sync." << std::endl;
+    
+    auto time_start = utime::now();
+    for (size_t i = 0; i < N; i++) {
+        if (i % 1000000 == 0) std::cout << "progress i=" << i << std::endl;
+        auto key = random::next_int(static_cast<uint64_t>(SPARSENESS));
+        auto value = random::next_int(static_cast<uint64_t>(SPARSENESS));
+	
+        mtrie.insert(key, value);
+    }
+    mtrie.rehash_all();
+    auto hash = mtrie.hash();
+    auto time_end = utime::now();
+
+    std::cout << "Time: " << (time_end - time_start).in_ms() << std::endl;
+    std::cout << "Size: " << mtrie.num_bytes() << " bytes" << std::endl;
+}
+#endif
+
 int main(int argc, char *argv[])
 {
     random::set_for_testing(true);
@@ -175,5 +211,8 @@ int main(int argc, char *argv[])
 #if PERFORMANCE_TEST
     test_merkle_trie_performance();
 #endif
+#if PERFORMANCE_TEST || PERFORMANCE_FULL_NODE_TEST
+    test_merkle_trie_full_node_performance();
+#endif    
     return 0;
 }
