@@ -164,6 +164,22 @@ public:
         return t->num_bytes_helper();
     }
 
+    inline void rehash_all() {
+	auto m = mask_;
+	if (m == 0) {
+	    return;
+	}
+        for (size_t i = lsb(m); i < MAX_BRANCH;) {
+	    if (is_branch(i)) {
+	        merkle_trie_branch *child = get_branch(i);
+		child->rehash_all();
+	    }
+	    m &= (static_cast<word_t>(-1) << i) << 1;
+	    i = (m == 0) ? MAX_BRANCH : lsb(m);
+        }
+	recompute_hash();
+    }
+
     inline void insert_part(merkle_trie_branch *&parent, size_t _at_part, bool rehash, uint64_t _index, T _value) {
 	size_t sub_index = (_index >> (L - MAX_BRANCH_BITS - _at_part)) & (MAX_BRANCH-1);
         if (parent->is_empty(sub_index)) {
@@ -187,6 +203,8 @@ public:
 	    new_branch->mask_ = static_cast<word_t>(1) << sub_sub_index;
 	    new_branch->leaf_ = static_cast<word_t>(1) << sub_sub_index;
 	    insert_part(new_branch, _at_part + MAX_BRANCH_BITS, rehash, _index, _value );
+	    if (rehash) new_branch->recompute_hash();
+	    
 	    parent->set_branch(sub_index, new_branch);
 	    if (rehash) parent->recompute_hash();
 	    return;
@@ -288,16 +306,14 @@ private:
 	word_t m = mask_;
 	if (m != 0) {
     	    for (size_t i = lsb(m); i < MAX_BRANCH;) {
-	        if (!is_empty(i)) {
-	            if (is_leaf(i)) {
-		        get_leaf(i)->compute_hash(s);
-		    } else {
-		        auto &h = get_branch(i)->hash();
-		        blake2b_update(s, &h.data[0], sizeof(h));
-		    }
-		}
-		m &= ((static_cast<word_t>(-1) << i) << 1);
-		i = (m == 0) ? MAX_BRANCH : lsb(m);
+	        if (is_leaf(i)) {
+	            get_leaf(i)->compute_hash(s);
+	        } else {
+	            auto &h = get_branch(i)->hash();
+	            blake2b_update(s, &h.data[0], sizeof(h));
+	        }
+   	        m &= ((static_cast<word_t>(-1) << i) << 1);
+	        i = (m == 0) ? MAX_BRANCH : lsb(m);
 	    }
 	}
         blake2b_final(&s[0], &hash_.data[0], sizeof(hash_));
@@ -398,13 +414,19 @@ public:
   
     merkle_trie() {
         root = new merkle_trie_branch<T,L>();
+	dirty = false;
+	auto_rehash = true;
     }
 
     inline void insert(uint64_t _index, T _value) {
-        root->insert_part(root, 0, true, _index, _value);
+        root->insert_part(root, 0, auto_rehash, _index, _value);
+	if (!auto_rehash) {
+	    dirty = true;
+	}
     }
 
     inline const hash_t & hash() const {
+        assert(!dirty);
         return root->hash();
     }
 
@@ -419,9 +441,20 @@ public:
     inline merkle_trie_iterator<T,L> end() {
         return merkle_trie_iterator<T,L>(nullptr);
     }
+
+    inline void set_auto_rehash(bool b) {
+        auto_rehash = b;
+    }
+
+    inline void rehash_all() {
+        root->rehash_all();
+	dirty = false;
+    }
   
 private:
     merkle_trie_branch<T,L> *root;
+    bool dirty;
+    bool auto_rehash;
 };
 
 }}
