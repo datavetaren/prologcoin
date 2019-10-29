@@ -382,7 +382,7 @@ private:
     inline void next() {
         auto node = spine.back().node;
         auto index = spine.back().index;
-        merkle_trie_branch<T,L>::word_t mask_next = node->mask_ & ((static_cast<mtrie::word_t>(-1) << index) << 1);
+        typename mtrie::word_t mask_next = node->mask_ & ((static_cast<typename mtrie::word_t>(-1) << index) << 1);
         while (mask_next == 0) {
   	    spine.pop_back();
 	    if (spine.empty()) {
@@ -390,7 +390,7 @@ private:
 	    }
 	    node = spine.back().node;
 	    index = spine.back().index;
-	    mask_next = node->mask_ & ((static_cast<mtrie::word_t>(-1) << index) << 1);
+	    mask_next = node->mask_ & ((static_cast<typename mtrie::word_t>(-1) << index) << 1);
         }
         spine.back().index = lsb(mask_next);
         leftmost();

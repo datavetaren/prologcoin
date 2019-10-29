@@ -251,8 +251,8 @@ std::string dat_cell::inner_str() const
 
 heap::heap() 
   : size_(0),
-    external_ptrs_max_(0),
-    coin_security_enabled_(true)
+    coin_security_enabled_(true),
+    external_ptrs_max_(0)
 {
     new_block(0);
 }
