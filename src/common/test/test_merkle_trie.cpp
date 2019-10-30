@@ -59,7 +59,7 @@ static void test_merkle_trie_order()
 
 static void test_merkle_trie_hash()
 {
-    header( "test_merkle_trie" );
+    header( "test_merkle_trie_hash" );
 
     static const size_t N = 10000;
 
@@ -108,6 +108,86 @@ static void test_merkle_trie_hash()
     
     std::cout << "Time: " << (time_end - time_start).in_ms() << std::endl;
 }
+
+#if 0
+static void test_merkle_trie_remove()
+{
+    header( "test_merkle_trie_remove" );
+
+    static const size_t N = 10000;
+
+    std::cout << "Generate " << N << " random keys & values." << std::endl;
+    
+    uint64_t *keys = new uint64_t[N];
+    uint64_t *values = new uint64_t[N];
+    for (size_t i = 0; i < N; i++) {
+        keys[i] = random::next_int(static_cast<uint64_t>(1000000000));
+	values[i] = random::next_int(static_cast<uint64_t>(1000000000));
+    }
+    
+    merkle_trie<uint64_t,60> mtrie1;
+    merkle_trie<uint64_t,60> mtrie2;
+
+    std::cout << "Insert them into two tries, latter one for only half the first elements." << std::endl;
+        
+    auto time_start = utime::now();
+
+    // Verify that hash is independent of insertion order
+    for (size_t i = 0; i < N; i++) {
+        mtrie1.insert(keys[i], values[i]);
+    }
+    for (size_t i = 0; i < N/2; i++) {
+	mtrie2.insert(keys[i], values[i]);
+    }
+
+    std::cout << "Integrity check. See if all elements exist." << std::endl;
+
+    // Integrity check
+    for (size_t i = 0; i < N; i++) {
+	auto *v = mtrie1.find(keys[i]);
+	assert(v != nullptr);
+	assert(*v == values[i]);
+    }
+
+    std::cout << "Remove the latter half elements from the first trie." << std::endl;
+
+    for (size_t i = N/2; i < N; i++) {
+	std::cout << "i=" << i << " remove: " << keys[i] << std::endl;
+	mtrie1.remove(keys[i]);
+	if (i == 5043) {
+	    exit(1);
+	}
+    }
+
+    auto it1 = mtrie1.begin();
+    auto it2 = mtrie2.begin();
+    while (it1 != mtrie1.end()) {
+	std::cout << "Check: " << (*it1).index() << " " << (*it2).index() << std::endl;
+	assert((*it1).index() == (*it2).index());
+	++it1;
+	++it2;
+    }
+
+    std::cout << "They should now be equal." << std::endl;
+
+    auto hash1 = mtrie1.hash();
+    auto hash2 = mtrie2.hash();
+
+    auto time_end = utime::now();
+
+    std::cout << "Hash1 is: " << hex::to_string(reinterpret_cast<uint8_t *>(hash1.data), 32) << std::endl;
+    std::cout << "Hash2 is: " << hex::to_string(reinterpret_cast<uint8_t *>(hash2.data), 32) << std::endl;
+    assert(hash1 == hash2);
+    
+    std::cout << "Number of bytes 1: " << mtrie1.num_bytes() << std::endl;
+    std::cout << "Number of bytes 2: " << mtrie2.num_bytes() << std::endl;
+
+    delete [] keys;
+    delete [] values;
+    
+    std::cout << "Time: " << (time_end - time_start).in_ms() << std::endl;
+}
+#endif
 
 #if PERFORMANCE_TEST
 static void test_merkle_trie_performance()
@@ -208,6 +288,9 @@ int main(int argc, char *argv[])
 
     test_merkle_trie_order();
     test_merkle_trie_hash();
+#if 0
+    test_merkle_trie_remove();
+#endif
 #if PERFORMANCE_TEST
     test_merkle_trie_performance();
 #endif

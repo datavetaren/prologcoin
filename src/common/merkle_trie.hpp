@@ -61,20 +61,14 @@ struct merkle_trie_hash_t {
 template<typename T> class merkle_trie_leaf {
 public:
     inline merkle_trie_leaf() { }
-    inline merkle_trie_leaf(size_t _index, size_t _value)
+    inline merkle_trie_leaf(uint64_t _index, size_t _value)
       : index_(_index), value_(_value) { }
-
-    inline bool insert(size_t _index, T _value) {
-        index_ = _index;
-        value_ = _value;
-        return true;
-    }
 
     inline void compute_hash(blake2b_state *s) {
         blake2b_update(s, &value_, sizeof(value_));
     }
 
-    inline size_t index() const {
+    inline uint64_t index() const {
         return index_;
     }
   
@@ -87,7 +81,7 @@ public:
     }
 
 private:
-    size_t index_;
+    uint64_t index_;
     T value_;
 };
 
@@ -180,10 +174,10 @@ public:
 	recompute_hash();
     }
 
-    inline void insert_part(merkle_trie_branch *&parent, size_t _at_part, bool rehash, uint64_t _index, T _value) {
+    inline void insert_part(merkle_trie_branch *&parent, size_t _at_part, bool rehash, uint64_t _index, const T &_value) {
 	size_t sub_index = (_index >> (L - MAX_BRANCH_BITS - _at_part)) & (MAX_BRANCH-1);
         if (parent->is_empty(sub_index)) {
-	    reallocate(parent, sub_index);
+	    reallocate_insert(parent, sub_index);
 	    auto *leaf = new_leaf(_index, _value);
 	    parent->set_leaf(sub_index, leaf);
 	    if (rehash) parent->recompute_hash();
@@ -213,6 +207,80 @@ public:
 	insert_part(child, _at_part + MAX_BRANCH_BITS, rehash, _index, _value);
 	parent->set_branch(sub_index, child);
 	if (rehash) parent->recompute_hash();
+    }
+
+    inline merkle_trie_leaf<T> * find_part(merkle_trie_branch *parent, size_t _at_part, uint64_t _index) {
+	size_t sub_index = (_index >> (L - MAX_BRANCH_BITS - _at_part)) & (MAX_BRANCH-1);
+	if (parent->is_empty(sub_index)) {
+	    return nullptr;
+	}
+	if (parent->is_leaf(sub_index)) {
+	    auto *leaf = parent->get_leaf(sub_index);
+	    if (leaf->index() == _index) {
+		return leaf;
+	    } else {
+		return nullptr;
+	    }
+	} else {
+	    auto *child = parent->get_branch(sub_index);
+	    return find_part(child, _at_part + MAX_BRANCH_BITS, _index);
+	}
+    }
+
+    inline bool remove_part(merkle_trie_branch *&parent, size_t _at_part, bool rehash, uint64_t _index) {
+	size_t sub_index = (_index >> (L - MAX_BRANCH_BITS - _at_part)) & (MAX_BRANCH-1);
+        if (parent->is_empty(sub_index)) {
+	    return false; // Key doesn't exist
+	}
+	if (parent->is_leaf(sub_index)) {
+	    auto *leaf = parent->get_leaf(sub_index);
+	    if (leaf->index() == _index) {
+		// Element found!
+		parent->delete_child(sub_index);
+		reallocate_remove(parent, sub_index);
+	    } else {
+		// Element not found!
+		return false;
+	    }
+	} else {
+	    // Branch
+	    auto *child = parent->get_branch(sub_index);
+	    bool r = remove_part(child, _at_part + MAX_BRANCH_BITS, rehash, _index);
+	    if (!r) {
+		return false;
+	    }
+	    if (child == nullptr) {
+		// Branch node was deleted
+		parent->delete_child(sub_index);
+		reallocate_remove(parent, sub_index);
+	    } else {
+		parent->set_branch(sub_index, child);
+	    }
+	}
+	size_t n = parent->num_children();
+	if (n == 0) {
+	    // This should be deleted
+	    parent = nullptr;
+	} else {
+	    if (n == 1) {
+		// Replace singleton X -> Y -> Z with X -> Z
+		size_t other_sub_index = lsb(parent->mask_);
+		if (parent->is_branch(other_sub_index)) {
+		    auto *branch = parent->get_branch(other_sub_index);
+		    if (branch->num_children() == 1) {
+			size_t sub_sub_index = lsb(branch->mask_);
+			if (branch->is_leaf(sub_sub_index)) {
+			    auto *leaf = branch->get_leaf(sub_sub_index);
+			    ::operator delete(branch);
+			    parent->set_leaf(other_sub_index, leaf);
+			}
+		    }
+		}
+	    }
+	    // Node is not deleted, so recompute hash
+	    if (rehash) parent->recompute_hash();
+	}
+	return true;
     }
 
 private:
@@ -250,15 +318,11 @@ private:
         return ((mask_ >> sub_index) & 1) == 0;
     }
 
-    inline bool is_empty(size_t from, size_t to) const {
-        return (mask_ >> from) & ((static_cast<word_t>(1) << to)-1);
-    }
-
     inline size_t num_children() const {
         return std::bitset<MAX_BRANCH>(mask_).count();
     }
 
-    inline void reallocate(merkle_trie_branch *&parent, size_t sub_index) {
+    inline void reallocate_insert(merkle_trie_branch *&parent, size_t sub_index) {
         size_t n = parent->num_children() + 1;
         merkle_trie_branch *new_parent = reinterpret_cast<merkle_trie_branch *>(::operator new(sizeof(merkle_trie_branch) + sizeof(void *)*n));
 	size_t n_left = std::bitset<MAX_BRANCH>(parent->mask_ & ((static_cast<word_t>(1) << sub_index) - 1)).count();
@@ -268,6 +332,21 @@ private:
 	new_parent->data_[n_left] = nullptr;
 	new_parent->mask_ = parent->mask_;
 	new_parent->leaf_ = parent->leaf_;
+	::operator delete(parent);
+	parent = new_parent;
+    }
+
+    inline void reallocate_remove(merkle_trie_branch *&parent, size_t sub_index) {
+        size_t n = parent->num_children() - 1;
+        merkle_trie_branch *new_parent = reinterpret_cast<merkle_trie_branch *>(::operator new(sizeof(merkle_trie_branch) + sizeof(void *)*n));
+	size_t n_left = std::bitset<MAX_BRANCH>(parent->mask_ & ((static_cast<word_t>(1) << sub_index) - 1)).count();
+	size_t n_right = std::bitset<MAX_BRANCH>((parent->mask_ >> sub_index) >> 2).count();
+	std::copy(parent->data_, parent->data_+n_left, &new_parent->data_[0]);
+	if (parent->data_+n_left+1 < parent->data_+n_left+n_right) {
+	    std::copy(parent->data_+n_left+1, parent->data_+n_left+n_right, &new_parent->data_[n_left]);
+	}
+	new_parent->mask_ = parent->mask_ & ~(static_cast<word_t>(1) << sub_index);
+	new_parent->leaf_ = parent->leaf_ & ~(static_cast<word_t>(1) << sub_index);
 	::operator delete(parent);
 	parent = new_parent;
     }
@@ -282,6 +361,15 @@ private:
 
     inline merkle_trie_branch * get_branch(size_t sub_index) {
         return reinterpret_cast<merkle_trie_branch *>(data_[get_child_index(sub_index)]);
+    }
+
+    inline void delete_child(size_t sub_index) {
+	if (is_leaf(sub_index)) {
+	    delete get_leaf(sub_index);
+	} else {
+	    // Branch!
+	    ::operator delete( get_branch(sub_index) );
+	}
     }
 
     inline void set_leaf(size_t sub_index, merkle_trie_leaf<T> *leaf) {
@@ -418,8 +506,23 @@ public:
 	auto_rehash = true;
     }
 
-    inline void insert(uint64_t _index, T _value) {
+    inline void insert(uint64_t _index, const T &_value) {
         root->insert_part(root, 0, auto_rehash, _index, _value);
+	if (!auto_rehash) {
+	    dirty = true;
+	}
+    }
+
+    inline const T * find(uint64_t _index) const {
+	auto *leaf = root->find_part(root, 0, _index);
+	if (leaf == nullptr) {
+	    return nullptr;
+	}
+	return &leaf->value();
+    }
+
+    inline void remove(uint64_t _index) {
+	root->remove_part(root, 0, auto_rehash, _index);
 	if (!auto_rehash) {
 	    dirty = true;
 	}
