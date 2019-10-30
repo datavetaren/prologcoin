@@ -109,7 +109,7 @@ static void test_merkle_trie_hash()
     std::cout << "Time: " << (time_end - time_start).in_ms() << std::endl;
 }
 
-#if 0
+
 static void test_merkle_trie_remove()
 {
     header( "test_merkle_trie_remove" );
@@ -136,6 +136,7 @@ static void test_merkle_trie_remove()
     for (size_t i = 0; i < N; i++) {
         mtrie1.insert(keys[i], values[i]);
     }
+    mtrie1.internal_integrity_check();
     for (size_t i = 0; i < N/2; i++) {
 	mtrie2.insert(keys[i], values[i]);
     }
@@ -152,22 +153,18 @@ static void test_merkle_trie_remove()
     std::cout << "Remove the latter half elements from the first trie." << std::endl;
 
     for (size_t i = N/2; i < N; i++) {
-	std::cout << "i=" << i << " remove: " << keys[i] << std::endl;
 	mtrie1.remove(keys[i]);
-	if (i == 5043) {
-	    exit(1);
-	}
     }
+    mtrie1.internal_integrity_check();	
 
     auto it1 = mtrie1.begin();
     auto it2 = mtrie2.begin();
     while (it1 != mtrie1.end()) {
-	std::cout << "Check: " << (*it1).index() << " " << (*it2).index() << std::endl;
 	assert((*it1).index() == (*it2).index());
 	++it1;
 	++it2;
     }
-
+    
     std::cout << "They should now be equal." << std::endl;
 
     auto hash1 = mtrie1.hash();
@@ -187,7 +184,6 @@ static void test_merkle_trie_remove()
     
     std::cout << "Time: " << (time_end - time_start).in_ms() << std::endl;
 }
-#endif
 
 #if PERFORMANCE_TEST
 static void test_merkle_trie_performance()
@@ -288,9 +284,7 @@ int main(int argc, char *argv[])
 
     test_merkle_trie_order();
     test_merkle_trie_hash();
-#if 0
     test_merkle_trie_remove();
-#endif
 #if PERFORMANCE_TEST
     test_merkle_trie_performance();
 #endif

@@ -4,7 +4,12 @@
 #define _common_merkle_trie_hpp
 
 #include <bitset>
+#include <iostream>
 #include "blake2.hpp"
+
+extern "C" {
+  void DebugBreak();
+}
 
 namespace prologcoin { namespace common {
 
@@ -103,10 +108,12 @@ namespace detail {
 }
 
 template<typename T, size_t L> class merkle_trie_iterator;
+template<typename T, size_t L> class merkle_trie;    
     
 template<typename T, size_t L> class merkle_trie_branch {
 private:
     friend class merkle_trie_iterator<T,L>;
+    friend class merkle_trie<T,L>;
     // My empirical studies show that for insertion of 1 million random
     // elements with incremental rehasing:
     // For SPARSENESS=1000000000 (1 billion, 0.1% density)
@@ -249,34 +256,29 @@ public:
 	    if (!r) {
 		return false;
 	    }
+	    
 	    if (child == nullptr) {
-		// Branch node was deleted
-		parent->delete_child(sub_index);
 		reallocate_remove(parent, sub_index);
 	    } else {
-		parent->set_branch(sub_index, child);
+	        // Replace singleton X -> Y -> Z with X -> Z
+	        size_t other_sub_index = 0;
+		if (child->num_children() == 1 &&
+		    ((other_sub_index = lsb(child->mask_)) || true) &&
+		    child->is_leaf(other_sub_index)) {
+		    auto *leaf = child->get_leaf(other_sub_index);
+		    delete child;
+		    parent->set_leaf(sub_index, leaf);
+		} else {
+		    parent->set_branch(sub_index, child);
+		}
 	    }
 	}
 	size_t n = parent->num_children();
 	if (n == 0) {
-	    // This should be deleted
+	    // No more children. Let's delete it.
+	    delete parent;
 	    parent = nullptr;
 	} else {
-	    if (n == 1) {
-		// Replace singleton X -> Y -> Z with X -> Z
-		size_t other_sub_index = lsb(parent->mask_);
-		if (parent->is_branch(other_sub_index)) {
-		    auto *branch = parent->get_branch(other_sub_index);
-		    if (branch->num_children() == 1) {
-			size_t sub_sub_index = lsb(branch->mask_);
-			if (branch->is_leaf(sub_sub_index)) {
-			    auto *leaf = branch->get_leaf(sub_sub_index);
-			    ::operator delete(branch);
-			    parent->set_leaf(other_sub_index, leaf);
-			}
-		    }
-		}
-	    }
 	    // Node is not deleted, so recompute hash
 	    if (rehash) parent->recompute_hash();
 	}
@@ -332,25 +334,24 @@ private:
 	new_parent->data_[n_left] = nullptr;
 	new_parent->mask_ = parent->mask_;
 	new_parent->leaf_ = parent->leaf_;
-	::operator delete(parent);
+	delete parent;
 	parent = new_parent;
     }
 
     inline void reallocate_remove(merkle_trie_branch *&parent, size_t sub_index) {
         size_t n = parent->num_children() - 1;
+
         merkle_trie_branch *new_parent = reinterpret_cast<merkle_trie_branch *>(::operator new(sizeof(merkle_trie_branch) + sizeof(void *)*n));
 	size_t n_left = std::bitset<MAX_BRANCH>(parent->mask_ & ((static_cast<word_t>(1) << sub_index) - 1)).count();
-	size_t n_right = std::bitset<MAX_BRANCH>((parent->mask_ >> sub_index) >> 2).count();
+	size_t n_right = std::bitset<MAX_BRANCH>((parent->mask_ >> sub_index) >> 1).count();
 	std::copy(parent->data_, parent->data_+n_left, &new_parent->data_[0]);
-	if (parent->data_+n_left+1 < parent->data_+n_left+n_right) {
-	    std::copy(parent->data_+n_left+1, parent->data_+n_left+n_right, &new_parent->data_[n_left]);
-	}
+	std::copy(parent->data_+n_left+1, parent->data_+n_left+1+n_right, &new_parent->data_[n_left]);
 	new_parent->mask_ = parent->mask_ & ~(static_cast<word_t>(1) << sub_index);
 	new_parent->leaf_ = parent->leaf_ & ~(static_cast<word_t>(1) << sub_index);
-	::operator delete(parent);
+	delete parent;
 	parent = new_parent;
     }
-
+      
     inline size_t get_child_index(size_t sub_index) {
         return std::bitset<MAX_BRANCH>(mask_ & (static_cast<word_t>(1) << sub_index) - 1).count();
     }
@@ -365,10 +366,11 @@ private:
 
     inline void delete_child(size_t sub_index) {
 	if (is_leaf(sub_index)) {
-	    delete get_leaf(sub_index);
+	    auto *leaf = get_leaf(sub_index);
+	    delete leaf;
 	} else {
-	    // Branch!
-	    ::operator delete( get_branch(sub_index) );
+	    auto *branch = get_branch(sub_index);
+	    delete branch;
 	}
     }
 
@@ -405,6 +407,25 @@ private:
 	    }
 	}
         blake2b_final(&s[0], &hash_.data[0], sizeof(hash_));
+    }
+
+    inline void internal_integrity_check() {
+        assert(mask_ != 0);
+	word_t m = mask_;
+	for (size_t i = lsb(m); i < MAX_BRANCH;) {
+	    if (is_branch(i)) {
+	        auto *b = get_branch(i);
+		if (b->num_children() == 1) {
+		    size_t sub_index = lsb(b->mask_);
+		    if (b->is_leaf(sub_index)) {
+		        assert(false && "Should not be a singleton leaf with a singleton parent branch");
+		    }
+		}
+		b->internal_integrity_check();
+	    }
+	    m &= (static_cast<word_t>(-1) << i) << 1;
+	    i = (m == 0) ? MAX_BRANCH : lsb(m);
+	}
     }
 
     word_t mask_;
@@ -501,20 +522,20 @@ public:
     typedef merkle_trie_hash_t hash_t;
   
     merkle_trie() {
-        root = new merkle_trie_branch<T,L>();
+        root_ = new merkle_trie_branch<T,L>();
 	dirty = false;
 	auto_rehash = true;
     }
 
     inline void insert(uint64_t _index, const T &_value) {
-        root->insert_part(root, 0, auto_rehash, _index, _value);
+        root_->insert_part(root_, 0, auto_rehash, _index, _value);
 	if (!auto_rehash) {
 	    dirty = true;
 	}
     }
 
     inline const T * find(uint64_t _index) const {
-	auto *leaf = root->find_part(root, 0, _index);
+	auto *leaf = root_->find_part(root_, 0, _index);
 	if (leaf == nullptr) {
 	    return nullptr;
 	}
@@ -522,7 +543,7 @@ public:
     }
 
     inline void remove(uint64_t _index) {
-	root->remove_part(root, 0, auto_rehash, _index);
+	root_->remove_part(root_, 0, auto_rehash, _index);
 	if (!auto_rehash) {
 	    dirty = true;
 	}
@@ -530,15 +551,15 @@ public:
 
     inline const hash_t & hash() const {
         assert(!dirty);
-        return root->hash();
+        return root_->hash();
     }
 
     inline size_t num_bytes() const {
-        return root->num_bytes();
+        return root_->num_bytes();
     }
 
     inline merkle_trie_iterator<T,L> begin() {
-        return merkle_trie_iterator<T,L>(root);
+        return merkle_trie_iterator<T,L>(root_);
     }
 
     inline merkle_trie_iterator<T,L> end() {
@@ -550,12 +571,20 @@ public:
     }
 
     inline void rehash_all() {
-        root->rehash_all();
+        root_->rehash_all();
 	dirty = false;
     }
-  
+
+    inline merkle_trie_branch<T,L> * root() {
+        return root_;
+    }
+
+    inline void internal_integrity_check() {
+        return root_->internal_integrity_check();
+    }
+
 private:
-    merkle_trie_branch<T,L> *root;
+    merkle_trie_branch<T,L> *root_;
     bool dirty;
     bool auto_rehash;
 };
