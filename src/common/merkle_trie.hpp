@@ -532,7 +532,7 @@ private:
 	size_t index = get_index(_key, at_part);
 	auto m = node->mask_;
 	if (node->is_empty(index)) {
-  	    m &= (static_cast<mtrie::word_t>(-1) << index) << 1;
+  	    m &= (static_cast<typename mtrie::word_t>(-1) << index) << 1;
 	    index = (m == 0) ? mtrie::MAX_BRANCH : lsb(m);
 	    if (index == mtrie::MAX_BRANCH) {
 	        return;
@@ -551,7 +551,7 @@ private:
 
 	if (node->is_empty(index)) {
 	    m = node->mask_;
-  	    m &= (static_cast<mtrie::word_t>(-1) << index) << 1;	    
+  	    m &= (static_cast<typename mtrie::word_t>(-1) << index) << 1;	    
 	    index = (m == 0) ? mtrie::MAX_BRANCH : lsb(m);
    	    if (index == mtrie::MAX_BRANCH) {
 	        index = 31;
