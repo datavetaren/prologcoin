@@ -66,18 +66,25 @@ struct merkle_trie_hash_t {
 template<typename T> class merkle_trie_leaf {
 public:
     inline merkle_trie_leaf() { }
-    inline merkle_trie_leaf(uint64_t _index, size_t _value)
-      : index_(_index), value_(_value) { }
+    inline merkle_trie_leaf(uint64_t _key, const T &_value)
+      : key_(_key), value_(_value) { }
+    inline merkle_trie_leaf(uint64_t _key)
+      : key_(_key) { }
 
     inline void compute_hash(blake2b_state *s) {
+        blake2b_update(s, &key_, sizeof(key_));
         blake2b_update(s, &value_, sizeof(value_));
     }
 
-    inline uint64_t index() const {
-        return index_;
+    inline uint64_t key() const {
+        return key_;
     }
   
     inline const T & value() const {
+        return value_;
+    }
+
+    inline T & value() {
         return value_;
     }
 
@@ -86,8 +93,23 @@ public:
     }
 
 private:
-    uint64_t index_;
+    uint64_t key_;
     T value_;
+};
+
+// If we just want to represent bitsets, then the value is ignored
+template<> class merkle_trie_leaf<void> {
+public:
+    inline merkle_trie_leaf() { }
+    inline merkle_trie_leaf(uint64_t _key) : key_(_key) { }
+    inline void compute_hash(blake2b_state *s) {
+	blake2b_update(s, &key_, sizeof(key_));
+    }
+    inline uint64_t key() const {
+	return key_;
+    }
+private:
+    uint64_t key_;
 };
 
 namespace detail {
@@ -108,12 +130,12 @@ namespace detail {
 }
 
 template<typename T, size_t L> class merkle_trie_iterator;
-template<typename T, size_t L> class merkle_trie;    
+template<typename T, size_t L> class merkle_trie_base;
     
 template<typename T, size_t L> class merkle_trie_branch {
 private:
     friend class merkle_trie_iterator<T,L>;
-    friend class merkle_trie<T,L>;
+    friend class merkle_trie_base<T,L>;
     // My empirical studies show that for insertion of 1 million random
     // elements with incremental rehasing:
     // For SPARSENESS=1000000000 (1 billion, 0.1% density)
@@ -181,67 +203,66 @@ public:
 	recompute_hash();
     }
 
-    inline void insert_part(merkle_trie_branch *&parent, size_t _at_part, bool rehash, uint64_t _index, const T &_value) {
-	size_t sub_index = (_index >> (L - MAX_BRANCH_BITS - _at_part)) & (MAX_BRANCH-1);
+    inline merkle_trie_leaf<T> & insert_part(merkle_trie_branch *&parent, size_t _at_part, bool rehash, uint64_t _key) {
+	size_t sub_index = (_key >> (L - MAX_BRANCH_BITS - _at_part)) & (MAX_BRANCH-1);
         if (parent->is_empty(sub_index)) {
 	    reallocate_insert(parent, sub_index);
-	    auto *leaf = new_leaf(_index, _value);
+	    auto *leaf = new_leaf(_key);
 	    parent->set_leaf(sub_index, leaf);
 	    if (rehash) parent->recompute_hash();
-	    return;
+	    return *leaf;
 	}
 	if (parent->is_leaf(sub_index)) {
 	    auto *leaf = parent->get_leaf(sub_index);
-	    if (leaf->index() == _index) {
-	        leaf->set_value(_value);
+	    if (leaf->key() == _key) {
 		if (rehash) parent->recompute_hash();
-		return;
+		return *leaf;
 	    }
 	    // We need to create a branch node at sub_index
 	    auto *new_branch = reinterpret_cast<merkle_trie_branch *>(::operator new(sizeof(merkle_trie_branch) + sizeof(void *)));
 	    new_branch->data_[0] = leaf;
-	    size_t sub_sub_index = (leaf->index() >> (L - 2*MAX_BRANCH_BITS - _at_part)) & (MAX_BRANCH-1);
+	    size_t sub_sub_index = (leaf->key() >> (L - 2*MAX_BRANCH_BITS - _at_part)) & (MAX_BRANCH-1);
 	    new_branch->mask_ = static_cast<word_t>(1) << sub_sub_index;
 	    new_branch->leaf_ = static_cast<word_t>(1) << sub_sub_index;
-	    insert_part(new_branch, _at_part + MAX_BRANCH_BITS, rehash, _index, _value );
+	    auto &leaf1 = insert_part(new_branch, _at_part + MAX_BRANCH_BITS, rehash, _key );
 	    if (rehash) new_branch->recompute_hash();
-	    
 	    parent->set_branch(sub_index, new_branch);
 	    if (rehash) parent->recompute_hash();
-	    return;
+	    return leaf1;
 	}
 	auto *child = parent->get_branch(sub_index);
-	insert_part(child, _at_part + MAX_BRANCH_BITS, rehash, _index, _value);
+	auto &leaf = insert_part(child, _at_part + MAX_BRANCH_BITS, rehash, _key);
 	parent->set_branch(sub_index, child);
 	if (rehash) parent->recompute_hash();
+	return leaf;
     }
 
-    inline merkle_trie_leaf<T> * find_part(merkle_trie_branch *parent, size_t _at_part, uint64_t _index) {
-	size_t sub_index = (_index >> (L - MAX_BRANCH_BITS - _at_part)) & (MAX_BRANCH-1);
+    inline merkle_trie_leaf<T> * find_part(merkle_trie_branch *parent, size_t _at_part, uint64_t _key) {
+	size_t sub_index = (_key >> (L - MAX_BRANCH_BITS - _at_part)) & (MAX_BRANCH-1);
 	if (parent->is_empty(sub_index)) {
 	    return nullptr;
 	}
 	if (parent->is_leaf(sub_index)) {
 	    auto *leaf = parent->get_leaf(sub_index);
-	    if (leaf->index() == _index) {
+	    if (leaf->key() == _key) {
 		return leaf;
 	    } else {
 		return nullptr;
 	    }
 	} else {
 	    auto *child = parent->get_branch(sub_index);
-	    return find_part(child, _at_part + MAX_BRANCH_BITS, _index);
+	    return find_part(child, _at_part + MAX_BRANCH_BITS, _key);
 	}
     }
 
-    inline bool remove_part(merkle_trie_branch *&parent, size_t _at_part, bool rehash, uint64_t _index) {
-	size_t sub_index = (_index >> (L - MAX_BRANCH_BITS - _at_part)) & (MAX_BRANCH-1);
+    inline bool remove_part(merkle_trie_branch *&parent, size_t _at_part, bool rehash, uint64_t _key) {
+	size_t sub_index = (_key >> (L - MAX_BRANCH_BITS - _at_part)) & (MAX_BRANCH-1);
         if (parent->is_empty(sub_index)) {
 	    return false; // Key doesn't exist
 	}
 	if (parent->is_leaf(sub_index)) {
 	    auto *leaf = parent->get_leaf(sub_index);
-	    if (leaf->index() == _index) {
+	    if (leaf->key() == _key) {
 		// Element found!
 		parent->delete_child(sub_index);
 		reallocate_remove(parent, sub_index);
@@ -252,7 +273,7 @@ public:
 	} else {
 	    // Branch
 	    auto *child = parent->get_branch(sub_index);
-	    bool r = remove_part(child, _at_part + MAX_BRANCH_BITS, rehash, _index);
+	    bool r = remove_part(child, _at_part + MAX_BRANCH_BITS, rehash, _key);
 	    if (!r) {
 		return false;
 	    }
@@ -386,8 +407,8 @@ private:
         data_[get_child_index(sub_index)] = reinterpret_cast<void *>(branch);
     }
 
-    inline merkle_trie_leaf<T> * new_leaf(size_t _index, const T &_value) {
-        return new merkle_trie_leaf<T>(_index, _value);
+    inline merkle_trie_leaf<T> * new_leaf(uint64_t _key) {
+        return new merkle_trie_leaf<T>(_key);
     }
 
     inline void recompute_hash() {
@@ -517,31 +538,34 @@ private:
     std::vector<cursor> spine;
 };
 
-template<typename T, size_t L> class merkle_trie {
+template<typename T, size_t L> class merkle_trie_base {
 public:
     typedef merkle_trie_hash_t hash_t;
   
-    merkle_trie() {
+    merkle_trie_base() {
         root_ = new merkle_trie_branch<T,L>();
 	dirty = false;
 	auto_rehash = true;
     }
 
-    inline void insert(uint64_t _index, const T &_value) {
-        root_->insert_part(root_, 0, auto_rehash, _index, _value);
+protected:
+    inline merkle_trie_leaf<T> & insert(uint64_t _key) {
+        auto &leaf = root_->insert_part(root_, 0, auto_rehash, _key);
 	if (!auto_rehash) {
 	    dirty = true;
 	}
+	return leaf;
     }
 
-    inline const T * find(uint64_t _index) const {
-	auto *leaf = root_->find_part(root_, 0, _index);
+    inline merkle_trie_leaf<T> * find(uint64_t _key) {
+	auto *leaf = root_->find_part(root_, 0, _key);
 	if (leaf == nullptr) {
 	    return nullptr;
 	}
-	return &leaf->value();
+	return leaf;
     }
 
+public:
     inline void remove(uint64_t _index) {
 	root_->remove_part(root_, 0, auto_rehash, _index);
 	if (!auto_rehash) {
@@ -587,6 +611,34 @@ private:
     merkle_trie_branch<T,L> *root_;
     bool dirty;
     bool auto_rehash;
+};
+
+template<typename T, size_t L> class merkle_trie : public merkle_trie_base<T,L> {
+public:
+    inline merkle_trie() { }
+
+    inline void insert(uint64_t _key, const T &_value) {
+	merkle_trie_base<T,L>::insert(_key).set_value(_value);
+    }
+    inline const T * find(uint64_t _key) {
+	if (auto *leaf = merkle_trie_base<T,L>::find(_key)) {
+	    return &(leaf->value());
+	} else {
+	    return nullptr;
+	}
+    }
+};
+
+template<size_t L> class merkle_trie<void,L> : public merkle_trie_base<void,L> {
+public:
+    inline merkle_trie() { }
+
+    inline void insert(uint64_t _key) {
+	merkle_trie_base<void,L>::insert(_key);
+    }
+    inline bool find(uint64_t _key) {
+	return merkle_trie_base<void,L>::find(_key) != nullptr;
+    }
 };
 
 }}

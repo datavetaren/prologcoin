@@ -46,7 +46,7 @@ static void test_merkle_trie_order()
     std::sort(keys, keys+N);
     size_t cnt = 0;
     for (auto &it : mtrie) {
-        auto i = it.index();
+        auto i = it.key();
 	assert(keys[cnt] == i);
 	cnt++;
     }
@@ -109,7 +109,6 @@ static void test_merkle_trie_hash()
     std::cout << "Time: " << (time_end - time_start).in_ms() << std::endl;
 }
 
-
 static void test_merkle_trie_remove()
 {
     header( "test_merkle_trie_remove" );
@@ -160,7 +159,7 @@ static void test_merkle_trie_remove()
     auto it1 = mtrie1.begin();
     auto it2 = mtrie2.begin();
     while (it1 != mtrie1.end()) {
-	assert((*it1).index() == (*it2).index());
+	assert((*it1).key() == (*it2).key());
 	++it1;
 	++it2;
     }
@@ -184,6 +183,47 @@ static void test_merkle_trie_remove()
     
     std::cout << "Time: " << (time_end - time_start).in_ms() << std::endl;
 }
+
+static void test_merkle_trie_bitset()
+{
+    header( "test_merkle_trie_bitset" );
+
+    static const size_t N = 10000;
+
+    std::cout << "Generate " << N << " random keys." << std::endl;
+    
+    uint64_t *keys = new uint64_t[N];
+    for (size_t i = 0; i < N; i++) {
+        keys[i] = random::next_int(static_cast<uint64_t>(1000000000));
+    }
+    
+    merkle_trie<void,60> mtrie;
+
+    std::cout << "Insert them into trie" << std::endl;
+        
+    auto time_start = utime::now();
+
+    // Verify that hash is independent of insertion order
+    for (size_t i = 0; i < N; i++) {
+        mtrie.insert(keys[i]);
+    }
+
+    auto time_end = utime::now();
+
+    std::cout << "Integrity check. See if all keys exist." << std::endl;
+
+    // Integrity check
+    for (size_t i = 0; i < N; i++) {
+	assert(mtrie.find(keys[i]));
+    }
+
+    std::cout << "Number of bytes: " << mtrie.num_bytes() << std::endl;
+
+    delete [] keys;
+
+    std::cout << "Time: " << (time_end - time_start).in_ms() << std::endl;
+}
+
 
 #if PERFORMANCE_TEST
 static void test_merkle_trie_performance()
@@ -285,6 +325,7 @@ int main(int argc, char *argv[])
     test_merkle_trie_order();
     test_merkle_trie_hash();
     test_merkle_trie_remove();
+    test_merkle_trie_bitset();
 #if PERFORMANCE_TEST
     test_merkle_trie_performance();
 #endif
