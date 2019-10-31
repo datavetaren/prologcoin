@@ -7,10 +7,6 @@
 #include <iostream>
 #include "blake2.hpp"
 
-extern "C" {
-  void DebugBreak();
-}
-
 namespace prologcoin { namespace common {
 
 static const uint8_t LSB_64_TABLE[64] = {
@@ -457,17 +453,27 @@ private:
 };
 
 
+template<typename T, size_t L> class merkle_trie_base;
+    
 template<typename T, size_t L> class merkle_trie_iterator {
 private:
-    typedef merkle_trie_branch<T,L> mtrie;
+    typedef merkle_trie_branch<T,L> mtrie;  
+    typedef merkle_trie_base<T,L> mbase;
   
 public:
-    inline merkle_trie_iterator(mtrie *root) {
+    inline merkle_trie_iterator(mbase *base, mtrie *root) {
+        base_ = base;
         if (root == nullptr) return;
         spine.push_back(cursor(root,0));
 	leftmost();
     }
 
+    inline merkle_trie_iterator(mbase *base, mtrie *root, uint64_t _key) {
+        base_ = base;
+        if (root == nullptr) return;
+	start_from_key(root, _key);
+    }
+  
     inline merkle_trie_iterator & operator ++ () {
         next();
         return *this;
@@ -487,6 +493,12 @@ public:
     inline const merkle_trie_leaf<T> & operator * () const {
         return *spine.back().node->get_leaf(spine.back().index);
     }
+
+    inline const merkle_trie_leaf<T> * operator -> () const {
+        return spine.back().node->get_leaf(spine.back().index);
+    }    
+
+  static merkle_trie_iterator & erase(merkle_trie_iterator &it);
 
 private:
     inline bool at_end() const {
@@ -510,6 +522,61 @@ private:
 	// At this point we've must found a leaf
     }
 
+    inline size_t get_index(uint64_t _key, size_t at_part) {
+        return (_key >> (L - mtrie::MAX_BRANCH_BITS - at_part)) & (mtrie::MAX_BRANCH-1);
+    }
+
+    inline void start_from_key(mtrie *_root, uint64_t _key) {
+        mtrie *node = _root;
+	size_t at_part = 0;
+	size_t index = get_index(_key, at_part);
+	auto m = node->mask_;
+	if (node->is_empty(index)) {
+  	    m &= (static_cast<mtrie::word_t>(-1) << index) << 1;
+	    index = (m == 0) ? mtrie::MAX_BRANCH : lsb(m);
+	    if (index == mtrie::MAX_BRANCH) {
+	        return;
+	    }
+	    spine.push_back(cursor(node, index));
+	    leftmost();
+	    return;
+	}
+
+	while (!node->is_empty(index) && node->is_branch(index)) {
+	    spine.push_back(cursor(node, index));
+	    node = node->get_branch(index);
+	    at_part += mtrie::MAX_BRANCH_BITS;
+	    index = get_index(_key, at_part);
+	}
+
+	if (node->is_empty(index)) {
+	    m = node->mask_;
+  	    m &= (static_cast<mtrie::word_t>(-1) << index) << 1;	    
+	    index = (m == 0) ? mtrie::MAX_BRANCH : lsb(m);
+   	    if (index == mtrie::MAX_BRANCH) {
+	        index = 31;
+		spine.push_back(cursor(node, index));		
+	        next();
+		return;
+	    }
+	    spine.push_back(cursor(node, index));
+	    leftmost();
+	    return;
+	}
+
+	spine.push_back(cursor(node, index));
+	
+	if (node->is_empty(index)) {
+  	    next();
+	}
+
+	// At this point we've must found a leaf, but we could get the one lower
+	auto *leaf = node->get_leaf(index);
+	if (leaf->key() < _key) {
+	    next();
+	}
+    }
+  
     inline void next() {
         auto node = spine.back().node;
         auto index = spine.back().index;
@@ -536,6 +603,7 @@ private:
 	    return node == other.node && index == other.index;
         }
     };
+    merkle_trie_base<T,L> *base_;
     std::vector<cursor> spine;
 };
 
@@ -552,6 +620,7 @@ template<> struct merkle_trie_updater<void> {
     
 template<typename T, size_t L> class merkle_trie_base {
 public:
+    friend class merkle_trie_iterator<T,L>;
     typedef merkle_trie_hash_t hash_t;
   
     inline merkle_trie_base() {
@@ -580,9 +649,16 @@ protected:
 public:
     inline void remove(uint64_t _index) {
 	root_->remove_part(root_, 0, auto_rehash, _index);
+	if (root_ == nullptr) {
+	    root_ = new merkle_trie_branch<T,L>();
+	}
 	if (!auto_rehash) {
 	    dirty = true;
 	}
+    }
+
+    inline merkle_trie_iterator<T,L> & erase(merkle_trie_iterator<T,L> &it) {
+        return merkle_trie_iterator<T,L>::erase(it);
     }
 
     inline const hash_t & hash() const {
@@ -595,11 +671,15 @@ public:
     }
 
     inline merkle_trie_iterator<T,L> begin() {
-        return merkle_trie_iterator<T,L>(root_);
+        return merkle_trie_iterator<T,L>(this, root_);
+    }
+
+    inline merkle_trie_iterator<T,L> begin(uint64_t key) {
+        return merkle_trie_iterator<T,L>(this, root_, key);
     }
 
     inline merkle_trie_iterator<T,L> end() {
-        return merkle_trie_iterator<T,L>(nullptr);
+        return merkle_trie_iterator<T,L>(this, nullptr);
     }
 
     inline void set_auto_rehash(bool b) {
@@ -625,6 +705,15 @@ private:
     bool auto_rehash;
 };
 
+template<typename T, size_t L> merkle_trie_iterator<T,L> & merkle_trie_iterator<T,L>::erase( merkle_trie_iterator<T,L> &it) 
+{
+    uint64_t k = (*it).key();
+    it.base_->remove(k);
+    it.spine.clear();
+    it.start_from_key(it.base_->root_, k);
+    return it;
+}
+    
 template<typename T, size_t L> class merkle_trie : public merkle_trie_base<T,L> {
 public:
     inline merkle_trie() { }
@@ -633,6 +722,7 @@ public:
         merkle_trie_updater<T> updater(_value);
         merkle_trie_base<T,L>::insert(_key, updater);
     }
+  
     inline const T * find(uint64_t _key) {
 	if (auto *leaf = merkle_trie_base<T,L>::find(_key)) {
 	    return &(leaf->value());

@@ -58,6 +58,10 @@ interpreter_base::interpreter_base() : register_pr_("", 0), arith_(*this), local
     save_state_fn_ = nullptr;
     restore_state_fn_ = nullptr;
     maximum_cost_ = std::numeric_limits<uint64_t>::max();
+
+    // This is only needed to be true for the global interpeter whichs
+    // tracks the global state.
+    frozen_closures.set_auto_rehash(false);
 }
 
 void interpreter_base::init()

@@ -9,6 +9,7 @@
 #include <tuple>
 #include <map>
 #include "../common/term_env.hpp"
+#include "../common/merkle_trie.hpp"
 #include "builtins.hpp"
 #include "builtins_opt.hpp"
 #include "file_stream.hpp"
@@ -1202,11 +1203,11 @@ private:
     // Locale
     locale locale_;
 
-    std::map<size_t, term> frozen_closures; // Standard red-black tree for compactness
+    common::merkle_trie<term,60> frozen_closures;
   
 protected:
     inline void set_frozen_closure(size_t index, term closure) {
-        frozen_closures[index] = closure;
+        frozen_closures.insert(index, closure);
 	heap_watch(index, true);
 	trail(index);
 	if (is_debug()) {
@@ -1214,7 +1215,7 @@ protected:
         }
     }
     inline void clear_frozen_closure(size_t index) {
-        frozen_closures.erase(index);
+        frozen_closures.remove(index);
 	heap_watch(index, false);
 	if (is_debug()) {
 	    std::cout << "Clear frozen closure: " << index << std::endl;
@@ -1222,11 +1223,11 @@ protected:
     }
     inline term get_frozen_closure(size_t index) {
         static const common::con_cell EMPTY_LIST("[]",0);
-	auto it = frozen_closures.find(index);
-	if (it == frozen_closures.end()) {
+	auto *v = frozen_closures.find(index);
+	if (v == nullptr) {
 	    return EMPTY_LIST;
 	}
-	return it->second;
+	return *v;
     }
 
     inline void unwind_frozen_closures(size_t a, size_t b) {
@@ -1241,9 +1242,9 @@ protected:
     inline void trim_heap(size_t new_size) {
         term_env::trim_heap(new_size);
 	// And we need to remove any pending frozen closures
-	for (auto it = frozen_closures.find(new_size);
-	     it != frozen_closures.end(); ++it) {
-	     size_t addr = it->first;
+	for (auto it = frozen_closures.begin(new_size);
+	     it != frozen_closures.end();) {
+   	     size_t addr = it->key();
 	     it = frozen_closures.erase(it);
 	     heap_watch(addr, false);
 	}
