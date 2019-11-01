@@ -310,8 +310,7 @@ public:
 
 class coin_security_exception : public term_exception {
 public:
-  coin_security_exception()
-    : term_exception( std::string("'$coin' is not allowed to be created in this context.")) { }
+    coin_security_exception();
 };
 
 //

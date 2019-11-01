@@ -4,6 +4,7 @@
 #include "session.hpp"
 #include "task_reset.hpp"
 #include "../ec/builtins.hpp"
+#include "../coin/builtins.hpp"
 
 namespace prologcoin { namespace node {
 
@@ -456,6 +457,7 @@ void local_interpreter::ensure_initialized()
 	load_builtins_file_io();
 
 	ec::builtins::load(*this);
+        coin::builtins::load(*this);
 
 	setup_local_builtins();
     }

@@ -4,10 +4,38 @@
 #define _coin_builtins_hpp
 
 #include "../common/term.hpp"
-#include "../interp/interpreter.hpp"
+#include "../interp/interpreter_base.hpp"
 
 namespace prologcoin { namespace coin {
 
+using interpreter_exception = prologcoin::interp::interpreter_exception;
+    
+class interpreter_exception_not_a_coin : public interpreter_exception
+{
+public:
+    interpreter_exception_not_a_coin(const std::string &msg)
+	: interpreter_exception(msg) { }
+};
+
+class interpreter_exception_coin_already_spent : public interpreter_exception
+{
+public:
+    interpreter_exception_coin_already_spent(const std::string &msg)
+	: interpreter_exception(msg) { }
+};
+
+class interpreter_exception_not_all_integers : public interpreter_exception {
+public:
+    interpreter_exception_not_all_integers(const std::string &msg)
+	: interpreter_exception(msg) { }  
+};
+
+class interpreter_exception_not_enough_coins : public interpreter_exception {
+public:
+    interpreter_exception_not_enough_coins(const std::string &msg)
+	: interpreter_exception(msg) { }  
+};
+    
 class builtins {
 public:
     using term = prologcoin::common::term;

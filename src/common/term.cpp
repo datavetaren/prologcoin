@@ -10,6 +10,13 @@ namespace prologcoin { namespace common {
 size_t heap::id_counter_ = 0;
 #endif
 
+// extern "C" { void DebugBreak(); }
+    
+coin_security_exception::coin_security_exception() 
+    : term_exception( std::string("'$coin' is not allowed to be created in this context.")) {
+    // DebugBreak();
+}
+    
 std::string cell::str() const
 {
     return inner_str() + ":" + tag().str();
@@ -540,5 +547,7 @@ void heap::print_status(std::ostream &out) const
 {
     out << "Heap status: Size: " << size_ << " External refs: " << external_ptr_count() << " (at most it was " << external_ptrs_max_ << ")\n";
 }
+
+
 
 }}
