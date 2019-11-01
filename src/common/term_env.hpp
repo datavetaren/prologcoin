@@ -246,6 +246,10 @@ public:
        { return T::get_heap().watched(addr); }  
     inline void heap_clear_watched()
        { T::get_heap().clear_watched(); }
+
+    // Disable coin security
+    inline typename heap::disabled_coin_security disable_coin_security()
+       { return T::get_heap().disable_coin_security(); }
 };
 
 class heap_bridge

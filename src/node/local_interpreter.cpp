@@ -457,11 +457,11 @@ void local_interpreter::ensure_initialized()
 
 	ec::builtins::load(*this);
 
-	setup_modules();
+	setup_local_builtins();
     }
 }
 
-void local_interpreter::setup_modules()
+void local_interpreter::setup_local_builtins()
 {
     load_builtin(con_cell("@",2), &me_builtins::operator_at_2);
 
@@ -489,6 +489,13 @@ void local_interpreter::setup_modules()
     load_builtin(ME, functor("initial_funds",1), &me_builtins::initial_funds_1);
     load_builtin(ME, functor("new_funds_per_second",1), &me_builtins::new_funds_per_second_1);
     load_builtin(ME, con_cell("funds",1), &me_builtins::funds_1);
+
+    // Import most EC builtins in common namespace to make it easier to use
+    load_builtin(con_cell("privkey", 1), &ec::builtins::privkey_1);
+    load_builtin(con_cell("privkey", 2), &ec::builtins::privkey_2);
+    load_builtin(con_cell("pubkey", 2), &ec::builtins::pubkey_2);
+    load_builtin(con_cell("address", 2), &ec::builtins::address_2);
+    load_builtin(con_cell("sign", 3), &ec::builtins::sign_3);
 }
 
 void local_interpreter::local_reset()

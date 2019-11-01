@@ -116,7 +116,7 @@ private:
 
     friend class me_builtins;
 
-    void setup_modules();
+    void setup_local_builtins();
 
     in_session_state &session_;
     bool initialized_;

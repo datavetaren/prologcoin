@@ -1,5 +1,5 @@
 @echo off
-SET MODULES=common interp secp256k1 pow ec node main
+SET MODULES=common interp secp256k1 pow ec coin node main
 
 IF "%1"=="all" (
 GOTO :ALL

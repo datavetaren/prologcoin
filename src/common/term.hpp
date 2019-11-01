@@ -873,7 +873,7 @@ public:
     void trim(size_t new_size);
 
     inline void coin_security_check(con_cell c) const {
-        if (!coin_security_enabled_ || c == COIN) {
+        if (coin_security_enabled_ && c == COIN) {
 	    throw coin_security_exception();
         }
     }
