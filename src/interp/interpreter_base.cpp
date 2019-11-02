@@ -434,6 +434,8 @@ void interpreter_base::load_builtins()
     load_builtin(functor("compound",1), &builtins::compound_1);
     load_builtin(functor("callable",1), &builtins::callable_1);
     load_builtin(con_cell("ground", 1), &builtins::ground_1);
+    load_builtin(functor("cyclic_term", 1), &builtins::cyclic_term_1);
+    load_builtin(functor("acyclic_term", 1), &builtins::acyclic_term_1);
     load_builtin(con_cell("is_list",1), &builtins::is_list_1);
 
     // Character properties

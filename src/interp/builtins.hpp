@@ -132,10 +132,10 @@ namespace prologcoin { namespace interp {
 	static bool ground_1(interpreter_base &interp, size_t arity, common::term args[]);
 
 	// cyclic_term/1
-	static bool cyclic_term(interpreter_base &interp, size_t arity, common::term args[]);
+	static bool cyclic_term_1(interpreter_base &interp, size_t arity, common::term args[]);
 
 	// acyclic_term/1
-	static bool acyclic_term(interpreter_base &interp, size_t arity, common::term args[]);
+	static bool acyclic_term_1(interpreter_base &interp, size_t arity, common::term args[]);
 
 	// is_list/1
 	static bool is_list_1(interpreter_base &interp, size_t arity, common::term args[]);
