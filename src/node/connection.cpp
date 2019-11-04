@@ -585,6 +585,11 @@ void in_connection::process_execution(const term cmd, bool in_query)
 			 	     standard_out,
 				     int_cell(last_cost) } ));
 	    } else {
+		// We're just copying the result from the session to our
+		// own lcoal heap. There's no danger in creating coins out of thin
+		// air.
+		auto disabled = e.disable_coin_security();
+
 		term closure = session_->query_closure();
 		term closure_copy = e.copy(closure, session_->env(), cost);
 		term result = e.arg(closure_copy, 0);

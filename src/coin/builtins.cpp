@@ -95,8 +95,8 @@ bool builtins::csplit_3(interpreter_base &interp, size_t arity, term args[]) {
     int64_t rem = coin_value(interp, args[0]);
     term values = args[1];
     while (!interp.is_empty_list(values)) {
-        auto val = coin_value(interp, interp.arg(values, 0));
-	rem -= val;
+        auto val = interp.arg(values, 0);
+	rem -= static_cast<int_cell &>(val).value();
 	if (rem < 0) {
 	    throw interpreter_exception_not_enough_coins("csplit/3: Second argument list of values sum exceeds coin value in first argument");
 	}
@@ -116,12 +116,13 @@ bool builtins::csplit_3(interpreter_base &interp, size_t arity, term args[]) {
     values = args[1];
     rem = coin_value(interp, args[0]);
     while (rem > 0 && !interp.is_empty_list(values)) {
-        auto val = coin_value(interp, interp.arg(values, 0));
+        auto val0 = interp.arg(values, 0);
+	auto val = static_cast<int_cell &>(val0).value();
 	rem -= val;
 
 	auto new_coin = interp.new_term(coin, {int_cell(val)});
 	
-	if (!interp.unify(out, interp.new_term(term_env::DOTTED_PAIR, {new_coin}))) {
+	if (!interp.unify(interp.new_term(term_env::DOTTED_PAIR, {new_coin}), out)) {
 	    return false;
 	}
 	out = interp.arg(out, 1);
@@ -131,7 +132,7 @@ bool builtins::csplit_3(interpreter_base &interp, size_t arity, term args[]) {
 
     if (rem > 0) {
         auto rem_coin = interp.new_term(coin, {int_cell(rem)});    
-	if (!interp.unify(out, interp.new_term(term_env::DOTTED_PAIR, {rem_coin}))) {
+	if (!interp.unify(interp.new_term(term_env::DOTTED_PAIR, {rem_coin}), out)) {
 	    return false;
 	}
 	out = interp.arg(out, 1);	
