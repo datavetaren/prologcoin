@@ -433,8 +433,8 @@ bool terminal::process_query_reply()
 	    return false;
 	}
 
-	auto touched = e.prettify_var_names(result_term);
 	auto vars = e.arg(result_term,1);
+	auto touched = e.prettify_var_names(vars);
 
 	if (vars == e.EMPTY_LIST) {
 	    if (result_to_text_) {
