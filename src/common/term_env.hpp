@@ -4,6 +4,7 @@
 #define _common_term_env_hpp
 
 #include <iterator>
+#include <map>
 #include "term.hpp"
 #include "term_emitter.hpp"
 #include "term_parser.hpp"
@@ -752,7 +753,7 @@ public:
   {
       std::vector<term> touched;
 
-      std::unordered_map<term, size_t> count_occurrences;
+      std::map<term, size_t> count_occurrences;
       std::for_each(begin(t0),
 		  end(t0),
 		  [this,&count_occurrences] (const term t) {

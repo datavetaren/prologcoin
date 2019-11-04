@@ -108,8 +108,8 @@ void term_serializer::write_str_cell(buffer_t &bytes, size_t offset,
     size_t new_offset = bytes.size();
     bytes.resize(bytes.size() + sizeof(cell)*arity);
     for (size_t i = 0; i < arity; i++) {
-	term arg = env_.arg(c, i);
-	size_t arg_offset = new_offset + i*sizeof(cell);
+	term arg = env_.arg(c, arity-i-1);
+	size_t arg_offset = new_offset + (arity-i-1)*sizeof(cell);
 	stack_.push_back(std::make_pair(arg_offset,arg));
     }
 }

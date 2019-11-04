@@ -264,6 +264,10 @@ public:
 
     inline bool operator == (const cell other) const { return raw_value() == other.raw_value(); }
     inline bool operator != (const cell other) const { return raw_value() != other.raw_value(); }
+    inline bool operator < (const cell other) const { return raw_value() < other.raw_value(); }
+    inline bool operator <= (const cell other) const { return raw_value() <= other.raw_value(); }
+    inline bool operator > (const cell other) const { return raw_value() > other.raw_value(); }
+    inline bool operator >= (const cell other) const { return raw_value() >= other.raw_value(); }
 
     inline operator bool () const { return raw_value() != 0; }
 
