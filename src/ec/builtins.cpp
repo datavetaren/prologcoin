@@ -1,13 +1,14 @@
-#include "../secp256k1/secp256k1_ext.h"
+#include "../secp256k1/secp256k1.hpp"
 #include "builtins.hpp"
 #include "../common/random.hpp"
 #include "../common/utime.hpp"
 #include "../interp/interpreter_base.hpp"
 #include "../common/term_serializer.hpp"
 #include "../common/hex.hpp"
-#include "hash.h"
-#include "hash_impl.h"
 #include "ripemd160.h"
+
+#include "src/util.h"
+#include "src/hash_impl.h"
 
 namespace prologcoin { namespace ec {
 

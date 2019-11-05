@@ -13,6 +13,8 @@ public class make_vcproj
    static private string theOutDir;
    static private string theBinDir;
    static private string theBoostDir = "";
+   static private string theInclude1Dir = "";
+   static private string theInclude2Dir = "";
    static private string thePlatformToolset;
    static private string theBit = "32";
 
@@ -92,7 +94,14 @@ public class make_vcproj
 
        var itemDefGroup = project.Xml.AddItemDefinitionGroup();
        var clDef = itemDefGroup.AddItemDefinition("ClCompile");
-       string includeDirs = theBoostDir + ";" + "$(SolutionDir)" + MakeRelative(Path.GetFullPath(theSrcDir), theRootDir);
+       string includeDirs = "";
+       if (theInclude1Dir != "") {
+       	    includeDirs += "$(SolutionDir)" + MakeRelative(Path.GetFullPath(theInclude1Dir), theRootDir) + ";";
+       }
+       if (theInclude2Dir != "") {
+       	    includeDirs += "$(SolutionDir)" + MakeRelative(Path.GetFullPath(theInclude2Dir), theRootDir) + ";";
+       }
+       includeDirs += theBoostDir + ";" + "$(SolutionDir)" + MakeRelative(Path.GetFullPath(theSrcDir), theRootDir);
 
        clDef.AddMetadata("AdditionalIncludeDirectories", includeDirs);
 
@@ -228,7 +237,7 @@ public class make_vcproj
        List<string> deps = new List<string>();
        while((line = fs.ReadLine()) != null) {
           if (line.StartsWith("DEPENDS :=")) {
-	      string [] strDeps = line.Substring(11).Trim().Split(' ');
+	      string [] strDeps = line.Substring(10).Trim().Split(' ');
 	      foreach (var dep in strDeps) {
 	          if (dep.Trim().Length != 0) {
 	              deps.Add(dep);
@@ -449,6 +458,8 @@ public class make_vcproj
        string env = "";
        string boost = "";
        string bit = "";
+       string include1Dir = "";
+       string include2Dir = "";
        Console.WriteLine("make_vcproj");
        foreach (string x in args) {
            if (x.StartsWith("src=")) {
@@ -469,6 +480,12 @@ public class make_vcproj
 	   if (x.StartsWith("boost=")) {
 	      boost = x.Substring(6);
 	   }
+	   if (x.StartsWith("include1=")) {
+	      include1Dir = x.Substring(9);
+	   }
+	   if (x.StartsWith("include2=")) {
+	      include2Dir = x.Substring(9);
+	   }
        }
 
        Console.WriteLine("srcDir=" + srcDir);
@@ -477,7 +494,12 @@ public class make_vcproj
        Console.WriteLine("   env=" + env);
        Console.WriteLine("   bit=" + bit);
        Console.WriteLine("boost =" + boost);
-
+       if (include1Dir != "") {
+           Console.WriteLine("include1=" + include1Dir);
+       }
+       if (include2Dir != "") {
+           Console.WriteLine("include2=" + include2Dir);
+       }
        Directory.CreateDirectory(binDir);
        Directory.CreateDirectory(binDir + @"\test");
 
@@ -494,6 +516,8 @@ public class make_vcproj
        theBinDir = binDir;
        theBoostDir = boost;
        theBit = bit;
+       theInclude1Dir = include1Dir;
+       theInclude2Dir = include2Dir;
 
        // Iterate through directories from src
 

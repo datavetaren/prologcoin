@@ -52,7 +52,7 @@ private string thisMain;
        string [] deps = null;
        while((line = fs.ReadLine()) != null) {
           if (line.StartsWith("DEPENDS :=")) {
-	      deps = line.Substring(11).Trim().Split(' ');
+	      deps = line.Substring(10).Trim().Split(' ');
 	  }
        }
        fs.Close();

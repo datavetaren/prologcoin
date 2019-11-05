@@ -142,6 +142,16 @@ IF NOT "%DOEXE%"=="" (
 )
 
 SET CCFLAGS=!CCFLAGS! /I"!BOOST!"
+
+IF NOT "!CINCLUDE1!"=="" (
+   SET CCFLAGS=!CCFLAGS! /I"!CINCLUDE1!"
+)
+IF NOT "!CINCLUDE2!"=="" (
+   SET CCFLAGS=!CCFLAGS! /I"!CINCLUDE2!"
+)
+
+rem echo !CCFLAGS!
+
 SET LINKFLAGS=!LINKFLAGS! /LIBPATH:"!BOOST!\lib!BIT!-msvc-!VCVER!"
 set ABSROOT=%~dp0
 
@@ -263,13 +273,14 @@ REM
 	)
 	CALL :DBG
         IF "!DEBUGMODE!"=="1" set PDBFILE=/Fd:!OBJFILE:.obj=.pdb!
+rem        echo cl.exe !CCFLAGS! /Fo:!OBJFILE! !PDBFILE! !CPPFILE!
         cl.exe !CCFLAGS! /Fo:!OBJFILE! !PDBFILE! !CPPFILE!
 	set WORKDONE=1
-REM        echo cl.exe !CCFLAGS! /Fo:!OBJFILE! !PDBFILE! !CPPFILE!
         IF ERRORLEVEL 1 GOTO :EOF
     )
     set OBJ_FILES=!OBJ_FILES! "!OBJFILE!"
 )
+
 
 REM
 REM Ensure that bin directory is present
@@ -301,7 +312,6 @@ set PDBFILE=
 IF "!DEBUGMODE!"=="1" IF "!DOLIB!"=="" set PDBFILE=/pdb:"!GOAL:.exe=.pdb!"
 IF NOT "%DOEXE%"=="" (
     SET DEPEND_LIBS=!LIB_FILES!
-@echo %LINKCMD% %LINKFLAGS% /out:"!GOAL!" !PDBFILE! !DEPEND_LIBS! !OBJ_FILES!
     %LINKCMD% %LINKFLAGS% /out:"!GOAL!" !PDBFILE! !DEPEND_LIBS! !OBJ_FILES!
     
 )
@@ -521,7 +531,7 @@ mkdir %BIN%
 echo Compiling make_vcxproj.cs
 csc.exe /nologo /reference:Microsoft.Build.dll /reference:Microsoft.Build.Framework.dll /out:%BIN%\make_vcxproj.exe %ENV%\make_vcxproj.cs
 IF ERRORLEVEL 1 GOTO :EOF
-%BIN%\make_vcxproj.exe env=%VCNAME% bit=%BIT% src=%SRC% out=%OUT% bin=%BIN% boost="!BOOST!"
+%BIN%\make_vcxproj.exe env=%VCNAME% bit=%BIT% src=%SRC% out=%OUT% bin=%BIN% boost="!BOOST!" include1="!CINCLUDE!" include2="!CINCLUDE2!"
 
 GOTO :EOF
 
