@@ -500,8 +500,7 @@ term term_utils::copy(term c, naming_map &names,
                 auto new_arg = temp_pop();
                 // If this is a cyclic argument, we just record it and patch up later
                 if(cyclic) {
-                  std::pair<term, int> termarg(num_args-i-1, newstr);
-                  cyclic_args_map[dst_f] = termarg;
+                  cyclic_args_map[dst_f] = std::pair<term, int>(num_args-i-1, newstr);
                 } else {
                   set_arg(newstr, num_args-i-1, new_arg);
                 }
