@@ -1,3 +1,8 @@
+#pragma once
+
+#ifndef _secp256k1_hpp
+#define _secp256k1_hpp
+
 #define USE_BASIC_CONFIG 1
 #define SECP256K1_PREALLOACTED_SIZE_DECL
 #define SECP256K1_ECMULT_GEN_CONTEXT_PREALLOCATED_SIZE_DECL
@@ -19,3 +24,4 @@
 extern "C" {
 bool secp256k1_pedersen_commitment_load_pubkey(secp256k1_context *ctx, secp256k1_pedersen_commitment *commit, uint8_t pubkey[33]);
 }
+#endif
