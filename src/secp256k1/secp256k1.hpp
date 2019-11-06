@@ -6,7 +6,9 @@
 #define USE_BASIC_CONFIG 1
 #define SECP256K1_PREALLOACTED_SIZE_DECL
 #define SECP256K1_ECMULT_GEN_CONTEXT_PREALLOCATED_SIZE_DECL
+#if defined(_MSC_VER)
 #pragma warning(disable:4319)
+#endif
 #include "basic-config.h"
 #include "include/secp256k1.h"
 #include "include/secp256k1_ecdh.h"
