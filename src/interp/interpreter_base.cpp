@@ -81,6 +81,11 @@ void interpreter_base::init()
 
 interpreter_base::~interpreter_base()
 {
+    for (auto &p : managed_data_) {
+        auto md = p.second;
+	delete md;
+    }
+    managed_data_.clear();
     arith_.unload();
     close_all_files();
     register_cp_.reset();

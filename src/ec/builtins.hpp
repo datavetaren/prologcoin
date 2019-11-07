@@ -8,12 +8,22 @@
 
 namespace prologcoin { namespace ec {
 
+using interpreter_exception = ::prologcoin::interp::interpreter_exception;
+    
+class interpreter_exception_not_public_key : public interpreter_exception {
+public:
+  interpreter_exception_not_public_key(const std::string &msg) :
+      interpreter_exception(msg) { }
+};
+    
 class builtins {
 public:
     using term = prologcoin::common::term;
     using interpreter_base = prologcoin::interp::interpreter_base;
 
-    static void load(interpreter_base &interp);
+    static const size_t RAW_KEY_SIZE = 32;
+  
+    static void load(interpreter_base &interp, common::con_cell *module = nullptr);
 
     // privkey(X) true iff X is a private key.
     // Can be used to generate new private keys.
@@ -30,12 +40,45 @@ public:
     // address(X, Y) true iff Y is the bitcoin address of public key X.
     // Can also be used to generate the address Y from the public key X.
     static bool address_2(interpreter_base &interp, size_t arity, term args[] );
-    // sign(X, Data, Signture) true iff Signature is the obtained signature for
+
+    // sign(X, Data, Signature) true iff Signature is the obtained signature for
     // signing Data using X. If Signature is provided (not a variable), then
     // the same predicate can be used to verify the signature, but then
     // X is the public key.
     static bool sign_3(interpreter_base &interp, size_t arity, term args[] );
 
+    // mucomb(+PubKeys, -CombinedPubKey, -CombinedPubKeyHash) combine
+    // public keys and output the combined public key and its hash.
+    static bool mucomb_3(interpreter_base &interp, size_t arity, term args[] );
+  
+    // musig(-Session, +CombinedPubKey, +CombinedPubKeyHash, +MyIndex,
+    //       +NumSigners, +PrivateKey, +Data)
+    // Create new a MuSig session
+    static bool musig_7(interpreter_base &interp, size_t arity, term args[] );
+
+    // muget(-Session, -NonceCommitment)
+    // Get my nonce commitment
+    static bool muget_3(interpreter_base &interp, size_t arity, term args[] );
+
+    // mucommit(-Session, +NonceCommitments, -MyNonce)
+    // Set all nonce commitments (from all participants) and return my
+    // own nonce.
+    static bool mucommit_3(interpreter_base &interp, size_t arity, term args[] );
+
+    // munonce(-Session, +Nonces, +Adaptor)
+    // Set all nonces.
+    static bool munonce_3(interpreter_base &interp, size_t arity, term args[] );
+
+    // musign(-Session, -PartialSign)
+    static bool musign_2(interpreter_base &interp, size_t arity, term args[] );
+
+    // musign(-Session, +Signatures, -FinalSig)
+    static bool musign_3(interpreter_base &interp, size_t arity, term args[] );
+
+    // muvrfy(+Data, +CombinedPubKey, +FinalSig)
+    static bool muvrfy_3(interpreter_base &interp, size_t arity, term args[] );
+    
+  
     // pcommit(P, R, V) true iff P is a Pedersen commitment, i.e.
     // P = r*G + v*H. P is a variable.
     // static bool pcommit_3(interpreter_base &interp, size_t arity, term args[]);
@@ -52,7 +95,6 @@ public:
     static void pedersen_test();
 
 private:
-    static const size_t RAW_KEY_SIZE = 32;
 
     static void get_checksum(const uint8_t *bytes, size_t n, uint8_t checksum[4]);
 
@@ -60,17 +102,20 @@ private:
     static term new_bignum(interpreter_base &interp, const uint8_t *bytes, size_t n);
     static bool get_private_key(interpreter_base &interp, term big0, uint8_t rawkey[RAW_KEY_SIZE]);
     static bool get_public_key(interpreter_base &interp, term big0, uint8_t rawkey[RAW_KEY_SIZE+1]);
-    static bool compute_public_key(uint8_t priv_raw[RAW_KEY_SIZE],
+    static bool compute_public_key(interpreter_base &interp,
+	  			   uint8_t priv_raw[RAW_KEY_SIZE],
 				   uint8_t pub_raw[RAW_KEY_SIZE+1]);
     static term create_public_key(interpreter_base &interp,
 				  uint8_t pub_raw[RAW_KEY_SIZE+1]);
     static bool get_address(uint8_t pubkey[32], uint8_t address[20]);
-    static bool compute_signature(uint8_t hashed_data[32],
+    static bool compute_signature(interpreter_base &interp,
+				  uint8_t hashed_data[32],
 				  uint8_t priv_raw[RAW_KEY_SIZE],
 				  uint8_t signature[64]);
     static bool compute_signature(interpreter_base &interp, const term data,
 				  const term privkey, term &out_signature);
-    static bool verify_signature(uint8_t hash[32], uint8_t pubkey[33],
+    static bool verify_signature(interpreter_base &interp,
+			         uint8_t hash[32], uint8_t pubkey[33],
 				 uint8_t sign_data[64]);
 
     static bool verify_signature(interpreter_base &interp, const term data,
@@ -85,7 +130,7 @@ private:
 					const term blinding,
 					const term value,
 					uint8_t commit[33]);
-    static bool new_private_key(uint8_t rawkey[RAW_KEY_SIZE]);
+    static bool new_private_key(interpreter_base &interp, uint8_t rawkey[RAW_KEY_SIZE]);
     static term create_private_key(interpreter_base &interp, uint8_t rawkey[RAW_KEY_SIZE]);
 };
 

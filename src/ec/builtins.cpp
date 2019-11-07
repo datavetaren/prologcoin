@@ -15,6 +15,49 @@ namespace prologcoin { namespace ec {
 using namespace prologcoin::common;
 using namespace prologcoin::interp;
 
+class secp256k1_ctx : public managed_data {
+public:
+    inline secp256k1_ctx(unsigned int flags) {
+        ctx_ = secp256k1_context_create(flags);
+	scratch_ = secp256k1_scratch_space_create(ctx_, 1024*1024);
+    }
+    virtual ~secp256k1_ctx() override {
+        secp256k1_scratch_space_destroy(ctx_, scratch_);
+        secp256k1_context_destroy(ctx_);
+    }
+    inline operator secp256k1_context * () {
+        return ctx_;
+    }
+    inline secp256k1_scratch_space * scratch() {
+        return scratch_;
+    }
+private:
+    secp256k1_context *ctx_;
+    secp256k1_scratch_space *scratch_;
+};
+    
+static secp256k1_ctx & get_ctx(interpreter_base &interp) {
+    static const common::con_cell CONTEXT("$ecctx", 0);
+
+    secp256k1_ctx *c;
+    
+    if ((c = reinterpret_cast<secp256k1_ctx *>(
+		   interp.get_managed_data(CONTEXT))) == nullptr) {
+        c = new secp256k1_ctx(SECP256K1_CONTEXT_SIGN | SECP256K1_CONTEXT_VERIFY);
+        interp.set_managed_data(CONTEXT, c);
+    }
+
+    return *c;
+}
+    
+struct pubkey_t {
+    uint8_t data[builtins::RAW_KEY_SIZE+1];
+};
+
+struct privkey_t {
+    uint8_t data[builtins::RAW_KEY_SIZE];
+};
+
 void builtins::get_checksum(const uint8_t *bytes, size_t n, uint8_t checksum[4])
 {
     // Silence unused warnings
@@ -142,15 +185,9 @@ bool builtins::get_public_key(interpreter_base &interp, term big0, uint8_t pubke
     return true;
 }
 
-bool builtins::new_private_key(uint8_t rawkey[builtins::RAW_KEY_SIZE])
+bool builtins::new_private_key(interpreter_base &interp, uint8_t rawkey[builtins::RAW_KEY_SIZE])
 {
-    auto *ctx = secp256k1_context_create(SECP256K1_CONTEXT_SIGN);
-
-    struct cleanup {
-	cleanup(secp256k1_context *ctx) : ctx_(ctx) { }
-	~cleanup() { secp256k1_context_destroy(ctx_); }
-	secp256k1_context *ctx_;
-    } cleanup_(ctx);
+    auto &ctx = get_ctx(interp);
 
     bool ok = true;
     do {
@@ -168,17 +205,11 @@ bool builtins::privkey_1(interpreter_base &interp, size_t arity, term args[])
 
     uint8_t bytes[1+RAW_KEY_SIZE+8];
 
-    auto *ctx = secp256k1_context_create(SECP256K1_CONTEXT_SIGN);
-
-    struct cleanup {
-	cleanup(secp256k1_context *ctx) : ctx_(ctx) { }
-	~cleanup() { secp256k1_context_destroy(ctx_); }
-	secp256k1_context *ctx_;
-    } cleanup_(ctx);
+    auto &ctx = get_ctx(interp);
 
     if (args[0].tag() == tag_t::REF) {
 
-	new_private_key(&bytes[1]);
+        new_private_key(interp, &bytes[1]);
 	term big = create_private_key(interp, &bytes[1]);
 
 	return interp.unify(args[0], big);
@@ -216,16 +247,11 @@ bool builtins::privkey_2(interpreter_base &interp, size_t arity, term args[])
     return interp.unify(args[1], r);
 }
 
-bool builtins::compute_public_key(uint8_t priv_raw[builtins::RAW_KEY_SIZE],
+bool builtins::compute_public_key(interpreter_base &interp,
+				  uint8_t priv_raw[builtins::RAW_KEY_SIZE],
 				  uint8_t pub_raw[builtins::RAW_KEY_SIZE+1])
 {
-    auto *ctx = secp256k1_context_create(SECP256K1_CONTEXT_SIGN);
-
-    struct cleanup {
-	cleanup(secp256k1_context *ctx) : ctx_(ctx) { }
-	~cleanup() { secp256k1_context_destroy(ctx_); }
-	secp256k1_context *ctx_;
-    } cleanup_(ctx);
+    auto &ctx = get_ctx(interp);
 
     secp256k1_pubkey pubkey;
     bool r = secp256k1_ec_pubkey_create(ctx, &pubkey, &priv_raw[0]);
@@ -260,7 +286,7 @@ bool builtins::pubkey_2(interpreter_base &interp, size_t arity, term args[])
 	return false;
     }
     uint8_t pub_raw[RAW_KEY_SIZE+1];
-    if (!compute_public_key(&priv_raw[0], &pub_raw[0])) {
+    if (!compute_public_key(interp, &priv_raw[0], &pub_raw[0])) {
 	return false;
     }
     term big = create_public_key(interp, pub_raw);
@@ -365,17 +391,12 @@ bool builtins::get_hashed2_data(interpreter_base &interp, const term data,
     return true;
 }
 
-bool builtins::compute_signature(uint8_t hashed_data[32],
+bool builtins::compute_signature(interpreter_base &interp,
+				 uint8_t hashed_data[32],
 				 uint8_t priv_raw[builtins::RAW_KEY_SIZE],
 				 uint8_t signature[64])
 {
-    auto *ctx = secp256k1_context_create(SECP256K1_CONTEXT_SIGN);
-
-    struct cleanup {
-	cleanup(secp256k1_context *ctx) : ctx_(ctx) { }
-	~cleanup() { secp256k1_context_destroy(ctx_); }
-	secp256k1_context *ctx_;
-    } cleanup_(ctx);
+    auto &ctx = get_ctx(interp);
 
     secp256k1_ecdsa_signature sig;
     if (!secp256k1_ecdsa_sign(ctx, &sig, hashed_data, priv_raw,
@@ -404,7 +425,7 @@ bool builtins::compute_signature(interpreter_base &interp, const term data,
     }
 
     uint8_t signature[64];
-    compute_signature(hash, rawkey, signature);
+    compute_signature(interp, hash, rawkey, signature);
 
     // Generate a new private key. We'll use the bitcoin private key
     // format where first byte is 0x80 followed by 
@@ -432,17 +453,12 @@ bool builtins::get_signature_data(interpreter_base &interp, term big0, uint8_t s
     return true;
 }
 
-bool builtins::verify_signature(uint8_t hash[32],
+bool builtins::verify_signature(interpreter_base &interp,
+				uint8_t hash[32],
 				uint8_t pubkey[33],
 				uint8_t sign_data[64])
 {
-    auto *ctx = secp256k1_context_create(SECP256K1_CONTEXT_VERIFY);
-
-    struct cleanup {
-	cleanup(secp256k1_context *ctx) : ctx_(ctx) { }
-	~cleanup() { secp256k1_context_destroy(ctx_); }
-	secp256k1_context *ctx_;
-    } cleanup_(ctx);
+    auto &ctx = get_ctx(interp);
 
     secp256k1_pubkey pubkey1;
     if (!secp256k1_ec_pubkey_parse(ctx, &pubkey1, pubkey, 33)) {
@@ -480,7 +496,7 @@ bool builtins::verify_signature(interpreter_base &interp,
 	return false;
     }
 
-    return verify_signature(hash, pubkey_raw, sign_data);
+    return verify_signature(interp, hash, pubkey_raw, sign_data);
 }
 
 bool builtins::sign_3(interpreter_base &interp, size_t arity, term args[] )
@@ -521,13 +537,7 @@ bool builtins::compute_pedersen_commit(interpreter_base &interp,
     }
     uint64_t value_raw = reinterpret_cast<const int_cell &>(value).value();
 
-    auto *ctx = secp256k1_context_create(SECP256K1_CONTEXT_SIGN);
-
-    struct cleanup {
-	cleanup(secp256k1_context *ctx) : ctx_(ctx) { }
-	~cleanup() { secp256k1_context_destroy(ctx_); }
-	secp256k1_context *ctx_;
-    } cleanup_(ctx);
+    auto &ctx = get_ctx(interp);
 
     secp256k1_pedersen_commitment commit;
     if (!secp256k1_pedersen_commit(ctx, &commit, blinding_raw, value_raw,
@@ -568,7 +578,7 @@ bool builtins::pproof_3(interpreter_base &interp,
 
     bool ok = false;
 
-    auto *ctx = secp256k1_context_create(SECP256K1_CONTEXT_SIGN);
+    auto &ctx = get_ctx(interp);
 
     // The original commit
     secp256k1_pedersen_commitment commit;
@@ -579,18 +589,12 @@ bool builtins::pproof_3(interpreter_base &interp,
     uint8_t commit_raw[33];
     secp256k1_pedersen_commitment_serialize(ctx, commit_raw, &commit);
 
-    struct cleanup {
-	cleanup(secp256k1_context *ctx) : ctx_(ctx) { }
-	~cleanup() { secp256k1_context_destroy(ctx_); }
-	secp256k1_context *ctx_;
-    } cleanup_(ctx);
-
     uint8_t commit1_raw[33], commit2_raw[33], commit3_raw[33];
     secp256k1_pedersen_commitment commit1, commit2, commit3;
 
     while (!ok) {
-	new_private_key(b1);
-	new_private_key(b2);
+        new_private_key(interp, b1);
+        new_private_key(interp, b2);
 
 	// Compute b3 = b - b1 - b2
 	uint8_t *bs[] = { &blinding_raw[0], &b1[0], &b2[0] };
@@ -630,7 +634,7 @@ bool builtins::pproof_3(interpreter_base &interp,
     uint8_t pub_b3[RAW_KEY_SIZE+1];
     
     // We need the public key for b3
-    if (!compute_public_key(b3, pub_b3)) {
+    if (!compute_public_key(interp, b3, pub_b3)) {
 	return false;
     }
 
@@ -641,7 +645,7 @@ bool builtins::pproof_3(interpreter_base &interp,
     ut.to_bytes(msg);
     uint8_t hash[32];
     get_hashed_data(msg, sizeof(msg), hash);
-    if (!compute_signature(hash, b3, signature)) {
+    if (!compute_signature(interp, hash, b3, signature)) {
 	return false;
     }
 
@@ -711,14 +715,7 @@ bool builtins::pverify_1(interpreter_base &interp, size_t arity, term args[])
     }
     uint64_t ut_val = static_cast<uint64_t>(reinterpret_cast<const int_cell &>(term_utime).value());
 
-    auto *ctx = secp256k1_context_create(SECP256K1_CONTEXT_VERIFY);
-
-    struct cleanup {
-	cleanup(secp256k1_context *ctx) : ctx_(ctx) { }
-	~cleanup() { secp256k1_context_destroy(ctx_); }
-	secp256k1_context *ctx_;
-    } cleanup_(ctx);
-
+    auto &ctx = get_ctx(interp);
 
     secp256k1_pedersen_commitment commit, commit1, commit2, commit3;
 
@@ -766,7 +763,7 @@ bool builtins::pverify_1(interpreter_base &interp, size_t arity, term args[])
     ut.to_bytes(msg);
     uint8_t hash[32];
     get_hashed_data(msg, sizeof(msg), hash);
-    if (!verify_signature(hash, pubkey_raw, signature_raw)) {
+    if (!verify_signature(interp, hash, pubkey_raw, signature_raw)) {
 	return false;
     }
 
@@ -804,19 +801,73 @@ void builtins::pedersen_test()
     
 }
 
-void builtins::load(interpreter_base &interp)
+bool builtins::mucomb_3(interpreter_base &interp, size_t arity, term args[])
+{
+    if (!interp.is_list(args[0])) {
+        throw interpreter_exception_not_list("mucumb/3: First argument is not a list (of public keys); was " + interp.to_string(args[0]));
+    }
+
+
+    auto &ctx = get_ctx(interp);
+    
+    term l = args[0];
+    size_t n = interp.list_length(l);
+    std::vector<secp256k1_pubkey> pubkeys;
+    while (!interp.is_empty_list(l)) {
+        secp256k1_pubkey pubkey;
+        term pubkey_term = interp.arg(l, 0);
+	uint8_t pubkey_data[RAW_KEY_SIZE+1];
+	if (!get_public_key(interp, pubkey_term, pubkey_data) ||
+	     !secp256k1_ec_pubkey_parse(ctx, &pubkey, pubkey_data, RAW_KEY_SIZE+1)) {
+	     throw interpreter_exception_not_public_key("mucumb/3: Not a public key: " + interp.to_string(pubkey_term));
+        }
+        pubkeys.push_back(pubkey);
+	l = interp.arg(l, 1);
+    }
+
+    // We have all the public keys. Call combiner.
+    secp256k1_pubkey combined_pubkey;
+    uint8_t combined_hash32[32];
+    int r = secp256k1_musig_pubkey_combine(ctx, ctx.scratch(),
+					   &combined_pubkey, combined_hash32,
+					   &pubkeys[0], n);
+    if (!r) {
+        return false;
+    }
+
+    // Create bignums for combined pubkey and hash32
+
+    size_t pub_raw_len = RAW_KEY_SIZE+1;
+    uint8_t pub_raw[RAW_KEY_SIZE+1];
+    r = secp256k1_ec_pubkey_serialize(ctx, &pub_raw[0], &pub_raw_len, &combined_pubkey, SECP256K1_EC_COMPRESSED);
+    if (!r || pub_raw_len != RAW_KEY_SIZE+1) {
+       return false;
+    }
+
+    term term_pubkey = new_bignum(interp, pub_raw, RAW_KEY_SIZE+1);
+    term term_hash32 = new_bignum(interp, combined_hash32, 32);
+
+   return interp.unify(args[1], term_pubkey) &&
+          interp.unify(args[2], term_hash32);
+}
+
+void builtins::load(interpreter_base &interp, con_cell *module0)
 {
     const con_cell EC("ec", 0);
+    const con_cell M = (module0 == nullptr) ? EC : *module0;
 
-    interp.load_builtin(EC, con_cell("privkey", 1), &builtins::privkey_1);
-    interp.load_builtin(EC, con_cell("privkey", 2), &builtins::privkey_2);
-    interp.load_builtin(EC, con_cell("pubkey", 2), &builtins::pubkey_2);
-    interp.load_builtin(EC, con_cell("address", 2), &builtins::address_2);
-    interp.load_builtin(EC, con_cell("sign", 3), &builtins::sign_3);
+    interp.load_builtin(M, con_cell("privkey", 1), &builtins::privkey_1);
+    interp.load_builtin(M, con_cell("privkey", 2), &builtins::privkey_2);
+    interp.load_builtin(M, con_cell("pubkey", 2), &builtins::pubkey_2);
+    interp.load_builtin(M, con_cell("address", 2), &builtins::address_2);
+    interp.load_builtin(M, con_cell("sign", 3), &builtins::sign_3);
 
     // interp.load_builtin(EC, con_cell("pcommit",3), &builtins::pcommit_3);
-    interp.load_builtin(EC, con_cell("pproof", 3), &builtins::pproof_3);
-    interp.load_builtin(EC, con_cell("pverify", 1), &builtins::pverify_1);
+    interp.load_builtin(M, con_cell("pproof", 3), &builtins::pproof_3);
+    interp.load_builtin(M, con_cell("pverify", 1), &builtins::pverify_1);
+
+    // MuSig
+    interp.load_builtin(M, con_cell("mucomb", 3), &builtins::mucomb_3);
 }
 
 }}
