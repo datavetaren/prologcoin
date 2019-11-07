@@ -604,8 +604,7 @@ public:
        }
 
     inline managed_data * get_managed_data(common::con_cell key)
-       { void *p = nullptr;
-	 auto it = managed_data_.find(key);
+       { auto it = managed_data_.find(key);
 	 if (it == managed_data_.end()) {
 	     return nullptr;
 	 } else {
