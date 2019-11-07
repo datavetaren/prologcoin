@@ -288,6 +288,60 @@ modified by an attacker while in transit (to the miners.) The
 signatures are thus separated from the action and thus make the
 signatures non-mallable.
 
+## MuSig
+
+The previous definition of a transaction is the old ECDSA style.  Much
+has happened since and Blockstream released (almost a year ago) a new
+Schnorr signature framework called "MuSig" which enables efficient
+multi-signatures. This MuSig framework also supports so called
+"adaptor signatures" making it possible to incorporate an optional
+hidden secret. That secret could be a hash of a script (or MAST) to
+serve as a last resort of a dispute between the signers. Using the
+MuSig library we could define the transaction as:
+
+```
+tx2(CoinIn, Hash, Sign, PubKey, PubKeys, CoinOut) :-
+    CoinIn = '$coin'(V, X),
+    var(X), % Not currently spent
+    X = [], % Spend it
+    freeze(Hash,  % Wait until Hash become bound
+        ground(Hash), 
+        Hash = '$sys'(_), % Hash must not have been computed by user code
+        member(PubKey, PubKeys), % Make sure PubKey is an element of PubKeys
+	mucomb(PubKeys, CombinedPubKey), % Combine public keys (Schnorr)
+        muvrfy(Hash, CombinedPubKey, Sign), % Validate signature
+	CoinOut = '$coin'(V, _)). % Let CoinOut become available/spendable.
+```
+
+Note that this enables using a single signature for multiple UTXO inputs:
+
+```
+Sign = ...  (single signature for the combined public key)
+
+T = (_ :- Body)
+
+where Body:
+
+PubKeys1 = [PubKey1, PubKey2, PubKey3, ...],
+PubKeys2 = PubKeys1,
+PubKeys3 = PubKeys1
+cjoin([CoinOut1,CoinOut2,CoinOut3], SumCoin),
+csplit(SumCoin, [10000000], [MyFee, MyCoin]),
+tx2(MyCoin, _, _, <new public key>, _, _).
+```
+
+In order to improve performance we'd like to cache the result of
+`mucomb(PubKeys, CombinedPubKey), muvrfy(Hash, CombinedPubKey, Sign)`
+so that the actual signature verification is done exactly once.
+
+Note that the fee is simply an unconditional coin that can immediately
+be grabbed by the miner who'll just add his own transaction:
+
+`tx2(MyFee, _, _, <miner public key>, _, _)`
+
+The cool thing is that it is relatively easy to define transaction
+types using Prolog as the base language.
+
 ## Global State
 
 The intent of Prologcoin is to run a regular Prolog execution of a
