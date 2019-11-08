@@ -47,36 +47,36 @@ public:
     // X is the public key.
     static bool sign_3(interpreter_base &interp, size_t arity, term args[] );
 
-    // mucomb(+PubKeys, -CombinedPubKey, -CombinedPubKeyHash) combine
+    // musig_combine(+PubKeys, -CombinedPubKey, -CombinedPubKeyHash) combine
     // public keys and output the combined public key and its hash.
-    static bool mucomb_3(interpreter_base &interp, size_t arity, term args[] );
+    static bool musig_combine_3(interpreter_base &interp, size_t arity, term args[] );
   
-    // musig(-Session, +CombinedPubKey, +CombinedPubKeyHash, +MyIndex,
+    // musig_session(-Session, +CombinedPubKey, +CombinedPubKeyHash, +MyIndex,
     //       +NumSigners, +PrivateKey, +Data)
     // Create new a MuSig session
-    static bool musig_7(interpreter_base &interp, size_t arity, term args[] );
+    static bool musig_session_7(interpreter_base &interp, size_t arity, term args[] );
 
-    // muget(-Session, -NonceCommitment)
-    // Get my nonce commitment
-    static bool muget_3(interpreter_base &interp, size_t arity, term args[] );
+    // musig_start(-Session, -NonceCommitment)
+    // Start session by getting my nonce commitment
+    static bool musig_start_3(interpreter_base &interp, size_t arity, term args[] );
 
-    // mucommit(-Session, +NonceCommitments, -MyNonce)
+    // musig_commit(-Session, +NonceCommitments, -MyNonce)
     // Set all nonce commitments (from all participants) and return my
     // own nonce.
-    static bool mucommit_3(interpreter_base &interp, size_t arity, term args[] );
+    static bool musig_commit_3(interpreter_base &interp, size_t arity, term args[] );
 
-    // munonce(-Session, +Nonces, +Adaptor)
+    // musig_commit2(-Session, +Nonces, +Adaptor)
     // Set all nonces.
-    static bool munonce_3(interpreter_base &interp, size_t arity, term args[] );
+    static bool musig_commit2_3(interpreter_base &interp, size_t arity, term args[] );
 
-    // musign(-Session, -PartialSign)
-    static bool musign_2(interpreter_base &interp, size_t arity, term args[] );
+    // musig_sign(-Session, -PartialSign)
+    static bool musig_sign_2(interpreter_base &interp, size_t arity, term args[] );
 
-    // musign(-Session, +Signatures, -FinalSig)
-    static bool musign_3(interpreter_base &interp, size_t arity, term args[] );
+    // musign_sign(-Session, +Signatures, -FinalSig)
+    static bool musig_sign_3(interpreter_base &interp, size_t arity, term args[] );
 
-    // muvrfy(+Data, +CombinedPubKey, +FinalSig)
-    static bool muvrfy_3(interpreter_base &interp, size_t arity, term args[] );
+    // musig_verify(+Data, +CombinedPubKey, +FinalSig)
+    static bool musig_verify_3(interpreter_base &interp, size_t arity, term args[] );
     
   
     // pcommit(P, R, V) true iff P is a Pedersen commitment, i.e.

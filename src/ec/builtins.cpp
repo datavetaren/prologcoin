@@ -801,10 +801,10 @@ void builtins::pedersen_test()
     
 }
 
-bool builtins::mucomb_3(interpreter_base &interp, size_t arity, term args[])
+bool builtins::musig_combine_3(interpreter_base &interp, size_t arity, term args[])
 {
     if (!interp.is_list(args[0])) {
-        throw interpreter_exception_not_list("mucumb/3: First argument is not a list (of public keys); was " + interp.to_string(args[0]));
+        throw interpreter_exception_not_list("musign_combine/3: First argument is not a list (of public keys); was " + interp.to_string(args[0]));
     }
 
 
@@ -819,7 +819,7 @@ bool builtins::mucomb_3(interpreter_base &interp, size_t arity, term args[])
 	uint8_t pubkey_data[RAW_KEY_SIZE+1];
 	if (!get_public_key(interp, pubkey_term, pubkey_data) ||
 	     !secp256k1_ec_pubkey_parse(ctx, &pubkey, pubkey_data, RAW_KEY_SIZE+1)) {
-	     throw interpreter_exception_not_public_key("mucumb/3: Not a public key: " + interp.to_string(pubkey_term));
+	     throw interpreter_exception_not_public_key("musign_combine/3: Not a public key: " + interp.to_string(pubkey_term));
         }
         pubkeys.push_back(pubkey);
 	l = interp.arg(l, 1);
@@ -867,7 +867,7 @@ void builtins::load(interpreter_base &interp, con_cell *module0)
     interp.load_builtin(M, con_cell("pverify", 1), &builtins::pverify_1);
 
     // MuSig
-    interp.load_builtin(M, con_cell("mucomb", 3), &builtins::mucomb_3);
+    interp.load_builtin(M, interp.functor("musig_combine", 3), &builtins::musig_combine_3);
 }
 
 }}
