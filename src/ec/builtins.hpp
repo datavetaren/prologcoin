@@ -100,6 +100,9 @@ public:
     // (PartialSignature to send to the others.)
     static bool musig_partial_sign_2(interpreter_base &interp, size_t arity, term args[] );
 
+    // musig_adapt_sign(+Session, +PartialSignature, +AdaptorPrivKey, -AdaptorSignature)
+    static bool musig_adapt_sign_4(interpreter_base &interp, size_t arity, term args[] );
+
     // musig_final_sign(+Session, +PartialSignatures, -FinalSig)
     static bool musig_final_sign_3(interpreter_base &interp, size_t arity, term args[] );
 

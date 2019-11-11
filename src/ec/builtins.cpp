@@ -48,6 +48,7 @@ public:
 
     inline size_t id() const { return id_; }
     inline size_t num_signers() const { return num_signers_; }
+    inline int nonce_is_negated() const { return nonce_is_negated_; }
   
     bool init(size_t my_index, const secp256k1_pubkey &combined_pubkey,
 	      const uint8_t pubkey_hash[RAW_HASH_SIZE],
@@ -985,7 +986,6 @@ bool builtins::musig_verify_3(interpreter_base &interp, size_t arity, term args[
         throw interpreter_exception_wrong_arg_type("musig_verify/3: Couldn't compute hash of first argument: " + interp.to_string(args[0]));
     }
     
-    // Generate a bitcoin address from the public key.
     secp256k1_pubkey pubkey;
     uint8_t pubkey_data[RAW_KEY_SIZE+1];
     if (!get_public_key(interp, args[1], pubkey_data) ||
@@ -1341,6 +1341,50 @@ bool builtins::musig_final_sign_3(interpreter_base &interp, size_t arity, term a
     return interp.unify(args[2], raw_sig_term);
 }
 
+bool builtins::musig_adapt_sign_4(interpreter_base &interp, size_t arity, term args[]) {
+    auto *session = get_musig_session(interp, args[0]);
+    if (session == nullptr) {
+	throw interpreter_exception_wrong_arg_type(
+	   "musig_adapt_sign/4: First argument must be MuSig session; was "
+	   + interp.to_string(args[0]));
+    }
+
+    auto &ctx = get_ctx(interp);    
+
+    uint8_t sig_data[RAW_KEY_SIZE];
+    size_t n = RAW_KEY_SIZE;
+    if (!get_bignum(interp, args[1], sig_data, n)) {
+        throw interpreter_exception_wrong_arg_type("musig_adapt_sign/4: Second argument is not a partial signature; was " + interp.to_string(args[1]));
+    }
+
+    secp256k1_musig_partial_signature sig;
+    if (secp256k1_musig_partial_signature_parse(ctx, &sig, sig_data) != 1) {
+        throw interpreter_exception_wrong_arg_type("musig_adapt_sign/4: Could not parse partial signature in second argument: " + interp.to_string(args[1]));
+    }
+
+    uint8_t adapt_priv_key[RAW_KEY_SIZE];
+    if (!get_private_key(interp, args[2], adapt_priv_key)) {
+        throw interpreter_exception_wrong_arg_type("musig_adapt_sign/4: Could not parse private key in third argument: " + interp.to_string(args[2]));
+    }
+
+    secp256k1_musig_partial_signature adaptor_sig;
+    if (secp256k1_musig_partial_sig_adapt(ctx, &adaptor_sig, &sig, adapt_priv_key,
+					  session->nonce_is_negated()) != 1) {
+	throw interpreter_exception_musig(
+		  "musig_adapt_sign/4:: Couldn't apply adaptor signature.");
+    }
+
+    uint8_t adaptor_sign_data[RAW_KEY_SIZE];
+    if (secp256k1_musig_partial_signature_serialize(ctx, adaptor_sign_data, &adaptor_sig) != 1) {
+	throw interpreter_exception_musig(
+	  "musig_adapt_sign/4: Couldn't serialize adaptor signature.");
+    }
+
+    term t = new_bignum(interp, adaptor_sign_data, RAW_KEY_SIZE);
+
+    return interp.unify(args[3], t);
+}
+
 void builtins::load(interpreter_base &interp, con_cell *module0)
 {
     const con_cell EC("ec", 0);
@@ -1366,6 +1410,7 @@ void builtins::load(interpreter_base &interp, con_cell *module0)
     interp.load_builtin(M, interp.functor("musig_nonces", 2), &builtins::musig_nonces_2);    
     interp.load_builtin(M, interp.functor("musig_nonces", 3), &builtins::musig_nonces_3);
     interp.load_builtin(M, interp.functor("musig_partial_sign", 2), &builtins::musig_partial_sign_2);    
+    interp.load_builtin(M, interp.functor("musig_adapt_sign", 4), &builtins::musig_adapt_sign_4);
     interp.load_builtin(M, interp.functor("musig_final_sign", 3), &builtins::musig_final_sign_3);    
 }
 

@@ -124,3 +124,31 @@ combine_nonces_adapt :-
 
 ?- combine_nonces_adapt.
 % Expect: true
+
+adaptor_sigs([ASig1,ASig2,ASig3]) :-
+	partial_sigs([Sig1,Sig2,Sig3]),
+	akey(A),
+	ec:musig_adapt_sign('$musig'(1), Sig1, A, ASig1),
+	ec:musig_adapt_sign('$musig'(2), Sig2, A, ASig2),
+	ec:musig_adapt_sign('$musig'(3), Sig3, A, ASig3).
+
+?- adaptor_sigs([ASig1,ASig2,ASig3]).
+% Expect: ASig1 = 58'HdTcLYcSpBCgFuo7dXskrri5yGK2waNdQdbmUSDSjxYG, ASig2 = 58'79ayubeaawaWGZgJtpYGGZjSiLahze5WQyU4xExSg2yg, ASig3 = 58'9Gbc6HHjb8UPVHzUsxFnFsm2Q4pkwANzwRFqfnfFhTbU.
+% Expect: end
+
+%
+% Combine adaptor signatures
+%
+final_adaptor_sigs([Fin1,Fin2,Fin3]) :-
+	adaptor_sigs(Sigs),
+	ec:musig_final_sign('$musig'(1), Sigs, Fin1),
+	ec:musig_final_sign('$musig'(2), Sigs, Fin2),
+	ec:musig_final_sign('$musig'(3), Sigs, Fin3).
+
+?- final_adaptor_sigs([Fin,Fin,Fin]).
+% Expect: Fin = 58'3Z5hXQPQMM6QYGZJFsFG3e44bKZr8cTpCoWhJF1rX9UpPPjYZEsnZJP6M4KxwdhdRWYADdpM5FMLcEwuwNPu5aty.
+% Expect: end
+
+%
+% Let's check the adaptor signature verifies.
+%
