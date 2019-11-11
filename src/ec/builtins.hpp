@@ -15,6 +15,15 @@ public:
   interpreter_exception_not_public_key(const std::string &msg) :
       interpreter_exception(msg) { }
 };
+
+class interpreter_exception_musig : public interpreter_exception {
+public:
+  interpreter_exception_musig(const std::string &msg) :
+      interpreter_exception(msg) { }
+};
+
+class musig_env;
+class musig_session;
     
 class builtins {
 public:
@@ -22,6 +31,9 @@ public:
     using interpreter_base = prologcoin::interp::interpreter_base;
 
     static const size_t RAW_KEY_SIZE = 32;
+    static const size_t RAW_HASH_SIZE = 32;
+
+    static musig_env & get_musig_env(interpreter_base &interp);
   
     static void load(interpreter_base &interp, common::con_cell *module = nullptr);
 
@@ -47,36 +59,51 @@ public:
     // X is the public key.
     static bool sign_3(interpreter_base &interp, size_t arity, term args[] );
 
+    // hash(Data, Hash) true iff Hash is the hash of Data.
+    static bool hash_2(interpreter_base &interp, size_t arity, term args[] );
+  
+    // musig verification (does not require a musig session)
+  
     // musig_combine(+PubKeys, -CombinedPubKey, -CombinedPubKeyHash) combine
     // public keys and output the combined public key and its hash.
     static bool musig_combine_3(interpreter_base &interp, size_t arity, term args[] );
-  
-    // musig_session(-Session, +CombinedPubKey, +CombinedPubKeyHash, +MyIndex,
-    //       +NumSigners, +PrivateKey, +Data)
-    // Create new a MuSig session
-    static bool musig_session_7(interpreter_base &interp, size_t arity, term args[] );
-
-    // musig_start(-Session, -NonceCommitment)
-    // Start session by getting my nonce commitment
-    static bool musig_start_3(interpreter_base &interp, size_t arity, term args[] );
-
-    // musig_commit(-Session, +NonceCommitments, -MyNonce)
-    // Set all nonce commitments (from all participants) and return my
-    // own nonce.
-    static bool musig_commit_3(interpreter_base &interp, size_t arity, term args[] );
-
-    // musig_commit2(-Session, +Nonces, +Adaptor)
-    // Set all nonces.
-    static bool musig_commit2_3(interpreter_base &interp, size_t arity, term args[] );
-
-    // musig_sign(-Session, -PartialSign)
-    static bool musig_sign_2(interpreter_base &interp, size_t arity, term args[] );
-
-    // musign_sign(-Session, +Signatures, -FinalSig)
-    static bool musig_sign_3(interpreter_base &interp, size_t arity, term args[] );
 
     // musig_verify(+Data, +CombinedPubKey, +FinalSig)
     static bool musig_verify_3(interpreter_base &interp, size_t arity, term args[] );
+
+    // musig sessions (to actually sign something)
+  
+    // musig_start(-Session, +CombinedPubKey, +CombinedPubKeyHash, +MyIndex,
+    //       +NumSigners, +PrivateKey, +Data)
+    // Create new a MuSig session
+    static bool musig_start_7(interpreter_base &interp, size_t arity, term args[] );
+
+    // Extract session from arg
+    static musig_session * get_musig_session(interpreter_base &interp, term arg);
+  
+    // musig_nonce_commit(+Session, -NonceCommitment)
+    // Start session by getting my nonce commitment
+    static bool musig_nonce_commit_2(interpreter_base &interp, size_t arity, term args[] );
+
+    // musig_prepare(+Session, +NonceCommitments, -MyNonce)
+    // Set all nonce commitments (from all participants) and return my
+    // own nonce.
+    static bool musig_prepare_3(interpreter_base &interp, size_t arity, term args[] );
+
+    // musig_nonces(+Session, +Nonces, [+Adaptor])
+    // Set all nonces.
+    static bool musig_nonces_2(interpreter_base &interp, size_t arity, term args[] );
+    static bool musig_nonces_3(interpreter_base &interp, size_t arity, term args[] );
+
+    // musig_sign(+Session, -PartialSign)
+    static bool musig_sign_2(interpreter_base &interp, size_t arity, term args[] );
+
+    // musig_sign(+Session, +Signatures, -FinalSig)
+    static bool musig_sign_3(interpreter_base &interp, size_t arity, term args[] );
+
+    // musig_end(+Session)
+    static void musig_end(interpreter_base &interp, size_t arity, term args[]);
+
     
   
     // pcommit(P, R, V) true iff P is a Pedersen commitment, i.e.

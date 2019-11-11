@@ -1,5 +1,6 @@
 #include "../../interp/test/test_files_infrastructure.hpp"
 #include "../builtins.hpp"
+#include "../../common/random.hpp"
 
 static void header( const std::string &str )
 {
@@ -36,6 +37,9 @@ int main( int argc, char *argv[] )
     find_home_dir(argv[0]);
     full_mode = is_full(argc, argv);
 
+    // Make random deterministic (for testing only)
+    random::set_for_testing(true);
+    
     const char *name = find_name(argc, argv);
 
     const std::string dir = "/src/ec/test/pl_files";
