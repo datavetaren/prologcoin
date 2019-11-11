@@ -165,6 +165,8 @@ public:
         { return T::get_heap().set_arg(t, index, arg); }
     inline untagged_cell get_big(term t, size_t index) const
         { return T::get_heap().get_big(t, index); }
+    inline size_t num_bits(big_cell b) const
+        { return T::get_heap().num_bits(b); }
     inline void get_big(term t, boost::multiprecision::cpp_int &i,
 			size_t &nbits) const
         { T::get_heap().get_big(t, i, nbits); }

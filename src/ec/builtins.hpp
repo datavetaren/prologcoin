@@ -32,6 +32,7 @@ public:
 
     static const size_t RAW_KEY_SIZE = 32;
     static const size_t RAW_HASH_SIZE = 32;
+    static const size_t RAW_SIG_SIZE = 64;
 
     static musig_env & get_musig_env(interpreter_base &interp);
   
@@ -95,11 +96,12 @@ public:
     static bool musig_nonces_2(interpreter_base &interp, size_t arity, term args[] );
     static bool musig_nonces_3(interpreter_base &interp, size_t arity, term args[] );
 
-    // musig_sign(+Session, -PartialSign)
-    static bool musig_sign_2(interpreter_base &interp, size_t arity, term args[] );
+    // musig_partial_sign(+Session, -PartialSignature)
+    // (PartialSignature to send to the others.)
+    static bool musig_partial_sign_2(interpreter_base &interp, size_t arity, term args[] );
 
-    // musig_sign(+Session, +Signatures, -FinalSig)
-    static bool musig_sign_3(interpreter_base &interp, size_t arity, term args[] );
+    // musig_final_sign(+Session, +PartialSignatures, -FinalSig)
+    static bool musig_final_sign_3(interpreter_base &interp, size_t arity, term args[] );
 
     // musig_end(+Session)
     static void musig_end(interpreter_base &interp, size_t arity, term args[]);

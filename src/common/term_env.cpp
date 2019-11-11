@@ -280,8 +280,23 @@ bool term_utils::unify_helper(term a, term b, uint64_t &cost)
 	  }
 	  break;
 	}
-        // TODO: Implement these two later...
-	case tag_t::BIG:assert(false); break;
+	case tag_t::BIG: {
+	  auto &abig = static_cast<big_cell &>(a);
+	  auto &bbig = static_cast<big_cell &>(b);
+	  if (num_bits(abig) != num_bits(bbig)) {
+	      cost = cost_tmp;
+	      return false;
+	  }
+	  size_t numbits = 0;
+	  boost::multiprecision::cpp_int ai, bi;
+	  get_big(abig, ai, numbits);
+	  get_big(bbig, bi, numbits);
+	  if (ai != bi) {
+	      cost = cost_tmp;
+	      return false;
+	  }
+	  break;
+	}
 	}
     }
 

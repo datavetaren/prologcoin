@@ -62,7 +62,7 @@ public:
     }
 
     inline void set_nonce(size_t index, secp256k1_pubkey &nonce) {
-        secp256k1_musig_set_nonce(ctx_, &signers_[index], &nonce);
+        assert(secp256k1_musig_set_nonce(ctx_, &signers_[index], &nonce) == 1);
     }
 
     inline bool combine_nonces(const secp256k1_pubkey *adaptor) {
@@ -73,6 +73,13 @@ public:
 
     inline bool partial_sign(secp256k1_musig_partial_signature &signature) {
         return secp256k1_musig_partial_sign(ctx_, &session_, &signature) == 1;
+    }
+
+    inline bool final_sign(secp256k1_musig_partial_signature *signatures,
+			   secp256k1_schnorrsig &final_sig) {
+	return secp256k1_musig_partial_sig_combine(ctx_, &session_, &final_sig,
+						   signatures, num_signers_,
+						   nullptr) == 1;
     }
 
 private:
@@ -926,7 +933,6 @@ bool builtins::musig_combine_3(interpreter_base &interp, size_t arity, term args
         throw interpreter_exception_not_list("musig_combine/3: First argument is not a list (of public keys); was " + interp.to_string(args[0]));
     }
 
-
     auto &ctx = get_ctx(interp);
     
     term l = args[0];
@@ -969,6 +975,42 @@ bool builtins::musig_combine_3(interpreter_base &interp, size_t arity, term args
    return interp.unify(args[1], term_pubkey) &&
           interp.unify(args[2], term_hash32);
 }
+
+bool builtins::musig_verify_3(interpreter_base &interp, size_t arity, term args[])
+{
+    auto &ctx = get_ctx(interp);
+
+    uint8_t hash[RAW_HASH_SIZE];
+    if (!get_hashed2_data(interp, args[0], hash)) {
+        throw interpreter_exception_wrong_arg_type("musig_verify/3: Couldn't compute hash of first argument: " + interp.to_string(args[0]));
+    }
+    
+    // Generate a bitcoin address from the public key.
+    secp256k1_pubkey pubkey;
+    uint8_t pubkey_data[RAW_KEY_SIZE+1];
+    if (!get_public_key(interp, args[1], pubkey_data) ||
+	!secp256k1_ec_pubkey_parse(ctx, &pubkey, pubkey_data, RAW_KEY_SIZE+1)) {
+        throw interpreter_exception_wrong_arg_type("musig_verify/3: Second argument is not a public key; was " + interp.to_string(args[1]));
+    }
+
+    uint8_t sig_data[RAW_SIG_SIZE];
+    size_t n = RAW_SIG_SIZE;
+    if (!get_bignum(interp, args[2], sig_data, n)) {
+        throw interpreter_exception_wrong_arg_type("musig_verify/3: Third argument is not a schnorr signature; was " + interp.to_string(args[2]));
+    }
+
+    secp256k1_schnorrsig sig;
+    if (secp256k1_schnorrsig_parse(ctx, &sig, sig_data) != 1) {
+        throw interpreter_exception_wrong_arg_type("musig_verify/3: Could not parse schnorr signature in third argument: " + interp.to_string(args[2]));
+    }
+
+    if (secp256k1_schnorrsig_verify(ctx, &sig, hash, &pubkey) != 1) {
+	return false;
+    }
+
+    return true;
+}
+
 
 bool builtins::musig_start_7(interpreter_base &interp, size_t arity, term args[])
 {
@@ -1198,30 +1240,105 @@ bool builtins::musig_nonces_3(interpreter_base &interp, size_t arity, term args[
     return true;
 }
 
-bool builtins::musig_sign_2(interpreter_base &interp, size_t arity, term args[]) {
+bool builtins::musig_partial_sign_2(interpreter_base &interp, size_t arity, term args[]) {
     auto *session = get_musig_session(interp, args[0]);
     if (session == nullptr) {
 	throw interpreter_exception_wrong_arg_type(
-	   "musig_sign/2:: First argument must be MuSig session; was "
+	   "musig_partial_sign/2:: First argument must be MuSig session; was "
 	   + interp.to_string(args[0]));
     }
 
     secp256k1_musig_partial_signature sig;
     if (!session->partial_sign(sig)) {
 	throw interpreter_exception_musig(
-	  "musig_sign/2:: Couldn't compute partial signature.");
+	  "musig_partial_sign/2:: Couldn't compute partial signature.");
     }
 
     auto &ctx = get_ctx(interp);    
     uint8_t signature[RAW_KEY_SIZE];
     if (secp256k1_musig_partial_signature_serialize(ctx, signature, &sig) != 1) {
 	throw interpreter_exception_musig(
-	  "musig_sign/2:: Couldn't serialize partial signature.");
+	  "musig_partial_sign/2:: Couldn't serialize partial signature.");
     }
 
     term t = new_bignum(interp, signature, RAW_KEY_SIZE);
 
     return interp.unify(args[1], t);
+}
+
+bool builtins::musig_final_sign_3(interpreter_base &interp, size_t arity, term args[]) {
+    auto *session = get_musig_session(interp, args[0]);
+    if (session == nullptr) {
+        std::stringstream msg;
+	msg << "musig_final_sign/" << arity;
+	msg << ": First argument must be MuSig session; was ";
+	msg << interp.to_string(args[0]);
+        throw interpreter_exception_wrong_arg_type(msg.str());
+    }
+
+    term partial_signatures_list = args[1];
+    if (!interp.is_list(partial_signatures_list)) {
+        std::stringstream msg;
+	msg << "musig_final_sign/" << arity;
+        msg << ": Second argument is not a list of partial signatures; was ";
+	msg << interp.to_string(partial_signatures_list);
+	throw interpreter_exception_wrong_arg_type(msg.str());
+    }
+    size_t n = interp.list_length(partial_signatures_list);
+    if (n != session->num_signers()) {
+        std::stringstream msg;
+        msg << "musig_final_sign/" << arity;
+	msg << ": Number of signatures does not match number of signers. ";
+        msg << "Number of signers is " << session->num_signers() << " and number of signatures is " << n << ".";
+        throw interpreter_exception_musig(msg.str());
+    }
+
+    std::unique_ptr<secp256k1_musig_partial_signature> sigs(new secp256k1_musig_partial_signature[n]);
+
+    auto &ctx = get_ctx(interp);
+    size_t i = 0;
+    while (partial_signatures_list != interpreter_base::EMPTY_LIST) {
+        term signature_term = interp.arg(partial_signatures_list, 0);
+	uint8_t signature[RAW_KEY_SIZE];
+	size_t n = RAW_KEY_SIZE;
+	bool r = get_bignum(interp, signature_term, signature, n);
+	if (!r || n != RAW_KEY_SIZE) {
+  	    std::stringstream msg;
+	    msg << "musig_final_sign/" << arity;
+	    msg << ": Second argument is not a list of partial signatures; element " << (i+1) << " was " << interp.to_string(signature_term);
+            throw interpreter_exception_not_list(msg.str());
+	}
+	partial_signatures_list = interp.arg(partial_signatures_list,1);
+
+	if (!secp256k1_musig_partial_signature_parse(ctx, &(sigs.get())[i], signature)) {
+	    std::stringstream msg;
+	    msg << "musig_final_sign/" << arity;
+ 	    msg << ": Partial signature could not be parsed: ";
+	    msg << interp.to_string(signature_term);
+  	    throw interpreter_exception_wrong_arg_type(msg.str());
+	}
+	i++;
+    }
+    
+    secp256k1_schnorrsig final_sig;
+    if (!session->final_sign(sigs.get(), final_sig)) {
+        std::stringstream msg;
+	msg << "musig_final_sign/" << arity;	
+        msg << ": Couldn't combine signatures. MuSig session was probably invalid.";
+	throw interpreter_exception_musig(msg.str());
+    }
+
+    uint8_t raw_sig[64];
+    if (secp256k1_schnorrsig_serialize(ctx, raw_sig, &final_sig) != 1) {
+        std::stringstream msg;
+	msg << "musig_final_sign/" << arity;	
+        msg << ": Couldn't serialize final signature. MuSig session was probably invalid.";
+	throw interpreter_exception_musig(msg.str());
+    }
+
+    term raw_sig_term = new_bignum(interp, raw_sig, 64);
+
+    return interp.unify(args[2], raw_sig_term);
 }
 
 void builtins::load(interpreter_base &interp, con_cell *module0)
@@ -1241,12 +1358,15 @@ void builtins::load(interpreter_base &interp, con_cell *module0)
 
     // MuSig
     interp.load_builtin(M, interp.functor("musig_combine", 3), &builtins::musig_combine_3);
+    interp.load_builtin(M, interp.functor("musig_verify", 3), &builtins::musig_verify_3);
+
     interp.load_builtin(M, interp.functor("musig_start", 7), &builtins::musig_start_7);
     interp.load_builtin(M, interp.functor("musig_nonce_commit", 2), &builtins::musig_nonce_commit_2);
     interp.load_builtin(M, interp.functor("musig_prepare", 3), &builtins::musig_prepare_3);
     interp.load_builtin(M, interp.functor("musig_nonces", 2), &builtins::musig_nonces_2);    
     interp.load_builtin(M, interp.functor("musig_nonces", 3), &builtins::musig_nonces_3);
-    interp.load_builtin(M, interp.functor("musig_sign", 2), &builtins::musig_sign_2);    
+    interp.load_builtin(M, interp.functor("musig_partial_sign", 2), &builtins::musig_partial_sign_2);    
+    interp.load_builtin(M, interp.functor("musig_final_sign", 3), &builtins::musig_final_sign_3);    
 }
 
 }}

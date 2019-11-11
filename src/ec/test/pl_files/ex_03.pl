@@ -8,6 +8,7 @@
 pkey1(58'L326Y3N3XHcGWSnhiTPZTb544aGZt6x8sTfLpnWKwoeLr3NWghct).
 pkey2(58'KzC9JAPZfcsmzU1EF3yqs39a4dq7jUYXCLAMhQTGBwrbXeSJhgsi).
 pkey3(58'Kwd33XZRL1qSSTaxdhPSKF8xtg5DbBpfuq6NhQxbwuD7DoEEmF1X).
+akey(58'L2aXbBCH8tKAWnbHAizvghtDXWjkipn3aQunKWZiqDLGsggwVntn).
 
 combiner(PubKeyCombined, PubKeyCombinedHash) :-
     pkey1(X1), pkey2(X2), pkey3(X3),
@@ -86,9 +87,40 @@ combine_nonces :-
 % Partial signatures
 %
 
-?- ec:musig_sign('$musig'(1), Sig1), ec:musig_sign('$musig'(2), Sig2), ec:musig_sign('$musig'(3), Sig3).
+partial_sigs([Sig1,Sig2,Sig3]) :-
+	ec:musig_partial_sign('$musig'(1), Sig1), ec:musig_partial_sign('$musig'(2), Sig2), ec:musig_partial_sign('$musig'(3), Sig3).
+
+?- partial_sigs([Sig1,Sig2,Sig3]).
 % Expect: Sig1 = 58'6sHsrBVyxAdD1G13AVVL3JxbK784HJ7iS5iDrTPVEeDh, Sig2 = 58'Dcjcv2HiWyjoazfeexL8eE6JMfs7W2u3icWuiurj2yp2, Sig3 = 58'FjkF6hvsXAdgoiype63edY7t3Q7ASZCYF4JgSTZY4QRp.
 % Expect: end
 
+final_sigs([Fin1,Fin2,Fin3]) :-
+	partial_sigs(Sigs),
+	ec:musig_final_sign('$musig'(1), Sigs, Fin1),
+	ec:musig_final_sign('$musig'(2), Sigs, Fin2),
+	ec:musig_final_sign('$musig'(3), Sigs, Fin3).
 
-    
+?- final_sigs([Fin,Fin,Fin]).
+% Expect: Fin =  58'3Z5hXQPQMM6QYGZJFsFG3e44bKZr8cTpCoWhJF1rX9UpRZs65j3bZN8DjGWZzrtwMHWNr9CBRkjWEyA3rjNWJAF6.
+% Expect: end
+
+%
+% Let's that the signature verifies with combined public key and the provided data.
+%
+?- ec:musig_verify(hello(world(42)),
+	           58'1uvCiduRL5GbS25LkrefndgjWbUjsk6f9EJpMYEPN1Ruu,
+	           58'3Z5hXQPQMM6QYGZJFsFG3e44bKZr8cTpCoWhJF1rX9UpRZs65j3bZN8DjGWZzrtwMHWNr9CBRkjWEyA3rjNWJAF6).
+% Expect: true
+
+%
+% Try with adaptor
+%
+combine_nonces_adapt :-
+    akey(A), ec:pubkey(A, Adaptor),
+    nonces(Ns),
+    ec:musig_nonces('$musig'(1), Ns, Adaptor),
+    ec:musig_nonces('$musig'(2), Ns, Adaptor),
+    ec:musig_nonces('$musig'(3), Ns, Adaptor).
+
+?- combine_nonces_adapt.
+% Expect: true
