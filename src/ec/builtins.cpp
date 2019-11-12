@@ -66,14 +66,30 @@ public:
         assert(secp256k1_musig_set_nonce(ctx_, &signers_[index], &nonce) == 1);
     }
 
-    inline bool combine_nonces(const secp256k1_pubkey *adaptor) {
+    inline void set_adaptor(uint8_t adaptor_secret[RAW_KEY_SIZE],
+			    secp256k1_pubkey &adaptor) {
+        memcpy(&adaptor_secret_[0], &adaptor_secret[0], RAW_KEY_SIZE);
+	memcpy(&adaptor_, &adaptor, sizeof(adaptor));
+	adaptor_used_ = true;
+    }
+  
+    inline bool combine_nonces() {
         return secp256k1_musig_session_combine_nonces(
-		      ctx_, &session_, signers_, num_signers_,
-		      &nonce_is_negated_, adaptor) == 1;
+	      ctx_, &session_, signers_, num_signers_,
+	      &nonce_is_negated_, adaptor_used_ ? &adaptor_ : nullptr) == 1;
     }
 
     inline bool partial_sign(secp256k1_musig_partial_signature &signature) {
-        return secp256k1_musig_partial_sign(ctx_, &session_, &signature) == 1;
+        bool r = true;
+        if (secp256k1_musig_partial_sign(ctx_, &session_, &signature) == 0) {
+  	    r = false;
+        }
+	if (r && adaptor_used_) {
+	    r = secp256k1_musig_partial_sig_adapt(
+		  ctx_, &signature, &signature,
+		  adaptor_secret_, nonce_is_negated_);
+	}
+	return r;
     }
 
     inline bool final_sign(secp256k1_musig_partial_signature *signatures,
@@ -93,6 +109,9 @@ private:
     uint8_t nonce_commitment_[RAW_HASH_SIZE];
     uint8_t data_hash_[RAW_HASH_SIZE];
     int nonce_is_negated_;
+    bool adaptor_used_;
+    uint8_t adaptor_secret_[RAW_KEY_SIZE];
+    secp256k1_pubkey adaptor_;
 };
 
 class musig_env : public prologcoin::interp::managed_data {
@@ -140,10 +159,13 @@ musig_session::musig_session(size_t id, secp256k1_context *ctx, size_t num_signe
     id_(id),
     ctx_(ctx),
     num_signers_(num_signers),
-    signers_(nullptr) {
+    signers_(nullptr),
+    adaptor_used_(false) {
     signers_ = new secp256k1_musig_session_signer_data[num_signers];
     common::random::next_bytes(session_id_, sizeof(session_id_));
     memset(nonce_commitment_, 0, sizeof(nonce_commitment_));
+    memset(&adaptor_, 0, sizeof(adaptor_));    
+    memset(&adaptor_secret_[0], 0, sizeof(adaptor_secret_));
 }
 
 musig_session::~musig_session() {
@@ -977,6 +999,43 @@ bool builtins::musig_combine_3(interpreter_base &interp, size_t arity, term args
           interp.unify(args[2], term_hash32);
 }
 
+bool builtins::musig_adapt_3(interpreter_base &interp, size_t arity, term args[] ) {
+    auto &ctx = get_ctx(interp);
+
+    secp256k1_pubkey combined_pubkey;
+    uint8_t combined_pubkey_data[RAW_KEY_SIZE+1];
+    if (!get_public_key(interp, args[0], combined_pubkey_data) ||
+	!secp256k1_ec_pubkey_parse(ctx, &combined_pubkey, combined_pubkey_data,
+				   RAW_KEY_SIZE+1)) {
+        throw interpreter_exception_wrong_arg_type("musig_adapt/3: First argument is not a public key; was " + interp.to_string(args[0]));
+    }
+
+    secp256k1_pubkey adaptor_pubkey;
+    uint8_t adaptor_pubkey_data[RAW_KEY_SIZE+1];
+    if (!get_public_key(interp, args[1], adaptor_pubkey_data) ||
+	!secp256k1_ec_pubkey_parse(ctx, &adaptor_pubkey, adaptor_pubkey_data,
+				   RAW_KEY_SIZE+1)) {
+        throw interpreter_exception_wrong_arg_type("musig_adapt/3: Second argument is not a public key; was " + interp.to_string(args[1]));
+    }
+
+    secp256k1_pubkey* in_keys[2] = { &combined_pubkey, &adaptor_pubkey };
+    secp256k1_pubkey adapted;
+    if (secp256k1_ec_pubkey_combine(ctx, &adapted, in_keys, 2) != 1) {
+        throw interpreter_exception_musig("musig_adapt/3: Couldn't combine combined public key with adaptor key.");
+    }
+
+    size_t adapted_raw_len = RAW_KEY_SIZE+1;
+    uint8_t adapted_raw[RAW_KEY_SIZE+1];
+    int r = secp256k1_ec_pubkey_serialize(ctx, &adapted_raw[0], &adapted_raw_len, &adapted, SECP256K1_EC_COMPRESSED);
+    if (!r || adapted_raw_len != RAW_KEY_SIZE+1) {
+        throw interpreter_exception_musig("musig_adapt/3: Couldn't serialize adapted public key.");
+    }
+
+    term adapted_term = create_public_key(interp, adapted_raw);
+
+    return interp.unify(args[2], adapted_term);
+}
+
 bool builtins::musig_verify_3(interpreter_base &interp, size_t arity, term args[])
 {
     auto &ctx = get_ctx(interp);
@@ -1143,7 +1202,7 @@ bool builtins::musig_prepare_3(interpreter_base &interp, size_t arity, term args
         throw interpreter_exception_wrong_arg_type("musig_prepare/3: Couldn't get public nonce. MuSig session could be in an invalid state.");
     }
 
-    auto &ctx = get_ctx(interp);    
+    auto &ctx = get_ctx(interp);
     size_t nonce_raw_len = RAW_KEY_SIZE+1;
     uint8_t nonce_raw[RAW_KEY_SIZE+1];
     if (secp256k1_ec_pubkey_serialize(ctx, &nonce_raw[0], &nonce_raw_len,
@@ -1156,11 +1215,37 @@ bool builtins::musig_prepare_3(interpreter_base &interp, size_t arity, term args
     return interp.unify(args[2], nonce_term);
 }
 
-bool builtins::musig_nonces_2(interpreter_base &interp, size_t arity, term args[]) {
-    return musig_nonces_3(interp, 2, args);
+bool builtins::musig_set_adaptor_3(interpreter_base &interp, size_t arity, term args[]) {
+    auto *session = get_musig_session(interp, args[0]);
+    if (session == nullptr) {
+        std::stringstream msg;
+	msg << "musig_set_adaptor/" << arity;
+	msg << ": First argument must be MuSig session; was ";
+	msg << interp.to_string(args[0]);
+        throw interpreter_exception_wrong_arg_type(msg.str());
+    }
+    auto &ctx = get_ctx(interp);
+    
+    uint8_t adaptor_sec[RAW_KEY_SIZE];
+    if (!get_private_key(interp, args[1], adaptor_sec)) {
+        throw interpreter_exception_wrong_arg_type("musig_set_adaptor/3: Second argument must be a private key; was " + interp.to_string(args[1]));
+    }
+
+    uint8_t adaptor_data[RAW_KEY_SIZE+1];
+    if (!get_public_key(interp, args[2], adaptor_data)) {
+        throw interpreter_exception_wrong_arg_type("musig_set_adaptor/3: Third argument must be a public key; was " + interp.to_string(args[2]));
+    }
+    secp256k1_pubkey adaptor;
+    if (!secp256k1_ec_pubkey_parse(ctx, &adaptor, adaptor_data, RAW_KEY_SIZE+1)) {
+        throw interpreter_exception_wrong_arg_type("musig_set_adaptor/3: Could not parse public key in third argument; was " + interp.to_string(args[2]));
+    }
+
+    session->set_adaptor(adaptor_sec, adaptor);
+
+    return true;
 }
 
-bool builtins::musig_nonces_3(interpreter_base &interp, size_t arity, term args[]) {
+bool builtins::musig_nonces_2(interpreter_base &interp, size_t arity, term args[]) {
     auto *session = get_musig_session(interp, args[0]);
     if (session == nullptr) {
         std::stringstream msg;
@@ -1214,23 +1299,7 @@ bool builtins::musig_nonces_3(interpreter_base &interp, size_t arity, term args[
 	i++;
     }
 
-    secp256k1_pubkey *adaptor = nullptr;
-    uint8_t adaptor_key[RAW_KEY_SIZE+1];
-    if (arity >= 3) {
-        term adaptor_term = args[2];
-        if (adaptor_term != interpreter_base::EMPTY_LIST) {
-            // Get adaptor key...
-	    if (!get_public_key(interp, args[2], adaptor_key)) {
-	        std::stringstream msg;
-		msg << "musig_nonces/" << arity;
-	        msg << ": First argument must be an unbound variable; was ";
-		msg << interp.to_string(args[0]);	        
-	        throw interpreter_exception_wrong_arg_type(msg.str());
-	    }
-        }
-    }
-    
-    if (!session->combine_nonces(adaptor)) {
+    if (!session->combine_nonces()) {
         std::stringstream msg;
 	msg << "musig_nonces/" << arity;	
         msg << ": Couldn't combine nonces. MuSig session was probably invalid.";
@@ -1341,6 +1410,7 @@ bool builtins::musig_final_sign_3(interpreter_base &interp, size_t arity, term a
     return interp.unify(args[2], raw_sig_term);
 }
 
+#if 0
 bool builtins::musig_adapt_sign_4(interpreter_base &interp, size_t arity, term args[]) {
     auto *session = get_musig_session(interp, args[0]);
     if (session == nullptr) {
@@ -1384,6 +1454,7 @@ bool builtins::musig_adapt_sign_4(interpreter_base &interp, size_t arity, term a
 
     return interp.unify(args[3], t);
 }
+#endif
 
 void builtins::load(interpreter_base &interp, con_cell *module0)
 {
@@ -1402,15 +1473,15 @@ void builtins::load(interpreter_base &interp, con_cell *module0)
 
     // MuSig
     interp.load_builtin(M, interp.functor("musig_combine", 3), &builtins::musig_combine_3);
+    interp.load_builtin(M, interp.functor("musig_adapt", 3), &builtins::musig_adapt_3);    
     interp.load_builtin(M, interp.functor("musig_verify", 3), &builtins::musig_verify_3);
 
     interp.load_builtin(M, interp.functor("musig_start", 7), &builtins::musig_start_7);
     interp.load_builtin(M, interp.functor("musig_nonce_commit", 2), &builtins::musig_nonce_commit_2);
     interp.load_builtin(M, interp.functor("musig_prepare", 3), &builtins::musig_prepare_3);
+    interp.load_builtin(M, interp.functor("musig_set_adaptor", 3), &builtins::musig_set_adaptor_3);
     interp.load_builtin(M, interp.functor("musig_nonces", 2), &builtins::musig_nonces_2);    
-    interp.load_builtin(M, interp.functor("musig_nonces", 3), &builtins::musig_nonces_3);
     interp.load_builtin(M, interp.functor("musig_partial_sign", 2), &builtins::musig_partial_sign_2);    
-    interp.load_builtin(M, interp.functor("musig_adapt_sign", 4), &builtins::musig_adapt_sign_4);
     interp.load_builtin(M, interp.functor("musig_final_sign", 3), &builtins::musig_final_sign_3);    
 }
 

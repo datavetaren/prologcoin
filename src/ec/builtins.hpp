@@ -69,6 +69,9 @@ public:
     // public keys and output the combined public key and its hash.
     static bool musig_combine_3(interpreter_base &interp, size_t arity, term args[] );
 
+    // musig_adapt(+CombinedPubKey, +PublicAdaptorKey, -CombinedAdapted).
+    static bool musig_adapt_3(interpreter_base &interp, size_t arity, term args[] );
+
     // musig_verify(+Data, +CombinedPubKey, +FinalSig)
     static bool musig_verify_3(interpreter_base &interp, size_t arity, term args[] );
 
@@ -91,17 +94,17 @@ public:
     // own nonce.
     static bool musig_prepare_3(interpreter_base &interp, size_t arity, term args[] );
 
-    // musig_nonces(+Session, +Nonces, [+Adaptor])
-    // Set all nonces.
+    // musig_set_adaptor(+Session, +AdaptorSecretKey, +AdaptorPublicKey)
+    // Initiates MuSig to become an adaptor signature
+    static bool musig_set_adaptor_3(interpreter_base &interp, size_t arity, term args[] );
+
+    // musig_nonces(+Session, +Nonces)
+    // Set all nonces. (Will include adaptor if musig_set_adaptor has been called)
     static bool musig_nonces_2(interpreter_base &interp, size_t arity, term args[] );
-    static bool musig_nonces_3(interpreter_base &interp, size_t arity, term args[] );
-
     // musig_partial_sign(+Session, -PartialSignature)
-    // (PartialSignature to send to the others.)
+    // (PartialSignature to send to the others. Will include adaptor
+    //  signature if musig_set_adaptor has been called)
     static bool musig_partial_sign_2(interpreter_base &interp, size_t arity, term args[] );
-
-    // musig_adapt_sign(+Session, +PartialSignature, +AdaptorPrivKey, -AdaptorSignature)
-    static bool musig_adapt_sign_4(interpreter_base &interp, size_t arity, term args[] );
 
     // musig_final_sign(+Session, +PartialSignatures, -FinalSig)
     static bool musig_final_sign_3(interpreter_base &interp, size_t arity, term args[] );
