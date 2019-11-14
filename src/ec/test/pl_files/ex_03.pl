@@ -179,3 +179,14 @@ verify_adaptor_sig(Fin, Negated, Secret) :-
    write('Everything is ok'), nl.
 % Expect: Fin = 58'24Qi9cPuzeG1ER6AFgN8Pk8XdqLwk9CHW47mQ9ycmuwZeXAYUWrzctH54p3kc7zNK2J8VQUkPronM2TyudyHkzNV, Negated = false, Secret = 58'L2aXbBCH8tKAWnbHAizvghtDXWjkipn3aQunKWZiqDLGsggwVntn.
 % Expect: end
+
+close_sessions :-
+    ec:musig_end('$musig'(1)),
+    ec:musig_end('$musig'(2)),
+    ec:musig_end('$musig'(3)),
+    ec:musig_end('$musig'(4)),
+    ec:musig_end('$musig'(5)),
+    ec:musig_end('$musig'(6)).
+
+?- close_sessions.
+% Expect: true

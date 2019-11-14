@@ -111,7 +111,7 @@ public:
     static bool musig_nonce_negated_2(interpreter_base &interp, size_t arity, term args[] );
 
     // musig_end(+Session)
-    static void musig_end(interpreter_base &interp, size_t arity, term args[]);
+    static bool musig_end_1(interpreter_base &interp, size_t arity, term args[]);
 
     // pcommit(P, R, V) true iff P is a Pedersen commitment, i.e.
     // P = r*G + v*H. P is a variable.

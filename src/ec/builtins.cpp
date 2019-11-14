@@ -1506,6 +1506,20 @@ bool builtins::musig_nonce_negated_2(interpreter_base &interp, size_t arity, ter
     return interp.unify(args[1], neg_term);
 }
 
+bool builtins::musig_end_1(interpreter_base &interp, size_t arity, term args[] ) {
+    auto *session = get_musig_session(interp, args[0]);
+    if (session == nullptr) {
+	throw interpreter_exception_wrong_arg_type(
+	   "musig_nonce_negated/2: First argument must be MuSig session; was "
+	   + interp.to_string(args[0]));
+    }
+
+    auto &env = get_musig_env(interp);
+    env.delete_session(session->id());
+
+    return true;
+}
+
 void builtins::load(interpreter_base &interp, con_cell *module0)
 {
     const con_cell EC("ec", 0);
@@ -1535,6 +1549,7 @@ void builtins::load(interpreter_base &interp, con_cell *module0)
     interp.load_builtin(M, interp.functor("musig_partial_sign_adapt",4), &builtins::musig_partial_sign_adapt_4);
     interp.load_builtin(M, interp.functor("musig_final_sign", 3), &builtins::musig_final_sign_3);
     interp.load_builtin(M, interp.functor("musig_nonce_negated", 2), &builtins::musig_nonce_negated_2);
+    interp.load_builtin(M, interp.functor("musig_end", 1), &builtins::musig_end_1);
 }
 
 }}
