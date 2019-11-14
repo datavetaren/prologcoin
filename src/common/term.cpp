@@ -517,6 +517,34 @@ void heap::get_big(cell big, uint8_t *bytes, size_t n) const
     }
 }
 
+bool heap::big_equal(big_cell big1, big_cell big2, uint64_t &cost) const
+{
+    uint64_t cost_tmp = 1;
+    if (num_bits(big1) != num_bits(big2)) {
+        cost = cost_tmp;
+        return false;
+    }
+    auto it1 = begin(big1);
+    auto it2 = begin(big2);
+    auto it1_end = end(big1);
+    auto it2_end = end(big2);
+    while (it1 != it1_end) {
+	cost_tmp++;
+        if (it2 == it2_end) {
+	    cost = cost_tmp;
+	    return false;
+	}
+        if (*it1 != *it2) {
+	    cost = cost_tmp;	  
+	    return false;
+        }
+	++it1;
+	++it2;
+    }
+    cost = cost_tmp;
+    return true;
+}
+
 void heap::print(std::ostream &out) const
 {
     print(out, 0, size_);

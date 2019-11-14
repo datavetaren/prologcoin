@@ -34,7 +34,7 @@ static void test_simple_parse()
     term_emitter emitter(sout, h, ops);
     emitter.print(result);
 
-    std::string expected = "foo(1, 2*3+4+5+ + 6- - 7, 8)";
+    std::string expected = "foo(1, 2*3+4+5+6- -7, 8)";
     
     std::cout << "IN : " << sin.str() << "\n";
     std::cout << "OUT: " << sout.str() << "\n";

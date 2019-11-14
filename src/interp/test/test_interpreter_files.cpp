@@ -30,7 +30,7 @@ static const char * find_name(int argc, char *argv[])
 int main( int argc, char *argv[] )
 {
     header( "test_interpreter_files" );
-
+    
     find_home_dir(argv[0]);
     full_mode = is_full(argc, argv);
 

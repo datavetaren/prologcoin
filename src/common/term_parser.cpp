@@ -49,6 +49,7 @@ protected:
 	: ordinal_(SYMBOL_UNKNOWN),
 	  result_(),
 	  pos_(),
+	  leftmost_pos_(),
 	  token_(),
           old_state_(-1),
           precedence_(0) { }
@@ -57,6 +58,7 @@ protected:
         : ordinal_(other.ordinal_),
 	  result_(other.result_),
 	  pos_(other.pos_),
+	  leftmost_pos_(other.leftmost_pos_),
 	  token_(other.token_),
           old_state_(old_state),
           precedence_(other.precedence_) { }
@@ -65,23 +67,28 @@ protected:
         : ordinal_(ordinal),
   	  result_(),
 	  pos_(),
+	  leftmost_pos_(t.pos()),
   	  token_(t),
           old_state_(old_state),
 	  precedence_(0)
           { }
 
+    /*
       sym( int old_state, symbol_t ord, const term result, const term pos)
 	: ordinal_(ord),
 	  result_(result),
 	  pos_(pos),
+	  leftmost_pos_(),
 	  token_(),
 	  old_state_(old_state),
           precedence_(0) { }
+    */
 
-      sym( const term result, const term pos)
+    sym( const term result, const term pos, const token_position &leftmost_pos)
 	  : ordinal_(SYMBOL_UNKNOWN),
 	    result_(result),
 	    pos_(pos),
+	    leftmost_pos_(leftmost_pos),
 	    token_(),
 	    old_state_(0),
 	    precedence_(0) { }
@@ -95,11 +102,13 @@ protected:
     inline const term_tokenizer::token & token() const { return token_; }
     inline const term result() const { return result_; }
     inline const term pos() const { return pos_; }
+    inline const token_position & leftmost_pos() const { return leftmost_pos_; }
     
     inline void set_ordinal(symbol_t ord) { ordinal_ = ord; }
     inline void set_token(const term_tokenizer::token &tok ) { token_ = tok; }
     inline void set_result(const term result) { result_ = result; }
     inline void set_pos(const term pos) { pos_ = pos; }
+    inline void set_leftmost_pos(const token_position &pos) { leftmost_pos_ = pos;}
     inline void set_old_state(int no) { old_state_ = no; }
     inline void set_precedence(int prec) { precedence_ = prec; }
 
@@ -107,6 +116,9 @@ protected:
       symbol_t ordinal_;
       term result_;
       term pos_; // Position information mirroring result
+      token_position leftmost_pos_; // First character position of this term
+                                    // (Cannot be disbaled as it is needed for
+                                    //  disambiguation.)
       term_tokenizer::token token_;
       int old_state_;
       int precedence_;
@@ -164,6 +176,7 @@ protected:
     lookahead_.set_ordinal(ord);
     lookahead_.set_result(result.result());
     lookahead_.set_pos(result.pos());
+    lookahead_.set_leftmost_pos(result.leftmost_pos());
     lookahead_.set_token(result.token());
     lookahead_.set_precedence(result.precedence());
     lookahead_.set_old_state(current_state_);
@@ -376,13 +389,44 @@ protected:
 
   sym reduce_unary_op(const std::string &opname,
 		      const token_position &pos,
-		      term operand, term operand_pos)
+		      term operand, term operand_pos, const token_position &operand_leftmost_pos)
   {   
     if (check_mode_) return sym();
 
+    //
+    // Prolog has some funny syntax. At least in some implementatons.
+    // For example, there is a distinction between:
+    // X = -123 vs X = - 123 (note the space after '-')
+    //
+    // The former is a pure integer term with value -123, whereas
+    // the latter is a term with the unary functor '-', i.e. '-'(123).
+    //
+    // This is very hard to detect and manage at the tokenization level
+    // so therefore we check when a unary reduction occurs if there has
+    // been a space between the operator '-' (or '+') and the operand.
+    // If not, we assume it is a pure integer.
+    // (Notice that this rule does not affect the binary operator, e.g.
+    // 10-20, is still '-'(10,20) )
+    //
+
+    term newterm;
     con_cell unop(opname, 1);
-    auto newstr = heap_.new_str(unop);
-    heap_.set_arg(newstr, 0, operand);
+
+    if (opname.size() == 1 && (opname[0] == '-' || opname[0] == '+')) {
+        if (pos.line() == operand_leftmost_pos.line() &&
+	    pos.column()+1 == operand_leftmost_pos.column()) {
+	    if (operand.tag() == tag_t::INT) {
+	        auto intval = static_cast<int_cell &>(operand).value();
+		if (opname[0] == '-') intval = -intval;
+		newterm = int_cell(intval);
+	    }
+	}
+    }
+
+    if (newterm == term()) {
+	newterm = heap_.new_str(unop);
+	heap_.set_arg(newterm, 0, operand);
+    }
 
     term term_pos;
     if (track_positions()) {
@@ -390,7 +434,7 @@ protected:
 	set_pos(term_pos, 0, operand_pos);
     }
     
-    sym s(newstr, term_pos);
+    sym s(newterm, term_pos, pos);
     s.set_precedence(ops_.prec(unop).precedence);
     return s;
   }
@@ -398,7 +442,8 @@ protected:
   sym reduce_binary_op(const std::string &opname,
 		       const token_position &pos,
 		       term operand0, term operand0_pos,
-		       term operand1, term operand1_pos)
+		       term operand1, term operand1_pos,
+		       const token_position &leftmost_pos)
   {   
     con_cell binop(opname, 2);
     auto newstr = heap_.new_str(binop);
@@ -412,13 +457,13 @@ protected:
 	set_pos(term_pos, 1, operand1_pos);
     }
 
-    sym s(newstr, term_pos);
+    sym s(newstr, term_pos, leftmost_pos);
     s.set_precedence(ops_.prec(binop).precedence);
     return s;
   }
 
   sym reduce_args(term arg, term arg_pos,
-		  term rest, term rest_pos)
+		  term rest, term rest_pos, const token_position &leftmost_pos)
   {
       auto newstr = heap_.new_str(con_cell(".",2));
       heap_.set_arg(newstr, 0, arg);
@@ -430,7 +475,7 @@ protected:
 	  heap_.set_arg(term_pos, 0, arg_pos);
 	  heap_.set_arg(term_pos, 1, rest_pos);
       }
-      sym s(newstr, term_pos);
+      sym s(newstr, term_pos, leftmost_pos);
       return s;
   }
 
@@ -439,7 +484,8 @@ protected:
      return reduce_unary_op(args[0].token().lexeme(),
 			    args[0].token().pos(),
 			    args[1].result(),
-			    args[1].pos());
+			    args[1].pos(),
+			    args[1].leftmost_pos());
   }
 
   sym reduce_binary_op_subterm(args_t &args)
@@ -449,7 +495,8 @@ protected:
 			     args[0].result(),
 			     args[0].pos(),
 			     args[2].result(),
-			     args[2].pos());
+			     args[2].pos(),
+			     args[0].leftmost_pos());
   }
 
   // term_n :- ...
@@ -543,7 +590,7 @@ protected:
 	index++;
     }
 
-    return sym(fstr, fstr_pos);
+    return sym(fstr, fstr_pos, args[0].leftmost_pos());
   }
 
   inline sym remove_precedence(sym &s)
@@ -564,7 +611,8 @@ protected:
     if (check_mode_) return sym();
 
     return reduce_unary_op("{}", args[0].token().pos(),
-			   args[1].result(), args[1].pos());
+			   args[1].result(), args[1].pos(),
+			   args[1].leftmost_pos());
   }
 
   sym reduce_term_0__list(args_t &args)
@@ -593,9 +641,9 @@ protected:
 	lst = empty_list_;
     }
     if (track_positions()) {
-	return sym(lst, make_pos(args[0].token().pos(),0));
+        return sym(lst, make_pos(args[0].token().pos(),0),args[0].leftmost_pos());
     } else {
-	return sym(lst, term());
+        return sym(lst, term(), args[0].leftmost_pos());
     }
   }
 
@@ -620,9 +668,9 @@ protected:
           auto found = name_var_map_.find(var_name);
           if (found != name_var_map_.end()) {
 	      if (track_positions()) {
-		  return sym(found->second, make_pos(var_token.pos(), 0));
+		  return sym(found->second, make_pos(var_token.pos(), 0), args[0].leftmost_pos());
 	      } else {
-		  return sym(found->second, term());
+  		  return sym(found->second, term(), args[0].leftmost_pos());
 	      }
           }
       }
@@ -637,9 +685,9 @@ protected:
       name_var_map_[var_name] = ref;
 
       if (track_positions()) {
-	  return sym(ref, make_pos(var_token.pos(), 0));
+  	  return sym(ref, make_pos(var_token.pos(), 0), args[0].leftmost_pos());
       } else {
-	  return sym(ref, term());
+	  return sym(ref, term(), args[0].leftmost_pos());
       }
   }
 
@@ -656,7 +704,8 @@ protected:
     term ext_empty_list_pos = empty_list;
 
     return reduce_args(args[0].result(), args[0].pos(),
-	  	       ext_empty_list, ext_empty_list_pos);
+	  	       ext_empty_list, ext_empty_list_pos,
+		       args[0].leftmost_pos());
   }
 
   sym reduce_arguments__subterm_999_comma_arguments(args_t &args)
@@ -664,7 +713,8 @@ protected:
     if (check_mode_) return sym();
 
     return reduce_args(args[0].result(), args[0].pos(),
-		       args[2].result(), args[2].pos());
+		       args[2].result(), args[2].pos(),
+		       args[0].leftmost_pos());
   }
 
   // list :- ...
@@ -675,9 +725,9 @@ protected:
 
     con_cell empty_list("[]", 0);
     if (track_positions()) {
-	return sym(empty_list, make_pos(args[0].token().pos(), 0));
+      return sym(empty_list, make_pos(args[0].token().pos(), 0), args[0].leftmost_pos());
     } else {
-	return sym(empty_list, term());
+      return sym(empty_list, term(), args[0].leftmost_pos());
     }
   }
 
@@ -698,7 +748,8 @@ protected:
 			         args[0].result(),
   			         args[0].pos(),
 		 	         heap::EMPTY_LIST,
-	 		         heap::EMPTY_LIST);
+			         heap::EMPTY_LIST,
+                                 args[0].leftmost_pos());
   }
 
   sym reduce_listexpr__subterm_999_comma_listexpr(args_t &args)
@@ -709,7 +760,8 @@ protected:
 			         args[0].result(),
 			         args[0].pos(),
 			         args[2].result(),
-			         args[2].pos());
+			         args[2].pos(),
+			         args[0].leftmost_pos());
   }
   
   sym reduce_listexpr__subterm_999_vbar_subterm_999(args_t &args)
@@ -720,7 +772,8 @@ protected:
 			         args[0].result(),
 			         args[0].pos(),
 			         args[2].result(),
-			         args[2].pos());
+			         args[2].pos(),
+			         args[0].leftmost_pos());
   }
 
   // constant :- ...
@@ -845,15 +898,16 @@ protected:
 
     int base = 0;
     std::string number;
-
+    
     // Seperate into number and base
     get_number_and_base(lexeme, number, base);
+
     if (is_inside_int(number, base)) {
 	int_cell val(get_int(number, base));
 	if (track_positions()) {
-	    return sym(val, make_pos(tok.pos(),0));
+	    return sym(val, make_pos(tok.pos(),0), tok.pos());
 	} else {
-	    return sym(val, term());
+	    return sym(val, term(), tok.pos());
 	}
     } else {
 	// Construct a bignum
@@ -868,9 +922,9 @@ protected:
 
 	big_cell big = heap_.new_big(val, nbits);
 	if (track_positions()) {
-	    return sym(big, make_pos(tok.pos(),0));
+	    return sym(big, make_pos(tok.pos(),0), tok.pos());
 	} else {
-	    return sym(big, term());
+	    return sym(big, term(), tok.pos());
 	}
     }
   }
@@ -890,9 +944,9 @@ protected:
 
     con_cell con = heap_.atom(args[0].token().lexeme());
     if (track_positions()) {
-	return sym(con, make_pos(args[0].token().pos(), 0));
+        return sym(con, make_pos(args[0].token().pos(), 0), args[0].leftmost_pos());
     } else {
-	return sym(con, term());
+        return sym(con, term(), args[0].leftmost_pos());
     }
   }
 
@@ -902,9 +956,9 @@ protected:
 
     con_cell con = heap_.atom(args[0].token().lexeme());
     if (track_positions()) {
-	return sym(con, make_pos(args[0].token().pos(), 0));
+        return sym(con, make_pos(args[0].token().pos(), 0), args[0].leftmost_pos());
     } else {
-	return sym(con, term());
+        return sym(con, term(), args[0].leftmost_pos());
     }
   }
 
@@ -914,9 +968,9 @@ protected:
 
     con_cell con = heap_.atom(args[0].token().lexeme());
     if (track_positions()) {
-	return sym(con, make_pos(args[0].token().pos(), 0));
+        return sym(con, make_pos(args[0].token().pos(), 0), args[0].leftmost_pos());
     } else {
-	return sym(con, term());
+        return sym(con, term(), args[0].leftmost_pos());
     }
   }
 

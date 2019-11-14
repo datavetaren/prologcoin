@@ -167,6 +167,11 @@ public:
         { return T::get_heap().get_big(t, index); }
     inline size_t num_bits(big_cell b) const
         { return T::get_heap().num_bits(b); }
+    inline bool big_equal(term t1, term t2, uint64_t &cost) const
+        { return T::get_heap().big_equal(static_cast<big_cell &>(t1),
+					 static_cast<big_cell &>(t2),
+					 cost);
+	}
     inline void get_big(term t, boost::multiprecision::cpp_int &i,
 			size_t &nbits) const
         { T::get_heap().get_big(t, i, nbits); }

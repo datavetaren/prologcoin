@@ -115,60 +115,67 @@ final_sigs([Fin1,Fin2,Fin3]) :-
 %
 % Try with adaptor
 %
-combine_nonces_adapt :-
+
+%
+% New MuSig Sessions
+%
+
+session4(Session) :-
+   combiner(CombPubKey, CombPubKeyHash),
+   pkey1(X1),
+   ec:musig_start(Session, CombPubKey, CombPubKeyHash, 0, 3, X1, hello(world(42))).
+session5(Session) :-
+   combiner(CombPubKey, CombPubKeyHash),
+   pkey2(X2),
+   ec:musig_start(Session, CombPubKey, CombPubKeyHash, 1, 3, X2, hello(world(42))).
+session6(Session) :-
+   combiner(CombPubKey, CombPubKeyHash),
+   pkey3(X3),
+   ec:musig_start(Session, CombPubKey, CombPubKeyHash, 2, 3, X3, hello(world(42))).
+
+% Meta: fileio on
+
+adaptor_sig(Sigs, Fin, Negated) :-
+    session4(Session4),
+    session5(Session5),
+    session6(Session6),
+    ec:musig_nonce_commit(Session4, C4),
+    ec:musig_nonce_commit(Session5, C5),
+    ec:musig_nonce_commit(Session6, C6),
+    Cs = [C4,C5,C6],
+    ec:musig_prepare(Session4, Cs, N1),
+    ec:musig_prepare(Session5, Cs, N2),
+    ec:musig_prepare(Session6, Cs, N3),
+    Ns = [N1,N2,N3],
     akey(AdaptorSecret), ec:pubkey(AdaptorSecret, Adaptor),
-    ec:musig_set_adaptor('$musig'(1), AdaptorSecret, Adaptor),
-    ec:musig_set_adaptor('$musig'(2), AdaptorSecret, Adaptor),
-    ec:musig_set_adaptor('$musig'(3), AdaptorSecret, Adaptor),
-    nonces(Ns),
-    ec:musig_nonces('$musig'(1), Ns),
-    ec:musig_nonces('$musig'(2), Ns),
-    ec:musig_nonces('$musig'(3), Ns).
+    ec:musig_nonces(Session4, Ns, Adaptor),
+    ec:musig_nonces(Session5, Ns, Adaptor),
+    ec:musig_nonces(Session6, Ns, Adaptor),
+    ec:musig_partial_sign(Session4, Sig1),
+    ec:musig_partial_sign(Session5, Sig2),
+    ec:musig_partial_sign(Session6, Sig3),
+    Sigs = [Sig1,Sig2,Sig3],
+    ec:musig_partial_sign_adapt(Session5, Sig2, AdaptorSecret, ASig2),
+    ASigs = [Sig1,ASig2,Sig3],
+    ec:musig_final_sign(Session4, ASigs, Fin),
+    ec:musig_final_sign(Session5, ASigs, Fin),
+    ec:musig_final_sign(Session6, ASigs, Fin),
+    ec:musig_nonce_negated(Session5, Negated).
 
-?- combine_nonces_adapt.
-% Expect: true
+verify_adaptor_sig(Fin, Negated, Secret) :-
+    write('Compute adaptor signature.'), nl,
+    combiner(CombinedPubKey, _),
+    adaptor_sig(Sigs, Fin, Negated),
+    write('Verify adaptor signature.'), nl,
+    ec:musig_verify(hello(world(42)),
+	            CombinedPubKey,
+		    Fin),
+    write('Extract secret.'), nl,
+    ec:musig_secret(Fin, Sigs, Negated, Secret).
 
-%
-% Just redo the same operation as 'musig_set_adaptor' changes the behavior
-% of partial_sigs.
-%
-adaptor_sigs([ASig1,ASig2,ASig3]) :-
-	partial_sigs([ASig1,ASig2,ASig3]).
-
-?- adaptor_sigs([ASig1,ASig2,ASig3]),
-   ASig1 \= 58'6sHsrBVyxAdD1G13AVVL3JxbK784HJ7iS5iDrTPVEeDh,
-   ASig2 \= 58'Dcjcv2HiWyjoazfeexL8eE6JMfs7W2u3icWuiurj2yp2,
-   ASig3 \= 58'FjkF6hvsXAdgoiype63edY7t3Q7ASZCYF4JgSTZY4QRp.
-% Expect: ASig1 = 58'9dwqq5LFnfXdi8w2Pz1why4wLAMztk5FobVNoC5PM2S1, ASig2 = 58'GYN8FWnT8DUtjjbd6CqVZnYTNWyChGpNgCMJo5VXUjh9, ASig3 = 58'1nMFcXhXVndgVUk75zDvujZ4UYJAs6g3P54YjXeKHgbe.
-% xxxxxx: ASig1 = 58'HdTcLYcSpBCgFuo7dXskrri5yGK2waNdQdbmUSDSjxYG, ASig2 = 58'79ayubeaawaWGZgJtpYGGZjSiLahze5WQyU4xExSg2yg, ASig3 = 58'9Gbc6HHjb8UPVHzUsxFnFsm2Q4pkwANzwRFqfnfFhTbU.
+?- verify_adaptor_sig(Fin, Negated, Secret),
+   write('Check if secret is correct.'), nl,
+   akey(Secret),
+   write('Everything is ok'), nl.
+% Expect: Fin = 58'24Qi9cPuzeG1ER6AFgN8Pk8XdqLwk9CHW47mQ9ycmuwZeXAYUWrzctH54p3kc7zNK2J8VQUkPronM2TyudyHkzNV, Negated = false, Secret = 58'L2aXbBCH8tKAWnbHAizvghtDXWjkipn3aQunKWZiqDLGsggwVntn.
 % Expect: end
-
-%
-% Combine adaptor signatures
-%
-final_adaptor_sigs([Fin1,Fin2,Fin3]) :-
-	adaptor_sigs(Sigs),
-	ec:musig_final_sign('$musig'(1), Sigs, Fin1),
-	ec:musig_final_sign('$musig'(2), Sigs, Fin2),
-	ec:musig_final_sign('$musig'(3), Sigs, Fin3).
-
-?- final_adaptor_sigs([Fin,Fin,Fin]),
-   Fin \= 58'3Z5hXQPQMM6QYGZJFsFG3e44bKZr8cTpCoWhJF1rX9UpRZs65j3bZN8DjGWZzrtwMHWNr9CBRkjWEyA3rjNWJAF6.
-% Expect: Fin = 58'3w9QDQMtFrr1AEodDzLhspF1MQ2MpGb6p8BMCXKg23xZgZDNbSYEyzT53d12JnEDpyuaxWGrt3n2Bhpu16jPNBqB.
-% xxxxxx: Fin = 58'3Z5hXQPQMM6QYGZJFsFG3e44bKZr8cTpCoWhJF1rX9UpPPjYZEsnZJP6M4KxwdhdRWYADdpM5FMLcEwuwNPu5aty.
-% Expect: end
-
-%
-% Let's check the adaptor signature verifies.
-%
-%verify_adaptor_sig(Fin) :-
-%    CombinedPubKey = 58'1uvCiduRL5GbS25LkrefndgjWbUjsk6f9EJpMYEPN1Ruu,
-%    akey(AdaptorSecret),
-%    ec:pubkey(AdaptorSecret, Adaptor),
-%    ec:musig_adapt(CombinedPubKey, Adaptor, Adapted),
-%    ec:musig_verify(hello(world(42)),
-%	            Adapted,
-%		    58'3w9QDQMtFrr1AEodDzLhspF1MQ2MpGb6p8BMCXKg23xZgZDNbSYEyzT53d12JnEDpyuaxWGrt3n2Bhpu16jPNBqB).
-%
-%?- verify_adaptor_sig(Fin).
-% : abc

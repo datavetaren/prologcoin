@@ -73,6 +73,18 @@ bool term_utils::equal(term a, term b, uint64_t &cost)
 	    return false;
 	}
 
+	if (a.tag() == tag_t::BIG) {
+	    uint64_t cost_bigeq = 0;
+	    if (!big_equal(a, b, cost_bigeq)) {
+	        cost_tmp += cost_bigeq;
+	        trim_stack(d);
+	        cost = cost_tmp;
+	        return false;
+	    }
+	    cost_tmp += cost_bigeq;
+	    continue;
+	}
+	
 	if (a.tag() != tag_t::STR) {
 	    trim_stack(d);
 	    cost = cost_tmp;

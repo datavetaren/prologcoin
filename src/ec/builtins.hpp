@@ -69,11 +69,10 @@ public:
     // public keys and output the combined public key and its hash.
     static bool musig_combine_3(interpreter_base &interp, size_t arity, term args[] );
 
-    // musig_adapt(+CombinedPubKey, +PublicAdaptorKey, -CombinedAdapted).
-    static bool musig_adapt_3(interpreter_base &interp, size_t arity, term args[] );
-
     // musig_verify(+Data, +CombinedPubKey, +FinalSig)
     static bool musig_verify_3(interpreter_base &interp, size_t arity, term args[] );
+    // musig_secret(+FinalSig, +PartialSigs, +NonceIsNegated, -Secret)
+    static bool musig_secret_4(interpreter_base &interp, size_t arity, term args[] );
 
     // musig sessions (to actually sign something)
   
@@ -94,26 +93,26 @@ public:
     // own nonce.
     static bool musig_prepare_3(interpreter_base &interp, size_t arity, term args[] );
 
-    // musig_set_adaptor(+Session, +AdaptorSecretKey, +AdaptorPublicKey)
-    // Initiates MuSig to become an adaptor signature
-    static bool musig_set_adaptor_3(interpreter_base &interp, size_t arity, term args[] );
-
-    // musig_nonces(+Session, +Nonces)
-    // Set all nonces. (Will include adaptor if musig_set_adaptor has been called)
-    static bool musig_nonces_2(interpreter_base &interp, size_t arity, term args[] );
+    // musig_nonces(+Session, +Nonces, [+Adaptor])
+    // Set all nonces. (Adaptor is optional.)
+    static bool musig_nonces_3(interpreter_base &interp, size_t arity, term args[] );
     // musig_partial_sign(+Session, -PartialSignature)
     // (PartialSignature to send to the others. Will include adaptor
     //  signature if musig_set_adaptor has been called)
     static bool musig_partial_sign_2(interpreter_base &interp, size_t arity, term args[] );
 
+    // musig_partial_sign_adapt(+Session, +PartialSignature, +PrivateAdaptor, -AdaptedPartialSignature)
+    static bool musig_partial_sign_adapt_4(interpreter_base &interp, size_t arity, term args[] );
+
     // musig_final_sign(+Session, +PartialSignatures, -FinalSig)
     static bool musig_final_sign_3(interpreter_base &interp, size_t arity, term args[] );
+
+    // musig_nonce_negated(+Session, NonceNegated);
+    static bool musig_nonce_negated_2(interpreter_base &interp, size_t arity, term args[] );
 
     // musig_end(+Session)
     static void musig_end(interpreter_base &interp, size_t arity, term args[]);
 
-    
-  
     // pcommit(P, R, V) true iff P is a Pedersen commitment, i.e.
     // P = r*G + v*H. P is a variable.
     // static bool pcommit_3(interpreter_base &interp, size_t arity, term args[]);

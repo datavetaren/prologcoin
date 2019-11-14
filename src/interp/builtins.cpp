@@ -3,6 +3,7 @@
 #include "wam_interpreter.hpp"
 #include <stdarg.h>
 #include <boost/algorithm/string.hpp>
+#include <memory>
 
 namespace prologcoin { namespace interp {
 
@@ -326,6 +327,51 @@ namespace prologcoin { namespace interp {
        bool ok = interp.unify(to, r);
        return ok;
    }
+
+    bool builtins::chars_number_2(interpreter_base &interp, size_t arity, common::term args[]) {
+        if (args[0].tag() == tag_t::REF && args[1].tag() == tag_t::REF) {
+  	    std::string msg = "chars_number/2: Not both arguments can be unbounded variables.";
+	    interp.abort(interpreter_exception_not_sufficiently_instantiated(msg));
+        }
+	term charlst = args[0];
+        if (charlst.tag() != tag_t::REF) {
+  	    if (!interp.is_list(charlst)) {
+	        interp.abort(interpreter_exception_wrong_arg_type("chars_number/2: First argument must be a list of integers (in 0..255)"));
+	    }
+	    size_t n = interp.list_length(charlst);
+	    if (n > 65536) {
+	        std::stringstream msg;
+	        msg << "chars_number/2: List length exceeds 65536 elements";
+		msg << "; was " << n;
+		interp.abort(interpreter_exception_wrong_arg_type(msg.str()));
+	    }
+
+ 	    std::unique_ptr<uint8_t> bytes( new uint8_t[n] );
+	  
+  	    size_t i = 0;
+	    while (interp.is_dotted_pair(charlst)) {
+	        term charelem = interp.arg(charlst,0);
+		if (charelem.tag() != tag_t::INT ||
+		    static_cast<int_cell &>(charelem).value() < 0 ||
+		    static_cast<int_cell &>(charelem).value() > 255) {
+  		    std::stringstream msg;
+		    msg << "chars_number/2: Element at position " << (i+1) << " is not an integer between 0 and 255; was ";
+		    msg << interp.to_string(charelem);
+		    interp.abort(interpreter_exception_wrong_arg_type(msg.str()));
+		}
+		auto v = static_cast<int_cell &>(charelem).value();
+		(bytes.get())[i] = static_cast<uint8_t>(v);
+		charlst = interp.arg(charlst, 1);
+		i++;
+	    }
+
+	    term t = interp.new_big(8*n);
+	    interp.set_big(t, bytes.get(), n);
+
+	    return interp.unify(args[1], t);
+        }
+        return false;
+    }
 
     // TODO: cyclic_term/1 and acyclic_term/1
 

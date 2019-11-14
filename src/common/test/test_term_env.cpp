@@ -22,7 +22,7 @@ static void test_simple_env()
     auto r = env.parse(sin);
 
     std::string sout = env.to_string(r);
-    std::string expected = "foo(1, 2*3+4+5+ + 6- - 7, 8)";
+    std::string expected = "foo(1, 2*3+4+5+6- -7, 8)";
     
     std::cout << "IN : " << sin << "\n";
     std::cout << "OUT: " << sout << "\n";
