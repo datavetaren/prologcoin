@@ -43,8 +43,6 @@ public:
     static const size_t RAW_KEY_SIZE = builtins::RAW_KEY_SIZE;
     static const size_t RAW_HASH_SIZE = builtins::RAW_HASH_SIZE;
 
-    static const size_t ADAPTOR_UNUSED = static_cast<size_t>(-1);
-  
     musig_session(size_t id, secp256k1_context *ctx, size_t num_signers);
     ~musig_session();
 
@@ -102,7 +100,6 @@ private:
     uint8_t nonce_commitment_[RAW_HASH_SIZE];
     uint8_t data_hash_[RAW_HASH_SIZE];
     int nonce_is_negated_;
-    size_t adaptor_index_;
     uint8_t adaptor_secret_[RAW_KEY_SIZE];
     secp256k1_pubkey adaptor_;
 };
@@ -153,8 +150,7 @@ musig_session::musig_session(size_t id, secp256k1_context *ctx, size_t num_signe
     ctx_(ctx),
     num_signers_(num_signers),
     my_index_(static_cast<size_t>(-1)),
-    signers_(nullptr),
-    adaptor_index_(ADAPTOR_UNUSED) {
+    signers_(nullptr) {
     signers_ = new secp256k1_musig_session_signer_data[num_signers];
     common::random::next_bytes(session_id_, sizeof(session_id_));
     memset(nonce_commitment_, 0, sizeof(nonce_commitment_));
@@ -1407,7 +1403,6 @@ bool builtins::musig_partial_sign_adapt_4(interpreter_base &interp, size_t arity
     }
 
     uint8_t adapted_data[RAW_KEY_SIZE];
-    secp256k1_musig_partial_signature adpated;
     if (secp256k1_musig_partial_signature_serialize(ctx, adapted_data, &partial_signature) != 1) {
 	throw interpreter_exception_musig(
 	  "musig_partial_sign_adapt/4: Couldn't serialize adapted signature.");
