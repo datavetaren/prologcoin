@@ -2,18 +2,29 @@
 % Note that perfect randomness is disabled to get deterministic behavior.
 %
 
+% Meta: fileio on
+
+
 %
 % Test MuSig Combine
 %
 pkey1(58'L326Y3N3XHcGWSnhiTPZTb544aGZt6x8sTfLpnWKwoeLr3NWghct).
 pkey2(58'KzC9JAPZfcsmzU1EF3yqs39a4dq7jUYXCLAMhQTGBwrbXeSJhgsi).
 pkey3(58'Kwd33XZRL1qSSTaxdhPSKF8xtg5DbBpfuq6NhQxbwuD7DoEEmF1X).
-akey(58'L2aXbBCH8tKAWnbHAizvghtDXWjkipn3aQunKWZiqDLGsggwVntn).
+
+akey(Secret) :-
+    String = "01 this is a secret! 12345678901",
+    bytes_number(String, Secret).
+
+get_public_keys([P1,P2,P3]) :-
+    pkey1(X1), ec:pubkey(X1,P1), 
+    pkey2(X2), ec:pubkey(X2,P2),
+    pkey3(X3), ec:pubkey(X3,P3).
+    
 
 combiner(PubKeyCombined, PubKeyCombinedHash) :-
-    pkey1(X1), pkey2(X2), pkey3(X3),
-    ec:pubkey(X1,P1), ec:pubkey(X2,P2), ec:pubkey(X3,P3),
-    ec:musig_combine([P1,P2,P3],PubKeyCombined,PubKeyCombinedHash).
+    get_public_keys(PubKeys),
+    ec:musig_combine(PubKeys,PubKeyCombined,PubKeyCombinedHash).
     
 ?- combiner(PubKey, PubKeyHash).
 % Expect: PubKey = 58'1uvCiduRL5GbS25LkrefndgjWbUjsk6f9EJpMYEPN1Ruu, PubKeyHash = 58'AhNPU9P3s3MNsZqSYTsJ1Skyf1Sy4gT4E8eoh7ZWYLVx.
@@ -83,12 +94,22 @@ combine_nonces :-
 ?- combine_nonces.
 % Expect: true
 
+set_public_keys :-
+    get_public_keys([P1,P2,P3]),
+    ec:musig_set_public_key('$musig'(1), 0, P1),
+    ec:musig_set_public_key('$musig'(2), 1, P2),
+    ec:musig_set_public_key('$musig'(3), 2, P3).
+?- set_public_keys.
+% Expect: true
+
 %
 % Partial signatures
 %
 
 partial_sigs([Sig1,Sig2,Sig3]) :-
-    ec:musig_partial_sign('$musig'(1), Sig1), ec:musig_partial_sign('$musig'(2), Sig2), ec:musig_partial_sign('$musig'(3), Sig3).
+    ec:musig_partial_sign('$musig'(1), Sig1),
+    ec:musig_partial_sign('$musig'(2), Sig2),
+    ec:musig_partial_sign('$musig'(3), Sig3).
 
 ?- partial_sigs([Sig1,Sig2,Sig3]).
 % Expect: Sig1 = 58'6sHsrBVyxAdD1G13AVVL3JxbK784HJ7iS5iDrTPVEeDh, Sig2 = 58'Dcjcv2HiWyjoazfeexL8eE6JMfs7W2u3icWuiurj2yp2, Sig3 = 58'FjkF6hvsXAdgoiype63edY7t3Q7ASZCYF4JgSTZY4QRp.
@@ -133,9 +154,7 @@ session6(Session) :-
    pkey3(X3),
    ec:musig_start(Session, CombPubKey, CombPubKeyHash, 2, 3, X3, hello(world(42))).
 
-% Meta: fileio on
-
-adaptor_sig(Sigs, Fin, Negated) :-
+adaptor_sig(Sigs, Fin, Negated, Nonces) :-
     session4(Session4),
     session5(Session5),
     session6(Session6),
@@ -160,24 +179,30 @@ adaptor_sig(Sigs, Fin, Negated) :-
     ec:musig_final_sign(Session4, ASigs, Fin),
     ec:musig_final_sign(Session5, ASigs, Fin),
     ec:musig_final_sign(Session6, ASigs, Fin),
-    ec:musig_nonce_negated(Session5, Negated).
+    ec:musig_nonce_negated(Session5, Negated),
+    Nonces = Ns.
 
 verify_adaptor_sig(Fin, Negated, Secret) :-
     write('Compute adaptor signature.'), nl,
     combiner(CombinedPubKey, _),
-    adaptor_sig(Sigs, Fin, Negated),
+    adaptor_sig(Sigs, Fin, Negated, Nonces),
     write('Verify adaptor signature.'), nl,
     ec:musig_verify(hello(world(42)),
 	            CombinedPubKey,
 		    Fin),
     write('Extract secret.'), nl,
-    ec:musig_secret(Fin, Sigs, Negated, Secret).
+    get_public_keys(PubKeys),
+    akey(AdaptorSecret), ec:pubkey(AdaptorSecret, Adaptor),
+    ec:musig_secret(hello(world(42)),
+                    Fin, Nonces, PubKeys, Sigs, Adaptor, SecretNum),
+   bytes_number(Secret, SecretNum).
 
 ?- verify_adaptor_sig(Fin, Negated, Secret),
    write('Check if secret is correct.'), nl,
-   akey(Secret),
+   write(Secret),
+   nl,
    write('Everything is ok'), nl.
-% Expect: Fin = 58'24Qi9cPuzeG1ER6AFgN8Pk8XdqLwk9CHW47mQ9ycmuwZeXAYUWrzctH54p3kc7zNK2J8VQUkPronM2TyudyHkzNV, Negated = false, Secret = 58'L2aXbBCH8tKAWnbHAizvghtDXWjkipn3aQunKWZiqDLGsggwVntn.
+% Expect: Fin = 58'5crp8rpA3rx19D6fLsoMELfdgwKsGQb1ZAZdgrj23ngEjwnAfyc1TsLf7bErNBHBXq7WpWb21mfodiCZ57pqi9q5, Negated = false, Secret = "01 this is a secret! 12345678901"
 % Expect: end
 
 close_sessions :-

@@ -698,6 +698,15 @@ public:
       return to_string(t, default_opt);
   }
 
+  const_big_iterator begin(const big_cell b)
+  {
+      return heap_dock<HT>::begin(b);
+  }
+
+  const_big_iterator end(const big_cell b)
+  {
+      return heap_dock<HT>::end(b);
+  }  
 
   term_dfs_iterator_templ<HT,ST,OT> begin(const term t)
   {

@@ -29,11 +29,14 @@
 % Convert strings into big integers
 %
     
-?- chars_number("hello world in foobar", Q5).
+?- bytes_number("hello world in foobar", Q5).
 % Expect: Q5 = 58'7RL9MURV5D8RFkvhpWtcLUkMWTRR3.
 
-?- chars_number(Q6, Q6).
-% Expect: chars_number/2: Not both arguments can be unbounded variables.
+?- bytes_number(Q6, 58'7RL9MURV5D8RFkvhpWtcLUkMWTRR3).
+% Expect: Q6 = "hello world in foobar".
 
-?- chars_number([100, -1, 1024], Q7).
-% Expect: chars_number/2: Element at position 2 is not an integer between 0 and 255; was -1
+?- bytes_number(Q7, Q7).
+% Expect: bytes_number/2: Not both arguments can be unbounded variables.
+
+?- bytes_number([100, -1, 1024], Q8).
+% Expect: bytes_number/2: Element at position 2 is not an integer between 0 and 255; was -1

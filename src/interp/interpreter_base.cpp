@@ -443,7 +443,7 @@ void interpreter_base::load_builtins()
 
     // Character properties
     load_builtin(functor("upcase_atom",2), &builtins::upcase_atom_2);
-    load_builtin(functor("chars_number",2), &builtins::chars_number_2);
+    load_builtin(functor("bytes_number",2), &builtins::bytes_number_2);
 
     // Arithmetics
     load_builtin(con_cell("is",2), &builtins::is_2);

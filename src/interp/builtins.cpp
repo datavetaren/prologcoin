@@ -328,20 +328,20 @@ namespace prologcoin { namespace interp {
        return ok;
    }
 
-    bool builtins::chars_number_2(interpreter_base &interp, size_t arity, common::term args[]) {
+    bool builtins::bytes_number_2(interpreter_base &interp, size_t arity, common::term args[]) {
         if (args[0].tag() == tag_t::REF && args[1].tag() == tag_t::REF) {
-  	    std::string msg = "chars_number/2: Not both arguments can be unbounded variables.";
+  	    std::string msg = "bytes_number/2: Not both arguments can be unbounded variables.";
 	    interp.abort(interpreter_exception_not_sufficiently_instantiated(msg));
         }
 	term charlst = args[0];
         if (charlst.tag() != tag_t::REF) {
   	    if (!interp.is_list(charlst)) {
-	        interp.abort(interpreter_exception_wrong_arg_type("chars_number/2: First argument must be a list of integers (in 0..255)"));
+	        interp.abort(interpreter_exception_wrong_arg_type("bytes_number/2: First argument must be a list of integers (in 0..255)"));
 	    }
 	    size_t n = interp.list_length(charlst);
 	    if (n > 65536) {
 	        std::stringstream msg;
-	        msg << "chars_number/2: List length exceeds 65536 elements";
+	        msg << "bytes_number/2: List length exceeds 65536 elements";
 		msg << "; was " << n;
 		interp.abort(interpreter_exception_wrong_arg_type(msg.str()));
 	    }
@@ -355,7 +355,7 @@ namespace prologcoin { namespace interp {
 		    static_cast<int_cell &>(charelem).value() < 0 ||
 		    static_cast<int_cell &>(charelem).value() > 255) {
   		    std::stringstream msg;
-		    msg << "chars_number/2: Element at position " << (i+1) << " is not an integer between 0 and 255; was ";
+		    msg << "bytes_number/2: Element at position " << (i+1) << " is not an integer between 0 and 255; was ";
 		    msg << interp.to_string(charelem);
 		    interp.abort(interpreter_exception_wrong_arg_type(msg.str()));
 		}
@@ -365,12 +365,59 @@ namespace prologcoin { namespace interp {
 		i++;
 	    }
 
+	    // TODO: If n <= 4 we should try to make a standard integer (int_cell)
+	    assert(n > 4);
+
 	    term t = interp.new_big(8*n);
 	    interp.set_big(t, bytes.get(), n);
 
 	    return interp.unify(args[1], t);
         }
-        return false;
+
+	// First argument is unbound, we need to construct a list.
+	term bignum_term = args[1];
+	if (bignum_term.tag() != tag_t::BIG && bignum_term.tag() != tag_t::INT) {
+  	    std::stringstream msg;
+	    msg << "bytes_number/2: Second argument must be an integer number; was ";
+	    msg << interp.to_string(bignum_term);
+	    interp.abort(interpreter_exception_wrong_arg_type(msg.str()));
+	}
+	if (bignum_term.tag() == tag_t::INT) {
+	    // This is a 61 bit integer (which can be negative)
+	    int64_t val = reinterpret_cast<int_cell &>(bignum_term).value();
+	    uint8_t byt = (val >> 56) & 0xff;
+	    auto r = interp.new_dotted_pair(int_cell(byt),
+					    interpreter_base::EMPTY_LIST);
+	    auto tail = r;
+	    val >>= 8;
+	    for (size_t i = 0; i < 7; i++) {
+	        byt = static_cast<uint8_t>((val >> 56) & 0xff);
+		auto nextLst = interp.new_dotted_pair(int_cell(byt),
+						      interpreter_base::EMPTY_LIST);
+		interp.set_arg(tail, 1, nextLst);
+		tail = nextLst;
+	    }
+	    return interp.unify(r, args[0]);	    
+	}
+	
+	// TODO: Should fix a range for bignum so we can use for (auto b : )
+	const big_cell &bignum = reinterpret_cast<const big_cell &>(bignum_term);
+	auto bend = interp.end(bignum);
+	term r = interpreter_base::EMPTY_LIST;
+	term tail = r;
+        for (auto it = interp.begin(bignum); it != bend; ++it) {
+	    uint8_t byt = *it;
+	    auto nextLst = interp.new_dotted_pair(int_cell(byt),
+						  interpreter_base::EMPTY_LIST);
+	    if (interp.is_empty_list(tail)) {
+	        tail = nextLst;
+	        r = tail;
+	    } else {
+	        interp.set_arg(tail, 1, nextLst);
+		tail = nextLst;
+	    }
+	}
+        return interp.unify(r, args[0]);
     }
 
     // TODO: cyclic_term/1 and acyclic_term/1

@@ -71,19 +71,23 @@ public:
 
     // musig_verify(+Data, +CombinedPubKey, +FinalSig)
     static bool musig_verify_3(interpreter_base &interp, size_t arity, term args[] );
-    // musig_secret(+FinalSig, +PartialSigs, +NonceIsNegated, -Secret)
-    static bool musig_secret_4(interpreter_base &interp, size_t arity, term args[] );
+    // musig_secret(+Data, +FinalSig, +NonceCommitments, +PubKeys, +PartialSigs, +Adaptor, -Secret)
+    static bool musig_secret_7(interpreter_base &interp, size_t arity, term args[] );
 
     // musig sessions (to actually sign something)
+
+    // Extract session from arg
+    static musig_session * get_musig_session(interpreter_base &interp, term arg);
   
     // musig_start(-Session, +CombinedPubKey, +CombinedPubKeyHash, +MyIndex,
     //       +NumSigners, +PrivateKey, +Data)
     // Create new a MuSig session
     static bool musig_start_7(interpreter_base &interp, size_t arity, term args[] );
 
-    // Extract session from arg
-    static musig_session * get_musig_session(interpreter_base &interp, term arg);
-  
+    // musig_set_public_key(+Session, +Index, +PubKey)
+    // For verification only; given the index, set the public key.
+    static bool musig_set_public_key_3(interpreter_base &interp, size_t arity, term args[] );
+
     // musig_nonce_commit(+Session, -NonceCommitment)
     // Start session by getting my nonce commitment
     static bool musig_nonce_commit_2(interpreter_base &interp, size_t arity, term args[] );
