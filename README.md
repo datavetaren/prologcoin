@@ -308,8 +308,8 @@ tx2(CoinIn, Hash, Sign, PubKey, PubKeys, CoinOut) :-
         ground(Hash), 
         Hash = '$sys'(_), % Hash must not have been computed by user code
         member(PubKey, PubKeys), % Make sure PubKey is an element of PubKeys
-	mucomb(PubKeys, CombinedPubKey), % Combine public keys (Schnorr)
-        muvrfy(Hash, CombinedPubKey, Sign), % Validate signature
+	ec:musig_combine(PubKeys, CombinedPubKey, _), % Combine public keys (Schnorr)
+        ec:musig_verify(Hash, CombinedPubKey, Sign), % Validate signature
 	CoinOut = '$coin'(V, _)). % Let CoinOut become available/spendable.
 ```
 
@@ -331,7 +331,7 @@ tx2(MyCoin, _, _, <new public key>, _, _).
 ```
 
 In order to improve performance we'd like to cache the result of
-`mucomb(PubKeys, CombinedPubKey), muvrfy(Hash, CombinedPubKey, Sign)`
+`ec:musig_combine(PubKeys, CombinedPubKey), ec:musig_verify(Hash, CombinedPubKey, Sign)`
 so that the actual signature verification is done exactly once.
 
 Note that the fee is simply an unconditional coin that can immediately
@@ -341,6 +341,49 @@ be grabbed by the miner who'll just add his own transaction:
 
 The cool thing is that it is relatively easy to define transaction
 types using Prolog as the base language.
+
+## Taproot
+
+We can also formulate Taproot in this framework. Taproot means that an
+UTXO has two spending paths; either the transaction is signed by all
+parties (musig) or it is enforced via a script. It is implemented by
+tweaking the published public key.
+
+```
+tx3(CoinIn, Hash, Sign, PubKeyMusig, PubKeyScript, Script, CoinOut) :-
+    CoinIn = '$coin'(V, X),
+    var(X), % Not currently spent
+    X = [], % Spend it
+    freeze(Hash,  % Wait until Hash become bound
+        ground(Hash), 
+        Hash = '$sys'(_), % Hash must not have been computed by user code
+        (var(PubKeyScript) ->
+            % Key spending path
+	    ec:musig_verify(Hash, PubKeyMusig, Sign)
+	  ; % Script spending path
+            ec:musig_verify(Hash, PubKeyScript, Sign),
+            hash([PubKeyMusig,Script], H),
+	    ec:pubkey_tweak_add(PubKeyScript, H, PubKeyMusig),
+	    call(Script)
+	),
+	CoinOut = '$coin'(V, _)). % Let CoinOut become available/spendable.
+```
+
+In this version there are two ways we can redeem the coins locked by
+tx3(...). Either we do:
+
+```
+Sign = ... (A musig signature that validates with PubKeyMusig)
+(PubKeyMusig has already been set in the previous transaction.)
+
+or:
+
+Sign = ...
+PubKeyScript = ...
+Script = ...
+
+Note that the tx3/7 wakes up at the moment when Hash is bound, which
+happens in the commit phase (as previously described.)
 
 ## Global State
 
