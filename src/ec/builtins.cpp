@@ -1217,7 +1217,6 @@ bool builtins::musig_secret_7(interpreter_base &interp, size_t arity, term args[
     
     // Iterate and verify each partial signature
     for (i = 0; i < n; i++) {
-       secp256k1_musig_session_signer_data *sigxxx = &sigdata.get()[i];
        int r = secp256k1_musig_partial_sig_verify(
 	  ctx, &session, &(sigdata.get())[i], &(psigs.get())[i], &pubkeys[i]);
        if (r != 1) {
