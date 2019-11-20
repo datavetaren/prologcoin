@@ -1,5 +1,5 @@
 #include <iostream>
-#include "../secp256k1.h"
+#include "../secp256k1.hpp"
 
 int main(int argc, char *argv[])
 {

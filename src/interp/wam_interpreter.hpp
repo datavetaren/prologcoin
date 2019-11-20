@@ -1089,6 +1089,12 @@ private:
 	  fail = c != c1;
 	  break;
   	  }
+	case common::tag_t::BIG: {
+	  uint64_t cost1;
+	  fail = !equal(c, t, cost1);
+	  add_accumulated_cost(cost1);
+	  }
+	  break;
 	default:
 	  fail = true;
 	  break;
@@ -1334,6 +1340,12 @@ private:
 	        auto c1 = static_cast<common::term &>(t);
 		fail = c != c1;
 		break;
+	      }
+	    case common::tag_t::BIG: {
+	        uint64_t cost1;
+		fail = !equal(c, t, cost1);
+		add_accumulated_cost(cost1);
+	        break;
 	      }
 	    default:
 	      fail = true;

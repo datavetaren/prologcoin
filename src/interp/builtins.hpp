@@ -147,6 +147,10 @@ namespace prologcoin { namespace interp {
 
 	static bool upcase_atom_2(interpreter_base &interp, size_t arity, common::term args[]);
 
+        // Not standard. Convert list of chars into a big integer.
+        // Most significant byte is first.
+        static bool bytes_number_2(interpreter_base &interp, size_t arity, common::term args[]);
+
 	//
 	// Arithmetics
 	//

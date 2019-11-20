@@ -36,6 +36,14 @@ GOTO :EXIT
 :ALL
 
 FOR %%X IN (%MODULES%) DO (
+   SET ROOT=
+   SET SUBDIR=
+   SET DOLIB=
+   SET DOEXE=
+   SET DEPENDS=
+   SET CINCLUDE1=
+   SET CINCLUDE2=
+
    cmd /c "cd src\%%X && make.bat check"
    REM If error level is 1, then we need to build this module
    IF ERRORLEVEL 1 (

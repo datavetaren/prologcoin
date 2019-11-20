@@ -235,7 +235,8 @@ std::vector<wam_compiler::prim_unification> wam_compiler::flatten(
 		if (!is_predicate) {
 		    if (arg.tag() == common::tag_t::REF ||
 		        arg.tag() == common::tag_t::CON ||
-		        arg.tag() == common::tag_t::INT) {
+		        arg.tag() == common::tag_t::INT ||
+			arg.tag() == common::tag_t::BIG) {
 		        continue;
 		    }
 		}
@@ -268,7 +269,8 @@ std::vector<wam_compiler::prim_unification> wam_compiler::flatten(
 	}
 	case common::tag_t::REF:
 	case common::tag_t::CON: 
-	case common::tag_t::INT: {
+	case common::tag_t::INT:
+	case common::tag_t::BIG: {
 	    if (!is_predicate) {
 		prims.push_back(p);
 	    }
@@ -348,7 +350,8 @@ void wam_compiler::compile_query_str(wam_compiler::reg lhsreg, common::ref_cell 
     for (size_t i = 0; i < n; i++) {
         auto arg = env_.arg(rhs, i);
 	if (arg.tag() == common::tag_t::CON ||
-	    arg.tag() == common::tag_t::INT) {
+	    arg.tag() == common::tag_t::INT ||
+	    arg.tag() == common::tag_t::BIG) {
 	    instrs.push_back(wam_instruction<SET_CONSTANT>(arg));
 	} else {
 	    assert(arg.tag() == common::tag_t::REF);
@@ -383,6 +386,7 @@ void wam_compiler::compile_query(wam_compiler::reg lhsreg, common::ref_cell lhsv
     switch (rhs.tag()) {
       case common::tag_t::INT:
       case common::tag_t::CON:
+      case common::tag_t::BIG:
 	// We have X = a or X = 4711
 	if (lhsreg.type == A_REG) {
   	    instrs.push_back(wam_instruction<PUT_CONSTANT>(rhs, lhsreg.num));
@@ -447,7 +451,8 @@ void wam_compiler::compile_program_str(wam_compiler::reg lhsreg, common::ref_cel
     for (size_t i = 0; i < n; i++) {
         auto arg = env_.arg(rhs, i);
 	if (arg.tag() == common::tag_t::CON ||
-	    arg.tag() == common::tag_t::INT) {
+	    arg.tag() == common::tag_t::INT ||
+	    arg.tag() == common::tag_t::BIG) {
 	    instrs.push_back(wam_instruction<UNIFY_CONSTANT>(arg));
 	} else {
 	    assert(arg.tag() == common::tag_t::REF);
@@ -481,6 +486,7 @@ void wam_compiler::compile_program(wam_compiler::reg lhsreg, common::ref_cell lh
     switch (rhs.tag()) {
       case common::tag_t::INT:
       case common::tag_t::CON:
+      case common::tag_t::BIG:
       // We have X = a or X = 4711
         instrs.push_back(wam_instruction<GET_CONSTANT>(rhs, lhsreg.num));
 	break;
@@ -2126,6 +2132,7 @@ std::vector<managed_clauses> wam_compiler::partition_clauses_first_arg(const man
 	auto arg = first_arg(head);
 	switch (arg.tag()) {
 	case common::tag_t::REF:
+	case common::tag_t::BIG: // We don't index on BIG (maybe we should)
 	    refs.push_back(m_clause);
 	    break;
 	case common::tag_t::CON:

@@ -492,13 +492,18 @@ void term_tokenizer::next_char_code()
 
 void term_tokenizer::next_number()
 {
+    int ch = peek_char();
+    if (ch == '-' || ch == '+') {
+        consume_next_char();
+    }
+  
     next_digits();
 
     if (is_eof()) {
         return;
     }
 
-    int ch = peek_char();
+    ch = peek_char();
 
     if (ch == '\'') {
 	consume_next_char();

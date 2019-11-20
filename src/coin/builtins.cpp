@@ -25,18 +25,6 @@ bool builtins::reward_2(interpreter_base &interp, size_t arity, term args[]) {
     return interp.unify(coin, args[1]);
 }
 
-/*
-bool builtins::cjoin_2(interpreter_base &interp, size_t arity, term args[]) {
-    if (!interp.is_list(args[0])) {
-        interp.abort(interpreter_exception_not_list("cjoin/2: First argument is not a list: " + interp.to_string(args[0])));
-    }
-    term in_coins = args[0];
-    while (!interp.is_empty_list(in_coins)) {
-        term coin = arg(
-    }
-}
-*/
-
 static bool is_coin(interpreter_base &interp, term t) {
     static const con_cell coin("$coin", 2);
     if (t.tag() != tag_t::STR) {
@@ -77,6 +65,36 @@ static bool are_all_integers(interpreter_base &interp, term t) {
     return true;
 }
     
+bool builtins::cjoin_2(interpreter_base &interp, size_t arity, term args[]) {
+    if (!interp.is_list(args[0])) {
+        throw interpreter_exception_not_list("cjoin/2: First argument is not a list: " + interp.to_string(args[0]));
+    }
+    term in_coins = args[0];
+    int64_t sum = 0;
+    while (!interp.is_empty_list(in_coins)) {
+        term coin = interp.arg(in_coins, 0);
+	if (!is_coin(interp, coin)) {
+	    throw interpreter_exception_not_a_coin("cjoin/2: Element in list is not a coin; was: " + interp.to_string(coin));
+	}
+	if (is_coin_spent(interp, coin)) {
+	    throw interpreter_exception_coin_already_spent(
+		   "cjoin/2: Coin is already spent; " + interp.to_string(coin));
+	}
+	spend_coin(interp, coin);
+        auto elem = interp.arg(coin, 0);
+	if (elem.tag() != tag_t::INT) {
+	    return false;
+	}
+	sum += static_cast<int_cell &>(elem).value();
+	in_coins = interp.arg(in_coins, 1);
+    }
+
+    auto disabled = interp.disable_coin_security();
+    term sum_coin = interp.new_term( con_cell("$coin",2), {int_cell(sum)} );
+
+    return interp.unify(args[1], sum_coin);
+}
+
 bool builtins::csplit_3(interpreter_base &interp, size_t arity, term args[]) {
     if (!is_coin(interp, args[0])) {
       throw interpreter_exception_not_a_coin(
@@ -84,7 +102,7 @@ bool builtins::csplit_3(interpreter_base &interp, size_t arity, term args[]) {
 	 + interp.to_string(args[0]));
     }
     if (is_coin_spent(interp, args[0])) {
-      throw interpreter_exception_not_a_coin(
+      throw interpreter_exception_coin_already_spent(
          "csplit/3: Coin is already spent; " + interp.to_string(args[0]));
     }
     if (!interp.is_list(args[1]) || !are_all_integers(interp, args[1])) {
@@ -95,8 +113,8 @@ bool builtins::csplit_3(interpreter_base &interp, size_t arity, term args[]) {
     int64_t rem = coin_value(interp, args[0]);
     term values = args[1];
     while (!interp.is_empty_list(values)) {
-        auto val = coin_value(interp, interp.arg(values, 0));
-	rem -= val;
+        auto val = interp.arg(values, 0);
+	rem -= static_cast<int_cell &>(val).value();
 	if (rem < 0) {
 	    throw interpreter_exception_not_enough_coins("csplit/3: Second argument list of values sum exceeds coin value in first argument");
 	}
@@ -116,12 +134,13 @@ bool builtins::csplit_3(interpreter_base &interp, size_t arity, term args[]) {
     values = args[1];
     rem = coin_value(interp, args[0]);
     while (rem > 0 && !interp.is_empty_list(values)) {
-        auto val = coin_value(interp, interp.arg(values, 0));
+        auto val0 = interp.arg(values, 0);
+	auto val = static_cast<int_cell &>(val0).value();
 	rem -= val;
 
 	auto new_coin = interp.new_term(coin, {int_cell(val)});
 	
-	if (!interp.unify(out, interp.new_term(term_env::DOTTED_PAIR, {new_coin}))) {
+	if (!interp.unify(interp.new_term(term_env::DOTTED_PAIR, {new_coin}), out)) {
 	    return false;
 	}
 	out = interp.arg(out, 1);
@@ -131,7 +150,7 @@ bool builtins::csplit_3(interpreter_base &interp, size_t arity, term args[]) {
 
     if (rem > 0) {
         auto rem_coin = interp.new_term(coin, {int_cell(rem)});    
-	if (!interp.unify(out, interp.new_term(term_env::DOTTED_PAIR, {rem_coin}))) {
+	if (!interp.unify(interp.new_term(term_env::DOTTED_PAIR, {rem_coin}), out)) {
 	    return false;
 	}
 	out = interp.arg(out, 1);	
@@ -145,7 +164,8 @@ bool builtins::csplit_3(interpreter_base &interp, size_t arity, term args[]) {
 void builtins::load(interpreter_base &interp)
 {
     interp.load_builtin(con_cell("reward", 2), &builtins::reward_2);
-    interp.load_builtin(con_cell("csplit", 3), &builtins::csplit_3);    
+    interp.load_builtin(con_cell("cjoin", 2), &builtins::cjoin_2);
+    interp.load_builtin(con_cell("csplit", 3), &builtins::csplit_3);
 }
 
 }}

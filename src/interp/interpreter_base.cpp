@@ -81,6 +81,11 @@ void interpreter_base::init()
 
 interpreter_base::~interpreter_base()
 {
+    for (auto &p : managed_data_) {
+        auto md = p.second;
+	delete md;
+    }
+    managed_data_.clear();
     arith_.unload();
     close_all_files();
     register_cp_.reset();
@@ -440,6 +445,7 @@ void interpreter_base::load_builtins()
 
     // Character properties
     load_builtin(functor("upcase_atom",2), &builtins::upcase_atom_2);
+    load_builtin(functor("bytes_number",2), &builtins::bytes_number_2);
 
     // Arithmetics
     load_builtin(con_cell("is",2), &builtins::is_2);

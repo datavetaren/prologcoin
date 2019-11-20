@@ -1,15 +1,24 @@
 extern "C" {
 
 #define USE_BASIC_CONFIG 1
+#define SECP256K1_PREALLOACTED_SIZE_DECL
+#define SECP256K1_ECMULT_GEN_CONTEXT_PREALLOCATED_SIZE_DECL
+#if defined(_MSC_VER)
+#pragma warning(disable:4319)
+#endif
 
+#define ENABLE_MODULE_ECDH
+#define ENABLE_MODULE_SCHNORRSIG
+#define ENABLE_MODULE_MUSIG
+#define ENABLE_MODULE_RECOVERY
+#define ENABLE_MODULE_GENERATOR
+#define ENABLE_MODULE_RANGEPROOF
+#define ENABLE_MODULE_WHITELIST
+#define ENABLE_MODULE_SURJECTIONPROOF
+  
 #include "../../../secp256k1-zkp/src/basic-config.h"
-#include "secp256k1.h"
+#include "../../../secp256k1-zkp/include/secp256k1.h"
 #include "../../../secp256k1-zkp/src/secp256k1.c"
-#include "../../../secp256k1-zkp/src/modules/generator/main_impl.h"
-#include "../../../secp256k1-zkp/src/modules/rangeproof/rangeproof_impl.h"
-#include "../../../secp256k1-zkp/src/modules/rangeproof/main_impl.h"
-
-extern "C" {
 
 //
 // I couldn't find a way to get from a public key to a Pedersen commitment,
@@ -31,17 +40,3 @@ bool secp256k1_pedersen_commitment_load_pubkey(secp256k1_context *ctx, secp256k1
 }
 
 }
-
-void dummy() {
-    (void) &secp256k1_ge_set_infinity;
-    (void) &secp256k1_gej_has_quad_y_var;
-    (void) &secp256k1_ge_set_gej_var;
-    (void) &secp256k1_gej_is_valid_var;
-    (void) &secp256k1_ecmult_multi_var;
-    (void) &secp256k1_ecmult_strauss_batch_single;
-    (void) &secp256k1_ecmult_pippenger_batch_single;
-    (void) &secp256k1_ecmult_const;
-}
-
-}
-

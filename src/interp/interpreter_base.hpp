@@ -400,6 +400,16 @@ template<> struct env_type_from_kind<ENV_WAM> { typedef environment_t * type; };
 template<> struct env_type_from_kind<ENV_FROZEN> { typedef environment_ext_t * type; };
   
 
+// Used with set_managed_data() and get_managed_data() which can be
+// used to store additional data associated with the interpreter.
+//
+// The destructor (via delete) is called when the interpreter is destroyed.
+    
+class managed_data {
+public:
+    virtual ~managed_data() { }
+};
+    
 class interpreter_base : public common::term_env {
     friend class builtins;
     friend class builtins_opt;
@@ -592,6 +602,18 @@ public:
 	 add_accumulated_cost(cost);
 	 return c;
        }
+
+    inline managed_data * get_managed_data(common::con_cell key)
+       { auto it = managed_data_.find(key);
+	 if (it == managed_data_.end()) {
+	     return nullptr;
+	 } else {
+  	     return it->second;
+	 }
+       }
+
+  inline void set_managed_data(common::con_cell key, managed_data *data)
+       { managed_data_[key] = data; }
 
 protected:
     friend class wam_interpreter;
@@ -1204,6 +1226,8 @@ private:
     locale locale_;
 
     common::merkle_trie<term,60> frozen_closures;
+
+    std::unordered_map<common::con_cell, managed_data *> managed_data_;
   
 protected:
     inline void set_frozen_closure(size_t index, term closure) {

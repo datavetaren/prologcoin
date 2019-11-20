@@ -264,6 +264,10 @@ public:
 
     inline bool operator == (const cell other) const { return raw_value() == other.raw_value(); }
     inline bool operator != (const cell other) const { return raw_value() != other.raw_value(); }
+    inline bool operator < (const cell other) const { return raw_value() < other.raw_value(); }
+    inline bool operator <= (const cell other) const { return raw_value() <= other.raw_value(); }
+    inline bool operator > (const cell other) const { return raw_value() > other.raw_value(); }
+    inline bool operator >= (const cell other) const { return raw_value() >= other.raw_value(); }
 
     inline operator bool () const { return raw_value() != 0; }
 
@@ -1235,6 +1239,8 @@ public:
 	memset(&p[2], 0, sizeof(cell)*(n-1));
 	return big_cell(index+1);
     }
+
+    bool big_equal(big_cell big1, big_cell big2, uint64_t &cost) const;
 
     void get_big(cell big, uint8_t *bytes, size_t n) const;
     void set_big(cell big, const uint8_t *bytes, size_t n);

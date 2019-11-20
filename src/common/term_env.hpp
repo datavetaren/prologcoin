@@ -4,6 +4,7 @@
 #define _common_term_env_hpp
 
 #include <iterator>
+#include <map>
 #include "term.hpp"
 #include "term_emitter.hpp"
 #include "term_parser.hpp"
@@ -164,6 +165,13 @@ public:
         { return T::get_heap().set_arg(t, index, arg); }
     inline untagged_cell get_big(term t, size_t index) const
         { return T::get_heap().get_big(t, index); }
+    inline size_t num_bits(big_cell b) const
+        { return T::get_heap().num_bits(b); }
+    inline bool big_equal(term t1, term t2, uint64_t &cost) const
+        { return T::get_heap().big_equal(static_cast<big_cell &>(t1),
+					 static_cast<big_cell &>(t2),
+					 cost);
+	}
     inline void get_big(term t, boost::multiprecision::cpp_int &i,
 			size_t &nbits) const
         { T::get_heap().get_big(t, i, nbits); }
@@ -690,6 +698,15 @@ public:
       return to_string(t, default_opt);
   }
 
+  const_big_iterator begin(const big_cell b)
+  {
+      return heap_dock<HT>::begin(b);
+  }
+
+  const_big_iterator end(const big_cell b)
+  {
+      return heap_dock<HT>::end(b);
+  }  
 
   term_dfs_iterator_templ<HT,ST,OT> begin(const term t)
   {
@@ -752,7 +769,7 @@ public:
   {
       std::vector<term> touched;
 
-      std::unordered_map<term, size_t> count_occurrences;
+      std::map<term, size_t> count_occurrences;
       std::for_each(begin(t0),
 		  end(t0),
 		  [this,&count_occurrences] (const term t) {

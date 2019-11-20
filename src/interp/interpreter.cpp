@@ -660,7 +660,7 @@ std::string interpreter::get_result(bool newlines) const
 {
     using namespace prologcoin::common;
 
-    std::unordered_map<term, size_t> count_occurrences;
+    std::map<term, size_t> count_occurrences;
     std::for_each(begin(qr()),
 		  end(qr()),
 		  [&] (const term t) {

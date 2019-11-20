@@ -85,7 +85,7 @@ static void test_tokens()
 			       "token<PUNCTUATION_CHAR>[[]@(L3,C76)",
 			       "token<NAME>[;]@(L3,C77)",
 			       "token<PUNCTUATION_CHAR>[]]@(L3,C78)",
-			       "token<FULL_STOP>[.]@(L3,C79)" };
+			       "token<FULL_STOP>[.]@(L3,C79)" };    
 
     std::stringstream ss(s, (std::stringstream::in | std::stringstream::binary));
     term_tokenizer tt(ss);

@@ -22,7 +22,7 @@ BOOST_THREAD_LIB := $(if $(HAS_BOOST_THREAD_MT),boost_thread-mt,boost_thread)
 EXT := $(subst boost_thread, $(BOOST_THREAD_LIB), $(EXT))
 
 ifneq ($(INCDIR),)
-   CCFLAGS := $(CCFLAGS) $(CCINC) $(INCDIR)
+   CCFLAGS := $(CCFLAGS) $(foreach d, $(INCDIR), $(CCINC) $(d))
 endif
 
 green="\033[0;32m"
