@@ -16,6 +16,11 @@ akey(Secret) :-
     String = "01 this is a secret! 12345678901",
     bytes_number(String, Secret).
 
+get_keys([P1,P2,P3], [X1,X2,X3]) :-
+    pkey1(X1), ec:pubkey(X1,P1), 
+    pkey2(X2), ec:pubkey(X2,P2),
+    pkey3(X3), ec:pubkey(X3,P3).
+
 get_public_keys([P1,P2,P3]) :-
     pkey1(X1), ec:pubkey(X1,P1), 
     pkey2(X2), ec:pubkey(X2,P2),
@@ -215,3 +220,52 @@ close_sessions :-
 
 ?- close_sessions.
 % Expect: true
+
+%
+% Taproot test
+%
+taproot(CombinedKeyToUse, PubKeyHash, SecretToUse, Fin) :-
+      pkey1(X1), pkey2(X2), pkey3(X3),
+      ec:musig_start(Session1, CombinedKeyToUse, PubKeyHash, 0, 3, X1, hello(world(42))),
+      ec:musig_start(Session2, CombinedKeyToUse, PubKeyHash, 1, 3, X2, hello(world(42))),
+      ec:musig_start(Session3, CombinedKeyToUse, PubKeyHash, 2, 3, X3, hello(world(42))),
+      ec:musig_nonce_commit(Session1, C1),
+      ec:musig_nonce_commit(Session2, C2),
+      ec:musig_nonce_commit(Session3, C3),
+      ec:musig_prepare(Session1, [C1,C2,C3], N1),
+      ec:musig_prepare(Session2, [C1,C2,C3], N2),
+      ec:musig_prepare(Session3, [C1,C2,C3], N3),
+      Ns = [N1,N2,N3],
+      ec:musig_nonces(Session1, Ns),
+      ec:musig_nonces(Session2, Ns),
+      ec:musig_nonces(Session3, Ns),
+      ec:musig_partial_sign(Session1, Sig1),
+      ec:musig_partial_sign(Session2, Sig2),
+      ec:musig_partial_sign(Session3, Sig3),
+      Sigs = [Sig1,Sig2,Sig3],
+      ec:musig_final_sign(Session1, Sigs, SecretToUse, Fin),
+      ec:musig_final_sign(Session2, Sigs, SecretToUse, Fin),
+      ec:musig_final_sign(Session3, Sigs, SecretToUse, Fin),
+      ec:musig_end(Session1),
+      ec:musig_end(Session2),
+      ec:musig_end(Session3).
+
+?- % There are two spending paths. Either use the secret with the tweaked key,
+   % or the regular combined key.
+   akey(Secret),
+   combiner(PubKeyCombined, PubKeyHash),
+   % Regular first try with masked PubKey
+   % (This is the enforced path, where we expose the underlying PubKeyCombined
+   %  and makes sure the network can verify it.)
+   taproot(PubKeyCombined, PubKeyHash, [], Fin),
+   write('Verify enforced path non-cooperative spending path...'), nl,
+   ec:musig_verify(hello(world(42)), PubKeyCombined, Fin),
+   % This is the masked path, where nobody knows that there's actually an
+   % underlying contrat. We teak the public key with the secret and expose
+   % the published key...
+   ec:pubkey_tweak_add(PubKeyCombined, Secret, PublishedKey),
+   taproot(PublishedKey, PubKeyHash, Secret, Fin2),
+   write('Verify cooperative spending path...'), nl,
+   ec:musig_verify(hello(world(42)), PublishedKey, Fin2).
+% Expect: Secret = 58'4F821k9DUQn7cNsww2AmFxLBXvgqF1c7Hm7j6dPFt81W, PubKeyCombined = 58'1uvCiduRL5GbS25LkrefndgjWbUjsk6f9EJpMYEPN1Ruu, PubKeyHash = 58'AhNPU9P3s3MNsZqSYTsJ1Skyf1Sy4gT4E8eoh7ZWYLVx, Fin = 58'3GnXYY79aKQGVaDen3UD7VENS9Zzyaa8ZEzQ98z85hDJ22UELvpRRTyuWNGA5Pp5ruS4A8ipafoDQmwbWZ6Gqtz9, PublishedKey = 58'213L2peqxu6fyiBipw8aE5sM718evDrswBe6yRiQZdNvc, Fin2 = 58'2pjXtWSE5pPyZbboeEuzGvsHzyRf4xdVPJLnVLhtGRrFYXavovKRw8UmBzYksS2ertYqcLZcUwHGXXvxRwbyRYN3.
+% Expect: end

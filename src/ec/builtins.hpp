@@ -16,6 +16,12 @@ public:
       interpreter_exception(msg) { }
 };
 
+class interpreter_exception_tweak : public interpreter_exception {
+public:
+  interpreter_exception_tweak(const std::string &msg) :
+      interpreter_exception(msg) { }
+};
+    
 class interpreter_exception_musig : public interpreter_exception {
 public:
   interpreter_exception_musig(const std::string &msg) :
@@ -62,6 +68,12 @@ public:
 
     // hash(Data, Hash) true iff Hash is the hash of Data.
     static bool hash_2(interpreter_base &interp, size_t arity, term args[] );
+
+    // pubkey_tweak_add(X, Y, Z)
+    // Z = X + G*Y
+    static bool pubkey_tweak_add_3(interpreter_base &interp, size_t arity, term args[] );
+    // privkey_tweak_add(X, Y, Z)
+    static bool privkey_tweak_add_3(interpreter_base &interp, size_t arity, term args[] );
   
     // musig verification (does not require a musig session)
   
@@ -109,7 +121,8 @@ public:
     static bool musig_partial_sign_adapt_4(interpreter_base &interp, size_t arity, term args[] );
 
     // musig_final_sign(+Session, +PartialSignatures, -FinalSig)
-    static bool musig_final_sign_3(interpreter_base &interp, size_t arity, term args[] );
+    // musig_final_sign(+Session, +PartialSignatures, +Tweak, -FinalSig)  
+    static bool musig_final_sign_4(interpreter_base &interp, size_t arity, term args[] );
 
     // musig_nonce_negated(+Session, NonceNegated);
     static bool musig_nonce_negated_2(interpreter_base &interp, size_t arity, term args[] );
@@ -139,6 +152,7 @@ private:
     static bool get_bignum(interpreter_base &interp, term big, uint8_t *bytes, size_t &n);
     static term new_bignum(interpreter_base &interp, const uint8_t *bytes, size_t n);
     static bool get_private_key(interpreter_base &interp, term big0, uint8_t rawkey[RAW_KEY_SIZE]);
+    static bool get_private_key(interpreter_base &interp, term big0, uint8_t rawkey[RAW_KEY_SIZE], bool &checksum_existed);
     static bool get_public_key(interpreter_base &interp, term big0, uint8_t rawkey[RAW_KEY_SIZE+1]);
     static bool compute_public_key(interpreter_base &interp,
 	  			   uint8_t priv_raw[RAW_KEY_SIZE],
@@ -169,7 +183,7 @@ private:
 					const term value,
 					uint8_t commit[33]);
     static bool new_private_key(interpreter_base &interp, uint8_t rawkey[RAW_KEY_SIZE]);
-    static term create_private_key(interpreter_base &interp, uint8_t rawkey[RAW_KEY_SIZE]);
+    static term create_private_key(interpreter_base &interp, uint8_t rawkey[RAW_KEY_SIZE], bool with_checksum = true);
 };
 
 }}

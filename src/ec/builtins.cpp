@@ -97,10 +97,11 @@ public:
     }
 
     inline bool final_sign(secp256k1_musig_partial_signature *signatures,
-			   secp256k1_schnorrsig &final_sig) {
+			   secp256k1_schnorrsig &final_sig,
+			   uint8_t *tweak) {
 	return secp256k1_musig_partial_sig_combine(ctx_, &session_, &final_sig,
 						   signatures, num_signers_,
-						   nullptr) == 1;
+						   tweak) == 1;
     }
 
 private:
@@ -235,8 +236,14 @@ void builtins::get_checksum(const uint8_t *bytes, size_t n, uint8_t checksum[4])
     memcpy(&checksum[0], out32, 4);
 }
 
-term builtins::create_private_key(interpreter_base &interp, uint8_t rawkey[RAW_KEY_SIZE])
+term builtins::create_private_key(interpreter_base &interp, uint8_t rawkey[RAW_KEY_SIZE], bool with_checksum)
 {
+    if (!with_checksum) {
+        term big = interp.new_big(RAW_KEY_SIZE*8);
+	interp.set_big(big, rawkey, RAW_KEY_SIZE);
+	return big;
+    }
+  
     uint8_t bytes[1+RAW_KEY_SIZE+1+4];
 
     memcpy(&bytes[1], rawkey, RAW_KEY_SIZE);
@@ -290,7 +297,12 @@ term builtins::new_bignum(interpreter_base &interp, const uint8_t *bytes, size_t
     return big;
 }
 
-bool builtins::get_private_key(interpreter_base &interp, term big0, uint8_t rawkey[builtins::RAW_KEY_SIZE])
+bool builtins::get_private_key(interpreter_base &interp, term big0, uint8_t rawkey[builtins::RAW_KEY_SIZE]) {
+    bool checksum_existed = false;
+    return get_private_key(interp, big0, rawkey, checksum_existed);
+}
+    
+bool builtins::get_private_key(interpreter_base &interp, term big0, uint8_t rawkey[builtins::RAW_KEY_SIZE], bool &checksum_existed)
 {
     uint8_t bytes[1+RAW_KEY_SIZE+8];
 
@@ -307,8 +319,10 @@ bool builtins::get_private_key(interpreter_base &interp, term big0, uint8_t rawk
     }
 
     if (nbits == BITS) {
+        checksum_existed = false;
 	interp.get_big(big, &rawkey[0], nbits/8);
     } else {
+        checksum_existed = true;
 	interp.get_big(big, &bytes[0], nbits/8);
 	if (bytes[0] != 0x80 || bytes[33] != 0x01) {
 	    return false;
@@ -959,6 +973,66 @@ void builtins::pedersen_test()
     
 }
 
+bool builtins::pubkey_tweak_add_3(interpreter_base &interp, size_t arity, term args[] )
+{
+    secp256k1_pubkey pubkey;
+    term pubkey_term = args[0];
+    uint8_t pubkey_data[RAW_KEY_SIZE+1];
+
+    auto &ctx = get_ctx(interp);
+  
+    if (!get_public_key(interp, pubkey_term, pubkey_data) ||
+        secp256k1_ec_pubkey_parse(ctx,&pubkey,pubkey_data,RAW_KEY_SIZE+1) != 1) {
+       throw interpreter_exception_not_public_key("pubkey_tweak_add/3: First argument is not a public key; was " + interp.to_string(pubkey_term));
+   }
+
+    term tweak_term = args[1];
+    uint8_t tweak_data[RAW_KEY_SIZE];
+    if (!get_private_key(interp, tweak_term, tweak_data)) {
+       throw interpreter_exception_wrong_arg_type("pubkey_tweak_add/3: Second argument is not a private key (or secret); was " + interp.to_string(tweak_term));      
+    }
+
+    if (secp256k1_ec_pubkey_tweak_add(ctx, &pubkey, tweak_data) != 1) {
+        throw interpreter_exception_tweak("pubkey_tweak_add/3: Failed while tweaking public key.");
+    }
+
+    size_t result_raw_len = RAW_KEY_SIZE+1;
+    uint8_t result_raw[RAW_KEY_SIZE+1];
+    int r = secp256k1_ec_pubkey_serialize(ctx, &result_raw[0], &result_raw_len, &pubkey, SECP256K1_EC_COMPRESSED);
+    if (r != 1 || result_raw_len != RAW_KEY_SIZE+1) {
+        throw interpreter_exception_tweak("pubkey_tweak_add/3: Failed when serializing tweaked public key.");      
+    }
+    
+    term result_pubkey = create_public_key(interp, result_raw);
+    return interp.unify(args[2], result_pubkey);
+}
+
+bool builtins::privkey_tweak_add_3(interpreter_base &interp, size_t arity, term args[] )
+{
+    term privkey_term = args[0];
+    uint8_t privkey_data[RAW_KEY_SIZE+1];
+
+    auto &ctx = get_ctx(interp);
+
+    bool with_checksum = false;
+    if (!get_private_key(interp, privkey_term, privkey_data, with_checksum)) {
+       throw interpreter_exception_wrong_arg_type("privkey_tweak_add/3: First argument is not a private key (or secret); was " + interp.to_string(privkey_term));
+   }
+
+    term tweak_term = args[1];
+    uint8_t tweak_data[RAW_KEY_SIZE];
+    if (!get_private_key(interp, tweak_term, tweak_data)) {
+       throw interpreter_exception_wrong_arg_type("privkey_tweak_add/3: Second argument is not a private key (or secret); was " + interp.to_string(tweak_term));      
+    }
+
+    if (secp256k1_ec_privkey_tweak_add(ctx, privkey_data, tweak_data) != 1) {
+        throw interpreter_exception_tweak("pubkey_tweak_add/3: Failed while tweaking private key.");
+    }
+
+    term result_privkey = create_private_key(interp, privkey_data, with_checksum);
+    return interp.unify(args[2], result_privkey);
+}
+
 bool builtins::musig_combine_3(interpreter_base &interp, size_t arity, term args[])
 {
     if (!interp.is_list(args[0])) {
@@ -1590,7 +1664,7 @@ bool builtins::musig_partial_sign_adapt_4(interpreter_base &interp, size_t arity
     return interp.unify(args[3], t);
 }
 
-bool builtins::musig_final_sign_3(interpreter_base &interp, size_t arity, term args[]) {
+bool builtins::musig_final_sign_4(interpreter_base &interp, size_t arity, term args[]) {
     auto *session = get_musig_session(interp, args[0]);
     if (session == nullptr) {
         std::stringstream msg;
@@ -1643,9 +1717,26 @@ bool builtins::musig_final_sign_3(interpreter_base &interp, size_t arity, term a
 	}
 	i++;
     }
+
+    size_t last_arg_index = arity - 1;
+
+    uint8_t tweak_data[RAW_KEY_SIZE];
+    uint8_t *tweak_used = nullptr;
+    if (arity == 4) {
+        term tweak_term = args[2];
+	if (tweak_term != interpreter_base::EMPTY_LIST) {
+	  if (!get_private_key(interp, tweak_term, tweak_data)) {
+	    std::stringstream msg;
+	    msg << "musig_final_sign/" << arity;	
+	    msg << ": Couldn't parse private key (or secret) in third argument.";
+	    throw interpreter_exception_wrong_arg_type(msg.str());	     
+	  }
+	  tweak_used = &tweak_data[0];
+	}
+    }
     
     secp256k1_schnorrsig final_sig;
-    if (!session->final_sign(sigs.get(), final_sig)) {
+    if (!session->final_sign(sigs.get(), final_sig, tweak_used)) {
         std::stringstream msg;
 	msg << "musig_final_sign/" << arity;	
         msg << ": Couldn't combine signatures. MuSig session was probably invalid.";
@@ -1662,7 +1753,7 @@ bool builtins::musig_final_sign_3(interpreter_base &interp, size_t arity, term a
 
     term raw_sig_term = new_bignum(interp, raw_sig, 64);
 
-    return interp.unify(args[2], raw_sig_term);
+    return interp.unify(args[last_arg_index], raw_sig_term);
 }
 
 bool builtins::musig_nonce_negated_2(interpreter_base &interp, size_t arity, term args[] ) {
@@ -1703,6 +1794,9 @@ void builtins::load(interpreter_base &interp, con_cell *module0)
     interp.load_builtin(M, con_cell("address", 2), &builtins::address_2);
     interp.load_builtin(M, con_cell("sign", 3), &builtins::sign_3);
 
+    interp.load_builtin(M, interp.functor("pubkey_tweak_add", 3), &builtins::pubkey_tweak_add_3);
+    interp.load_builtin(M, interp.functor("privkey_tweak_add", 3), &builtins::privkey_tweak_add_3);    
+    
     // interp.load_builtin(EC, con_cell("pcommit",3), &builtins::pcommit_3);
     interp.load_builtin(M, con_cell("pproof", 3), &builtins::pproof_3);
     interp.load_builtin(M, con_cell("pverify", 1), &builtins::pverify_1);
@@ -1720,7 +1814,8 @@ void builtins::load(interpreter_base &interp, con_cell *module0)
     interp.load_builtin(M, interp.functor("musig_nonces", 3), &builtins::musig_nonces_3);    
     interp.load_builtin(M, interp.functor("musig_partial_sign", 2), &builtins::musig_partial_sign_2);
     interp.load_builtin(M, interp.functor("musig_partial_sign_adapt",4), &builtins::musig_partial_sign_adapt_4);
-    interp.load_builtin(M, interp.functor("musig_final_sign", 3), &builtins::musig_final_sign_3);
+    interp.load_builtin(M, interp.functor("musig_final_sign", 3), &builtins::musig_final_sign_4);
+    interp.load_builtin(M, interp.functor("musig_final_sign", 4), &builtins::musig_final_sign_4);
     interp.load_builtin(M, interp.functor("musig_nonce_negated", 2), &builtins::musig_nonce_negated_2);
     interp.load_builtin(M, interp.functor("musig_end", 1), &builtins::musig_end_1);
 }
