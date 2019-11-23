@@ -4,6 +4,7 @@
 #include <stdarg.h>
 #include <boost/algorithm/string.hpp>
 #include <memory>
+#include <set>
 
 namespace prologcoin { namespace interp {
 
@@ -420,7 +421,64 @@ namespace prologcoin { namespace interp {
         return interp.unify(r, args[0]);
     }
 
-    // TODO: cyclic_term/1 and acyclic_term/1
+    bool builtins::cyclic_term_1(interpreter_base &interp, size_t arity, common::term args[]) {
+      int i = 0;
+      term t = args[0];
+      std::list<std::pair<term, int> > workstack;
+      std::set<untagged_cell::value_t> path;
+      workstack.push_front(std::pair<term, int>(t, 0));
+      while(workstack.size() > 0) {
+	i++;
+	if(i > 20) {
+	  return false;
+	}
+	auto current = workstack.front();
+	workstack.pop_front();
+	auto current_term = current.first;
+	auto current_index = current.second;
+	auto current_tag = current_term.tag();
+	if(path.count(current_term.raw_value()) > 0 && current_index == 0) {
+	  return true;
+	}
+	path.insert(current_term.raw_value());
+	switch (current_tag) {
+	case tag_t::STR:
+	case tag_t::CON:
+	  {
+	  auto tf = interp.functor(current_term);
+	  auto arity = tf.arity();
+	  if (current_index < arity) {
+	    auto arg = interp.arg(current_term, current_index);
+	    workstack.push_front(std::pair<term, int>(current_term, current_index+1));
+	    workstack.push_front(std::pair<term, int>(arg, 0));
+	  } else {
+	    path.erase(current_term.raw_value());
+	  }
+	  break;
+	}
+	case tag_t::REF: {
+	  {
+	    term deref_term = interp.deref(current_term);
+	    if (deref_term == current_term && current_tag == tag_t::REF) {
+	      return false;
+	    }
+	    workstack.push_front(std::pair<term, int>(deref_term, 0));
+	 }
+	  break;
+	}
+	default: {
+	  path.erase(current_term.raw_value());
+	  break;
+	}
+	}
+      }
+      return false;
+    }
+
+    bool builtins::acyclic_term_1(interpreter_base &interp, size_t arity, common::term args[]) {
+      bool cyclic_result = cyclic_term_1(interp, arity, args);
+      return !cyclic_result;
+    }
 
     bool builtins::is_list_1(interpreter_base &interp, size_t arity, common::term args[])
     {
