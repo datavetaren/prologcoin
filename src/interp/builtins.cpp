@@ -3,6 +3,7 @@
 #include "wam_interpreter.hpp"
 #include <stdarg.h>
 #include <boost/algorithm/string.hpp>
+#include <set>
 #include <memory>
 #include <set>
 
