@@ -4,7 +4,8 @@
 #include "term_tokenizer.hpp"
 #include "term_parser.hpp"
 #include "term_emitter.hpp"
-
+#include <map>
+#include <set>
 namespace prologcoin { namespace common {
 
 #if 0
@@ -212,7 +213,7 @@ bool term_utils::unify(term a, term b, uint64_t &cost)
 bool term_utils::unify_helper(term a, term b, uint64_t &cost)
 {
     size_t d = stack_size();
-
+    std::map<term, std::unordered_set<term> > visited;
     uint64_t cost_tmp = 0;
 
     push(b);
@@ -281,6 +282,17 @@ bool term_utils::unify_helper(term a, term b, uint64_t &cost)
 	  if (f != functor(bstr)) {
 	    cost = cost_tmp;
 	    return false;
+	  }
+
+	  // We need a map to a set because there could be different
+	  // terms with the same functor, e.g.
+	  // ?- X = foo(Y, Z), Z = foo(Z, Y), Y = foo(Z, X), Y = X.
+	  if (visited.find(a) == visited.end()) {
+	    visited[a].insert(b);
+	  } else if (visited[a].find(b) != visited[a].end()) {
+	    continue;
+	  } else {
+	    visited[a].insert(b);
 	  }
 	  // Push pairwise args
 	  size_t num_args = f.arity();
