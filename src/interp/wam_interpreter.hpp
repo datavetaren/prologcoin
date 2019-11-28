@@ -736,7 +736,6 @@ private:
 	auto qn = wami->get_wam_predicate(wam_addr);
 	auto meta_data = wami->get_wam_predicate_meta_data(qn);
 	size_t num_x = meta_data.num_x_registers;
-	size_t num_y = meta_data.num_y_registers;
 	size_t num_a = qn.second.arity();
 	  
 	auto ef = interp->ef();

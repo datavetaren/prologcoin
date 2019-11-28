@@ -895,7 +895,7 @@ namespace prologcoin { namespace interp {
 	auto at_end = interp.frozen_closures.end();
 	auto it = at_end - 1;
 	while (k > 0 && it != at_end) {
-	    auto heap_address = it->key();
+	    auto heap_address = static_cast<int64_t>(it->key());
   	    lst = interp.new_dotted_pair(int_cell(heap_address), lst);
 	    --it;
 	}
