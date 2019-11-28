@@ -310,7 +310,7 @@ term interpreter_base::rewrite_freeze_body(term freezeVar, term freezeBody)
     auto closure_mod = new_str(op_colon);
     set_arg(closure_mod, 0, qname.first);
     set_arg(closure_mod, 1, closure_head);
-    
+
     return closure_mod;
 }
     
@@ -451,6 +451,7 @@ void interpreter_base::load_builtins()
     load_builtin(con_cell("is",2), &builtins::is_2);
 
     // Analyzing & constructing terms
+    load_builtin(con_cell("arg",3), &builtins::arg_3);
     load_builtin(functor("functor",3), &builtins::functor_3);
     load_builtin(functor("same_term", 2), &builtins::same_term_2);
     load_builtin(functor("copy_term",2), &builtins::copy_term_2);
@@ -460,6 +461,8 @@ void interpreter_base::load_builtins()
     load_builtin(con_cell("\\+", 1), builtin(&builtins::operator_disprove,true));
     load_builtin(con_cell("findall",3), builtin(&builtins::findall_3,true));
     load_builtin(con_cell("freeze",2), builtin(&builtins::freeze_2,true));
+    load_builtin(con_cell("frozen",2), builtin(&builtins::frozen_2));
+    load_builtin(con_cell("frozenk",2), builtin(&builtins::frozenk_2));
 }
 
 void interpreter_base::load_builtins_opt()

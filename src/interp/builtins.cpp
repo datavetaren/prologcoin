@@ -506,6 +506,42 @@ namespace prologcoin { namespace interp {
     // Analyzing & constructing terms
     //
 
+    bool builtins::arg_3(interpreter_base &interp, size_t arity, common::term args[]) {
+        term arg_index_term = args[0];
+	if (arg_index_term.tag() == tag_t::REF) {
+	    // TODO: Backtrackable version
+  	    return false;
+	}
+
+	if (arg_index_term.tag() != tag_t::INT) {
+	    std::string msg =
+	      "arg/3: First argument was not an integer or variable; was "
+	      + interp.to_string(arg_index_term);
+	    interp.abort(interpreter_exception_wrong_arg_type(msg));
+	}
+
+	auto arg_index = static_cast<int_cell &>(arg_index_term).value();
+	
+	term t = args[1];
+	if (t.tag() != tag_t::STR) {
+	    std::string msg =
+	      "arg/3: Second argument must be a functor with arguments; was " +
+	      interp.to_string(t);
+	    interp.abort(interpreter_exception_wrong_arg_type(msg));
+	}
+
+	size_t n = interp.functor(t).arity();
+	if ((arg_index < 1) || (arg_index > n)) {
+	    std::stringstream msg;
+	    msg << "arg/3: Argument index is out of range. "
+	        << "It needs to be within 1 and " << n << "; was "
+		<< arg_index;
+	    interp.abort(interpreter_exception_wrong_arg_type(msg.str()));
+	}
+	term val = interp.arg(t, arg_index-1);
+        return interp.unify(args[2], val);
+    }
+    
     bool builtins::copy_term_2(interpreter_base &interp, size_t arity, common::term args[])
     {
 	term arg1 = args[0];
@@ -801,8 +837,70 @@ namespace prologcoin { namespace interp {
 	// At this point args[1] should be '$freeze':<id>( .... )
 
 	interp.set_frozen_closure(static_cast<ref_cell &>(args[0]).index(), args[1]);
+
+	interp.set_p(interp.cp());
+	interp.set_cp(interpreter_base::EMPTY_LIST);
         
         return true;
+    }
+
+    bool builtins::frozen_2(interpreter_base &interp, size_t arity, common::term args[] ) {
+
+        term addr_term = args[0];
+	if (addr_term.tag() != common::tag_t::INT) {
+	    std::string msg = "frozen/2: "
+	      "First argument was not an integer representing a heap address; was "
+	      + interp.to_string(addr_term);
+	    interp.abort(interpreter_exception_wrong_arg_type(msg));
+	}
+
+	auto addr = static_cast<int_cell &>(addr_term).value();
+	if (addr < 0) {
+	    std::string msg = "frozen/2: "
+	      "Integer must be a positive integer; was "
+	      + interp.to_string(addr_term);
+	    interp.abort(interpreter_exception_wrong_arg_type(msg));
+	}
+	
+        auto *closure = interp.frozen_closures.find(addr);
+	if (closure == nullptr) {
+	    return false;
+	}
+
+	return interp.unify(args[1], *closure);
+    }
+
+    bool builtins::frozenk_2(interpreter_base &interp, size_t arity, common::term args[] ) {
+
+        term k_term = args[0];
+	if (k_term.tag() != common::tag_t::INT) {
+	    std::string msg = "frozenk/2: "
+	      "First argument was not an integer; was "
+	      + interp.to_string(k_term);
+	    interp.abort(interpreter_exception_wrong_arg_type(msg));
+	}
+
+	auto k = static_cast<int_cell &>(k_term).value();
+	if (k < 0 || k > 255) {
+	    std::string msg = "frozenk/2: "
+	      "Integer was out of range. Must be within 0 and 255; was "
+	      + interp.to_string(k_term);
+	    interp.abort(interpreter_exception_wrong_arg_type(msg));
+	}
+
+	// Extract the K last heap positions for frozen closures
+
+	term lst = interpreter_base::EMPTY_LIST;
+	
+	auto at_end = interp.frozen_closures.end();
+	auto it = at_end - 1;
+	while (k > 0 && it != at_end) {
+	    auto heap_address = it->key();
+  	    lst = interp.new_dotted_pair(int_cell(heap_address), lst);
+	    --it;
+	}
+
+	return interp.unify(args[1], lst);
     }
 
 }}

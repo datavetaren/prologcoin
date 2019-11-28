@@ -393,6 +393,7 @@ static bool test_interpreter_file(const std::string &filepath,
 		interp.unwind(tr_mark);
 		interp.reset_files();
 		interp.set_register_hb(interp.heap_size());
+		interp.clear_all_frozen_closures();
 	    }
 	}
 

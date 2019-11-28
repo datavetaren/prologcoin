@@ -16,6 +16,8 @@
 #include "arithmetics.hpp"
 #include "locale.hpp"
 
+extern "C" void DebugBreak();
+
 namespace prologcoin { namespace interp {
 // This pair represents functor with first argument. If first argument
 // is a STR tag, then we dereference it to a CON cell.
@@ -220,8 +222,7 @@ public:
     inline code_point(const common::term t) : wam_code_(nullptr),term_code_(t){}
     inline code_point(const common::con_cell l) : wam_code_(nullptr), term_code_(l){}
     inline code_point(const common::int_cell i) : wam_code_(nullptr), term_code_(i){}
-    inline code_point(const code_point &other)
-        : wam_code_(other.wam_code_), term_code_(other.term_code_) { }
+    inline code_point(const code_point &other) = default;
     inline code_point(wam_instruction_base *i)
         : wam_code_(i), term_code_(common::ref_cell(0)) { }
 
@@ -325,16 +326,22 @@ struct choice_point_t {
 };
 
 // Standard environment (for naive interpreter)
-struct environment_ext_t : public environment_base_t {
+struct environment_naive_t : public environment_base_t {
     choice_point_t       *b0;
     common::term          qr;
     common::con_cell      pr;
+};
+
+struct environment_frozen_t : public environment_naive_t {
+    code_point            p; // restore p when deallocating
+    size_t                num_extra; // Number of extra cells
     common::term          extra[];
 };
 
 typedef union {
     environment_t *e;
-    environment_ext_t *ee;
+    environment_naive_t *ee;
+    environment_frozen_t *ef;
     choice_point_t *cp;
     common::term term;
 } word_t;
@@ -395,9 +402,9 @@ struct meta_context {
 class interpreter;
 
 template<environment_kind_t K> struct env_type_from_kind { };
-template<> struct env_type_from_kind<ENV_NAIVE> { typedef environment_ext_t * type; };
+template<> struct env_type_from_kind<ENV_NAIVE> { typedef environment_naive_t * type; };
 template<> struct env_type_from_kind<ENV_WAM> { typedef environment_t * type; };
-template<> struct env_type_from_kind<ENV_FROZEN> { typedef environment_ext_t * type; };
+template<> struct env_type_from_kind<ENV_FROZEN> { typedef environment_frozen_t * type; };
   
 
 // Used with set_managed_data() and get_managed_data() which can be
@@ -467,6 +474,19 @@ public:
     void close_all_files();
     bool is_file_id(size_t id) const;
     void reset_files();
+ 
+    inline void clear_all_frozen_closures() {
+        std::vector<size_t> addr;
+	auto it = frozen_closures.begin();
+        for (; it != frozen_closures.end(); ++it) {
+	    auto k = (*it).key();
+	    addr.push_back(k);
+	    heap_watch(k, false);
+        }
+	for (auto a : addr) {
+	    clear_frozen_closure(a);
+	}
+    }
 
     inline arithmetics & arith() { return arith_; }
 
@@ -653,7 +673,7 @@ protected:
         return static_cast<size_t>(p - stack_);
     }
 
-    typedef size_t (*num_y_fn_t)(interpreter_base *interp);
+    typedef size_t (*num_y_fn_t)(interpreter_base *interp, bool use_previous);
     typedef void (*save_state_fn_t)(interpreter_base *interp);
     typedef void (*restore_state_fn_t)(interpreter_base *interp);
 
@@ -708,21 +728,20 @@ protected:
         num_of_args_ = n;
     }
 
-    static inline size_t num_y(interpreter_base *interp)
+    static inline size_t num_y(interpreter_base *interp, bool)
     {
-        size_t n = (sizeof(environment_ext_t)-sizeof(environment_base_t))/sizeof(term);
         if (interp->e_kind() == ENV_FROZEN) {
-  	    // Extra cells to be allocated
-  	    assert(interp->qr().tag() == common::tag_t::INT);
-	    term qr = interp->qr();
-	    n += reinterpret_cast<const int_cell &>(qr).value();
+	    size_t n = (sizeof(environment_frozen_t)-sizeof(environment_base_t))/sizeof(term);
+  	    // Extra cells 
+  	    n += interp->ef()->num_extra;
+	    return n;
+        }  else {
+	    return (sizeof(environment_naive_t)-sizeof(environment_base_t))/sizeof(term);
 	}
-	return n;
     }
 
     static inline void save_state(interpreter_base *interp)
     {
-        static common::con_cell emptylist("[]",0);
         // Nothing being ordinary needs to be done in the naive interpreter as
         // it is not using any registers (except argument registers) but you
         // cannot terminate execution in the naive interpreter while those registers
@@ -732,9 +751,9 @@ protected:
         // woken up (like an interrupt) after unification. Then we need to execute
         // some code before returning to the normal continuation point.
 
-        interp->set_qr( common::int_cell(0) );
-	interp->set_cp( emptylist );
-	interp->set_p( emptylist );
+        interp->ef()->num_extra = 0;
+	interp->set_cp( EMPTY_LIST );
+	interp->set_p( EMPTY_LIST );
     }
 
     static inline void restore_state(interpreter_base *)
@@ -802,10 +821,15 @@ protected:
         return reinterpret_cast<environment_t *>(e0());
     }
 
-    inline environment_ext_t * ee()
+    inline environment_naive_t * ee()
     {
-        return reinterpret_cast<environment_ext_t *>(e0());
+        return reinterpret_cast<environment_naive_t *>(e0());
     }
+
+    inline environment_frozen_t * ef()
+    {
+        return reinterpret_cast<environment_frozen_t *>(e0());
+    }  
 
     inline environment_kind_t e_kind()
     {
@@ -828,7 +852,7 @@ protected:
 	register_e_kind_ = k;
     }
 
-    inline void set_ee(environment_ext_t *ee)
+    inline void set_ee(environment_naive_t *ee)
     {
         register_e_ = ee;
 	register_e_kind_ = ENV_NAIVE;
@@ -905,7 +929,7 @@ protected:
 
     // Allocate on stack so that we don't overwrite any data of a previous
     // stack frame.
-    inline word_t * allocate_stack()
+    inline word_t * allocate_stack(bool use_previous)
     {
 	word_t *new_s;
 
@@ -913,7 +937,7 @@ protected:
 	if (base(m()) > base(e0()) && base(m()) > base(b())) {
 	    new_s = base(m()) + m()->size_in_words;
 	} else if (base(e0()) > base(b())) {
-	    auto n = words<term>()*(num_y_fn()(this)) + words<environment_base_t>();
+	    auto n = words<term>()*(num_y_fn()(this, use_previous)) + words<environment_base_t>();
 	    new_s = base(e0()) + n;
 	} else {
 	    if (b() == nullptr) {
@@ -930,7 +954,7 @@ protected:
 
 	return new_s;
     }
-
+  
     template<environment_kind_t K, typename T = typename env_type_from_kind<K>::type> T allocate_environment();
 
     inline void deallocate_environment()
@@ -938,10 +962,19 @@ protected:
         // std::cout << "[before] deallocate_environment: e=" << e() << " p=" << to_string_cp(p()) << " cp=" << to_string_cp(cp()) << "\n";
 
         switch (e_kind()) {
-	case ENV_FROZEN:
-	    restore_state_fn();	// Fall through
+	case ENV_FROZEN: {
+  	    restore_state_fn_(this);
+	    environment_frozen_t *ef1 = ef();
+	    set_cp(ef1->cp);
+	    set_e(ef1->ce);
+	    set_b0(ef1->b0);
+	    set_qr(ef1->qr);
+	    set_pr(ef1->pr);
+	    set_p(ef1->p);
+	    break;
+	    }
 	case ENV_NAIVE: {
-	    environment_ext_t *ee1 = ee();
+	    environment_naive_t *ee1 = ee();
 	    set_cp(ee1->cp);
 	    set_e(ee1->ce);
 	    set_b0(ee1->b0);
@@ -961,7 +994,7 @@ protected:
 
     inline void allocate_choice_point(const code_point &cont)
     {
-        word_t *new_b0 = allocate_stack();
+        word_t *new_b0 = allocate_stack(true);
 	auto *new_b = reinterpret_cast<choice_point_t *>(new_b0);
 	new_b->arity = num_of_args_;
 	for (size_t i = 0; i < num_of_args_; i++) {
@@ -989,7 +1022,14 @@ protected:
     inline void deallocate_and_proceed()
     {
 	if (e0() != top_e()) {
+	    bool is_frozen_env = e_kind() == ENV_FROZEN;
 	    deallocate_environment();
+	    if (is_frozen_env) {
+	        // Do not attempt to modify P (with CP) after restored from
+	        // a frozen environment, as we attempt to execute exactly where
+	        // we left off.
+	        return;
+	    }
 	} else {
 	    set_cp(EMPTY_LIST);
 	}
@@ -1038,7 +1078,7 @@ protected:
     bool definitely_inequal(const term a, const term b);
 
     template<typename T> inline T * new_meta_context(meta_fn fn) {
-	T *context = new(allocate_stack()) T(*this, fn);
+	T *context = new(allocate_stack(true)) T(*this, fn);
 	context->size_in_words = sizeof(T) / sizeof(word_t);
 
 	if (is_debug()) {
@@ -1279,9 +1319,9 @@ protected:
     size_t tidy_size;
 };
 
-template<> inline environment_ext_t * interpreter_base::allocate_environment<ENV_NAIVE>()
+template<> inline environment_naive_t * interpreter_base::allocate_environment<ENV_NAIVE>()
 {
-    environment_ext_t *new_ee = reinterpret_cast<environment_ext_t *>(allocate_stack());
+    auto new_ee = reinterpret_cast<environment_naive_t *>(allocate_stack(true));
     new_ee->ce = save_e();
     new_ee->cp = cp();
     new_ee->b0 = b0();
@@ -1294,27 +1334,28 @@ template<> inline environment_ext_t * interpreter_base::allocate_environment<ENV
 
 template<> inline environment_t * interpreter_base::allocate_environment<ENV_WAM>()
 {
-    auto new_e = reinterpret_cast<environment_t *>(allocate_stack());
+    auto new_e = reinterpret_cast<environment_t *>(allocate_stack(true));
     new_e->ce = save_e();
     new_e->cp = cp();
     set_e(new_e, ENV_WAM);
     return new_e;
 }
 
-template<> inline environment_ext_t * interpreter_base::allocate_environment<ENV_FROZEN>()
+template<> inline environment_frozen_t * interpreter_base::allocate_environment<ENV_FROZEN>()
 {
-    environment_ext_t *new_ee = reinterpret_cast<environment_ext_t *>(allocate_stack());
-    new_ee->ce = save_e();
-    new_ee->cp = cp();
-    new_ee->b0 = b0();
-    new_ee->qr = register_qr_;
-    new_ee->pr = register_pr_;
+    auto new_ef = reinterpret_cast<environment_frozen_t *>(allocate_stack(false));
+    new_ef->ce = save_e();
+    new_ef->cp = cp();
+    new_ef->b0 = b0();
+    new_ef->qr = register_qr_;
+    new_ef->pr = register_pr_;
+    new_ef->p = p();
     
-    set_e(new_ee, ENV_FROZEN);
+    set_e(new_ef, ENV_FROZEN);
     
     save_state_fn_(this);
     
-    return new_ee;
+    return new_ef;
 }
 
 inline void interpreter_base::check_frozen()
@@ -1329,8 +1370,8 @@ inline void interpreter_base::check_frozen()
 	    auto cl = get_frozen_closure(addr);
 	    clear_frozen_closure(addr);
 	    if (cl != EMPTY_LIST) {
-		allocate_environment<ENV_FROZEN, environment_ext_t *>();
-		allocate_environment<ENV_NAIVE, environment_ext_t *>();
+		allocate_environment<ENV_FROZEN, environment_frozen_t *>();
+		allocate_environment<ENV_NAIVE, environment_naive_t *>();
 		set_cp(EMPTY_LIST);
 		set_p(cl);
 		set_qr(cl);

@@ -446,11 +446,14 @@ void interpreter::dispatch()
 
     if (f == interpreter_base::EMPTY_LIST) {
         // Return
-	if (is_debug()) {
-	    std::cout << "interpreter::dispatch(): pop\n";
-	}
 	deallocate_and_proceed();
+	if (is_debug()) {
+	    std::cout << "interpreter::dispatch(): pop: e=" << e0() << std::endl;
+	}
 	if (e0() == top_e()) {
+	    if (is_debug()) {
+	        std::cout << "interpreter::dispatch: pop: e=top: p_is_wam=" << p().has_wam_code() << std::endl;
+	    }
   	    if (!p().has_wam_code() && p().term_code() == interpreter_base::EMPTY_LIST) {
 		set_complete(true);
 	    }
@@ -765,10 +768,11 @@ void interpreter::compile(const qname &qn)
     wam_interim_code instrs(*this);
     compiler_->compile_predicate(qn, instrs);
     size_t xn_size = compiler_->get_num_x_registers(instrs);
+    size_t yn_size = compiler_->get_environment_size_of(instrs);    
     size_t first_offset = next_offset();
     load_code(instrs);
     auto *next_instr = to_code(first_offset);
-    set_predicate(qn, next_instr, xn_size);
+    set_predicate(qn, next_instr, xn_size, yn_size);
 }
 
 void interpreter::compile(common::con_cell module, common::con_cell name)

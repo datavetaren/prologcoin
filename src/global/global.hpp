@@ -9,7 +9,8 @@
 namespace prologcoin { namespace global {
 
 //
-// global. This class captures the global state. The most important
+// global. This class captures the global state that everybody shares
+// in the network.
 class global {
 private:
     using term_env = prologcoin::common::term_env;

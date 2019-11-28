@@ -6,6 +6,7 @@
 #include <istream>
 #include <vector>
 #include <iomanip>
+#include <map>
 #include "interpreter_base.hpp"
 
 namespace prologcoin { namespace interp {
@@ -446,28 +447,42 @@ public:
     }
 
     struct predicate_meta_data {
-        inline predicate_meta_data(size_t off, size_t num_x)
+        inline predicate_meta_data(size_t off, size_t num_x, size_t num_y)
 	  : code_offset(off),
-	    num_x_registers(num_x) { }
+	    num_x_registers(num_x),
+            num_y_registers(num_y) { }
         predicate_meta_data() = default;
 
         size_t code_offset;
         size_t num_x_registers;
+        size_t num_y_registers;
     };
 
-    const predicate_meta_data & get_wam_predicate(const qname &qn)
+    const predicate_meta_data & get_wam_predicate_meta_data(const qname &qn)
     {
         return predicate_map_[qn];
     }
-  
+
+    const qname get_wam_predicate(size_t code_addr)
+    {
+        auto it = predicate_rev_map_.find(code_addr);
+        if (it == predicate_rev_map_.end()) {
+	    it = predicate_rev_map_.lower_bound(code_addr);
+	    --it;
+	}
+	qname qn = (*it).second;
+	return qn;
+    }
+
 protected:
     void set_predicate(const qname &qn,
 		       wam_instruction_base *instr,
-		       size_t num_x_registers)
+		       size_t num_x_registers,
+		       size_t num_y_registers)
 
     {
 	size_t predicate_offset = to_code_addr(instr);
-	predicate_map_[qn] = predicate_meta_data(predicate_offset, num_x_registers);
+	predicate_map_[qn] = predicate_meta_data(predicate_offset, num_x_registers, num_y_registers);
 	predicate_rev_map_[predicate_offset] = qn;
 
 	auto &offsets = calls_[qn];
@@ -519,7 +534,7 @@ private:
     code_t *instrs_;
 
     std::unordered_map<qname, predicate_meta_data> predicate_map_;
-    std::unordered_map<size_t, qname> predicate_rev_map_;
+    std::map<size_t, qname> predicate_rev_map_;
     std::unordered_map<qname, std::vector<size_t> > calls_;
 };
 
@@ -687,11 +702,20 @@ private:
 
     template<wam_instruction_type I> friend class wam_instruction;
 
-    static inline size_t num_y(interpreter_base *interp)
+    static inline size_t num_y(interpreter_base *interp, bool use_previous)
     {
+        if (!use_previous) {
+	    auto wami = reinterpret_cast<wam_interpreter *>(interp);
+	    if (wami->p().has_wam_code()) {
+	        auto qn = wami->get_wam_predicate(wami->to_code_addr(wami->p().wam_code()));
+   	        auto meta_data = wami->get_wam_predicate_meta_data(qn);
+	        return meta_data.num_y_registers;
+	    }
+        }
+      
         auto after_call = reinterpret_cast<wam_interpreter *>(interp)->cp().wam_code();
         if (after_call == nullptr) {
-	    return interpreter_base::num_y(interp);
+	    return interpreter_base::num_y(interp, use_previous);
         } else {
 	    auto at_call = reinterpret_cast<wam_instruction_code_point_reg *>(
 		 reinterpret_cast<code_t *>(after_call) -
@@ -702,51 +726,50 @@ private:
 
     static inline void save_state(interpreter_base *interp)
     {
-        auto wami = reinterpret_cast<wam_interpreter *>(interp);
-        auto after_call = wami->cp().wam_code();
-        if (after_call == nullptr) {
+        // First check if we're in WAM (or not)
+        code_point &p = interp->p();
+        if (!p.has_wam_code()) {
 	    return interpreter_base::save_state(interp);
-        } else {
-	    auto at_call = reinterpret_cast<wam_instruction_code_point_reg *>(
-		 reinterpret_cast<code_t *>(after_call) -
-		 sizeof(wam_instruction_code_point_reg)/sizeof(code_t));
-	    auto qn = at_call->cp().qn();
-	    auto &meta_data = wami->get_wam_predicate(qn);
-	    auto num_x = meta_data.num_x_registers;
-	    auto num_a = at_call->cp().name().arity();
-	    auto ee = interp->ee();
-	    ee->extra[0] = int_cell(num_x);
-	    for (size_t i = 0; i < num_x; i++) {
-	        ee->extra[i+1] = wami->x(i);
-	    }
-	    ee->extra[1+num_x] = int_cell(num_a);
-	    for (size_t i = 0; i < num_a; i++) {
-	        ee->extra[1+num_x+1+i] = wami->a(i);
-	    }
-	    interp->set_qr( common::int_cell(num_x + num_a) );
-	    interp->set_p( interpreter_base::EMPTY_LIST );
-	    interp->set_cp( interpreter_base::EMPTY_LIST );
+        }
+        auto wami = reinterpret_cast<wam_interpreter *>(interp);
+	size_t wam_addr = wami->to_code_addr(p.wam_code());
+	auto qn = wami->get_wam_predicate(wam_addr);
+	auto meta_data = wami->get_wam_predicate_meta_data(qn);
+	size_t num_x = meta_data.num_x_registers;
+	size_t num_y = meta_data.num_y_registers;
+	size_t num_a = qn.second.arity();
+	  
+	auto ef = interp->ef();
+	ef->extra[0] = int_cell(num_x);
+	for (size_t i = 0; i < num_x; i++) {
+	  ef->extra[i+1] = wami->x(i);
 	}
+	ef->extra[1+num_x] = int_cell(num_a);
+	for (size_t i = 0; i < num_a; i++) {
+	  ef->extra[1+num_x+1+i] = wami->a(i);
+	}
+	ef->num_extra = 2 + num_x + num_a;
+	interp->set_p( interpreter_base::EMPTY_LIST );
+	interp->set_cp( interpreter_base::EMPTY_LIST );	    
     }
 
     static inline void restore_state(interpreter_base *interp)
     {
-        auto after_call = reinterpret_cast<wam_interpreter *>(interp)->cp().wam_code();
-        if (after_call == nullptr) {
-	    return interpreter_base::restore_state(interp);
-	} else {
-  	    auto wami = reinterpret_cast<wam_interpreter *>(interp);	  
-	    auto ee = interp->ee();
-	    size_t num_x = static_cast<int_cell &>(ee->extra[0]).value();
-	    for (size_t i = 0; i < num_x; i++) {
-	        wami->x(i) = ee->extra[1+i];
-	    }
-	    size_t num_a = static_cast<int_cell &>(ee->extra[1+num_x]).value();
-	    for (size_t i = 0; i < num_a; i++) {
-	        wami->a(i) = ee->extra[1+num_x+1+i];
-	    }
-	    wami->set_num_of_args(num_a);
+	auto wami = reinterpret_cast<wam_interpreter *>(interp);	  
+	auto ef = interp->ef();
+	if (ef->num_extra == 0) {
+	     interpreter_base::restore_state(interp);
+	     return;
 	}
+	size_t num_x = static_cast<int_cell &>(ef->extra[0]).value();
+	for (size_t i = 0; i < num_x; i++) {
+	  wami->x(i) = ef->extra[1+i];
+	}
+	size_t num_a = static_cast<int_cell &>(ef->extra[1+num_x]).value();
+	for (size_t i = 0; i < num_a; i++) {
+	  wami->a(i) = ef->extra[1+num_x+1+i];
+	}
+	wami->set_num_of_args(num_a);
     }
 
     inline term & x(size_t i)
@@ -1387,7 +1410,11 @@ private:
         } else {
 	    deallocate_environment();
 	}
+
 	goto_next_instruction();
+
+	// After a call is done we check for frozen closures
+	check_frozen();
     }
 
     inline void call(code_point &p1, size_t arity, uint32_t num_stack)
@@ -1419,6 +1446,9 @@ protected:
     inline void proceed()
     {
         set_p(cp());
+
+	// After a call is done we check for frozen closures
+	check_frozen();	
     }
 private:
 
@@ -1441,6 +1471,9 @@ private:
 	bool r = fn(*this, bn->arity(), args);
 	if (!r) {
 	    backtrack();
+	} else {
+	    // After a call is done we check for frozen closures
+	    check_frozen();
 	}
 	return r;
     }
@@ -1460,6 +1493,9 @@ private:
 	bool r = fn(*this, bn->arity(), args);
 	if (!r) {
 	    backtrack();
+	} else {
+	    // After a call is done we check for frozen closures
+	    check_frozen();
 	}
 	return r;
     }
