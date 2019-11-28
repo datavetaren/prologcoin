@@ -68,9 +68,9 @@ public:
     static const size_t DEFAULT_NUM_VERIFIER_CONNECTIONS = 3;
     static const size_t DEFAULT_NUM_DOWNLOAD_ADDRESSES = 100;
     static const size_t DEFAULT_TTL_SECONDS = 60;
-    static const uint64_t DEFAULT_INITIAL_FUNDS = 10000;
-    static const uint64_t DEFAULT_MAXIMUM_FUNDS = 10000;
-    static const uint64_t DEFAULT_NEW_FUNDS_PER_SECOND = 100;
+    static const uint64_t DEFAULT_INITIAL_FUNDS = 10000000000;
+    static const uint64_t DEFAULT_MAXIMUM_FUNDS = 10000000000;
+    static const uint64_t DEFAULT_NEW_FUNDS_PER_SECOND = 10000000;
 
     self_node(unsigned short port = DEFAULT_PORT);
 

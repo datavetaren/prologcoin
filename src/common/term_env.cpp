@@ -213,7 +213,7 @@ bool term_utils::unify(term a, term b, uint64_t &cost)
 bool term_utils::unify_helper(term a, term b, uint64_t &cost)
 {
     size_t d = stack_size();
-    std::map<term, std::unordered_set<term> > visited;
+    std::unordered_map<term, term> visited;
     uint64_t cost_tmp = 0;
 
     push(b);
@@ -284,16 +284,25 @@ bool term_utils::unify_helper(term a, term b, uint64_t &cost)
 	    return false;
 	  }
 
-	  // We need a map to a set because there could be different
-	  // terms with the same functor, e.g.
 	  // ?- X = foo(Y, Z), Z = foo(Z, Y), Y = foo(Z, X), Y = X.
-	  if (visited.find(a) == visited.end()) {
-	    visited[a].insert(b);
-	  } else if (visited[a].find(b) != visited[a].end()) {
-	    continue;
-	  } else {
-	    visited[a].insert(b);
+	  auto lhs = a;
+	  auto lhsi = visited.find(lhs);
+	  while(lhsi != visited.end()) {
+	    lhs = (*lhsi).second;
+	    lhsi = visited.find(lhs);
 	  }
+	  auto rhs = b;
+	  auto rhsi = visited.find(rhs);
+	  while(visited.find(rhs) != visited.end()) {
+	    rhs = (*rhsi).second;
+	    rhsi = visited.find(rhs);
+	  }
+	  
+	  if (lhs == rhs)
+	    continue;
+
+	  visited.insert(lhsi, {lhs, rhs});
+
 	  // Push pairwise args
 	  size_t num_args = f.arity();
 	  for (size_t i = 0; i < num_args; i++) {
