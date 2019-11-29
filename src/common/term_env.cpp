@@ -4,7 +4,6 @@
 #include "term_tokenizer.hpp"
 #include "term_parser.hpp"
 #include "term_emitter.hpp"
-#include <map>
 #include <stack>
 namespace prologcoin { namespace common {
 
