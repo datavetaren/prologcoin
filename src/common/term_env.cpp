@@ -322,9 +322,12 @@ bool term_utils::unify_helper(term a, term b, uint64_t &cost)
 	    return false;
 	  }
 
-	  // We need to keep track of multiple unifications, via
-	  // a union-find structure by rewriting CON cells to detect
-	  // cycles.
+	  // We rewrite the CON cell to a STF to create a union-find
+	  // structure, which will allow detection of cycles, so that
+	  // the same unification will not be added on the unification
+	  // stack multiple times. The CON cells will have to be
+	  // restored after unification is done, so these indices are
+	  // stored in a separate visited stack.
 	  // ?- X = foo(Y, Z), Z = foo(Z, Y), Y = foo(Z, X), Y = X.
           visited.push(aindex);
           auto stfcell = stf_cell(bindex);
