@@ -312,8 +312,7 @@ bool term_utils::unify_helper(term a, term b, uint64_t &cost)
           }
 
           if(aindex == bindex) {
-            restore_cells_after_unify(visited);
-            return true;
+	    continue;
           }
 
 	  con_cell f = static_cast<con_cell &>(adest);
