@@ -28,7 +28,7 @@ bool in_session_state::execute(const term query)
 
     interp_.ensure_initialized();
     interp_.reset_text_out();
-    interp_.set_maximum_cost(10000000000L);
+    interp_.set_maximum_cost(available_funds_);
     bool r = false;
     try {
 	r = interp_.execute(query);
