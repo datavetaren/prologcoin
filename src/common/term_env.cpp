@@ -210,10 +210,20 @@ bool term_utils::unify(term a, term b, uint64_t &cost)
     return true;
 }
 
+void term_utils::restore_cells_after_unify(std::vector<std::pair<size_t, con_cell&>> &visited) {
+  for(auto &TermPair : visited) {
+    //    printf("Heap before restore(%llu): %llu\n", TermPair.first, heap_get(TermPair.first).raw_value());
+    //    printf("Restoring index: %llu, value: %llu\n", TermPair.first, TermPair.second.raw_value());
+    heap_set(TermPair.first, TermPair.second);
+    //    printf("Heap after restore(%llu): %llu\n", TermPair.first, heap_get(TermPair.first).raw_value());
+  }
+}
+
 bool term_utils::unify_helper(term a, term b, uint64_t &cost)
 {
     size_t d = stack_size();
-    std::unordered_map<term, term> visited;
+    //    std::unordered_map<term, term> visited;
+    std::vector<std::pair<size_t, con_cell&> > visited;
     uint64_t cost_tmp = 0;
 
     push(b);
@@ -264,6 +274,7 @@ bool term_utils::unify_helper(term a, term b, uint64_t &cost)
 	// Check tags
 	if (a.tag() != b.tag()) {
 	    cost = cost_tmp;
+	    restore_cells_after_unify(visited);
 	    return false;
 	}
 	
@@ -272,36 +283,53 @@ bool term_utils::unify_helper(term a, term b, uint64_t &cost)
 	case tag_t::INT:
 	  if (a != b) {
 	    cost = cost_tmp;
+	    restore_cells_after_unify(visited);
 	    return false;
 	  }
 	  break;
 	case tag_t::STR: {
 	  str_cell &astr = static_cast<str_cell &>(a);
 	  str_cell &bstr = static_cast<str_cell &>(b);
-	  con_cell f = functor(astr);
-	  if (f != functor(bstr)) {
+
+          size_t aindex = astr.index();
+          term adest = heap_get(aindex);
+          while(adest.tag() == tag_t::STF) {
+            stf_cell &astf = static_cast<stf_cell &>(adest);
+            aindex = astf.index();
+            adest = heap_get(aindex);
+          }
+
+          size_t bindex = bstr.index();
+          term bdest = heap_get(bindex);
+          while(bdest.tag() == tag_t::STF) {
+            stf_cell &bstf = static_cast<stf_cell &>(bdest);
+            bindex = bstf.index();
+            bdest = heap_get(bindex);
+          }
+
+          if (adest.tag() != tag_t::CON) {
+	    throw expected_con_cell_exception(aindex, adest);
+          }
+          if (adest.tag() != tag_t::CON) {
+	    throw expected_con_cell_exception(bindex, bdest);
+          }
+
+          if(aindex == bindex) {
+            restore_cells_after_unify(visited);
+            return true;
+          }
+
+	  con_cell f = static_cast<con_cell &>(adest);
+          if (f != static_cast<con_cell &>(bdest)) {
 	    cost = cost_tmp;
+	    restore_cells_after_unify(visited);
 	    return false;
 	  }
 
 	  // ?- X = foo(Y, Z), Z = foo(Z, Y), Y = foo(Z, X), Y = X.
-	  auto lhs = a;
-	  auto lhsi = visited.find(lhs);
-	  while(lhsi != visited.end()) {
-	    lhs = (*lhsi).second;
-	    lhsi = visited.find(lhs);
-	  }
-	  auto rhs = b;
-	  auto rhsi = visited.find(rhs);
-	  while(visited.find(rhs) != visited.end()) {
-	    rhs = (*rhsi).second;
-	    rhsi = visited.find(rhs);
-	  }
-	  
-	  if (lhs == rhs)
-	    continue;
-
-	  visited.insert(lhsi, {lhs, rhs});
+          visited.push_back(std::pair<size_t, con_cell&>(aindex, f));
+          auto stfcell = stf_cell(bindex);
+          heap_set(aindex, stfcell);
 
 	  // Push pairwise args
 	  size_t num_args = f.arity();
@@ -318,6 +346,7 @@ bool term_utils::unify_helper(term a, term b, uint64_t &cost)
 	  auto &bbig = static_cast<big_cell &>(b);
 	  if (num_bits(abig) != num_bits(bbig)) {
 	      cost = cost_tmp;
+	      restore_cells_after_unify(visited);
 	      return false;
 	  }
 	  size_t numbits = 0;
@@ -326,6 +355,7 @@ bool term_utils::unify_helper(term a, term b, uint64_t &cost)
 	  get_big(bbig, bi, numbits);
 	  if (ai != bi) {
 	      cost = cost_tmp;
+	      restore_cells_after_unify(visited);
 	      return false;
 	  }
 	  break;
@@ -334,6 +364,7 @@ bool term_utils::unify_helper(term a, term b, uint64_t &cost)
     }
 
     cost = cost_tmp;
+    restore_cells_after_unify(visited);
 
     return true;
 }

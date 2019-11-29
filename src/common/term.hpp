@@ -87,7 +87,7 @@ class heap;
 //
 class tag_t {
 public:
-    enum kind_t { REF = 0, INT = 1, BIG = 2, CON = 3, STR = 4, DAT = 5 };
+    enum kind_t { REF = 0, INT = 1, BIG = 2, CON = 3, STR = 4, DAT = 5, STF = 6 };
 
     inline tag_t( kind_t k ) : kind_(k) { }
 
@@ -109,6 +109,7 @@ public:
 	case INT: return "INT";
 	case BIG: return "BIG";
 	case DAT: return "DAT";
+	case STF: return "STF";  // Only used during unification for cycle detection
 	default : return "???";
 	}
     }
@@ -367,6 +368,14 @@ public:
     inline str_cell(size_t index) : ptr_cell(tag_t::STR, index) { }
 };
 
+//
+// STF cells
+// STR forwading cells used for cycle detection during unification.
+class stf_cell : public ptr_cell {
+public:
+    inline stf_cell(ptr_cell pcell) : ptr_cell(pcell) { }
+    inline stf_cell(size_t index) : ptr_cell(tag_t::STF, index) { }
+};
 
 // 
 // CON cells (61 bits)
