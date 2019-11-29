@@ -5,7 +5,7 @@
 #include "term_parser.hpp"
 #include "term_emitter.hpp"
 #include <map>
-#include <set>
+#include <stack>
 namespace prologcoin { namespace common {
 
 #if 0
@@ -210,12 +210,11 @@ bool term_utils::unify(term a, term b, uint64_t &cost)
     return true;
 }
 
-void term_utils::restore_cells_after_unify(std::vector<std::pair<size_t, con_cell&>> &visited) {
-  for(auto &TermPair : visited) {
-    //    printf("Heap before restore(%llu): %llu\n", TermPair.first, heap_get(TermPair.first).raw_value());
-    //    printf("Restoring index: %llu, value: %llu\n", TermPair.first, TermPair.second.raw_value());
-    heap_set(TermPair.first, TermPair.second);
-    //    printf("Heap after restore(%llu): %llu\n", TermPair.first, heap_get(TermPair.first).raw_value());
+void term_utils::restore_cells_after_unify(std::stack<size_t> &visited) {
+  while(!visited.empty()) {
+    auto index = visited.top();
+    heap_set(index, heap_get(static_cast<stf_cell &>(heap_get(index))));
+    visited.pop();
   }
 }
 
@@ -223,7 +222,7 @@ bool term_utils::unify_helper(term a, term b, uint64_t &cost)
 {
     size_t d = stack_size();
     //    std::unordered_map<term, term> visited;
-    std::vector<std::pair<size_t, con_cell&> > visited;
+    std::stack<size_t> visited;
     uint64_t cost_tmp = 0;
 
     push(b);
@@ -327,7 +326,7 @@ bool term_utils::unify_helper(term a, term b, uint64_t &cost)
 	  }
 
 	  // ?- X = foo(Y, Z), Z = foo(Z, Y), Y = foo(Z, X), Y = X.
-          visited.push_back(std::pair<size_t, con_cell&>(aindex, f));
+          visited.push(aindex);
           auto stfcell = stf_cell(bindex);
           heap_set(aindex, stfcell);
 

@@ -5,6 +5,7 @@
 
 #include <iterator>
 #include <map>
+#include <stack>
 #include "term.hpp"
 #include "term_emitter.hpp"
 #include "term_parser.hpp"
@@ -441,7 +442,7 @@ public:
     
 
 private:
-    void restore_cells_after_unify(std::vector<std::pair<size_t, con_cell&>> &visited);
+    void restore_cells_after_unify(std::stack<size_t> &visited);
     bool unify_helper(term a, term b, uint64_t &cost);
     int functor_standard_order(con_cell a, con_cell b);
 
