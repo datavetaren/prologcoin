@@ -20,8 +20,6 @@ public:
 
     static global_interpreter & to_global(interpreter_base &interp)
     { return reinterpret_cast<global_interpreter &>(interp); }
-
-    static bool commit_1(interpreter_base &interp, size_t arity, term args[] );
 };
 
 class global_interpreter_exception : public interp::interpreter_exception {

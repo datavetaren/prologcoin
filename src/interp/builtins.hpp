@@ -161,6 +161,7 @@ namespace prologcoin { namespace interp {
 	// Analyzing & constructing terms
 	//
 
+        static bool arg_3(interpreter_base &interp, size_t arity, common::term args[]);
 	static bool copy_term_2(interpreter_base &interp, size_t arity, common::term args[]);
 	static bool functor_3(interpreter_base &interp, size_t arity, common::term args[]);
 	static bool same_term_2(interpreter_base &interp, size_t arity, common::term args[]);
@@ -184,6 +185,11 @@ namespace prologcoin { namespace interp {
 	static bool findall_3(interpreter_base &interp, size_t arity, common::term args[]);
 	static bool findall_3_meta(interpreter_base &interp, const meta_reason_t &reason);
         static bool freeze_2(interpreter_base &interp, size_t arity, common::term args[]);
+
+        // frozen(+X, -Closure)
+        static bool frozen_2(interpreter_base &interp, size_t arity, common::term args[] );
+        // frozenk(K, Xs)
+        static bool frozenk_2(interpreter_base &interp, size_t arity, common::term args[] );      
     };
 
 }}

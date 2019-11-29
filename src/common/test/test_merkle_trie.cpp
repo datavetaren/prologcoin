@@ -114,6 +114,47 @@ static void test_merkle_trie_iterator()
     delete [] values;
 }
 
+static void test_merkle_trie_iterator_reverse()
+{
+    header( "test_merkle_trie_iterator_reverse" );
+
+    static const size_t N = 10000000;
+
+    std::cout << "Generate logarithmic spread of keys from 0 to " << N << std::endl;
+
+    size_t num_keys = 0;
+    uint64_t *keys = new uint64_t[N];
+    uint64_t *values = new uint64_t[N];
+    size_t step = 10;
+    for (size_t i = 0; i < N; i += step, num_keys++) {
+        keys[num_keys] = i;
+	if (num_keys % 1000 == 0) {
+	    step *= 3;
+	}
+	values[i] = random::next_int(static_cast<uint64_t>(1000000000));
+    }
+
+    std::cout << "Number of keys: " << num_keys << std::endl;
+
+    std::cout << "Insert them into trie." << std::endl;
+    merkle_trie<uint64_t,60> mtrie;
+    for (size_t i = 0; i < num_keys; i++) {
+        mtrie.insert(keys[i], values[i]);
+    }
+
+    std::cout << "Check reverse order." << std::endl;
+
+    size_t k = num_keys - 1;
+    for (auto it = mtrie.end() - 1; it != mtrie.end(); --it, --k) {
+        assert(keys[k] == (*it).key());
+    }
+
+    assert(k == static_cast<size_t>(-1));
+
+    delete [] keys;
+    delete [] values;
+}
+
 static void test_merkle_trie_iterator_erase()
 {
     header( "test_merkle_trie_iterator_erase" );
@@ -466,6 +507,7 @@ int main(int argc, char *argv[])
 
     test_merkle_trie_order();
     test_merkle_trie_iterator();
+    test_merkle_trie_iterator_reverse();    
     test_merkle_trie_iterator_erase();
     test_merkle_trie_hash();
     test_merkle_trie_remove();

@@ -146,6 +146,16 @@ ex20(T) :-
 % Expect: T = true
 % Expect: end
 
+%
+% Test arg
+%
+
+ex21(T) :-
+    A = foo(10,20,30), arg(2, A, T).
+?- ex21(T).
+% Expect: T = 20
+% Expect: end
+
 
 
 

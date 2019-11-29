@@ -52,3 +52,71 @@ foo4(X, Y, A, B) :- W = freeze(B, Y = bound(X,A,B)), freeze(A, W).
 ?- foo4(Q11,Q12,Q13,Q14), Q13 = 1, Q11 = 42, Q14 = 4711.
 % Expect: Q11 = 42, Q12 = bound(42, 1, 4711), Q13 = 1, Q14 = 4711.
 % Expect: end
+
+%
+% Testing frozen closures
+%
+
+% Meta: WAM-only
+
+foo5 :- freeze(A, B = hello(A)), frozenk(10, Xs), Xs = [_].
+?- foo5.
+% Expect: true
+% Expect: end
+
+% Unfreeze frozen closures by accessing them explicitly
+foo6(Closure) :- foo5, frozenk(10, [Addr]), frozen(Addr, Closure).
+foo7(T) :- foo6(Closure), arg(2, Closure, Closure0), arg(1, Closure0, V), V = 424711, arg(2, Closure0, T).
+?- foo7(T), frozenk(10, []).
+% Expect: T = hello(424711).
+% Expect: end
+
+%
+% Testing transaction idea
+%
+dummy_hash(thepubkey, thepubkeyhash).
+dummy_validate(sys(somehash), thepubkey, thesign).
+
+% Meta: fileio on
+% Meta: debug off
+
+tx(CoinIn, Hash, Sign, PubKey, PubKeyHash, CoinOut) :-
+    CoinIn = coin(V, X),
+    var(X),
+    X = [],
+    freeze(Hash,
+	   (dummy_hash(PubKey, PubKeyHash),
+	    ground(Hash),
+	    Hash = sys(_),
+	    dummy_validate(Hash, PubKey, Sign),
+	    CoinOut = coin(V, _))).
+
+foo8 :-
+    CoinIn = coin(100, _),
+    tx(coin(100, _), Hash, Sign, PubKey, thepubkeyhash, CoinOut).
+?- foo8.
+% Expect: true
+
+%
+% Now spend that frozen coin...
+%
+
+foo9 :-
+    foo8, % Existing coin...
+    frozenk(10, [Addr]),
+    frozen(Addr, Closure),
+    arg(2, Closure, Closure0),
+    % Check that we got the right closure
+    arg(3, Closure0, thepubkeyhash),
+    % Prepare everything except hash
+    arg(2, Closure0, thepubkey),
+    arg(5, Closure0, thesign),
+    % Wake up frozen closure...
+    arg(1, Closure0, sys(somehash)),
+    % Now we have the coin:
+    arg(6, Closure0, OurCoin),
+    tx(OurCoin, _, _, _, youraddress, _),
+    write(OurCoin), nl.
+
+?- foo9.
+% Expect: true
