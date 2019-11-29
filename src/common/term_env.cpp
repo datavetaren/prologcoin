@@ -220,7 +220,6 @@ void term_utils::restore_cells_after_unify(std::stack<size_t> &visited) {
 bool term_utils::unify_helper(term a, term b, uint64_t &cost)
 {
     size_t d = stack_size();
-    //    std::unordered_map<term, term> visited;
     std::stack<size_t> visited;
     uint64_t cost_tmp = 0;
 
@@ -324,6 +323,9 @@ bool term_utils::unify_helper(term a, term b, uint64_t &cost)
 	    return false;
 	  }
 
+	  // We need to keep track of multiple unifications, via
+	  // a union-find structure by rewriting CON cells to detect
+	  // cycles.
 	  // ?- X = foo(Y, Z), Z = foo(Z, Y), Y = foo(Z, X), Y = X.
           visited.push(aindex);
           auto stfcell = stf_cell(bindex);
