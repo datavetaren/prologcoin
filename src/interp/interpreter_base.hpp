@@ -16,8 +16,6 @@
 #include "arithmetics.hpp"
 #include "locale.hpp"
 
-extern "C" void DebugBreak();
-
 namespace prologcoin { namespace interp {
 // This pair represents functor with first argument. If first argument
 // is a STR tag, then we dereference it to a CON cell.
