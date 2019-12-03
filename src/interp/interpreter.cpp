@@ -290,9 +290,13 @@ void interpreter::fail()
 	    if (bp.is_fail()) {
 		// Do nothing
 	    } else if (bp.term_code().tag() != common::tag_t::INT) {
-		// Direct query
-		static managed_clauses empty_clauses;
-		ok = select_clause(bp, 0, empty_clauses, 0);
+		if (bp.bn() != nullptr) {
+		    ok = bp.bn()(*this, ch->arity, args());
+		} else {
+		    // Direct query
+		    static managed_clauses empty_clauses;
+		    ok = select_clause(bp, 0, empty_clauses, 0);
+		}
 	    } else {
 		auto bpterm = bp.term_code();
 		size_t bpval = static_cast<const int_cell &>(bpterm).value();
@@ -306,7 +310,7 @@ void interpreter::fail()
 		    }
 		    auto &clauses = get_predicate_by_id(index_id);
 		    size_t from_clause = bpval & 0xff;
-
+		    
 		    ok = select_clause(qr(), index_id, clauses, from_clause);
 		}
 	    }
@@ -516,6 +520,16 @@ void interpreter::dispatch()
         }
     default:
 	break;
+    }
+
+    // Is instruction already a built-in (can happen for native backtracking)
+    if (p().bn() != nullptr) {
+	if (!(p().bn())(*this, arity, args())) {
+	    fail();
+	    return;
+	}
+	set_p(cp());
+	return;
     }
 
     // Is this a built-in?

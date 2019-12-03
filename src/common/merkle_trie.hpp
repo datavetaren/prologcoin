@@ -393,7 +393,7 @@ private:
 	new_parent->data_[n_left] = nullptr;
 	new_parent->mask_ = parent->mask_;
 	new_parent->leaf_ = parent->leaf_;
-	delete parent;
+	::operator delete(parent);
 	parent = new_parent;
     }
 
@@ -407,7 +407,7 @@ private:
 	std::copy(parent->data_+n_left+1, parent->data_+n_left+1+n_right, &new_parent->data_[n_left]);
 	new_parent->mask_ = parent->mask_ & ~(static_cast<word_t>(1) << sub_index);
 	new_parent->leaf_ = parent->leaf_ & ~(static_cast<word_t>(1) << sub_index);
-	delete parent;
+	::operator delete(parent);
 	parent = new_parent;
     }
       
@@ -429,7 +429,7 @@ private:
 	    delete leaf;
 	} else {
 	    auto *branch = get_branch(sub_index);
-	    delete branch;
+	    ::operator delete(branch);
 	}
     }
 
@@ -738,15 +738,34 @@ template<typename T, size_t L> class merkle_trie_base {
 public:
     friend class merkle_trie_iterator<T,L>;
     typedef merkle_trie_hash_t hash_t;
-  
+    typedef typename  merkle_trie_branch<T,L>::word_t word_t;
+
     inline merkle_trie_base() {
-        root_ = new merkle_trie_branch<T,L>();
+        root_ = merkle_trie_branch<T,L>::new_root();
 	dirty = false;
 	auto_rehash = true;
     }
 
     inline ~merkle_trie_base() {
-        delete root_;
+	std::vector<merkle_trie_branch<T,L> *> visit;
+	visit.push_back(root_);
+	while (!visit.empty()) {
+	    auto *parent = visit.back();
+	    visit.pop_back();
+	    auto mask = parent->mask_;
+	    for (size_t i = lsb(mask); mask != 0; ) {
+		if (parent->is_branch(i)) {
+		    auto *branch = parent->get_branch(i);
+		    visit.push_back(branch);
+		} else {
+		    auto *leaf = parent->get_leaf(i);
+		    delete leaf;
+		}
+		mask &= (static_cast<word_t>(-1) << i) << 1;
+		i = lsb(mask);
+	    }
+	    ::operator delete(parent);
+	}
     }
 
 protected:

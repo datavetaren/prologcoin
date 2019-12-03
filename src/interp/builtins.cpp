@@ -506,11 +506,65 @@ namespace prologcoin { namespace interp {
     // Analyzing & constructing terms
     //
 
+    void builtins::store_p_on_heap_if_wam(interpreter_base &interp) {
+	if (interp.p().has_wam_code()) {
+	    wam_interpreter &wami = reinterpret_cast<wam_interpreter &>(interp);
+	    auto ic = int_cell(wami.to_code_addr(interp.p().wam_code()));
+	    interp.new_cell0(ic);
+	} else {
+	    interp.new_cell0(interpreter_base::EMPTY_LIST);
+	}
+    }
+
+    void builtins::restore_p_from_heap_if_wam(interpreter_base &interp) {
+	auto c = interp.get_heap()[interp.heap_size()-1];
+	if (c.tag() == tag_t::INT) {
+	    wam_interpreter &wami = reinterpret_cast<wam_interpreter &>(interp);
+	    auto ic = static_cast<int_cell &>(c).value();
+	    auto wam_code = wami.to_code(ic);
+	    interp.p().set_wam_code(wam_code);
+	}
+    }
+
+    bool builtins::arg_3_cp(interpreter_base &interp, size_t arity, common::term args[])
+    {
+	auto arg_index_term = interp.get_heap()[interp.heap_size()-2];
+	auto arg_index = static_cast<int_cell &>(arg_index_term).value();
+	term t = args[1];
+	size_t n = interp.functor(t).arity();
+	arg_index++;
+	if (arg_index == n) {
+	    interp.b()->bp = code_point::fail();
+	    return false;
+	}
+	interp.get_heap()[interp.heap_size()-2] = int_cell(arg_index);
+	restore_p_from_heap_if_wam(interp);
+	interp.unify(args[0], int_cell(arg_index+1));
+	term val = interp.arg(t, arg_index);
+        return interp.unify(args[2], val);
+    }
+
     bool builtins::arg_3(interpreter_base &interp, size_t arity, common::term args[]) {
+	term t = args[1];
+	if (t.tag() != tag_t::STR) {
+	    std::string msg =
+	      "arg/3: Second argument must be a functor with arguments; was " +
+	      interp.to_string(t);
+	    interp.abort(interpreter_exception_wrong_arg_type(msg));
+	}
+
         term arg_index_term = args[0];
+
 	if (arg_index_term.tag() == tag_t::REF) {
-	    // TODO: Backtrackable version
-  	    return false;
+	    static const common::con_cell ARG3("arg", 3);
+	    // Store current index
+	    interp.new_cell0(int_cell(0));
+	    // Store P so we can restore program pointer
+	    store_p_on_heap_if_wam(interp);
+	    // Allocate choice point
+	    interp.allocate_choice_point(code_point(interpreter_base::EMPTY_LIST, ARG3, arg_3_cp));
+	    interp.unify(arg_index_term, int_cell(1));
+	    arg_index_term = int_cell(1);
 	}
 
 	if (arg_index_term.tag() != tag_t::INT) {
@@ -522,14 +576,6 @@ namespace prologcoin { namespace interp {
 
 	auto arg_index = static_cast<int_cell &>(arg_index_term).value();
 	
-	term t = args[1];
-	if (t.tag() != tag_t::STR) {
-	    std::string msg =
-	      "arg/3: Second argument must be a functor with arguments; was " +
-	      interp.to_string(t);
-	    interp.abort(interpreter_exception_wrong_arg_type(msg));
-	}
-
 	size_t n = interp.functor(t).arity();
 	if ((arg_index < 1) || (arg_index > n)) {
 	    std::stringstream msg;

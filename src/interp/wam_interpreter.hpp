@@ -133,7 +133,7 @@ public:
 protected:
     inline void update_ptr(code_point &p, code_t *old_base, code_t *new_base)
     {
-	if (p.wam_code() == nullptr) {
+	if (!p.has_wam_code()) {
 	    return;
 	}
 	p.set_wam_code(reinterpret_cast<wam_instruction_base *>(reinterpret_cast<code_t *>(p.wam_code()) - old_base + new_base));
@@ -676,7 +676,7 @@ public:
 
     inline std::string to_string(const code_point &cp) const
     {
-	if (cp.wam_code() != nullptr) {
+	if (cp.has_wam_code()) {
 	    size_t offset = to_code_addr(cp.wam_code());
 	    return "[" + boost::lexical_cast<std::string>(offset) + "]";
 	} else {
@@ -704,8 +704,9 @@ private:
 
     static inline size_t num_y(interpreter_base *interp, bool use_previous)
     {
+	auto wami = reinterpret_cast<wam_interpreter *>(interp);
+
         if (!use_previous) {
-	    auto wami = reinterpret_cast<wam_interpreter *>(interp);
 	    if (wami->p().has_wam_code()) {
 	        auto qn = wami->get_wam_predicate(wami->to_code_addr(wami->p().wam_code()));
    	        auto meta_data = wami->get_wam_predicate_meta_data(qn);
@@ -713,15 +714,14 @@ private:
 	    }
         }
       
-        auto after_call = reinterpret_cast<wam_interpreter *>(interp)->cp().wam_code();
-        if (after_call == nullptr) {
+	if (!wami->cp().has_wam_code()) {
 	    return interpreter_base::num_y(interp, use_previous);
-        } else {
-	    auto at_call = reinterpret_cast<wam_instruction_code_point_reg *>(
-		 reinterpret_cast<code_t *>(after_call) -
-		 sizeof(wam_instruction_code_point_reg)/sizeof(code_t));
-	    return at_call->reg();
 	}
+        auto after_call = wami->cp().wam_code();
+	auto at_call = reinterpret_cast<wam_instruction_code_point_reg *>(
+		  reinterpret_cast<code_t *>(after_call) -
+		  sizeof(wam_instruction_code_point_reg)/sizeof(code_t));
+	return at_call->reg();
     }
 
     static inline void save_state(interpreter_base *interp)
@@ -3050,7 +3050,7 @@ inline void wam_instruction<CALL>::print(std::ostream &out, wam_interpreter &int
 {
     auto self1 = reinterpret_cast<wam_instruction<CALL> *>(self);
     out << "call " << interp.to_string(self1->pn()) << "/" << self1->arity();
-    if (self1->p().wam_code() != nullptr) {
+    if (self1->p().has_wam_code()) {
 	out << " " << interp.to_string(self1->p());
     }
     out << ", " << self1->num_y();
@@ -3109,7 +3109,7 @@ public:
     {
 	auto self1 = reinterpret_cast<wam_instruction<EXECUTE> *>(self);
 	out << "execute " << interp.to_string(self1->pn()) << "/" << self1->arity();
-	if (self1->p().wam_code() != nullptr) {
+	if (self1->p().has_wam_code()) {
 	    out << " " << interp.to_string(self1->p());
 	}
     }

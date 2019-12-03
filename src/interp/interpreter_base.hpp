@@ -219,12 +219,19 @@ class wam_instruction_base;
 class code_point {
 public:
     inline code_point() : wam_code_(nullptr), term_code_(common::ref_cell(0)){}
-    inline code_point(const common::term t) : wam_code_(nullptr),term_code_(t){}
-    inline code_point(const common::con_cell l) : wam_code_(nullptr), term_code_(l){}
-    inline code_point(const common::int_cell i) : wam_code_(nullptr), term_code_(i){}
+    inline code_point(const common::term t) : wam_code_(nullptr), term_code_(t)
+    { static const common::con_cell el = common::con_cell("[]",0); module_ = el; }
+    inline code_point(const common::con_cell l) : wam_code_(nullptr), term_code_(l)
+    { static const common::con_cell el = common::con_cell("[]",0); module_ = el; }
+    inline code_point(const common::int_cell i) : wam_code_(nullptr), term_code_(i)
+    { static const common::con_cell el = common::con_cell("[]",0); module_ = el; }
     inline code_point(const code_point &other) = default;
     inline code_point(wam_instruction_base *i)
-        : wam_code_(i), term_code_(common::ref_cell(0)) { }
+        : wam_code_(i), term_code_(common::ref_cell(0)) 
+    { 
+	static const common::con_cell WAM = common::con_cell("$WAM",0);
+	module_ = WAM;
+    }
 
     inline code_point(const common::con_cell module,
 		      const common::con_cell name)
@@ -237,11 +244,19 @@ public:
     inline static code_point fail() {
         return code_point();
     }
-    inline void reset() { wam_code_ = nullptr; term_code_ = fail_term_; }
+    inline void reset()
+    { static const common::con_cell el = common::con_cell("[]",0);
+      wam_code_ = nullptr;
+      module_ = el;
+      term_code_ = fail_term_;
+    }
 
     inline bool is_fail() const { return term_code_ == fail_term_; }
 
-    inline bool has_wam_code() const { return wam_code_ != nullptr; }
+    inline bool has_wam_code() const {
+	static const common::con_cell WAM = common::con_cell("$WAM",0);
+	return module_ == WAM; 
+    }
 
     inline wam_instruction_base * wam_code() const { return wam_code_; }
     inline builtin_fn bn() { return bn_; }
@@ -252,7 +267,16 @@ public:
 
     inline const qname qn() const { return qname(module(), name()); }
 
-    inline void set_wam_code(wam_instruction_base *p) { wam_code_ = p; }
+    inline void set_wam_code(wam_instruction_base *p) {
+	static const common::con_cell WAM = common::con_cell("$WAM",0);
+	static const common::con_cell el = common::con_cell("[]",0);
+	if (p == nullptr) {
+	    module_ = el;
+	} else {
+	    module_ = WAM;
+	}
+	wam_code_ = p;
+    }
     inline void set_term_code(const common::term t) { term_code_ = t; }
 
     std::string to_string(interpreter_base &interp) const;

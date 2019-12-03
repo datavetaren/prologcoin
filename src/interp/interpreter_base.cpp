@@ -893,6 +893,11 @@ choice_point_t * interpreter_base::reset_to_choice_point(choice_point_t *b)
     register_qr_ = ch->qr;
     register_pr_ = ch->pr;
 
+    size_t n = ch->arity;
+    for (size_t i = 0; i < n; i++) {
+	a(i) = ch->ai[i];
+    }
+
     return ch;
 }
 

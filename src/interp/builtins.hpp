@@ -7,6 +7,7 @@
 
 namespace prologcoin { namespace interp {
 
+    class wam_interpreter;
     class interpreter_base;
     class meta_reason_t;
     struct meta_context;
@@ -160,7 +161,9 @@ namespace prologcoin { namespace interp {
 	//
 	// Analyzing & constructing terms
 	//
-
+	static void store_p_on_heap_if_wam(interpreter_base &interp);
+	static void restore_p_from_heap_if_wam(interpreter_base &interp);
+	static bool arg_3_cp(interpreter_base &interp, size_t arity, common::term args[]);
         static bool arg_3(interpreter_base &interp, size_t arity, common::term args[]);
 	static bool copy_term_2(interpreter_base &interp, size_t arity, common::term args[]);
 	static bool functor_3(interpreter_base &interp, size_t arity, common::term args[]);

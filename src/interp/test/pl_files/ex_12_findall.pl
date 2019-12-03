@@ -25,3 +25,10 @@ kv(Xs,Ys) :-
 ?- kv([f(a,1),f(b,2),f(c,3),f(d,4)],Q3).
 % Expect: Q3 = [f(a, 1),f(b, 2),f(c, 3),f(d, 4)]
 % Expect: end
+
+% Try findall on arg
+
+?- findall(X-Y, (arg(_, foo(a,b,c), X), arg(_, bar(10,20,30), Y)), R).
+% Expect: R = [a-10,a-20,a-30,b-10,b-20,b-30,c-10,c-20,c-30].
+% Expect: end
+

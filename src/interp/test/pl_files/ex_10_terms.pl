@@ -156,10 +156,44 @@ ex21(T) :-
 % Expect: T = 20
 % Expect: end
 
+ex22(X,Y) :-
+    arg(X, foo(a,b,c), Y).
+?- ex22(X,Y).
+% Expect: X = 1, Y = a
+% Expect: X = 2, Y = b
+% Expect: X = 3, Y = c
+% Expect: end
 
+ex23 :-
+   arg(-1, foo(a,b,c), _).
+?- ex23.
+% Expect: arg/3: Argument index is out of range. It needs to be within 1 and 3; was -1
 
+ex24 :-
+   arg(1, foo, _).
+?- ex24.
+% Expect: arg/3: Second argument must be a functor with arguments; was foo
 
+ex25 :-
+   arg(xyz, foo(a,b,c), _).
+?- ex25.
+% Expect: arg/3: First argument was not an integer or variable; was xyz
 
+% Meta: WAM-only
+
+ex26(X,Y) :-
+   arg(_, foo(a,b,c), X), arg(_, bar(10,20,30), Y).
+?- ex26(X,Y).
+% Expect: X = a, Y = 10
+% Expect: X = a, Y = 20
+% Expect: X = a, Y = 30
+% Expect: X = b, Y = 10
+% Expect: X = b, Y = 20
+% Expect: X = b, Y = 30
+% Expect: X = c, Y = 10
+% Expect: X = c, Y = 20
+% Expect: X = c, Y = 30
+% Expect: end
 
 
 
