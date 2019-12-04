@@ -29,13 +29,13 @@ public:
     inline ip_address(const ip_address &other)
     { set_addr(other); }
 
-    inline ip_address(boost::asio::ip::address_v4 &v4)
+    inline ip_address(const boost::asio::ip::address_v4 &v4)
     { set_addr(v4); }
 
-    inline ip_address(boost::asio::ip::address_v6 &v6)
+    inline ip_address(const boost::asio::ip::address_v6 &v6)
     { set_addr(v6); }
 
-    inline ip_address(boost::asio::ip::address &ip)
+    inline ip_address(const boost::asio::ip::address &ip)
     { set_addr(ip); }
 
     ip_address(const std::string &str);

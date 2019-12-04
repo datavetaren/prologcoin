@@ -37,12 +37,12 @@ bool global_interpreter::execute_goal(buffer_t &serialized)
 		    memorize.push_back(binding);
 		}
 	    }
-	    for (auto &binding : memorize) {
-	        name_to_term_[binding.name()] = binding.value();
-	    }
 	    if (do_fail) {
 	        unwind_to_top_choice_point();
 		return false;
+	    }
+	    for (auto &binding : memorize) {
+	        name_to_term_[binding.name()] = binding.value();
 	    }
 	}
 	
