@@ -780,21 +780,6 @@ void interpreter_base::tidy_trail()
 {
     size_t from = (b() == nullptr) ? 0 : b()->tr;
     size_t to = trail_size();
-
-    static size_t avg[16] = {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0};
-    static size_t idx = 0;
-
-    avg[idx] = to - from;
-    idx = (idx + 1) % 16;
-    size_t sum = 0;
-    for (size_t i = 0; i < 16; i++) {
-	sum += avg[i];
-    }
-    tidy_size = sum / 16;
-
-    // if (to - from > max) {
-	// }
-
     term_env::tidy_trail(from, to);
 }
 

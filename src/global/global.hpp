@@ -33,7 +33,8 @@ public:
         interp_.execute_cut();
     }
     inline bool is_clean() const {
-        return interp_.is_empty_stack() && interp_.is_empty_trail();
+        bool r = interp_.is_empty_stack() && interp_.is_empty_trail();
+	return r;
     }
     inline size_t heap_size() const {
         return interp_.heap_size();

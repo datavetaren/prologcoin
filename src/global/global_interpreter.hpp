@@ -45,8 +45,15 @@ public:
     void execute_cut();
   
     inline bool is_empty_stack() const {
-        return !has_meta_context() &&
+        bool r = !has_meta_context() &&
 	       (e0() == nullptr) && (b() == nullptr);
+	if (!r) {
+	    std::cout << "HAS META: " << has_meta_context() << std::endl;
+	    std::cout << "E0: " << e0() << std::endl;
+	    std::cout << "B: " << b() << std::endl;
+	    std::cout << "B0: " << b0() << std::endl;
+	}
+	return r;
     }
 	
     inline bool is_empty_trail() const {

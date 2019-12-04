@@ -19,33 +19,30 @@ bool global_interpreter::execute_goal(buffer_t &serialized)
     term_serializer ser(*this);
     try {
         term goal = ser.read(serialized);
+
+	if (naming_) {
+	    std::unordered_set<std::string> seen;
+	    // Scan all vars in goal, and set initial bindings
+	    std::for_each( begin(goal),
+		   end(goal),
+		   [&](const term &t) {
+		       if (t.tag() == tag_t::REF) {
+			   const std::string name = to_string(t);
+			   if (!seen.count(name)) {
+			       seen.insert(name);
+			       if (name_to_term_.count(name)) {
+				   unify(t, name_to_term_[name]);
+			       } else {
+				   name_to_term_[name] = t;
+			       }
+			   }
+		       }
+		   } );
+	}
+
 	if (!execute(goal)) {
 	    return false;
 	}
-	bool do_fail = false;
-	if (naming_) {
-	    std::vector<binding> memorize;
-	    const std::vector<binding> &vars = const_cast<const global_interpreter &>(*this).query_vars();
-	    for (auto &binding : vars) {
-	        if (name_to_term_.count(binding.name())) {
-		    auto current_term = name_to_term_[binding.name()];
-		    if (!unify(current_term, binding.value())) {
-		        do_fail = true;
-			break;
-		    }
-		} else {
-		    memorize.push_back(binding);
-		}
-	    }
-	    if (do_fail) {
-	        unwind_to_top_choice_point();
-		return false;
-	    }
-	    for (auto &binding : memorize) {
-	        name_to_term_[binding.name()] = binding.value();
-	    }
-	}
-	
 	serialized.clear();
 	ser.write(serialized, goal);
 	return true;
@@ -57,6 +54,7 @@ bool global_interpreter::execute_goal(buffer_t &serialized)
 }
 
 void global_interpreter::execute_cut() {
+    set_b0(nullptr); // Set cut point to top level
     interpreter_base::cut();
     interpreter_base::clear_trail();
 }
