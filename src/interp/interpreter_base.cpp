@@ -461,6 +461,8 @@ void interpreter_base::load_builtins()
     load_builtin(con_cell("\\+", 1), builtin(&builtins::operator_disprove,true));
     load_builtin(con_cell("findall",3), builtin(&builtins::findall_3,true));
     load_builtin(con_cell("freeze",2), builtin(&builtins::freeze_2,true));
+
+    // Non-standard
     load_builtin(con_cell("frozen",2), builtin(&builtins::frozen_2));
     load_builtin(con_cell("frozenk",2), builtin(&builtins::frozenk_2));
 }

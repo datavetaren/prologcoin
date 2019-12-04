@@ -12,10 +12,12 @@ class in_connection;
 
 class in_session_state {
 public:
-    in_session_state(self_node *self, in_connection *conn);
+    in_session_state(self_node *self, in_connection *conn, bool is_root);
 
     inline self_node & self() { return *self_; }
 
+    inline bool is_root() const { return is_root_; }
+  
     inline const std::string & id() const { return id_; }
     inline common::term_env & env() { return interp_; }
     inline interp::interpreter & interp() { return interp_; }
@@ -61,6 +63,7 @@ private:
     common::utime heartbeat_;
     size_t heartbeat_count_;
     uint64_t available_funds_;
+    bool is_root_;
 };
 
 }}

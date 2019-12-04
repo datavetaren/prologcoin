@@ -948,5 +948,4 @@ namespace prologcoin { namespace interp {
 
 	return interp.unify(args[1], lst);
     }
-
 }}

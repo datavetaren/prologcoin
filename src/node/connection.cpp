@@ -346,7 +346,14 @@ void in_connection::reply_exception(const std::string &msg)
 
 void in_connection::command_new(const term)
 {
-    auto *ss = self().new_in_session(this);
+    // Check if this is a local IP address (if yes, then allow root access)
+    bool do_root = false;
+    ip_address ip(get_socket().remote_endpoint().address());
+
+    if (ip.is_local() && self().is_grant_root_for_local()) {
+        do_root = true;
+    }
+    auto *ss = self().new_in_session(this, do_root);
     reply_ok(env_.new_term(con_cell("session",2),
 			   {env_.functor(ss->id(),0),
 			    env_.functor(self().name(),0)}));

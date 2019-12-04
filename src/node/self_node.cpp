@@ -33,7 +33,8 @@ self_node::self_node(unsigned short port)
       testing_mode_(false),
       initial_funds_(DEFAULT_INITIAL_FUNDS),
       maximum_funds_(DEFAULT_MAXIMUM_FUNDS),
-      new_funds_per_second_(DEFAULT_NEW_FUNDS_PER_SECOND)
+      new_funds_per_second_(DEFAULT_NEW_FUNDS_PER_SECOND),
+      grant_root_for_local_(true)
 {
     set_timer_interval(utime::ss(DEFAULT_TIMER_INTERVAL_SECONDS));
     set_time_to_live(utime::ss(DEFAULT_TTL_SECONDS));
@@ -284,9 +285,9 @@ bool self_node::delete_instance_at(term_env &query_src, const std::string &where
     return !r.failed();
 }
 
-in_session_state * self_node::new_in_session(in_connection *conn)
+in_session_state * self_node::new_in_session(in_connection *conn, bool is_root)
 {
-    auto *ss = new in_session_state(this, conn);
+    auto *ss = new in_session_state(this, conn, is_root);
     ss->set_available_funds( get_initial_funds() );
     boost::lock_guard<boost::recursive_mutex> guard(lock_);
     in_states_[ss->id()] = ss;

@@ -18,6 +18,7 @@
 #include "../interp/interpreter.hpp"
 #include "connection.hpp"
 #include "address_book.hpp"
+#include "../global/global.hpp"
 
 namespace prologcoin { namespace node {
 
@@ -75,6 +76,11 @@ public:
     self_node(unsigned short port = DEFAULT_PORT);
 
     inline term_env & env() { return env_; }
+
+    inline global::global & global() { return global_; }
+
+    inline bool is_grant_root_for_local() const { return grant_root_for_local_; }
+    inline void set_grant_root_for_local(bool b) { grant_root_for_local_ = b; }
 
     inline const std::string & id() const { return id_; }
 
@@ -194,7 +200,7 @@ public:
     execute_at_return_t continue_at(term_env &query_src,
 				    const std::string &where);
 
-    in_session_state * new_in_session(in_connection *conn);
+    in_session_state * new_in_session(in_connection *conn, bool is_root);
     in_session_state * find_in_session(const std::string &id);
     void kill_in_session(in_session_state *sess);
     void in_session_connect(in_session_state *sess, in_connection *conn);
@@ -314,6 +320,11 @@ private:
     uint64_t initial_funds_;
     uint64_t maximum_funds_;
     uint64_t new_funds_per_second_;
+
+    bool grant_root_for_local_;
+  
+    // This is where the consensus is stored
+    global::global global_;
 };
 
 inline address_book_wrapper::address_book_wrapper(self_node &self, address_book &book) : self_(self), book_(book)

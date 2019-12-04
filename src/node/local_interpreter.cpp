@@ -69,6 +69,9 @@ bool me_builtins::list_load_2(interpreter_base &interp0, size_t arity, term args
 bool me_builtins::operator_at_2(interpreter_base &interp0, size_t arity, term args[] )
 {
     auto &interp = to_local(interp0);
+
+    interp.root_check("@", 2);
+    
     auto query = args[0];
     auto where_term = args[1];
 
@@ -235,6 +238,8 @@ bool me_builtins::add_address_2(interpreter_base &interp0, size_t arity, term ar
     term port_term = args[1];
 
     auto &interp = to_local(interp0);
+
+    interp.root_check("add_address", arity);
     
     //
     // If the address is the empty list we figure out the IP address from
@@ -283,6 +288,8 @@ bool me_builtins::connections_0(interpreter_base &interp0, size_t arity, term ar
 {
     auto &interp = to_local(interp0);
 
+    interp.root_check("connections", arity);
+    
     std::stringstream ss;
 
     ss << std::setw(20) << "Address" << " Port" << std::setw(16) << "Name" << "  Ver" << " Comment" << std::endl;
@@ -396,6 +403,8 @@ bool me_builtins::maximum_funds_1(interpreter_base &interp0, size_t arity, term 
     auto &interp = to_local(interp0);
     term arg = args[0];
     if (arg.tag() == tag_t::INT) {
+      interp.root_check("maximum_funds", arity);
+      
 	uint64_t val = static_cast<uint64_t>(reinterpret_cast<int_cell &>(arg).value());
 	interp.self().set_maximum_funds(val);
 	return true;
@@ -411,6 +420,8 @@ bool me_builtins::maximum_funds_1(interpreter_base &interp0, size_t arity, term 
 bool me_builtins::new_funds_per_second_1(interpreter_base &interp0, size_t arity, term args[] )
 {
     auto &interp = to_local(interp0);
+    interp.root_check("new_funds_per_second",arity);
+    
     term arg = args[0];
     if (arg.tag() == tag_t::INT) {
 	uint64_t val = static_cast<uint64_t>(reinterpret_cast<int_cell &>(arg).value());
@@ -432,6 +443,57 @@ bool me_builtins::funds_1(interpreter_base &interp0, size_t arity, term args[] )
     return interp.unify(arg, int_cell(funds));
 }
 
+
+bool me_builtins::commit(local_interpreter &interp, term_serializer::buffer_t &buf, term t, bool naming)
+{
+    global::global &g = interp.self().global();
+
+    g.set_naming(naming);
+    
+    // First serialize
+    term_serializer ser(interp);
+    buf.clear();
+    ser.write(buf, t);
+
+    if (!g.execute_goal(buf)) {
+        return false;
+    }
+    g.execute_cut();
+
+    assert(g.is_clean());
+
+    term t1 = ser.read(buf);
+    return interp.unify(t, t1);
+}
+
+bool me_builtins::commit_2(interpreter_base &interp0, size_t arity, term args[])
+{
+    // commit(X)
+    // commit(X, naming)
+    // Attempt to put X on the global interpreter.
+    // Special if X is a clause: p(V) :- Body, then V is first bound
+    // to the hash (by serialization) of Body, and then Body put on the
+    // global interpreter. If X cannot be put on the global interpreter
+    // this predicate fails. After X has been put on the global interpreter,
+    // a cut is also executed on the global interpreter to ensure the
+    // trail and stack becomes empty. The state of the global interpreter
+    // is solely defined by the heap and the set of frozen closures (which
+    // models UTXOs)
+
+    auto &interp = to_local(interp0);
+
+    interp.root_check("commit", arity);
+
+    bool naming = arity >= 2 && args[1] == con_cell("naming",0);
+    
+    buffer_t buf;
+    if (!commit(interp, buf, args[0], naming)) {
+        return false;
+    }
+    
+    return true;
+}
+
 local_interpreter::local_interpreter(in_session_state &session)
     :session_(session), initialized_(false), ignore_text_(false)
 {
@@ -445,6 +507,15 @@ local_interpreter::local_interpreter(in_session_state &session)
 self_node & local_interpreter::self()
 {
     return session_.self();
+}
+
+void local_interpreter::root_check(const char *name, size_t arity)
+{
+    if (!session_.is_root()) {
+        std::stringstream ss;
+        ss << name << "/" << arity << ": Non-root is not allowed to use this predicate in this context.";
+	abort(interpreter_exception_security(ss.str()));
+    }
 }
 
 void local_interpreter::ensure_initialized()
@@ -493,6 +564,10 @@ void local_interpreter::setup_local_builtins()
     load_builtin(ME, functor("initial_funds",1), &me_builtins::initial_funds_1);
     load_builtin(ME, functor("new_funds_per_second",1), &me_builtins::new_funds_per_second_1);
     load_builtin(ME, con_cell("funds",1), &me_builtins::funds_1);
+
+    // Commit
+    load_builtin(ME, con_cell("commit", 1), &me_builtins::commit_2);    
+    load_builtin(ME, con_cell("commit", 2), &me_builtins::commit_2);
 }
 
 void local_interpreter::local_reset()

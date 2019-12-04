@@ -838,6 +838,11 @@ protected:
         return register_e_;
     }
 
+    inline const environment_base_t * e0() const
+    {
+        return register_e_;
+    }
+
     inline environment_t * e()
     {
         return reinterpret_cast<environment_t *>(e0());

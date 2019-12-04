@@ -535,6 +535,10 @@ public:
       stacks_dock<ST>::trim_trail(to);
   }
 
+  inline void clear_trail() {
+      stacks_dock<ST>::trim_trail(0);
+  }
+
   inline bool unify(term a, term b, uint64_t &cost)
   {
       term_utils utils(heap_dock<HT>::get_heap(), stacks_dock<ST>::get_stacks(), ops_dock<OT>::get_ops());

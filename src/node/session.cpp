@@ -7,12 +7,13 @@ namespace prologcoin { namespace node {
 
 using namespace prologcoin::common;
 
-in_session_state::in_session_state(self_node *self, in_connection *conn)
+in_session_state::in_session_state(self_node *self, in_connection *conn, bool is_root)
   : self_(self),
     connection_(conn),
     interp_(*this),
     heartbeat_count_(0),
-    available_funds_(0)
+    available_funds_(0),
+    is_root_(is_root)
 {
     id_ = "s" + random::next();
 }

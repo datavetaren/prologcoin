@@ -4,6 +4,7 @@
 #define _node_local_interpreter_hpp
 
 #include "../interp/interpreter.hpp"
+#include "../common/term_serializer.hpp"
 
 namespace prologcoin { namespace node {
 
@@ -16,6 +17,7 @@ public:
     using interpreter_base = interp::interpreter_base;
     using meta_context = interp::meta_context;
     using meta_reason_t = interp::meta_reason_t;
+    using buffer_t = common::term_serializer::buffer_t;
 
     using term = common::term;
 
@@ -50,6 +52,10 @@ public:
     static bool maximum_funds_1(interpreter_base &interp, size_t arity, term args[]);
     static bool new_funds_per_second_1(interpreter_base &interp, size_t arity, term args[]);
     static bool funds_1(interpreter_base &interp, size_t arity, term args[]);
+
+    // Commit to global state
+    static bool commit(local_interpreter &interp, buffer_t &buf, term t, bool naming);
+    static bool commit_2(interpreter_base &interp, size_t arity, term args[]);
 };
 
 class local_interpreter_exception : public interp::interpreter_exception {
@@ -74,6 +80,12 @@ class interpreter_exception_unknown : public local_interpreter_exception {
 public:
     interpreter_exception_unknown(const std::string &msg) :
 	local_interpreter_exception(msg) { }
+};
+
+class interpreter_exception_security : public local_interpreter_exception {
+public:
+    interpreter_exception_security(const std::string &msg) :
+        local_interpreter_exception(msg) { }
 };
 
 class local_interpreter : public interp::interpreter {
@@ -113,6 +125,7 @@ public:
 
 private:
     self_node & self();
+    void root_check(const char *name, size_t arity);
 
     friend class me_builtins;
 
