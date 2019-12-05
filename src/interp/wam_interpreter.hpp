@@ -585,7 +585,7 @@ public:
     inline wam_instruction(common::con_cell module, common::con_cell name,
 			   builtin_fn b) :
        wam_instruction_code_point(&invoke, sizeof(*this), BUILTIN,
-				  code_point(module,name,b)) {
+				  code_point(name,b,false)) {
        init();
     }
 
@@ -612,7 +612,7 @@ public:
     inline wam_instruction(common::con_cell module, common::con_cell name,
 			   builtin_fn b, uint32_t num_y) :
        wam_instruction_code_point_reg(&invoke, sizeof(*this), BUILTIN_R,
-				      code_point(module,name,b), num_y) {
+				      code_point(name,b,true), num_y) {
        init();
     }
 

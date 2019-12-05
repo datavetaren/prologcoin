@@ -289,14 +289,12 @@ void interpreter::fail()
 
 	    if (bp.is_fail()) {
 		// Do nothing
+	    } else if (bp.is_builtin()) {
+	        ok = bp.bn()(*this, ch->arity, args());	      
 	    } else if (bp.term_code().tag() != common::tag_t::INT) {
-		if (bp.bn() != nullptr) {
-		    ok = bp.bn()(*this, ch->arity, args());
-		} else {
-		    // Direct query
-		    static managed_clauses empty_clauses;
-		    ok = select_clause(bp, 0, empty_clauses, 0);
-		}
+	        // Direct query
+	        static managed_clauses empty_clauses;
+	        ok = select_clause(bp, 0, empty_clauses, 0);
 	    } else {
 		auto bpterm = bp.term_code();
 		size_t bpval = static_cast<const int_cell &>(bpterm).value();
@@ -523,7 +521,7 @@ void interpreter::dispatch()
     }
 
     // Is instruction already a built-in (can happen for native backtracking)
-    if (p().bn() != nullptr) {
+    if (p().is_builtin()) {
 	if (!(p().bn())(*this, arity, args())) {
 	    fail();
 	    return;
@@ -533,41 +531,24 @@ void interpreter::dispatch()
     }
 
     // Is this a built-in?
-    auto bf = get_builtin(module, f);
-    if (!bf.is_empty()) {
+    auto code = get_code(qname(module, f));
+    if (code.is_builtin()) {
 	set_p(cp());
-	if (!bf.is_recursive()) {
+	if (!code.is_builtin_recursive()) {
 	    // This enforces eventually a pop up the stack and
 	    // P becomes CP.
 	    set_cp(interpreter_base::EMPTY_LIST);
 	}
-	if (!(bf.fn())(*this, arity, args())) {
+	if (!(code.bn())(*this, arity, args())) {
 	    fail();
 	}
 	check_frozen();
 	return;
     }
 
-    // Is there a successful optimized built-in?
-    auto obf = get_builtin_opt(module, f);
-    if (obf != nullptr) {
-        tribool r = obf(*this, arity, args());
-	if (!indeterminate(r)) {
-	    set_p(cp());
-	    set_cp(interpreter_base::EMPTY_LIST);
-	    if (!r) {
-		fail();
-	    }
-	    return;
-	}
-	check_frozen();
-    }
-
-    if (is_wam_enabled()) {
-	if (auto instr = resolve_predicate(module, f)) {
-	    dispatch_wam(instr);
-	    return;
-	}
+    if (is_wam_enabled() && code.has_wam_code()) {
+        dispatch_wam(code.wam_code());
+	return;
     }
 
     auto first_arg = get_first_arg();
@@ -787,6 +768,7 @@ void interpreter::compile(const qname &qn)
     load_code(instrs);
     auto *next_instr = to_code(first_offset);
     set_predicate(qn, next_instr, xn_size, yn_size);
+    set_code(qn, code_point(next_instr));
 }
 
 void interpreter::compile(common::con_cell module, common::con_cell name)

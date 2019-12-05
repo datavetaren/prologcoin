@@ -235,9 +235,12 @@ public:
 		      const common::con_cell name)
         : bn_(nullptr), module_(module), term_code_(name) { }
 
-    inline code_point(const common::con_cell module,
-		      const common::con_cell name, builtin_fn f)
-        : bn_(f), module_(module), term_code_(name) { }
+    inline code_point(const common::con_cell name, builtin_fn f, bool is_recursive)
+      : bn_(f), term_code_(name) {
+        static const common::con_cell BUILTIN = common::con_cell("$BN",0);
+        static const common::con_cell BUILTIN_R = common::con_cell("$BNR",0);
+        module_ = is_recursive ? BUILTIN_R : BUILTIN;
+    }
 
     inline static code_point fail() {
         return code_point();
@@ -254,6 +257,17 @@ public:
     inline bool has_wam_code() const {
 	static const common::con_cell WAM = common::con_cell("$WAM",0);
 	return module_ == WAM; 
+    }
+
+    inline bool is_builtin() const {
+	static const common::con_cell BUILTIN = common::con_cell("$BN",0);
+	static const common::con_cell BUILTIN_R = common::con_cell("$BNR",0);	
+        return module_ == BUILTIN || module_ == BUILTIN_R;
+    }
+
+    inline bool is_builtin_recursive() const {
+	static const common::con_cell BUILTIN_R = common::con_cell("$BNR",0);	      
+        return module_ == BUILTIN_R;
     }
 
     inline wam_instruction_base * wam_code() const { return wam_code_; }
@@ -579,6 +593,16 @@ public:
 	}
     };
 
+    inline code_point & get_code(const qname &qn)
+    {
+        return code_db_[qn];
+    }
+
+    inline void set_code(const qname &qn, const code_point &cp)
+    {
+        code_db_[qn] = cp;
+    }
+			       
     inline builtin & get_builtin(const qname &qn)
     {
 	return get_builtin(qn.first, qn.second);
@@ -591,16 +615,6 @@ public:
         auto it = builtins_.find(std::make_pair(module, f));
         if (it == builtins_.end()) {
 	    return empty_bn_;
-        } else {
-	    return it->second;
-	}
-    }
-
-    inline builtin_opt get_builtin_opt(con_cell module, con_cell f)
-    {
-        auto it = builtins_opt_.find(std::make_pair(module, f));
-        if (it == builtins_opt_.end()) {
-	    return nullptr;
         } else {
 	    return it->second;
 	}
@@ -1174,14 +1188,7 @@ protected:
 
 private:
     void load_builtin(const qname &qn, builtin b);
-    inline void load_builtin_opt(con_cell f, builtin_opt b)
-        { qname qn(EMPTY_LIST, f);
-	  load_builtin_opt(qn, b);
-	}
-
-    void load_builtin_opt(const qname &qn, builtin_opt b);
     void load_builtins();
-    void load_builtins_opt();
 
     void init();
     void tidy_trail();
@@ -1218,8 +1225,8 @@ private:
     bool track_cost_;
     std::vector<std::function<void ()> > syntax_check_stack_;
 
+    std::unordered_map<qname, code_point> code_db_;
     std::unordered_map<qname, builtin> builtins_;
-    std::unordered_map<qname, builtin_opt> builtins_opt_;
     std::unordered_map<qname, predicate> program_db_;
     std::unordered_map<con_cell, std::vector<qname> > module_db_;
     std::unordered_map<con_cell, std::unordered_set<qname> > module_db_set_;

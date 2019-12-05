@@ -39,7 +39,6 @@ interpreter_base::interpreter_base() : register_pr_("", 0), arith_(*this), local
     init();
 
     load_builtins();
-    load_builtins_opt();
 
     tidy_size = 0;
 
@@ -92,7 +91,6 @@ interpreter_base::~interpreter_base()
     register_qr_ = term();
     syntax_check_stack_.clear();
     builtins_.clear();
-    builtins_opt_.clear();
     program_db_.clear();
     module_db_.clear();
     module_db_set_.clear();
@@ -384,15 +382,9 @@ void interpreter_base::load_builtin(const qname &qn, builtin b)
     auto found = builtins_.find(qn);
     if (found == builtins_.end()) {
         builtins_[qn] = b;
+	module_db_[qn.first].push_back(qn);
+	set_code(qn, code_point(qn.second, b.fn(), b.is_recursive()));
     }
-}
-
-void interpreter_base::load_builtin_opt(const qname &qn, builtin_opt b)
-{
-    auto found = builtins_opt_.find(qn);
-    if (found == builtins_opt_.end()) {
-        builtins_opt_[qn] = b;
-    }    
 }
 
 void interpreter_base::set_debug_enabled()
@@ -456,6 +448,7 @@ void interpreter_base::load_builtins()
     load_builtin(functor("same_term", 2), &builtins::same_term_2);
     load_builtin(functor("copy_term",2), &builtins::copy_term_2);
     load_builtin(con_cell("=..", 2), &builtins::operator_deconstruct);
+    load_builtin(con_cell("sort", 2), &builtins::sort_2);
 
     // Meta
     load_builtin(con_cell("\\+", 1), builtin(&builtins::operator_disprove,true));
@@ -465,11 +458,6 @@ void interpreter_base::load_builtins()
     // Non-standard
     load_builtin(con_cell("frozen",2), builtin(&builtins::frozen_2));
     load_builtin(con_cell("frozenk",2), builtin(&builtins::frozenk_2));
-}
-
-void interpreter_base::load_builtins_opt()
-{
-    load_builtin_opt(con_cell("sort", 2), &builtins_opt::sort_2);
 }
 
 void interpreter_base::enable_file_io()
