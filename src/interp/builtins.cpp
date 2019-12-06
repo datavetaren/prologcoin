@@ -935,6 +935,42 @@ namespace prologcoin { namespace interp {
         return true;
     }
 
+    bool builtins::use_module_1(interpreter_base &interp, size_t arity, common::term args[] ) {
+	static const con_cell LIB("library", 1);
+
+	if (args[0].tag() != tag_t::STR || interp.functor(args[0]) != LIB) {
+	    std::string msg = "use_module/1: "
+	      "Only use_module(library(LibraryName)) is supported; was "
+		+ interp.to_string(args[0]);
+	    interp.abort(interpreter_exception_wrong_arg_type(msg));
+	}
+
+	auto name_term = interp.arg(args[0], 0);
+
+	if (name_term.tag() != tag_t::CON) {
+	    std::stringstream msg;
+	    msg << "use_module/1: Name must be a proper atom; was " << interp.to_string(name_term);
+	    interp.abort(interpreter_exception_wrong_arg_type(msg.str()));
+	}
+
+	auto name = reinterpret_cast<con_cell &>(name_term);
+
+	auto &qnames = interp.get_module(name);
+	if (qnames.empty()) {
+	    std::stringstream msg;
+	    msg << "use_module/1: Library '" << interp.to_string(name) << "' does not exist";
+	    interp.abort(interpreter_exception_wrong_arg_type(msg.str()));
+	}
+
+	for (auto &qn : qnames) {
+	    auto &cp = interp.get_code(qn);
+	    qname imported_qn(interpreter_base::EMPTY_LIST, qn.second);
+	    interp.set_code(imported_qn, cp);
+	}
+
+	return true;
+    }
+
     bool builtins::frozen_2(interpreter_base &interp, size_t arity, common::term args[] ) {
 
         term addr_term = args[0];
@@ -993,4 +1029,5 @@ namespace prologcoin { namespace interp {
 
 	return interp.unify(args[1], lst);
     }
+
 }}

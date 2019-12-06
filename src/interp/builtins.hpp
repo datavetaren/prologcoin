@@ -190,6 +190,11 @@ namespace prologcoin { namespace interp {
 	static bool findall_3_meta(interpreter_base &interp, const meta_reason_t &reason);
         static bool freeze_2(interpreter_base &interp, size_t arity, common::term args[]);
 
+	//
+	// System
+	//
+	static bool use_module_1(interpreter_base &interp, size_t arity, common::term args[]);
+
         //
         // Non-standard, Prologcoin specific
         //
