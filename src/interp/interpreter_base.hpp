@@ -11,7 +11,6 @@
 #include "../common/term_env.hpp"
 #include "../common/merkle_trie.hpp"
 #include "builtins.hpp"
-#include "builtins_opt.hpp"
 #include "file_stream.hpp"
 #include "arithmetics.hpp"
 #include "locale.hpp"
@@ -271,7 +270,7 @@ public:
     }
 
     inline wam_instruction_base * wam_code() const { return wam_code_; }
-    inline builtin_fn bn() { return bn_; }
+    inline builtin_fn bn() const { return bn_; }
     inline const common::con_cell & module() const { return module_; }
     inline const common::cell & term_code() const { return term_code_; }
     inline const common::int_cell & label() const { return static_cast<const common::int_cell &>(term_code_); }
@@ -593,7 +592,7 @@ public:
 	}
     };
 
-    inline code_point & get_code(const qname &qn)
+    inline const code_point & get_code(const qname &qn)
     {
         return code_db_[qn];
     }

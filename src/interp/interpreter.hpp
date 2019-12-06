@@ -7,8 +7,8 @@
 
 namespace prologcoin { namespace interp {
 
-class wam_interim_code;
-class wam_compiler;
+class test_wam_compiler;
+class test_wam_interpreter;
 
 class interpreter : public wam_interpreter
 {
@@ -21,10 +21,6 @@ public:
     void new_instance();
     size_t num_instances() const { return num_instances_; }
     void delete_instance();
-
-    void compile();
-    void compile(const qname &pred);
-    void compile(common::con_cell module, common::con_cell name);
 
     bool execute(const term query);
     bool next();
@@ -83,9 +79,6 @@ public:
 private:
     static bool new_instance_meta(interpreter_base &interp, const meta_reason_t &reason);
 
-    void load_code(wam_interim_code &code);
-    void bind_code_point(std::unordered_map<size_t, size_t> &label_map,
-			 code_point &cp);
     void dispatch();
     void dispatch_wam(wam_instruction_base *instruction);
     bool unify_args(term clause_head, const code_point &p);
@@ -125,11 +118,10 @@ private:
 
     bool wam_enabled_;
     std::vector<binding> *query_vars_;
-    wam_compiler *compiler_;
     size_t num_instances_;
 
     friend struct new_instance_context;
-
+    friend class test_wam_interpreter;
     friend class test_wam_compiler;
 };
 

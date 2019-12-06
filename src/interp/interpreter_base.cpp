@@ -1,7 +1,6 @@
 #include "../common/term_env.hpp"
 #include "interpreter_base.hpp"
 #include "builtins_fileio.hpp"
-#include "builtins_opt.hpp"
 #include "wam_interpreter.hpp"
 #include <boost/filesystem.hpp>
 #include <boost/timer/timer.hpp>

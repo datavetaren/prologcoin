@@ -1782,13 +1782,10 @@ void wam_compiler::compile_clause(const managed_clause &m_clause,
     seq.push_back(wam_instruction<PROCEED>());
 
     peephole_opt_execute(seq);
-
     if (has_cut(seq)) {
 	allocate_cut(seq);
     }
-
     peephole_opt_void(seq);
-
     remap_x_registers(seq);
     allocate_y_registers(seq);
     remap_y_registers(seq);

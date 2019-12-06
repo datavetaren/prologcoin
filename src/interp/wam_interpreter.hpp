@@ -100,6 +100,8 @@ enum wam_instruction_type {
 };
 
 class wam_interpreter;
+class wam_compiler;
+class wam_interim_code;
 
 typedef uint64_t code_t;
 
@@ -475,10 +477,10 @@ public:
     }
 
 protected:
-    void set_predicate(const qname &qn,
-		       wam_instruction_base *instr,
-		       size_t num_x_registers,
-		       size_t num_y_registers)
+    void set_wam_predicate(const qname &qn,
+			   wam_instruction_base *instr,
+			   size_t num_x_registers,
+			   size_t num_y_registers)
 
     {
 	size_t predicate_offset = to_code_addr(instr);
@@ -492,14 +494,21 @@ protected:
 	}
     }
 
-    wam_instruction_base * resolve_predicate(common::con_cell module,
-					     common::con_cell predicate_name)
+    wam_instruction_base * resolve_wam_predicate(common::con_cell module,
+						 common::con_cell predicate_name)
     {
 	if (predicate_map_.count(qname(module, predicate_name))) {
   	    return to_code(predicate_map_[qname(module, predicate_name)].code_offset);
 	} else {
 	    return nullptr;
 	}
+    }
+
+protected:
+    bool reallocation_occurred() {
+	bool r = reallocation_count_ != last_reallocation_count_;
+	last_reallocation_count_ = reallocation_count_;
+	return r;
     }
 
 private:
@@ -523,6 +532,8 @@ private:
 
 	    delete instrs_;
 	    instrs_ = new_instrs;
+
+	    reallocation_count_++;
         }
     }
 
@@ -532,6 +543,8 @@ private:
     size_t instrs_size_;
     size_t instrs_capacity_;
     code_t *instrs_;
+    size_t reallocation_count_;
+    size_t last_reallocation_count_;
 
     std::unordered_map<qname, predicate_meta_data> predicate_map_;
     std::map<size_t, qname> predicate_rev_map_;
@@ -686,7 +699,14 @@ public:
 	}
     }
 
+    void compile();
+    void compile(const qname &pred);
+    void compile(common::con_cell module, common::con_cell name);
+
 protected:
+    void load_code(wam_interim_code &code);
+    void bind_code_point(std::unordered_map<size_t, size_t> &label_map,
+			 code_point &cp);
 
     inline bool backtrack_wam()
     {
@@ -697,8 +717,10 @@ protected:
     int cnt = 0;
 
     bool cont_wam();
+
 private:
     bool fail_;
+    wam_compiler *compiler_;
 
     template<wam_instruction_type I> friend class wam_instruction;
 
