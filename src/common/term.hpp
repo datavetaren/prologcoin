@@ -87,7 +87,7 @@ class heap;
 //
 class tag_t {
 public:
-    enum kind_t { REF = 0, INT = 1, BIG = 2, CON = 3, STR = 4, DAT = 5 };
+    enum kind_t { REF = 0, INT = 1, BIG = 2, CON = 3, STR = 4, DAT = 5, FWD = 6 };
 
     inline tag_t( kind_t k ) : kind_(k) { }
 
@@ -109,6 +109,7 @@ public:
 	case INT: return "INT";
 	case BIG: return "BIG";
 	case DAT: return "DAT";
+	case FWD: return "FWD";
 	default : return "???";
 	}
     }
@@ -367,6 +368,14 @@ public:
     inline str_cell(size_t index) : ptr_cell(tag_t::STR, index) { }
 };
 
+//
+// FWD cells
+// Forwading cells used for cycle detection during unification.
+class fwd_cell : public ptr_cell {
+public:
+    inline fwd_cell(ptr_cell pcell) : ptr_cell(pcell) { }
+    inline fwd_cell(size_t index) : ptr_cell(tag_t::FWD, index) { }
+};
 
 // 
 // CON cells (61 bits)
