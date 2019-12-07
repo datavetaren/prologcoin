@@ -426,8 +426,7 @@ term term_utils::copy(term c, naming_map &names,
 {
     std::unordered_map<term, term> term_map;
     std::unordered_map<con_cell, con_cell> con_map;
-    std::unordered_map<con_cell, std::pair<term, int>> cyclic_args_map;
-    std::unordered_map<con_cell, term> cyclic_map;
+    std::vector<std::pair<term, size_t> >cyclic_args;
     std::unordered_set<term> current_path;
 
     size_t current_stack = stack_size();
@@ -454,15 +453,11 @@ term term_utils::copy(term c, naming_map &names,
         // We know this is a cyclic reference that needs to be patched.
         // Can a sentinel value be pushed on the stack, so we know to patch that argument?
         if (c.tag() == tag_t::STR && !processed && current_path.count(c) > 0) {
-          con_cell f = src.functor(c);
-          auto search_cc = con_map.find(f);
-          if (search_cc != con_map.end()) {
-            auto new_cc = search_cc->second;
-            temp_push(new_cc);
-            temp_push(int_cell(1));
-            continue;
-          }
+          temp_push(c);
+          temp_push(int_cell(1));
+          continue;
         }
+
         current_path.insert(c);
 
         switch (c.tag()) {
@@ -522,20 +517,18 @@ term term_utils::copy(term c, naming_map &names,
 	    if (processed) {
 	      // Arguments on temp are the new arguments of STR cell
 	      cell newstr = new_term(dst_f);
+	      term_map[c] = newstr;
 	      for (size_t i = 0; i < num_args; i++) {
                 bool cyclic = temp_pop() == int_cell(1);
                 auto new_arg = temp_pop();
                 // If this is a cyclic argument, we just record it and patch up later
                 if(cyclic) {
-                  std::pair<term, int> termarg(num_args-i-1, newstr);
-                  cyclic_args_map[dst_f] = termarg;
+                  cyclic_args.push_back(std::pair<term, size_t>(newstr,
+                                                                num_args-i-1));
+		  // set old arg so we can look up later in term_map
+		  set_arg(newstr, num_args-i-1, new_arg);
                 } else {
                   set_arg(newstr, num_args-i-1, new_arg);
-                }
-
-                // If this value is part of a cycle we have to store the mapping for patching up
-                if(cyclic_args_map.find(dst_f) != cyclic_args_map.end()) {
-                  cyclic_map[dst_f] = newstr;
                 }
 	      }
 	      temp_push(newstr);
@@ -574,12 +567,12 @@ term term_utils::copy(term c, naming_map &names,
 	}
     }
 
-    for(auto iter = cyclic_args_map.begin(); iter != cyclic_args_map.end(); ++iter) {
-      auto cyclic_arg_element = *iter;
-      auto cell_arg = cyclic_arg_element.first;
-      auto term_arg_pair = cyclic_arg_element.second;
-      auto actual_arg = cyclic_map[cell_arg];
-      set_arg(term_arg_pair.first, term_arg_pair.second, actual_arg);
+    for(auto &cyclic_arg : cyclic_args) {
+      auto str = cyclic_arg.first;
+      auto arg_index = cyclic_arg.second;
+      auto old_arg = arg(str, arg_index);
+      auto new_arg = term_map[old_arg];
+      set_arg(str, arg_index, new_arg);
     }
     cost = cost_tmp;
 
