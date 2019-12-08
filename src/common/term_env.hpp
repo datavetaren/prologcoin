@@ -288,6 +288,8 @@ public:
     inline const std::vector<size_t> & get_trail() const { return trail_; }
     inline std::vector<term> & get_temp() { return temp_; }
     inline const std::vector<term> & get_temp() const { return temp_; }
+    inline std::vector<size_t> & get_temp_trail() { return temp_trail_; }
+    inline const std::vector<size_t> & get_temp_trail() const { return temp_trail_; }
     inline size_t get_register_hb() const { return register_hb_; }
     inline void set_register_hb(size_t hb) { register_hb_ = hb; }
 
@@ -295,6 +297,7 @@ private:
     std::vector<term> stack_;
     std::vector<size_t> trail_;
     std::vector<term> temp_;
+    std::vector<size_t> temp_trail_;
     size_t register_hb_;
 };
 
@@ -349,6 +352,14 @@ public:
       { T::get_temp().push_back(t); }
   inline term temp_pop()
       { auto t = T::get_temp().back(); T::get_temp().pop_back(); return t; }
+
+  inline size_t temp_trail_size() const
+      { return T::get_temp_trail().size(); }
+  inline void temp_trail_push(const size_t i)
+      { T::get_temp_trail().push_back(i); }
+  inline size_t temp_trail_pop()
+      { auto i = T::get_temp_trail().back(); T::get_temp_trail().pop_back(); return i; }
+
 };
 
 class stacks_bridge
@@ -367,6 +378,8 @@ public:
 
     inline std::vector<term> & get_temp() { return get_stacks().get_temp(); }
     inline const std::vector<term> & get_temp() const { return get_stacks().get_temp(); }
+    inline std::vector<size_t> & get_temp_trail() { return get_stacks().get_temp_trail(); }
+    inline const std::vector<size_t> & get_temp_trail() const { return get_stacks().get_temp_trail(); }
 
     inline size_t get_register_hb() { return get_stacks().get_register_hb(); }
     inline void set_register_hb(size_t index) { get_stacks().set_register_hb(index); }
@@ -441,6 +454,7 @@ public:
     
 
 private:
+    void restore_cells_after_unify();
     bool unify_helper(term a, term b, uint64_t &cost);
     int functor_standard_order(con_cell a, con_cell b);
 

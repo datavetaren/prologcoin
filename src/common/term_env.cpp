@@ -209,10 +209,16 @@ bool term_utils::unify(term a, term b, uint64_t &cost)
     return true;
 }
 
+void term_utils::restore_cells_after_unify() {
+  while(temp_trail_size() > 0) {
+    auto index = temp_trail_pop();
+    heap_set(index, heap_get(static_cast<fwd_cell &>(heap_get(index))));
+  }
+}
+
 bool term_utils::unify_helper(term a, term b, uint64_t &cost)
 {
     size_t d = stack_size();
-
     uint64_t cost_tmp = 0;
 
     push(b);
@@ -263,6 +269,7 @@ bool term_utils::unify_helper(term a, term b, uint64_t &cost)
 	// Check tags
 	if (a.tag() != b.tag()) {
 	    cost = cost_tmp;
+	    restore_cells_after_unify();
 	    return false;
 	}
 	
@@ -271,17 +278,59 @@ bool term_utils::unify_helper(term a, term b, uint64_t &cost)
 	case tag_t::INT:
 	  if (a != b) {
 	    cost = cost_tmp;
+	    restore_cells_after_unify();
 	    return false;
 	  }
 	  break;
 	case tag_t::STR: {
 	  str_cell &astr = static_cast<str_cell &>(a);
 	  str_cell &bstr = static_cast<str_cell &>(b);
-	  con_cell f = functor(astr);
-	  if (f != functor(bstr)) {
+
+          size_t aindex = astr.index();
+          term adest = heap_get(aindex);
+          while(adest.tag() == tag_t::FWD) {
+            fwd_cell &afwd = static_cast<fwd_cell &>(adest);
+            aindex = afwd.index();
+            adest = heap_get(aindex);
+          }
+
+          size_t bindex = bstr.index();
+          term bdest = heap_get(bindex);
+          while(bdest.tag() == tag_t::FWD) {
+            fwd_cell &bfwd = static_cast<fwd_cell &>(bdest);
+            bindex = bfwd.index();
+            bdest = heap_get(bindex);
+          }
+
+          if (adest.tag() != tag_t::CON) {
+	    throw expected_con_cell_exception(aindex, adest);
+          }
+          if (adest.tag() != tag_t::CON) {
+	    throw expected_con_cell_exception(bindex, bdest);
+          }
+
+          if(aindex == bindex) {
+	    continue;
+          }
+
+	  con_cell f = static_cast<con_cell &>(adest);
+          if (f != static_cast<con_cell &>(bdest)) {
 	    cost = cost_tmp;
+	    restore_cells_after_unify();
 	    return false;
 	  }
+
+	  // We rewrite the CON cell to a FWD to create a union-find
+	  // structure, which will allow detection of cycles, so that
+	  // the same unification will not be added on the unification
+	  // stack multiple times. The CON cells will have to be
+	  // restored after unification is done, so these indices are
+	  // stored in the temp trail.
+	  // ?- X = foo(Y, Z), Z = foo(Z, Y), Y = foo(Z, X), Y = X.
+          temp_trail_push(aindex);
+          auto fwdcell = fwd_cell(bindex);
+          heap_set(aindex, fwdcell);
+
 	  // Push pairwise args
 	  size_t num_args = f.arity();
 	  for (size_t i = 0; i < num_args; i++) {
@@ -297,6 +346,7 @@ bool term_utils::unify_helper(term a, term b, uint64_t &cost)
 	  auto &bbig = static_cast<big_cell &>(b);
 	  if (num_bits(abig) != num_bits(bbig)) {
 	      cost = cost_tmp;
+	      restore_cells_after_unify();
 	      return false;
 	  }
 	  size_t numbits = 0;
@@ -305,6 +355,7 @@ bool term_utils::unify_helper(term a, term b, uint64_t &cost)
 	  get_big(bbig, bi, numbits);
 	  if (ai != bi) {
 	      cost = cost_tmp;
+	      restore_cells_after_unify();
 	      return false;
 	  }
 	  break;
@@ -313,6 +364,7 @@ bool term_utils::unify_helper(term a, term b, uint64_t &cost)
     }
 
     cost = cost_tmp;
+    restore_cells_after_unify();
 
     return true;
 }
