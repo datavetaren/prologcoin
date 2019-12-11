@@ -1030,4 +1030,75 @@ namespace prologcoin { namespace interp {
 	return interp.unify(args[1], lst);
     }
 
+    bool builtins::defrost_3(interpreter_base &interp, size_t arity, common::term args[] ) {
+
+        term addr_term = args[0];
+	if (addr_term.tag() != common::tag_t::INT) {
+	    std::string msg = "defrost/3: "
+	      "First argument was not an integer representing a heap address; was "
+	      + interp.to_string(addr_term);
+	    interp.abort(interpreter_exception_wrong_arg_type(msg));
+	}
+
+	auto addr = static_cast<int_cell &>(addr_term).value();
+	if (addr < 0) {
+	    std::string msg = "defrost/3: "
+	      "Integer must be a positive integer; was "
+	      + interp.to_string(addr_term);
+	    interp.abort(interpreter_exception_wrong_arg_type(msg));
+	}
+	
+        auto *closure = interp.frozen_closures.find(addr);
+	if (closure == nullptr) {
+	    return false;
+	}
+
+	// Third argument must be a list of values where the first value
+	// is ground (the var freeze is frozen on.)
+
+        term values_term = args[2];
+	if (!interp.is_list(values_term) || !interp.is_dotted_pair(values_term)) {
+	    std::string msg = "defrost/3: "
+	      "Third argument must be a proper non-empty list of values; was "
+	      + interp.to_string(values_term);
+	    interp.abort(interpreter_exception_wrong_arg_type(msg));	  
+	}
+
+	term first_arg = interp.arg(values_term, 0);
+	if (!interp.is_ground(first_arg)) {
+	    std::string msg = "defrost/3: "
+	      "First element in third argument must be ground; was "
+	      + interp.to_string(first_arg);
+	    interp.abort(interpreter_exception_wrong_arg_type(msg));
+	}
+
+	// Note that a closure is ':'('$freeze', TermWithVars)
+	// Where TermWithVars is the actual closure.
+
+	term closure_term = interp.arg(*closure, 1);
+	auto n = interp.list_length(values_term);
+	if (n > interp.functor(closure_term).arity()) {
+	    std::stringstream msg;
+	    msg << "defrost/3: " <<
+	      "Length of values must be equal or less than the " <<
+	      "number of variables in closure; was of length " << n;
+	    interp.abort(interpreter_exception_wrong_arg_type(msg.str()));
+	}
+
+	auto context = interp.save_term_state();
+	
+	size_t i = 0;
+	while (values_term != interpreter_base::EMPTY_LIST) {
+	    term next_arg = interp.arg(values_term, 0);
+	    term closure_arg = interp.arg(closure_term, i);
+	    if (!interp.unify(next_arg, closure_arg)) {
+	        interp.restore_term_state(context);
+		return false;
+	    }
+	    values_term = interp.arg(values_term, 1);
+	    i++;
+	}
+
+	return true;
+    }
 }}

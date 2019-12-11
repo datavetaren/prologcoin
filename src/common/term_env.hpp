@@ -754,7 +754,7 @@ public:
       size_t hb_;
   };
 
-  state_context capture_state() {
+  state_context save_state() {
       return state_context(stacks_dock<ST>::trail_size(), stacks_dock<ST>::stack_size(), stacks_dock<ST>::get_register_hb());
   }
 

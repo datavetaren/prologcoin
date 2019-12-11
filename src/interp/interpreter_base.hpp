@@ -795,6 +795,14 @@ protected:
     {
         // See save_state
     }
+
+    inline state_context save_term_state() {
+        return term_env::save_state();
+    }
+
+    inline void restore_term_state(state_context &ctx) {
+        term_env::restore_state(ctx);
+    }
   
     inline code_point & p()
     {

@@ -460,6 +460,7 @@ void interpreter_base::load_builtins()
     // Non-standard
     load_builtin(con_cell("frozen",2), builtin(&builtins::frozen_2));
     load_builtin(con_cell("frozenk",2), builtin(&builtins::frozenk_2));
+    load_builtin(con_cell("defrost",3), builtin(&builtins::defrost_3));
 }
 
 void interpreter_base::enable_file_io()
