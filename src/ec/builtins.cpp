@@ -694,6 +694,31 @@ bool builtins::sign_3(interpreter_base &interp, size_t arity, term args[] )
     }
 }
 
+bool builtins::hash_2(interpreter_base &interp, size_t arity, term args[] )
+{
+    static const con_cell HASH("$hash", 1);
+
+    if (args[0].tag() == tag_t::STR) {
+        if (interp.functor(args[0]) == HASH) {
+	    term hash_arg = interp.arg(args[0], 0);
+	    if (hash_arg.tag() != tag_t::BIG) {
+	        throw interpreter_exception_wrong_arg_type("hash/2: Hash argument must be a bignum; was " + interp.to_string(hash_arg));
+	    }
+	    return interp.unify(args[1], hash_arg);
+        }
+    }
+
+    uint8_t hashed[32];
+    if (!get_hashed2_data(interp, args[0], hashed)) {
+        return false;
+    }
+
+    auto big = interp.new_big(RAW_HASH_SIZE*8);
+    interp.set_big(big, hashed, RAW_HASH_SIZE);
+    
+    return interp.unify(args[1], big);
+}
+
 bool builtins::compute_pedersen_commit(interpreter_base &interp,
 				       const term blinding,
 				       const term value,
@@ -1793,6 +1818,7 @@ void builtins::load(interpreter_base &interp, con_cell *module0)
     interp.load_builtin(M, con_cell("pubkey", 2), &builtins::pubkey_2);
     interp.load_builtin(M, con_cell("address", 2), &builtins::address_2);
     interp.load_builtin(M, con_cell("sign", 3), &builtins::sign_3);
+    interp.load_builtin(M, con_cell("hash", 2), &builtins::hash_2);
 
     interp.load_builtin(M, interp.functor("pubkey_tweak_add", 3), &builtins::pubkey_tweak_add_3);
     interp.load_builtin(M, interp.functor("privkey_tweak_add", 3), &builtins::privkey_tweak_add_3);    
