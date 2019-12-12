@@ -8,6 +8,7 @@ namespace prologcoin { namespace global {
 global_interpreter::global_interpreter() {
     builtins::load(*this);
     setup_standard_lib();
+    set_retain_state_between_queries(true);
 }
 
 bool global_interpreter::execute_goal(term t) {

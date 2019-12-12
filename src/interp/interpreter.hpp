@@ -76,6 +76,11 @@ public:
 
     bool is_instance() const;
 
+protected:
+    inline void set_retain_state_between_queries(bool b) {
+        retain_state_between_queries_ = b;
+    }
+  
 private:
     static bool new_instance_meta(interpreter_base &interp, const meta_reason_t &reason);
 
@@ -119,6 +124,7 @@ private:
     bool wam_enabled_;
     std::vector<binding> *query_vars_;
     size_t num_instances_;
+    bool retain_state_between_queries_;
 
     friend struct new_instance_context;
     friend class test_wam_interpreter;

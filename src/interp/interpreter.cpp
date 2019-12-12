@@ -10,6 +10,7 @@ interpreter::interpreter()
     wam_enabled_ = true;
     query_vars_ = nullptr;
     num_instances_ = 0;
+    retain_state_between_queries_ = false;
 
     set_debug_check_fn(
        [&] {
@@ -134,6 +135,11 @@ bool interpreter::execute(const term query)
     if (has_more()) {
 	new_instance();
 	new_inst = true;
+    } else {
+        // Overriding last instance
+        if (!retain_state_between_queries_) {
+	    clear_all_frozen_closures();
+        }
     }
     if (query_vars_ == nullptr) {
 	query_vars_ = new std::vector<binding>();
