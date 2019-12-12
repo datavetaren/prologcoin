@@ -212,7 +212,9 @@ bool term_utils::unify(term a, term b, uint64_t &cost)
 void term_utils::restore_cells_after_unify() {
   while(temp_trail_size() > 0) {
     auto index = temp_trail_pop();
-    heap_set(index, heap_get(static_cast<fwd_cell &>(heap_get(index))));
+    auto fwd0 = heap_get(index);
+    auto fwd = static_cast<fwd_cell &>(fwd0);
+    heap_set(index, heap_get(fwd.index()));
   }
 }
 
