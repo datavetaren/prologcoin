@@ -17,6 +17,7 @@ public:
     ~interpreter();
 
     void setup_standard_lib();
+    void setup_special_lib();
 
     void new_instance();
     size_t num_instances() const { return num_instances_; }

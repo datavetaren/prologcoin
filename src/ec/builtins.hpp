@@ -145,6 +145,15 @@ public:
 
     static void pedersen_test();
 
+    static bool get_hashed_1_data(uint8_t *data, size_t data_len,
+				  uint8_t hash[RAW_HASH_SIZE]);
+    static bool get_hashed_2_data(uint8_t *data, size_t data_len,
+				  uint8_t hash[RAW_HASH_SIZE]);
+    static bool get_hashed_1_term(interpreter_base &interp, const term data,
+				  uint8_t hash[RAW_HASH_SIZE]);
+    static bool get_hashed_2_term(interpreter_base &interp, const term data,
+				  uint8_t hash[RAW_HASH_SIZE]);  
+  
 private:
 
     static void get_checksum(const uint8_t *bytes, size_t n, uint8_t checksum[4]);
@@ -172,10 +181,8 @@ private:
 
     static bool verify_signature(interpreter_base &interp, const term data,
 				 const term pubkey, const term signature);
-    static bool get_hashed_data(uint8_t *data, size_t data_len,
-				uint8_t hash[32]);
-    static bool get_hashed2_data(interpreter_base &interp, const term data,
-				 uint8_t hash[32]);
+    static bool get_hashed_term(interpreter_base &interp, const term data,
+				uint8_t hash[32], size_t count);
     static bool get_signature_data(interpreter_base &interp, const term sign,
 				   uint8_t sign_data[64]);
     static bool compute_pedersen_commit(interpreter_base &interp,

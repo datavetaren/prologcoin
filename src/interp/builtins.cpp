@@ -587,6 +587,66 @@ namespace prologcoin { namespace interp {
 	term val = interp.arg(t, arg_index-1);
         return interp.unify(args[2], val);
     }
+
+    bool builtins::functor_3(interpreter_base &interp, size_t arity, common::term args[]) {
+	term t = args[0];
+	if (t.tag() == tag_t::REF) {
+	    // Create functor
+	    term f = args[1];
+	    term a = args[2];
+	    if (f.tag() == tag_t::REF) {
+	        std::string msg =
+	          "functor/3: Second argument must be a ground if first argument is a variable; was " + interp.to_string(f);
+	        interp.abort(interpreter_exception_not_sufficiently_instantiated(msg));
+	    }
+	    if (a.tag() == tag_t::REF) {
+	        std::string msg =
+	          "functor/3: Third argument must be a ground if first argument is a variable; was " + interp.to_string(a);
+	        interp.abort(interpreter_exception_not_sufficiently_instantiated(msg));
+	    }
+	    if (a.tag() != tag_t::INT) {
+	        std::string msg =
+	          "functor/3: Expected third argument to be an integer; was " + interp.to_string(a);
+	        interp.abort(interpreter_exception_wrong_arg_type(msg));
+	    }
+	    size_t arity = static_cast<int_cell &>(a).value();
+	    if (arity < 0 || arity > con_cell::MAX_ARITY) {
+	        std::stringstream msg;
+		msg << "functor/3: Arity must be 0 or maximum " << con_cell::MAX_ARITY << "; was " << interp.to_string(arity);
+	        interp.abort(interpreter_exception_wrong_arg_type(msg.str()));
+	    }
+	    switch (f.tag()) {
+	    case tag_t::CON: break;
+	    case tag_t::INT: case tag_t::BIG:
+	        return interp.unify(t, f) && interp.unify(a, int_cell(0));
+	    case tag_t::STR:
+	        return false;
+	    }
+
+	    auto c = static_cast<con_cell &>(f);
+	    con_cell newfun = interp.to_functor(c, arity);
+	    return interp.unify(t, interp.new_term(newfun));
+	} else {
+	    // Extract functor
+ 	    if (t.tag() == tag_t::INT || t.tag() == tag_t::BIG) {
+	        return interp.unify(args[1], t) &&
+		       interp.unify(args[2], int_cell(0));
+	    }
+	  
+	    if (t.tag() != tag_t::STR && t.tag() != tag_t::CON) {
+	        std::string msg =
+	          "functor/3: First argument must be a functor (or a variable); was " + interp.to_string(t);
+	        interp.abort(interpreter_exception_wrong_arg_type(msg));
+	    }
+
+	    con_cell fun = interp.functor(t);
+	    con_cell atom = interp.to_atom(fun);
+	    size_t arity = fun.arity();
+
+	    return interp.unify(args[1], atom) &&
+	           interp.unify(args[2], int_cell(arity));
+	}
+    }
     
     bool builtins::copy_term_2(interpreter_base &interp, size_t arity, common::term args[])
     {
@@ -595,33 +655,6 @@ namespace prologcoin { namespace interp {
 	term copy_arg1 = interp.copy(arg1);
 	bool ok = interp.unify(arg2, copy_arg1);
 	return ok;
-    }
-
-    bool builtins::functor_3(interpreter_base &interp, size_t arity, common::term args[])
-    {
-	term t = args[0];
-	term f = args[1];
-	term a = args[2];
-
-	switch (t.tag()) {
-  	  case tag_t::REF:
-            interp.abort(interpreter_exception_not_sufficiently_instantiated("functor/3: Arguments are not sufficiently instantiated"));
-	    return false;
-	  case tag_t::INT:
- 	  case tag_t::BIG: {
-	    term zero = int_cell(0);
-	    return interp.unify(f, t) && interp.unify(a, zero);
-	    }
-	  case tag_t::STR:
-  	  case tag_t::CON: {
-	      con_cell tf = interp.functor(t);
-	      term fun = interp.to_atom(tf);
-	      term arity = int_cell(tf.arity());
-	      return interp.unify(f, fun) && interp.unify(a, arity);
-	    }
-	}
-
-        return false;
     }
 
     bool builtins::same_term_2(interpreter_base &interp, size_t arity, common::term args[])

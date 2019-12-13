@@ -430,7 +430,7 @@ static bool test_interpreter_file(const std::string &filepath,
     }
 }
 
-static void test_interpreter_files(const std::string &dir, std::function<void (interpreter &)> fn, const char *filter = nullptr)
+static std::vector<boost::filesystem::path> test_interpreter_get_files(const std::string &dir, const char *filter = nullptr)
 {
     const std::string &home_dir = find_home_dir();
     std::string files_dir = home_dir + dir;
@@ -459,9 +459,24 @@ static void test_interpreter_files(const std::string &dir, std::function<void (i
 
     std::sort(files.begin(), files.end());
 
+    return files;
+}
+
+template<typename Interpreter = interpreter> static void test_interpreter_files(const std::string &dir, std::function<void (Interpreter &)> init_fn, const char *filter = nullptr)
+{
+    auto files = test_interpreter_get_files(dir, filter);
     for (auto &filepath : files) {
-	interpreter interp;
-	fn(interp);
+	Interpreter interp;
+	init_fn(interp);
+	bool r = test_interpreter_file(filepath.string(), interp);
+	assert(r);
+    }
+}
+
+template<typename Interpreter = interpreter>static void test_interpreter_files(const std::string &dir, Interpreter &interp, const char *filter = nullptr)
+{
+    auto files = test_interpreter_get_files(dir, filter);
+    for (auto &filepath : files) {
 	bool r = test_interpreter_file(filepath.string(), interp);
 	assert(r);
     }

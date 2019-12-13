@@ -393,6 +393,8 @@ public:
 
 class con_cell : public cell {
 public:
+    static const size_t MAX_ARITY = 8192 - 1;
+  
     inline con_cell() : cell(tag_t::CON) { }
     inline con_cell(const con_cell &other) : cell(other) { }
     inline con_cell( size_t atom_index, size_t arity ) : cell(tag_t::CON)

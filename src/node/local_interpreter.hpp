@@ -54,6 +54,7 @@ public:
     static bool funds_1(interpreter_base &interp, size_t arity, term args[]);
 
     // Commit to global state
+    static term preprocess_hashes(local_interpreter &interp, term t);
     static bool commit(local_interpreter &interp, buffer_t &buf, term t, bool naming);
     static bool commit_2(interpreter_base &interp, size_t arity, term args[]);
 };

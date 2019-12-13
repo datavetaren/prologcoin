@@ -498,20 +498,37 @@ bool builtins::address_2(interpreter_base &interp, size_t arity, term args[])
     return interp.unify(args[1], big);
 }
 
-bool builtins::get_hashed_data(uint8_t *data, size_t data_len,
-			       uint8_t hash[32])
+// MuSig does a single hash computation for nonce commitments
+bool builtins::get_hashed_1_data(uint8_t *data, size_t data_len,
+			         uint8_t hash[32])
 {
     secp256k1_sha256 ctx;
     secp256k1_sha256_initialize(&ctx);
     secp256k1_sha256_write(&ctx, data, data_len);
     secp256k1_sha256_finalize(&ctx, hash);
+    return true;
+}
+
+// Normally we take SHA256(SHA256(data))
+bool builtins::get_hashed_2_data(uint8_t *data, size_t data_len,
+			         uint8_t hash[32])
+{
+    secp256k1_sha256 ctx;
+    secp256k1_sha256_initialize(&ctx);
+    secp256k1_sha256_write(&ctx, data, data_len);
+    secp256k1_sha256_finalize(&ctx, hash);
+    secp256k1_sha256_initialize(&ctx);
+    secp256k1_sha256_write(&ctx, hash, 32);
+    secp256k1_sha256_finalize(&ctx, hash);
 
     return true;
 }
 
-bool builtins::get_hashed2_data(interpreter_base &interp, const term data,
-				uint8_t hash[32])
+bool builtins::get_hashed_term(interpreter_base &interp, const term data,
+			       uint8_t hash[32], size_t count)
 {
+    assert(count == 1 || count == 2);
+  
     if (data.tag() == tag_t::BIG) {
 	auto &big_data = reinterpret_cast<const big_cell &>(data);
 	big_iterator bi = interp.get_heap().begin(big_data);
@@ -519,7 +536,8 @@ bool builtins::get_hashed2_data(interpreter_base &interp, const term data,
 
 	// If the data size is exactly 32 bytes, then don't hash anything.
 	// Just return the data as is. This enables compatibility with
-	// computing signatures over data that has already been hashed.
+	// computing signatures over data that has already been hashed
+	// manually.
 	size_t data_size = bi_end - bi;
 	if (data_size == 32) {
 	    for (size_t i = 0; i < data_size; i++, ++bi) {
@@ -529,7 +547,7 @@ bool builtins::get_hashed2_data(interpreter_base &interp, const term data,
 	}
 
 	// If the data is a bignum with more (or less) than 32 bytes, then
-	// use SHA256 on it and return the hashed value.
+	// hash the raw data (excluding any metadata.)
 	static const size_t BUFFER_CAPACITY = 32;
 	uint8_t buffer[BUFFER_CAPACITY];
 	size_t buffer_len = 0;
@@ -546,6 +564,13 @@ bool builtins::get_hashed2_data(interpreter_base &interp, const term data,
 	}
 	secp256k1_sha256_finalize(&ctx, hash);
 
+	if (count == 2) {
+	    // Apply SHA256 once again.
+	    secp256k1_sha256_initialize(&ctx);
+	    secp256k1_sha256_write(&ctx, hash, 32);
+	    secp256k1_sha256_finalize(&ctx, hash);
+	}
+
 	return true;
     }
 
@@ -555,12 +580,21 @@ bool builtins::get_hashed2_data(interpreter_base &interp, const term data,
     term_serializer::buffer_t buf;
     ser.write(buf, data);
 
-    secp256k1_sha256 ctx;
-    secp256k1_sha256_initialize(&ctx);
-    secp256k1_sha256_write(&ctx, &buf[0], buf.size());
-    secp256k1_sha256_finalize(&ctx, hash);
+    if (count == 1) {
+        return get_hashed_1_data(&buf[0], buf.size(), hash);
+    } else {
+        return get_hashed_2_data(&buf[0], buf.size(), hash);      
+    }
+}
 
-    return true;
+bool builtins::get_hashed_1_term(interpreter_base &interp, const term data,
+				 uint8_t hash[32]) {
+    return get_hashed_term(interp, data, hash, 1);
+}
+
+bool builtins::get_hashed_2_term(interpreter_base &interp, const term data,
+				 uint8_t hash[32]) {
+    return get_hashed_term(interp, data, hash, 2);
 }
 
 bool builtins::compute_signature(interpreter_base &interp,
@@ -592,7 +626,7 @@ bool builtins::compute_signature(interpreter_base &interp, const term data,
     }
 
     uint8_t hash[32];
-    if (!get_hashed2_data(interp, data, hash)) {
+    if (!get_hashed_2_term(interp, data, hash)) {
 	return false;
     }
 
@@ -664,7 +698,7 @@ bool builtins::verify_signature(interpreter_base &interp,
     }
 
     uint8_t hash[32];
-    if (!get_hashed2_data(interp, data, hash)) {
+    if (!get_hashed_2_term(interp, data, hash)) {
 	return false;
     }
 
@@ -709,7 +743,7 @@ bool builtins::hash_2(interpreter_base &interp, size_t arity, term args[] )
     }
 
     uint8_t hashed[32];
-    if (!get_hashed2_data(interp, args[0], hashed)) {
+    if (!get_hashed_2_term(interp, args[0], hashed)) {
         return false;
     }
 
@@ -841,7 +875,7 @@ bool builtins::pproof_3(interpreter_base &interp,
     utime ut = utime::now();
     ut.to_bytes(msg);
     uint8_t hash[32];
-    get_hashed_data(msg, sizeof(msg), hash);
+    get_hashed_2_data(msg, sizeof(msg), hash);
     if (!compute_signature(interp, hash, b3, signature)) {
 	return false;
     }
@@ -959,7 +993,7 @@ bool builtins::pverify_1(interpreter_base &interp, size_t arity, term args[])
     uint8_t msg[8];
     ut.to_bytes(msg);
     uint8_t hash[32];
-    get_hashed_data(msg, sizeof(msg), hash);
+    get_hashed_2_data(msg, sizeof(msg), hash);
     if (!verify_signature(interp, hash, pubkey_raw, signature_raw)) {
 	return false;
     }
@@ -1112,7 +1146,7 @@ bool builtins::musig_verify_3(interpreter_base &interp, size_t arity, term args[
     auto &ctx = get_ctx(interp);
 
     uint8_t hash[RAW_HASH_SIZE];
-    if (!get_hashed2_data(interp, args[0], hash)) {
+    if (!get_hashed_2_term(interp, args[0], hash)) {
         throw interpreter_exception_wrong_arg_type("musig_verify/3: Couldn't compute hash of first argument: " + interp.to_string(args[0]));
     }
     
@@ -1146,7 +1180,7 @@ bool builtins::musig_secret_7(interpreter_base &interp, size_t arity, term args[
     auto &ctx = get_ctx(interp);
 
     uint8_t hash[RAW_HASH_SIZE];
-    if (!get_hashed2_data(interp, args[0], hash)) {
+    if (!get_hashed_2_term(interp, args[0], hash)) {
         throw interpreter_exception_wrong_arg_type("musig_secret/7: Couldn't compute hash of first argument: " + interp.to_string(args[0]));
     }
     
@@ -1190,8 +1224,8 @@ bool builtins::musig_secret_7(interpreter_base &interp, size_t arity, term args[
 	nonces = interp.arg(nonces,1);
 	
 	(nonce_commitments_ptr.get())[i] = &(nonce_commitments_data.get())[i*RAW_HASH_SIZE];
-	get_hashed_data(nonce_raw, RAW_KEY_SIZE+1,
-	                nonce_commitments_ptr.get()[i]);
+	get_hashed_1_data(nonce_raw, RAW_KEY_SIZE+1,
+	                  nonce_commitments_ptr.get()[i]);
 	i++;
     }
 
@@ -1394,7 +1428,7 @@ bool builtins::musig_start_7(interpreter_base &interp, size_t arity, term args[]
     }
 
     uint8_t datahash[RAW_HASH_SIZE];
-    if (!get_hashed2_data(interp, args[6], datahash)) {
+    if (!get_hashed_2_term(interp, args[6], datahash)) {
         return false;
     }
 

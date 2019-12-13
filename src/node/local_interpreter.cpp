@@ -443,13 +443,64 @@ bool me_builtins::funds_1(interpreter_base &interp0, size_t arity, term args[] )
     return interp.unify(arg, int_cell(funds));
 }
 
+term me_builtins::preprocess_hashes(local_interpreter &interp, term t) {
+    static const con_cell P("p", 1);
+
+    static const common::con_cell op_comma(",", 2);
+    static const common::con_cell op_semi(";", 2);
+    static const common::con_cell op_imply("->", 2);
+    static const common::con_cell op_clause(":-", 2);    
+
+    if (t.tag() != common::tag_t::STR) {
+        return t;
+    }
+    
+    auto f = interp.functor(t);
+
+    // Scan for :- and subsitute the hash for body
+    if (f == op_clause) {
+        auto head = interp.arg(t, 0);
+	auto body = interp.arg(t, 1);
+	if (head.tag() == tag_t::STR && interp.functor(head) == P) {
+	    auto hash_var = interp.arg(head, 0);
+	    if (hash_var.tag() == tag_t::REF) {
+	        uint8_t hash[ec::builtins::RAW_HASH_SIZE];
+	        if (!ec::builtins::get_hashed_2_term(interp, body, hash)) {
+		    return t;
+	        }
+		term hash_term = interp.new_big(ec::builtins::RAW_HASH_SIZE*8);
+		interp.set_big(hash_term, hash, ec::builtins::RAW_HASH_SIZE);
+		if (!interp.unify(hash_var, hash_term)) {
+		    return t;
+		}
+		return body;
+	    }
+	}
+    }
+
+    if (f == op_comma || f == op_semi || f == op_imply) {
+        interp.set_arg(t, 0, preprocess_hashes(interp, interp.arg(t, 0)));
+        interp.set_arg(t, 1, preprocess_hashes(interp, interp.arg(t, 1)));
+    }
+
+    return t;
+}
 
 bool me_builtins::commit(local_interpreter &interp, term_serializer::buffer_t &buf, term t, bool naming)
 {
     global::global &g = interp.self().global();
 
     g.set_naming(naming);
-    
+
+    // Check if term is a clause:
+    // p(X) :- Body
+    // Then we compute the hash of Body (with X unbound) and bind X to the
+    // hashed value. Then we apply commit on Body.
+    //
+    t = preprocess_hashes(interp, t);
+
+    std::cout << "PREPROCESSED: " << interp.to_string(t) << std::endl;
+
     // First serialize
     term_serializer ser(interp);
     buf.clear();
@@ -523,6 +574,7 @@ void local_interpreter::ensure_initialized()
     if (!initialized_) {
 	initialized_ = true;
 	setup_standard_lib();
+	setup_special_lib();
 
 	// TODO: Only do this for authorized clients.
 	load_builtins_file_io();

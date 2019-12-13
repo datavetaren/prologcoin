@@ -20,7 +20,7 @@ public:
   
     inline const std::string & id() const { return id_; }
     inline common::term_env & env() { return interp_; }
-    inline interp::interpreter & interp() { return interp_; }
+    inline local_interpreter & interp() { return interp_; }
 
     inline in_connection * get_connection() { return connection_; }
     inline void set_connection(in_connection *conn) { connection_ = conn; }
