@@ -6,6 +6,7 @@
 #include <memory>
 #include <vector>
 #include <queue>
+#include <set>
 #include "term_env.hpp"
 
 namespace prologcoin { namespace common {
@@ -313,6 +314,8 @@ private:
     indexor<term> term_index_;
     std::unordered_map<cell,cell> new_to_old_;
     std::vector<std::pair<size_t, term> > stack_;
+    std::vector<term> temp_stack_;
+    std::unordered_set<term> temp_set_;
 };
 
 }}

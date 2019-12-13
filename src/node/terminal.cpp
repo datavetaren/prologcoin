@@ -434,6 +434,31 @@ bool terminal::process_query_reply()
 	}
 
 	auto vars = e.arg(result_term,1);
+
+	// Collect var values so that if we get
+	std::map<term, std::string> result_var_map;
+	auto vars2 = vars;
+	while (vars2 != e.EMPTY_LIST) {
+	    if (!e.is_dotted_pair(vars2)) {
+		add_error("Unexpected result. Second argument of result/4 was not a proper list. " + e.to_string(e.arg(result_term,1)));
+		return false;
+	    }
+	    auto var_binding = e.arg(vars2,0);
+	    if (e.functor(var_binding) != con_cell("=",2)) {
+		add_error("Unexpected result. Unexpected name binding: " + e.to_string(var_binding));
+		return false;
+	    }
+	    auto var_name_term = e.arg(var_binding, 0);
+	    if (var_name_term.tag() != tag_t::CON) {
+		add_error("Unexpected result. Variable name was not an atom: " + e.to_string(var_binding));
+		return false;
+	    }
+	    auto var_name = e.atom_name(reinterpret_cast<con_cell &>(var_name_term));
+	    auto var_value = e.arg(var_binding, 1);
+	    vars2 = e.arg(vars2, 1);
+	    result_var_map[var_value] = var_name;
+	}
+
 	auto touched = e.prettify_var_names(vars);
 
 	if (vars == e.EMPTY_LIST) {
@@ -449,24 +474,14 @@ bool terminal::process_query_reply()
 
 	bool non_empty = false;
 	while (vars != e.EMPTY_LIST) {
-	    if (!e.is_dotted_pair(vars)) {
-		add_error("Unexpected result. Second argument of result/4 was not a proper list. " + e.to_string(e.arg(result_term,1)));
-		return false;
-	    }
 	    auto var_binding = e.arg(vars,0);
-	    if (e.functor(var_binding) != con_cell("=",2)) {
-		add_error("Unexpected result. Unexpected name binding: " + e.to_string(var_binding));
-		return false;
-	    }
 	    auto var_name_term = e.arg(var_binding, 0);
-	    if (var_name_term.tag() != tag_t::CON) {
-		add_error("Unexpected result. Variable name was not an atom: " + e.to_string(var_binding));
-		return false;
-	    }
 	    auto var_name = e.atom_name(reinterpret_cast<con_cell &>(var_name_term));
 	    auto var_value = e.arg(var_binding, 1);
 	    vars = e.arg(vars, 1);
-	    auto var_value_str = e.to_string(var_value);
+	    emitter_options default_opt;
+	    default_opt.set(emitter_option::EMIT_INTERACTIVE);
+	    auto var_value_str = e.to_string(var_value, default_opt);
 	    if (var_name != var_value_str) {
 		if (result_to_text_ && non_empty) {
 		    add_text_output(",");
