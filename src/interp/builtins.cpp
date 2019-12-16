@@ -1109,26 +1109,22 @@ namespace prologcoin { namespace interp {
 	// Where TermWithVars is the actual closure.
 
 	term closure_term = interp.arg(*closure, 1);
-	auto n = interp.list_length(values_term);
-	if (n > interp.functor(closure_term).arity()) {
-	    std::stringstream msg;
-	    msg << "defrost/3: " <<
-	      "Length of values must be equal or less than the " <<
-	      "number of variables in closure; was of length " << n;
-	    interp.abort(interpreter_exception_wrong_arg_type(msg.str()));
-	}
-
 	auto context = interp.save_term_state();
-	
+ 
 	size_t i = 0;
-	while (values_term != interpreter_base::EMPTY_LIST) {
+	size_t closure_arity = interp.functor(closure_term).arity();
+
+	while (values_term != interpreter_base::EMPTY_LIST && i < closure_arity) {
 	    term next_arg = interp.arg(values_term, 0);
 	    term closure_arg = interp.arg(closure_term, i);
-	    if (!interp.unify(next_arg, closure_arg)) {
-	        interp.restore_term_state(context);
-		return false;
+
+	    if (!interp.is_ground(closure_arg)) {
+		if (!interp.unify(next_arg, closure_arg)) {
+		    interp.restore_term_state(context);
+		    return false;
+		}
+		values_term = interp.arg(values_term, 1);
 	    }
-	    values_term = interp.arg(values_term, 1);
 	    i++;
 	}
 

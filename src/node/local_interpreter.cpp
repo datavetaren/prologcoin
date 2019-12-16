@@ -499,8 +499,6 @@ bool me_builtins::commit(local_interpreter &interp, term_serializer::buffer_t &b
     //
     t = preprocess_hashes(interp, t);
 
-    std::cout << "PREPROCESSED: " << interp.to_string(t) << std::endl;
-
     // First serialize
     term_serializer ser(interp);
     buf.clear();

@@ -88,11 +88,13 @@ tx(CoinIn, Hash, Script, Args, CoinOut) :-
     var(X),
     X = [],
     freeze(Hash,
-           (call(Script, Hash, Args),
+           (write('before call'), nl,
+            call(Script, Hash, Args),
             functor(CoinOut, Functor, Arity),
             arg(1, CoinOut, V))).
 
 tx1(Hash,args(Signature,PubKey,PubKeyAddr)) :-
+    write('Hello'), nl,
     ec:address(PubKey,PubKeyAddr),
     ec:validate(Hash,PubKey,Signature).
 
