@@ -23,6 +23,14 @@ public:
     inline term_env & env() { return interp_; }
     inline void set_naming(bool b) { interp_.set_naming(b); }
 
+    inline static void setup_consensus_lib(interp::interpreter &interp) {
+        global_interpreter::setup_consensus_lib(interp);
+    }
+
+    inline void reset() {
+        return interp_.reset();
+    }
+  
     inline bool execute_goal(term t) {
         return interp_.execute_goal(t);
     }

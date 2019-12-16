@@ -454,6 +454,11 @@ void interpreter_base::load_builtins()
     load_builtin(con_cell("findall",3), builtin(&builtins::findall_3,true));
     load_builtin(con_cell("freeze",2), builtin(&builtins::freeze_2,true));
 
+    // call/n with n [1..11]
+    for (size_t i = 1; i <= 11; i++) {
+        load_builtin(con_cell("call", i), builtin(&builtins::call_n,true));
+    }
+
     // System
     load_builtin(functor("use_module",1), builtin(&builtins::use_module_1,false));
 

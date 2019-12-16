@@ -5,6 +5,7 @@
 #include "task_reset.hpp"
 #include "../ec/builtins.hpp"
 #include "../coin/builtins.hpp"
+#include "../global/global_interpreter.hpp"
 
 namespace prologcoin { namespace node {
 
@@ -465,7 +466,7 @@ term me_builtins::preprocess_hashes(local_interpreter &interp, term t) {
 	    auto hash_var = interp.arg(head, 0);
 	    if (hash_var.tag() == tag_t::REF) {
 	        uint8_t hash[ec::builtins::RAW_HASH_SIZE];
-	        if (!ec::builtins::get_hashed_2_term(interp, body, hash)) {
+	        if (!ec::builtins::get_hashed_2_term(interp, t, hash)) {
 		    return t;
 	        }
 		term hash_term = interp.new_big(ec::builtins::RAW_HASH_SIZE*8);
@@ -504,9 +505,19 @@ bool me_builtins::commit(local_interpreter &interp, term_serializer::buffer_t &b
     buf.clear();
     ser.write(buf, t);
 
-    if (!g.execute_goal(buf)) {
-        return false;
+    try {
+        if (!g.execute_goal(buf)) {
+	   g.reset();
+           return false;
+	}
+    } catch (interpreter_exception &ex) {
+        g.reset();
+        throw ex;
+    } catch (serializer_exception &ex) {
+        g.reset();
+        throw ex;
     }
+	
     g.execute_cut();
 
     assert(g.is_clean());
@@ -572,7 +583,6 @@ void local_interpreter::ensure_initialized()
     if (!initialized_) {
 	initialized_ = true;
 	setup_standard_lib();
-	setup_special_lib();
 
 	// TODO: Only do this for authorized clients.
 	load_builtins_file_io();
@@ -583,6 +593,9 @@ void local_interpreter::ensure_initialized()
         coin::builtins::load(*this);
 
 	setup_local_builtins();
+
+	// Setup this last, because it refers to some builtins above
+	global::global::setup_consensus_lib(*this);
     }
 }
 

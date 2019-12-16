@@ -628,10 +628,10 @@ public:
     // as terms.
     //
     inline size_t num_half_cells() const
-    { return (num_bits() + CELL_NUM_BITS_HALF - 1) / CELL_NUM_BITS_HALF; }
+    { return 1 + (num_bits() + CELL_NUM_BITS_HALF - 1) / CELL_NUM_BITS_HALF; }
 
     inline size_t num_cells() const
-    { return (num_half_cells() + 1) / 2 + 1; }
+    { return (num_half_cells() + 1) / 2; }
 
     std::string inner_str() const;    
 };

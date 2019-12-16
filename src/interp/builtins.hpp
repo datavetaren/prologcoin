@@ -183,7 +183,8 @@ namespace prologcoin { namespace interp {
 	//
 	// Meta
 	//
-	
+
+        static bool call_n(interpreter_base &interp, size_t arity, common::term args[]);
 	static bool operator_disprove(interpreter_base &interp, size_t arity, common::term args[]);
 	static bool operator_disprove_meta(interpreter_base &interp, const meta_reason_t &reason);
 	static bool findall_3(interpreter_base &interp, size_t arity, common::term args[]);

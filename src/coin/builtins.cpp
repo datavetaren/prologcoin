@@ -168,4 +168,10 @@ void builtins::load(interpreter_base &interp)
     interp.load_builtin(con_cell("csplit", 3), &builtins::csplit_3);
 }
 
+void builtins::load_consensus(interpreter_base &interp)
+{
+    interp.load_builtin(con_cell("cjoin", 2), &builtins::cjoin_2);
+    interp.load_builtin(con_cell("csplit", 3), &builtins::csplit_3);
+}
+    
 }}

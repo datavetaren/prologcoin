@@ -69,41 +69,6 @@ append([X|Xs], Ys, [X|Zs]) :-
     compile();
 }
 
-void interpreter::setup_special_lib() {
-    std::string lib = R"PROG(
-
-%
-% Transaction predicates
-%
-
-%
-% tx/5
-%
-
-tx(CoinIn, Hash, Script, Args, CoinOut) :-
-    functor(CoinIn, Functor, Arity),
-    arg(1, CoinIn, V),
-    ground(V),
-    arg(2, CoinIn, X),
-    var(X),
-    X = [],
-    freeze(Hash,
-           (write('before call'), nl,
-            call(Script, Hash, Args),
-            functor(CoinOut, Functor, Arity),
-            arg(1, CoinOut, V))).
-
-tx1(Hash,args(Signature,PubKey,PubKeyAddr)) :-
-    write('Hello'), nl,
-    ec:address(PubKey,PubKeyAddr),
-    ec:validate(Hash,PubKey,Signature).
-
-)PROG";
-
-    load_program(lib);
-    compile();
-}
-    
 // Save everything so interpreter state can be restored.
 struct new_instance_context : public meta_context {
     new_instance_context(interpreter_base &i, meta_fn fn)

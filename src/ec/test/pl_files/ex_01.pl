@@ -26,5 +26,5 @@
 % message.
 %
 
-?- ec:sign(58'1semYvast3hpYyTLioxNqwwL9WNXJqfrRqUJ5xurzeMrV, foobar(frotz(42)), 58'22ep3m3dd7QZ5UopZUGKg6VQrYXFLKWzUfjPxmWP99rs6tVn5hH3EH5Hxeyk9ACk8PSWBgZSNfta51ZgqBRjuH2f).
+?- ec:validate(58'1semYvast3hpYyTLioxNqwwL9WNXJqfrRqUJ5xurzeMrV, foobar(frotz(42)), 58'22ep3m3dd7QZ5UopZUGKg6VQrYXFLKWzUfjPxmWP99rs6tVn5hH3EH5Hxeyk9ACk8PSWBgZSNfta51ZgqBRjuH2f).
 % Expect: true

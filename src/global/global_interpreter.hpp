@@ -38,6 +38,8 @@ public:
 
     global_interpreter();
 
+    static void setup_consensus_lib(interpreter &interp);
+  
     inline void set_naming(bool b) { naming_ = b; }
   
     bool execute_goal(term t);

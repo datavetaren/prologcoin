@@ -823,6 +823,47 @@ namespace prologcoin { namespace interp {
     // Meta
     //
 
+    bool builtins::call_n(interpreter_base &interp, size_t arity, common::term args[]) {
+	// Get functor of args[0]
+	term c = args[0];
+	if (c.tag() != tag_t::STR && c.tag() != tag_t::CON) {
+	    std::stringstream msg;
+	    msg << "call/" << arity << ": First argument must be something callable; was " << interp.to_string(c);
+	    interp.abort(interpreter_exception_wrong_arg_type(msg.str()));
+	}
+	con_cell f = interp.functor(args[0]);
+
+	// Get number of extra arguments (this arity - 1)
+	size_t num_extra_args = arity - 1;
+	size_t f_arity = f.arity();
+	size_t new_f_arity = f_arity + num_extra_args;
+	con_cell new_f = f;
+	
+	if (num_extra_args > 0) {
+	    new_f = interp.to_functor(interp.to_atom(f), new_f_arity);
+	}
+
+	term new_call = interp.new_term(new_f);
+
+	// Copy existing arguments from 'f'
+	for (size_t i = 0; i < f_arity; i++) {
+	    interp.set_arg(new_call, i, interp.arg(c, i));
+	}
+
+	// Append extra arguments
+	for (size_t i = 0; i < num_extra_args; i++) {
+	    interp.set_arg(new_call, f_arity + i, args[i+1]);
+	}
+
+	// Setup new environment and where to continue
+        interp.allocate_environment<ENV_NAIVE>();
+	
+	interp.set_p(new_call);
+	interp.set_cp(interpreter_base::EMPTY_LIST);
+
+	return true;
+    }
+    
     bool builtins::operator_disprove(interpreter_base &interp, size_t arity, common::term args[])
     {
 	term arg = args[0];
@@ -1109,6 +1150,11 @@ namespace prologcoin { namespace interp {
 	// Where TermWithVars is the actual closure.
 
 	term closure_term = interp.arg(*closure, 1);
+
+	if (!interp.unify(args[1], closure_term)) {
+	    return false;
+	}
+	
 	auto context = interp.save_term_state();
  
 	size_t i = 0;

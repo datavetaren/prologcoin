@@ -709,23 +709,38 @@ bool builtins::sign_3(interpreter_base &interp, size_t arity, term args[] )
 {
     if (args[0].tag() == tag_t::REF) {
 	throw interpreter_exception_not_sufficiently_instantiated(
-		  "ec:sign/3: First argument, a public or private key"
-                  " (private for signing), must be given.");
+	  "ec:sign/3: Missing private key as first argument.");
     }
 
+    term out;
+    if (!compute_signature(interp, args[1], args[0], out)) {
+        return false;
+    }
+    bool r = interp.unify(args[2], out);
+
+    return r;
+}
+
+bool builtins::validate_3(interpreter_base &interp, size_t arity, term args[] )
+{
+    if (args[0].tag() == tag_t::REF) {
+	throw interpreter_exception_not_sufficiently_instantiated(
+	  "ec:validate/3: Missing public key as first argument.");
+    }
     if (args[2].tag() == tag_t::REF) {
-	term out;
-	if (!compute_signature(interp, args[1], args[0], out)) {
-	    return false;
-	}
-	return interp.unify(args[2], out);
-
-    } else {
-	if (!verify_signature(interp, args[1], args[0], args[2])) {
-	    return false;
-	}
-	return true;
+	throw interpreter_exception_not_sufficiently_instantiated(
+	  "ec:validate/3: Missing signature as third argument.");
     }
+    if (args[2].tag() != tag_t::BIG) {
+         throw interpreter_exception_wrong_arg_type(
+	    "ec:validate/3: Third argument must be a signature; was "
+	    + interp.to_string(args[2]));
+    }
+    
+    if (!verify_signature(interp, args[1], args[0], args[2])) {
+        return false;
+    }
+    return true;
 }
 
 bool builtins::hash_2(interpreter_base &interp, size_t arity, term args[] )
@@ -750,7 +765,9 @@ bool builtins::hash_2(interpreter_base &interp, size_t arity, term args[] )
     auto big = interp.new_big(RAW_HASH_SIZE*8);
     interp.set_big(big, hashed, RAW_HASH_SIZE);
     
-    return interp.unify(args[1], big);
+    bool r =  interp.unify(args[1], big);
+    
+    return r;
 }
 
 bool builtins::compute_pedersen_commit(interpreter_base &interp,
@@ -1852,6 +1869,7 @@ void builtins::load(interpreter_base &interp, con_cell *module0)
     interp.load_builtin(M, con_cell("pubkey", 2), &builtins::pubkey_2);
     interp.load_builtin(M, con_cell("address", 2), &builtins::address_2);
     interp.load_builtin(M, con_cell("sign", 3), &builtins::sign_3);
+    interp.load_builtin(M, interp.functor("validate", 3), &builtins::validate_3);
     interp.load_builtin(M, con_cell("hash", 2), &builtins::hash_2);
 
     interp.load_builtin(M, interp.functor("pubkey_tweak_add", 3), &builtins::pubkey_tweak_add_3);
@@ -1878,6 +1896,25 @@ void builtins::load(interpreter_base &interp, con_cell *module0)
     interp.load_builtin(M, interp.functor("musig_final_sign", 4), &builtins::musig_final_sign_4);
     interp.load_builtin(M, interp.functor("musig_nonce_negated", 2), &builtins::musig_nonce_negated_2);
     interp.load_builtin(M, interp.functor("musig_end", 1), &builtins::musig_end_1);
+}
+
+void builtins::load_consensus(interpreter_base &interp) {
+    const con_cell EC("ec", 0);
+    const con_cell M = EC;
+
+    interp.load_builtin(M, con_cell("address", 2), &builtins::address_2);
+    interp.load_builtin(M, interp.functor("validate", 3), &builtins::validate_3);
+    interp.load_builtin(M, con_cell("hash", 2), &builtins::hash_2);
+
+    interp.load_builtin(M, interp.functor("pubkey_tweak_add", 3), &builtins::pubkey_tweak_add_3);
+    interp.load_builtin(M, interp.functor("privkey_tweak_add", 3), &builtins::privkey_tweak_add_3);    
+    
+    interp.load_builtin(M, con_cell("pverify", 1), &builtins::pverify_1);
+
+    // MuSig
+    interp.load_builtin(M, interp.functor("musig_combine", 3), &builtins::musig_combine_3);
+    interp.load_builtin(M, interp.functor("musig_verify", 3), &builtins::musig_verify_3);
+    interp.load_builtin(M, interp.functor("musig_secret", 7), &builtins::musig_secret_7);
 }
 
 }}
