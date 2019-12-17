@@ -89,6 +89,9 @@ public:
     inline void set_name(const std::string &name) { name_ = name; }
     inline const std::string & name() const { return name_; }
 
+    inline void set_data_directory(const std::string &dir) { data_directory_ = dir; }
+    inline const std::string & data_directory() const { return data_directory_; }
+
     // Must be a Prolog term
     void set_comment(const std::string &str);
     inline term get_comment() const { return comment_; }
@@ -325,6 +328,8 @@ private:
   
     // This is where the consensus is stored
     global::global global_;
+
+    std::string data_directory_;
 };
 
 inline address_book_wrapper::address_book_wrapper(self_node &self, address_book &book) : self_(self), book_(book)

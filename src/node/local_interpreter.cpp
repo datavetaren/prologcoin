@@ -200,6 +200,14 @@ bool me_builtins::comment_1(interpreter_base &interp0, size_t arity, term args[]
     return interp.unify(args[0], comment);
 }
 
+bool me_builtins::datadir_1(interpreter_base &interp0, size_t arity, term args[] )
+{
+    auto &interp = to_local(interp0);
+    term datadir = interp.string_to_list(interp.self().data_directory());
+
+    return interp.unify(args[0], datadir);
+}
+
 bool me_builtins::peers_2(interpreter_base &interp0, size_t arity, term args[] )
 {
     auto &interp = to_local(interp0);
@@ -612,7 +620,8 @@ void local_interpreter::setup_local_builtins()
     load_builtin(ME, functor("heartbeat", 0), &me_builtins::heartbeat_0);
     load_builtin(ME, con_cell("version",1), &me_builtins::version_1);
     load_builtin(ME, con_cell("comment",1), &me_builtins::comment_1);
-
+    load_builtin(ME, con_cell("datadir", 1), &me_builtins::datadir_1);
+    
     // Address book & connections
     load_builtin(ME, con_cell("peers", 2), &me_builtins::peers_2);
     load_builtin(ME, functor("connections",0), &me_builtins::connections_0);

@@ -36,6 +36,9 @@ public:
     static bool version_1(interpreter_base &interp, size_t arity, term args[]);
     static bool comment_1(interpreter_base &interp, size_t arity, term args[]);
 
+    // Get data directory
+    static bool datadir_1(interpreter_base &interp, size_t arity, term args[]);
+
     // Addresses & connections
     static bool peers_2(interpreter_base &interp, size_t arity, term args[]);
 
