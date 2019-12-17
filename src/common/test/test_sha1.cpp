@@ -20,14 +20,12 @@ static void test_sha1()
     const char *msg = "abcdbcdecdefdefgefghfghighijhijkijkljklmklmnlmnomnopnopq";
     sha1 s;
     s.update(msg, strlen(msg));
-    uint8_t digest[s.HASH_SIZE];
     std::string str = s.finalize();
     assert(str == "84983e441c3bd26ebaae4aa1f95129e5e54670f1");
 
     const char *msgb = "abc";
     sha1 s2;
     s2.update(msgb, strlen(msgb));
-    uint8_t digestb[s2.HASH_SIZE];
     std::string strb = s2.finalize();
     assert(strb == "a9993e364706816aba3e25717850c26c9cd0d89d");
 }

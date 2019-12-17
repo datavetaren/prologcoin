@@ -497,6 +497,7 @@ void interpreter_base::load_builtins_file_io()
     load_builtin(con_cell("read", 2), &builtins_fileio::read_2);
     load_builtin(functor("at_end_of_stream", 1), &builtins_fileio::at_end_of_stream_1);
     load_builtin(con_cell("write", 1), &builtins_fileio::write_1);
+    load_builtin(con_cell("write", 2), &builtins_fileio::write_2);
     load_builtin(con_cell("nl", 0), &builtins_fileio::nl_0);
     load_builtin(con_cell("tell",1), &builtins_fileio::tell_1);
     load_builtin(con_cell("told",0), &builtins_fileio::told_0);
