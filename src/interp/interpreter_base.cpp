@@ -4,7 +4,6 @@
 #include "wam_interpreter.hpp"
 #include <boost/filesystem.hpp>
 #include <boost/timer/timer.hpp>
-#include <boost/range/adaptor/reversed.hpp>
 
 #define PROFILER 0
 
@@ -16,6 +15,7 @@ const common::term code_point::fail_term_ = common::ref_cell(0);
 const common::con_cell interpreter_base::COMMA = common::con_cell(",",2);
 const common::con_cell interpreter_base::EMPTY_LIST = common::con_cell("[]",0);
 const common::con_cell interpreter_base::IMPLIED_BY = common::con_cell(":-",2);
+const common::con_cell interpreter_base::ACTION_BY = common::con_cell(":-",1);
 
 meta_context::meta_context(interpreter_base &i, meta_fn mfn)
 {
@@ -350,6 +350,10 @@ void interpreter_base::load_clause(const term t, bool as_program)
 
     term head = clause_head(t);
 
+    if (head == ACTION_BY) {
+	return;
+    }
+
     con_cell predicate = functor(head);
     
     auto qn = std::make_pair(module, predicate);
@@ -503,53 +507,6 @@ void interpreter_base::load_builtins_file_io()
     load_builtin(con_cell("told",0), &builtins_fileio::told_0);
     load_builtin(con_cell("format",2), builtin(&builtins_fileio::format_2,true));
     load_builtin(con_cell("sformat",3), builtin(&builtins_fileio::sformat_3,true));
-}
-
-void interpreter_base::load_program(const term t)
-{
-    syntax_check_stack_.push_back(
-		  std::bind(&interpreter_base::syntax_check_program, this,
-			    t));
-    syntax_check();
-
-    for (auto clause : list_iterator(*this, t)) {
-	load_clause(clause, true);
-    }
-}
-
-void interpreter_base::load_program(const std::string &str)
-{
-    std::stringstream ss(str);
-    load_program(ss);
-}
-
-void interpreter_base::load_program(std::istream &in)
-{
-    term_tokenizer tok(in);
-    term_parser parser(tok, *this);
-
-    std::vector<term> clauses;
-
-    while (!parser.is_eof()) {
-        parser.clear_var_names();
-
-	auto clause = parser.parse();
-
-	// Once parsing is done we'll copy over the var-name bindings
-	// so we can pretty print the variable names.
-	parser.for_each_var_name( [&](const term  &ref,
-				    const std::string &name)
-	  { set_name(ref, name); } );
-
-	clauses.push_back(clause);
-    }
-
-    term clause_list = EMPTY_LIST;
-    for (auto clause : boost::adaptors::reverse(clauses)) {
-	clause_list = new_dotted_pair(clause, clause_list);
-    }
-	
-    load_program(clause_list);
 }
 
 qname interpreter_base::gen_predicate(const common::con_cell module,

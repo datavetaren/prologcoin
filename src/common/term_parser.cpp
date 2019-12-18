@@ -152,6 +152,7 @@ protected:
   inline int current_state() const { return current_state_; }
 
   inline const sym & lookahead() const { return lookahead_; }
+  inline void set_lookahead(const sym &s) { lookahead_ = s; }
 
   args_t & args(int numArgs) {
     args_.clear();
@@ -1302,6 +1303,12 @@ public:
     return lexemes;
   }
 
+  void prepare_parse()
+  {
+      // Need some form of reset if lookahead().ordinal() != SYMBOL_UNKNOWN
+      // We need to reparse that token as the operator may have changed
+  }
+
   void parse_next()
   {
       while (!is_accept() && !is_error()) {
@@ -1332,9 +1339,10 @@ void term_parser::set_debug(bool dbg)
 
 term term_parser::parse()
 {
-  impl_->init();
-  impl_->parse_next();
-  return impl_->get_result();
+    impl_->init();
+    impl_->prepare_parse();
+    impl_->parse_next();
+    return impl_->get_result();
 }
 
 term term_parser::positions() const

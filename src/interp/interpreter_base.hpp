@@ -8,6 +8,7 @@
 #include <stack>
 #include <tuple>
 #include <map>
+#include <boost/range/adaptor/reversed.hpp>
 #include "../common/term_env.hpp"
 #include "../common/merkle_trie.hpp"
 #include "builtins.hpp"
@@ -543,9 +544,59 @@ public:
     term clause_body(const term clause);
     common::con_cell clause_predicate(const term clause);
 
-    void load_program(const std::string &str);
-    void load_program(std::istream &is);
-    void load_program(const term clauses);
+    struct none {
+	void operator () (term t)  { }
+    };
+
+    template<typename F = none> void load_program(const std::string &str, F f = F())
+    {
+	std::stringstream ss(str);
+	load_program<F>(ss, f);
+    }
+
+    template<typename F = none> void load_program(std::istream &in, F f = F())
+    {
+	using namespace prologcoin::common;
+
+	term_tokenizer tok(in);
+	term_parser parser(tok, *this);
+    
+	std::vector<term> clauses;
+
+	while (!parser.is_eof()) {
+	    parser.clear_var_names();
+
+	    auto clause = parser.parse();
+
+	    // Once parsing is done we'll copy over the var-name bindings
+	    // so we can pretty print the variable names.
+	    parser.for_each_var_name( [&](const term  &ref,
+					  const std::string &name)
+				      { set_name(ref, name); } );
+
+	    clauses.push_back(clause);
+	}
+
+	term clause_list = EMPTY_LIST;
+	for (auto clause : boost::adaptors::reverse(clauses)) {
+	    clause_list = new_dotted_pair(clause, clause_list);
+	}
+	
+	load_program<F>(clause_list, f);
+    }
+
+    template<typename F = none> void load_program(const term clauses, F f = F())
+    {
+	syntax_check_stack_.push_back(
+		  std::bind(&interpreter_base::syntax_check_program, this,
+			    clauses));
+	syntax_check();
+
+	for (auto clause : list_iterator(*this, clauses)) {
+	    load_clause(clause, true);
+	    f(clause);
+	}
+    }
 
     inline const predicate & get_predicate(con_cell module, con_cell f)
         { return get_predicate(std::make_pair(module, f)); }
@@ -1282,6 +1333,7 @@ public:
     static const con_cell COMMA;
     static const con_cell EMPTY_LIST;
     static const con_cell IMPLIED_BY;
+    static const con_cell ACTION_BY;
 private:
 
     std::string current_dir_; // Current directory

@@ -577,9 +577,14 @@ self_node & local_interpreter::self()
     return session_.self();
 }
 
+bool local_interpreter::is_root() 
+{
+    return session_.is_root();
+}
+
 void local_interpreter::root_check(const char *name, size_t arity)
 {
-    if (!session_.is_root()) {
+    if (!is_root()) {
         std::stringstream ss;
         ss << name << "/" << arity << ": Non-root is not allowed to use this predicate in this context.";
 	abort(interpreter_exception_security(ss.str()));
@@ -601,6 +606,9 @@ void local_interpreter::ensure_initialized()
         coin::builtins::load(*this);
 
 	setup_local_builtins();
+
+	// Load startup file
+	startup_file();
 
 	// Setup this last, because it refers to some builtins above
 	global::global::setup_consensus_lib(*this);
@@ -640,6 +648,31 @@ void local_interpreter::setup_local_builtins()
     // Commit
     load_builtin(ME, con_cell("commit", 1), &me_builtins::commit_2);    
     load_builtin(ME, con_cell("commit", 2), &me_builtins::commit_2);
+}
+
+void local_interpreter::startup_file()
+{
+    if (!is_root()) {
+	return;
+    }
+
+    boost::filesystem::path file(self().data_directory());
+    file /= "startup.pl";
+
+    std::string file_path = file.string();
+
+    if (boost::filesystem::exists(file_path)) {
+	try {
+	    stdout() << "Loading " << file_path << std::endl;
+	    load_file(file_path);
+	} catch (const interpreter_exception &ex) {
+	    stdout() << ex.what() << std::endl;
+	} catch (const token_exception &ex) {
+	    print_error_messages(stdout(), ex);
+	} catch (const term_parse_exception &ex) {
+	    print_error_messages(stdout(), ex);
+	}
+    }
 }
 
 void local_interpreter::local_reset()
@@ -684,7 +717,23 @@ void local_interpreter::load_file(const std::string &filename)
     }
 
     try {
-	load_program(infile);
+	struct process_clause {
+	    process_clause(local_interpreter &interp) : interp_(interp) { }
+
+	    void operator () (term clause) {
+		auto head = interp_.clause_head(clause);
+		auto head_f = interp_.functor(head);
+
+		if (head_f == interpreter_base::ACTION_BY) {
+		    interp_.compile();
+		    auto body = interp_.arg(clause, 0);
+		    interp_.execute(body);
+		    interp_.reset();
+		}
+	    }
+	    local_interpreter &interp_;
+	} f(*this);
+	load_program(infile, f);
 	compile();
 	infile.close();
     } catch (const syntax_exception &ex) {

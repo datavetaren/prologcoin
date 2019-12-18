@@ -449,6 +449,18 @@ public:
     std::vector<std::string> to_error_messages(const token_exception &ex);
     std::vector<std::string> to_error_messages(const term_parse_exception &ex);
 
+    void print_error_messages(std::ostream &out, const token_exception &ex) {
+	for (auto &s : to_error_messages(ex)) {
+	    out << s << std::endl;
+	}
+    }
+
+    void print_error_messages(std::ostream &out, const term_parse_exception &ex) {
+	for (auto &s : to_error_messages(ex)) {
+	    out << s << std::endl;
+	}
+    }
+
     void error_excerpt(const std::string &line, size_t column,
 		       std::vector<std::string> &msgs);
     
@@ -839,6 +851,18 @@ public:
   {
       term_utils utils(heap_dock<HT>::get_heap(), stacks_dock<ST>::get_stacks(), ops_dock<OT>::get_ops());
       return utils.to_error_messages(ex);
+  }
+
+  inline void print_error_messages(std::ostream &out, const token_exception &ex)
+  {
+      term_utils utils(heap_dock<HT>::get_heap(), stacks_dock<ST>::get_stacks(), ops_dock<OT>::get_ops());
+      return utils.print_error_messages(out, ex);
+  }
+
+  inline void print_error_messages(std::ostream &out, const term_parse_exception &ex)
+  {
+      term_utils utils(heap_dock<HT>::get_heap(), stacks_dock<ST>::get_stacks(), ops_dock<OT>::get_ops());
+      return utils.print_error_messages(out, ex);
   }
 
   inline std::string to_string_debug(const term t) const
