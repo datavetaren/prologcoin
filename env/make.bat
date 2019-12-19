@@ -296,6 +296,13 @@ IF "%1"=="test" (
 GOTO :TEST
 )
 
+REM
+REM Dispatch to script if requested
+REM
+IF "%1"=="script" (
+GOTO :SCRIPT
+)
+
 IF !WORKDONE!==0 GOTO :EOF
 
 REM IF EXIST !GOAL! (
@@ -395,6 +402,79 @@ REM
 GOTO :EOF
 
 REM ----------------------------------------------------
+REM  SCRIPT
+REM ----------------------------------------------------
+
+:SCRIPT
+
+REM
+REM Ensure that out\script and bin\script directories are present
+REM
+IF NOT EXIST %OUT%\%SUBDIR%\script (
+mkdir %OUT%\%SUBDIR%\script
+)
+IF NOT EXIST %BIN%\script (
+mkdir %BIN%\script
+)
+IF NOT EXIST %BIN%\script\!SUBDIR!\ (
+mkdir %BIN%\script\!SUBDIR!
+)
+
+REM
+REM Compile and run script
+REM
+for %%S in (%SRC%\%SUBDIR%\script\*.cpp) DO (
+    set CPPFILE=%%S
+    set OBJFILE=!CPPFILE:.cpp=.obj!
+    set OBJFILE=!OBJFILE:%SRC%=%OUT%!
+    set BINOKFILE=!OBJFILE:%OUT%=%BIN%!
+    set BINEXEFILE=!OBJFILE:%OUT%=%BIN%!
+
+REM 
+REM Check if CPP file is newer than OBJ file.
+REM Delete OBJ file if it is.
+REM
+
+    for %%i in (!CPPFILE!) do set BINOKFILE=%BIN%\script\!SUBDIR!\%%~ni.ok
+    for %%i in (!CPPFILE!) do set BINEXEFILE=%BIN%\script\!SUBDIR!\%%~ni.exe
+    for %%i in (!CPPFILE!) do set BINLOGFILE=%BIN%\script\!SUBDIR!\%%~ni.log
+
+
+    IF EXIST !BINOKFILE! (
+        set R=0
+        call :FCMP !CPPFILE! !BINOKFILE! !R!
+        IF "!R!"=="1" (
+            del /Q /F !OBJFILE!
+            del /Q /F !BINOKFILE!
+            del /Q /F !BINEXEFILE!
+        )
+    )
+
+    IF NOT EXIST !BINOKFILE! (
+	set PDBFILE=
+        IF "!DEBUGMODE!"=="1" set PDBFILE=/Fd:!OBJFILE:.obj=.pdb!
+        cl.exe !CCFLAGS! /I%SRC% /Fo:!OBJFILE! !PDBFILE! !CPPFILE!
+        IF ERRORLEVEL 1 GOTO :EOF
+
+	set PDBFILE=
+	IF "!DEBUGMODE!"=="1" set PDBFILE=/debug /pdb:"!BINEXEFILE:.exe=.pdb!"
+	link !LINKFLAGS! /out:!BINEXEFILE! !PDBFILE! !LIB_FILES! !OBJFILE!
+        IF ERRORLEVEL 1 GOTO :EOF
+	ECHO Running !BINEXEFILE!
+	ECHO   [output to !BINLOGFILE!]
+	!BINEXEFILE! %BIN% %2 %3 %4 %5 %6 %7 %8 %9 1>!BINLOGFILE! 2>&1
+        IF ERRORLEVEL 1 GOTO :EOF
+	for %%i in (!BINLOGFILE!) do if %%~zi==0 (
+	    echo Error while running !BINEXEFILE!
+	    GOTO :EOF
+	)
+	copy /Y NUL !BINOKFILE! >NUL
+    )
+)
+GOTO :EOF
+
+
+REM ----------------------------------------------------
 REM  CLEAN
 REM ----------------------------------------------------
 
@@ -403,8 +483,11 @@ del /S /F /Q %OUT%\!SUBDIR!
 del /S /F /Q %BIN%\!SUBDIR!.*
 del /S /F /Q %BIN%\test\!SUBDIR!.*
 del /S /F /Q %BIN%\test\!SUBDIR!\*
+del /S /F /Q %BIN%\script\!SUBDIR!.*
+del /S /F /Q %BIN%\script\!SUBDIR!\*
 rmdir /S /Q %OUT%\!SUBDIR!
 rmdir /S /Q %BIN%\test\!SUBDIR!
+rmdir /S /Q %BIN%\script\!SUBDIR!
 
 GOTO :EOF
 
@@ -531,7 +614,7 @@ mkdir %BIN%
 echo Compiling make_vcxproj.cs
 csc.exe /nologo /reference:Microsoft.Build.dll /reference:Microsoft.Build.Framework.dll /out:%BIN%\make_vcxproj.exe %ENV%\make_vcxproj.cs
 IF ERRORLEVEL 1 GOTO :EOF
-%BIN%\make_vcxproj.exe env=%VCNAME% bit=%BIT% src=%SRC% out=%OUT% bin=%BIN% boost="!BOOST!" include1="!CINCLUDE!" include2="!CINCLUDE2!"
+%BIN%\make_vcxproj.exe env=%VCNAME% bit=%BIT% root=%ROOT% src=%SRC% out=%OUT% bin=%BIN% boost="!BOOST!"
 
 GOTO :EOF
 

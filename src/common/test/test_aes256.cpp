@@ -43,5 +43,7 @@ static void test_aes256()
 int main( int argc, char *argv[] )
 {
     test_aes256();
+
+    return 0;
 }
 

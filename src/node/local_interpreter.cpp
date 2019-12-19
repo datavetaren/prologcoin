@@ -663,14 +663,14 @@ void local_interpreter::startup_file()
 
     if (boost::filesystem::exists(file_path)) {
 	try {
-	    stdout() << "Loading " << file_path << std::endl;
+	    out() << "Loading " << file_path << std::endl;
 	    load_file(file_path);
 	} catch (const interpreter_exception &ex) {
-	    stdout() << ex.what() << std::endl;
+	    out() << ex.what() << std::endl;
 	} catch (const token_exception &ex) {
-	    print_error_messages(stdout(), ex);
+	    print_error_messages(out(), ex);
 	} catch (const term_parse_exception &ex) {
-	    print_error_messages(stdout(), ex);
+	    print_error_messages(out(), ex);
 	}
     }
 }

@@ -579,7 +579,7 @@ private:
         auto node = spine.back().node;
 	while (!spine.empty() && node->mask_ == 0) {
 	    spine.pop_back();
-	    node = spine.back().node;
+	    if (!spine.empty()) node = spine.back().node;
 	}
 	if (spine.empty()) {
 	    return;
@@ -600,7 +600,7 @@ private:
         auto node = spine.back().node;
 	while (!spine.empty() && node->mask_ == 0) {
 	    spine.pop_back();
-	    node = spine.back().node;
+	    if (!spine.empty()) node = spine.back().node;
 	}
 	if (spine.empty()) {
 	    return;

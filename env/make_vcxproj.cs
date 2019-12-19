@@ -13,8 +13,6 @@ public class make_vcproj
    static private string theOutDir;
    static private string theBinDir;
    static private string theBoostDir = "";
-   static private string theInclude1Dir = "";
-   static private string theInclude2Dir = "";
    static private string thePlatformToolset;
    static private string theBit = "32";
 
@@ -85,23 +83,24 @@ public class make_vcproj
    }
    
 
-   internal static void InitProject(Project project, string subdir, string name, string what)
+   internal static void InitProject(Project project, string moddir, string subdir, string name, string what)
    {
-       string root = theRootDir;
+       string slnRoot = Path.GetFullPath(theBinDir);
 
        string outDir = theOutDir;
        string binDir = theBinDir;
 
        var itemDefGroup = project.Xml.AddItemDefinitionGroup();
        var clDef = itemDefGroup.AddItemDefinition("ClCompile");
-       string includeDirs = "";
-       if (theInclude1Dir != "") {
-       	    includeDirs += "$(SolutionDir)" + MakeRelative(Path.GetFullPath(theInclude1Dir), theRootDir) + ";";
+
+       var includeDirs = "";
+       List<string> additionalIncDirs = GetAdditionalIncludeDirs(moddir);
+       foreach (var incDir in additionalIncDirs) {
+       	   if (includeDirs.Length != 0) includeDirs += ";";
+           includeDirs += incDir;
        }
-       if (theInclude2Dir != "") {
-       	    includeDirs += "$(SolutionDir)" + MakeRelative(Path.GetFullPath(theInclude2Dir), theRootDir) + ";";
-       }
-       includeDirs += theBoostDir + ";" + "$(SolutionDir)" + MakeRelative(Path.GetFullPath(theSrcDir), theRootDir);
+       if (includeDirs.Length != 0) includeDirs += ";";
+       includeDirs += theBoostDir + ";" + "$(SolutionDir)" + MakeRelative(Path.GetFullPath(theSrcDir), slnRoot);
 
        clDef.AddMetadata("AdditionalIncludeDirectories", includeDirs);
 
@@ -152,8 +151,8 @@ public class make_vcproj
        propDebug.SetProperty("ConfigurationType", what);
        propDebug.SetProperty("UseDebugLibraries", "true");
        propDebug.SetProperty("PlatformToolset", thePlatformToolset);
-       propDebug.SetProperty("IntDir", @"$(SolutionDir)" + MakeRelative(Path.GetFullPath(getDir(outDir, "debug", subdir)), root) + @"\");
-       propDebug.SetProperty("OutDir", @"$(SolutionDir)" + MakeRelative(Path.GetFullPath(getDir(binDir, "debug", null)), root) + @"\");
+       propDebug.SetProperty("IntDir", @"$(SolutionDir)" + MakeRelative(Path.GetFullPath(getDir(outDir, "debug", subdir)), slnRoot) + @"\");
+       propDebug.SetProperty("OutDir", @"$(SolutionDir)" + MakeRelative(Path.GetFullPath(getDir(binDir, "debug", null)), slnRoot) + @"\");
        propDebug.SetProperty("TargetName", name);
 
        if (what == "StaticLibrary") {
@@ -171,8 +170,8 @@ public class make_vcproj
        propRelease.SetProperty("ConfigurationType", what);
        propRelease.SetProperty("UseDebugLibraries", "false");
        propRelease.SetProperty("PlatformToolset", thePlatformToolset);
-       propRelease.SetProperty("IntDir", @"$(SolutionDir)" + MakeRelative(Path.GetFullPath(getDir(outDir, "release", subdir)), root) + @"\");
-       propRelease.SetProperty("OutDir", @"$(SolutionDir)" + MakeRelative(Path.GetFullPath(getDir(binDir, "release", null)), root) + @"\");
+       propRelease.SetProperty("IntDir", @"$(SolutionDir)" + MakeRelative(Path.GetFullPath(getDir(outDir, "release", subdir)), slnRoot) + @"\");
+       propRelease.SetProperty("OutDir", @"$(SolutionDir)" + MakeRelative(Path.GetFullPath(getDir(binDir, "release", null)), slnRoot) + @"\");
        propRelease.SetProperty("TargetName", name);
 
        if (what == "StaticLibrary") {
@@ -186,16 +185,17 @@ public class make_vcproj
 
    public static void AddSourceFiles(Project project, string subdir)
    {
+       string slnRoot = Path.GetFullPath(theBinDir);
        string srcDir = theSrcDir;
        string [] srcFiles = Directory.GetFiles(srcDir + @"\" + subdir);
        foreach (string srcFile in srcFiles) {
            var ext = Path.GetExtension(srcFile);
 	   string filePath = Path.GetFullPath(srcFile);
 	   if (ext == ".cpp") {
-	       filePath = MakeRelative(filePath, theRootDir);
+	       filePath = MakeRelative(filePath, slnRoot);
 	       project.AddItem("ClCompile", @"$(SolutionDir)" + filePath);
 	   } else if (ext == ".hpp" || ext == ".h") {
-	       filePath = MakeRelative(filePath, theRootDir);
+	       filePath = MakeRelative(filePath, slnRoot);
 	       project.AddItem("ClInclude", @"$(SolutionDir)" + filePath);
 	   }
        }
@@ -203,13 +203,13 @@ public class make_vcproj
 
    public static void CreateLibProject(Project project, string subdir)
    {
-       InitProject(project, subdir, subdir, "StaticLibrary");
+       InitProject(project, subdir, subdir, subdir, "StaticLibrary");
        AddSourceFiles(project, subdir);
    }
 
    public static void CreateExeProject(Project project, string subdir, string name)
    {
-       InitProject(project, subdir, name, "Application");
+       InitProject(project, subdir, subdir, name, "Application");
        AddSourceFiles(project, subdir);
 
        // Get depending libs from parent Makefile.env
@@ -247,6 +247,39 @@ public class make_vcproj
        }
        fs.Close();
        return deps;
+   }
+
+   public static List<string> GetAdditionalIncludeDirs(string subdir)
+   {
+       List<string> incDirs = new List<string>();
+       string slnRoot = Path.GetFullPath(theBinDir);
+       string srcDir = theSrcDir;
+       string makeEnvFile = srcDir + @"\" + subdir + @"\Makefile.env";
+       if (!File.Exists(makeEnvFile)) {
+           return incDirs;
+       }
+       StreamReader fs = new StreamReader(makeEnvFile);
+       string line = null;
+       while((line = fs.ReadLine()) != null) {
+          if (line.StartsWith("INCDIR :=")) {
+	      string [] strIncDirs = line.Substring(10).Trim().Split(' ');
+	      foreach (var dir in strIncDirs) {
+	          if (dir.Trim().Length != 0) {
+
+		      string dir1 = dir;
+		      if (dir.StartsWith("$(ROOT)")) {
+		          var incPath = Path.GetFullPath(Path.Combine(theRootDir, dir.Substring("$(ROOT)/".Length).Replace("/", "\\")));
+		          string newDir = "$(SolutionDir)" + MakeRelative(incPath, slnRoot);
+			  dir1 = newDir;
+		      }
+
+	              incDirs.Add(dir1);
+		  }
+	      }
+	  }
+       }
+       fs.Close();
+       return incDirs;
    }
 
    public static string GetExeName(string subdir)
@@ -342,22 +375,24 @@ public class make_vcproj
        propDebug.SetProperty("BuildLinkTargets", "");
    }
 
-   public static void CreateUnittestProject(Project project,
-					    string subdir,
-                                            string [] srcFiles,
-   	  	      		            string libName)
+   public static void CreateExeAndRunProject(Project project,
+					     string subdir,
+                                             string [] srcFiles,
+   	  	      		             string libName,
+					     bool isScript)
    {
+       string slnRoot = Path.GetFullPath(theBinDir);
        string name = subdir.Replace(@"\", "_");
 
-       InitProject(project, subdir, name, "Application");
+       InitProject(project, subdir + @"\..\", subdir, name, "Application");
 
        string mandatoryImportLib = libName;
 
        // Get depending libs from parent Makefile.env
        List<string> importLibs = GetDependingLibs(subdir + @"\..\");
 
-       string unittestMainPre = "";
-       string unittestMainBody = "";
+       string mainPre = "";
+       string mainBody = "";
 
        foreach (var srcFile in srcFiles) {
            string filePath = Path.GetFullPath(srcFile);
@@ -366,42 +401,51 @@ public class make_vcproj
 	      continue;
  	   }
 
-           string srcFilePath = @"$(SolutionDir)" + MakeRelative(filePath, theRootDir);
+           string srcFilePath = @"$(SolutionDir)" + MakeRelative(filePath, slnRoot);
 	   string mainFun = "main_" + Path.GetFileNameWithoutExtension(srcFile);
 
            ProjectItem item = project.AddItem("ClCompile", srcFilePath)[0];
 	   item.Xml.AddMetadata("PreprocessorDefinitions", "main=" + mainFun);
-	   unittestMainBody += "    " + mainFun + "(argc, argv);\n";
-	   unittestMainPre += "int " + mainFun + "(int argc, char *argv[]);\n";
+	   mainBody += "    " + mainFun + "(argc, argv);\n";
+	   mainPre += "int " + mainFun + "(int argc, char *argv[]);\n";
        }
 
-       string unittestMain = unittestMainPre + "\n"
+       string allMain = mainPre + "\n"
           + "int main(int argc, char *argv[])\n"
 	  + "{\n"
-	  + unittestMainBody
+	  + mainBody
 	  + "}\n";
 
        // Write this file and add it
-       string unittestMainPath = Path.GetFullPath(theBinDir + @"\" + name + "_main.cpp");
-       string unittestMainPath1 = @"$(SolutionDir)" + MakeRelative(unittestMainPath, theRootDir);
-       var unittestMainFile = new StreamWriter(unittestMainPath);
-       unittestMainFile.Write(unittestMain);
-       unittestMainFile.Close();
+       string mainPath = Path.GetFullPath(theBinDir + @"\" + name + "_main.cpp");
+       string mainPath1 = @"$(SolutionDir)" + MakeRelative(mainPath, slnRoot);
+       var mainFile = new StreamWriter(mainPath);
+       mainFile.Write(allMain);
+       mainFile.Close();
 
-       importLibs.Add(mandatoryImportLib);
+       if (mandatoryImportLib != null) {
+           importLibs.Add(mandatoryImportLib);
+       }
 
-       project.AddItem("ClCompile", unittestMainPath1);
+       project.AddItem("ClCompile", mainPath1);
 
        SetupApplication(project, name, importLibs);
+
+       if (isScript) {
+           var postEvent = project.Xml.AddItemGroup();
+	   var events = postEvent.AddItem("PostBuildEvent", "Command");
+	   events.AddMetadata("Command", "\"$(OutDir)" + name + ".exe\"" + " " + "\"$(SolutionDir)$(Configuration)\"");
+       }
    }
 
-   private static void processDirectory(string srcDir, string subdir, bool isTest)
+
+   private static void processDirectory(string srcDir, string subdir, bool isRunProject, bool isScript)
    {
-       Console.WriteLine("Process " + subdir);
+       // Console.WriteLine("Process " + subdir);
 
        string name = subdir.Replace(@"\", "_");
 
-       if (!isTest) {
+       if (!isRunProject) {
 
           string exeName = GetExeName(subdir);
 	  bool isLib = exeName == null;
@@ -430,38 +474,37 @@ public class make_vcproj
           // projs.Add(libFile, NextGuid());
        } else {
           //
-       	  // Unittest project
-          // 
-	  string importLibName = subdir.Substring(0, subdir.Length - 5);
+       	  // Make executable and run - project
+          //
+	  string importLibName = null;
+	  if (GetExeName(subdir + @"\..\") == null) {
+	      importLibName = subdir;
+	      importLibName = subdir.Substring(0, subdir.IndexOf(@"\"));
+	  }
           string [] srcFiles = Directory.GetFiles(srcDir + @"\" + subdir);
-	  Project unittestProject = new Project();
-          CreateUnittestProject(unittestProject, subdir,
-	  			srcFiles, importLibName);
+	  Project runProject = new Project();
+          CreateExeAndRunProject(runProject, subdir,
+	  			 srcFiles, importLibName, isScript);
           var projFile = theBinDir + @"\" + name + ".vcxproj";
        	  Console.WriteLine("Saving " + projFile);
-       	  unittestProject.Save(projFile, Encoding.ASCII);
-
-	   /*
-          foreach (var srcFile in srcFiles) {
-	      string testName = subdir.Replace("\", "_") + "_" + Path.GetFileNameWithoutExtension(srcFile);
-	      unittestGuid = NextGuid();
-	      theProjs.Add(testName, unittestGuid.ToString("B"));
-	   */
+       	  runProject.Save(projFile, Encoding.ASCII);
        }
    }
 
    public static void Main(string [] args)
    {
+       string rootDir = "";
        string srcDir = "";
        string outDir = "";
        string binDir = "";
        string env = "";
        string boost = "";
        string bit = "";
-       string include1Dir = "";
-       string include2Dir = "";
        Console.WriteLine("make_vcproj");
        foreach (string x in args) {
+           if (x.StartsWith("root=")) {
+	       rootDir = x.Substring(5);
+           }
            if (x.StartsWith("src=")) {
 	       srcDir = x.Substring(4);
 	   }
@@ -480,26 +523,15 @@ public class make_vcproj
 	   if (x.StartsWith("boost=")) {
 	      boost = x.Substring(6);
 	   }
-	   if (x.StartsWith("include1=")) {
-	      include1Dir = x.Substring(9);
-	   }
-	   if (x.StartsWith("include2=")) {
-	      include2Dir = x.Substring(9);
-	   }
        }
 
+       Console.WriteLine("rootDir=" + rootDir);
        Console.WriteLine("srcDir=" + srcDir);
        Console.WriteLine("outDir=" + outDir);
        Console.WriteLine("binDir=" + binDir);
        Console.WriteLine("   env=" + env);
        Console.WriteLine("   bit=" + bit);
        Console.WriteLine("boost =" + boost);
-       if (include1Dir != "") {
-           Console.WriteLine("include1=" + include1Dir);
-       }
-       if (include2Dir != "") {
-           Console.WriteLine("include2=" + include2Dir);
-       }
        Directory.CreateDirectory(binDir);
        Directory.CreateDirectory(binDir + @"\test");
 
@@ -508,16 +540,13 @@ public class make_vcproj
            Console.WriteLine("Could not determine Visual Studio Version");
 	   return;
        }
-       String root = Path.GetFullPath(binDir);
 
-       theRootDir = root;
+       theRootDir = rootDir;
        theSrcDir = srcDir;
        theOutDir = outDir;
        theBinDir = binDir;
        theBoostDir = boost;
        theBit = bit;
-       theInclude1Dir = include1Dir;
-       theInclude2Dir = include2Dir;
 
        // Iterate through directories from src
 
@@ -526,13 +555,16 @@ public class make_vcproj
        while (stack.Count() > 0) {
        	     string dir = stack.Pop();
              string [] cppFiles = Directory.GetFiles(dir, "*.cpp");
-	     bool isTestDir = false;
+
+	     bool isRun = false;
+	     bool isScript = false;
 	     if (cppFiles.Count() > 0) {
-	         if (dir.EndsWith(@"\test")) {
-		     isTestDir = true;
+	         if (dir.EndsWith(@"\test") || dir.EndsWith(@"\script")) {
+		     isRun = true;
+		     isScript = dir.EndsWith(@"\script");
 		 }
     	         string subdir = MakeRelative(dir, srcDir);
-	         processDirectory(srcDir, subdir, isTestDir);
+	         processDirectory(srcDir, subdir, isRun, isScript);
              }
 
 	     string [] subdirs = Directory.GetDirectories(dir);

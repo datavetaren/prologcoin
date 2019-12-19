@@ -119,7 +119,7 @@ public:
 	standard_output_.str("");
     }
 
-    inline std::ostream & stdout() {
+    inline std::ostream & out() {
 	return standard_output_;
     }
 
