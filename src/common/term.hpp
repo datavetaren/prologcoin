@@ -87,13 +87,15 @@ class heap;
 //
 class tag_t {
 public:
-    enum kind_t { REF = 0, INT = 1, BIG = 2, CON = 3, STR = 4, DAT = 5, FWD = 6 };
+    enum kind_t { REF = 0, RFW = 1, INT = 2, BIG = 3, CON = 4, STR = 5, DAT = 6, FWD = 7 };
 
     inline tag_t( kind_t k ) : kind_(k) { }
 
     inline bool operator == (kind_t k) const { return kind_ == k; }
 
     inline kind_t kind() const { return kind_; }
+
+    inline bool is_ref() const { return (static_cast<unsigned int>(kind_) & 6) == 0; }
 
     inline operator uint64_t () const { return kind_; }
 
@@ -104,6 +106,7 @@ public:
     inline std::string str() const {
 	switch (kind_) {
 	case REF: return "REF";
+	case RFW: return "RFW";
 	case CON: return "CON";
 	case STR: return "STR";
 	case INT: return "INT";
@@ -119,12 +122,6 @@ private:
 };
 
 class ref_cell; // Forward
-
-template<tag_t::kind_t T> struct enum_to_cell_type {};
-
-template<> struct enum_to_cell_type<tag_t::REF> {
-    typedef ref_cell cell_type;
-};
 
 //
 // cell
@@ -356,6 +353,10 @@ class ref_cell : public ptr_cell {
 public:
     inline ref_cell() : ptr_cell(tag_t::REF, 0) { }
     inline ref_cell(size_t index) : ptr_cell(tag_t::REF, index) { }
+    inline ref_cell(size_t index, bool) : ptr_cell(tag_t::RFW, index) { }
+    inline ref_cell watch() const { return ref_cell(index(), true); }
+    inline ref_cell unwatch() const { return ref_cell(index()); }
+    inline bool watched() const { return tag() == tag_t::RFW; }
 };
 
 //
@@ -756,12 +757,22 @@ public:
 	size_ = MAX_SIZE;
     }
 
+    // Will transform REF into RFW if value is true and
+    //      transform RFW into REF if value is false.
     inline void watch(size_t addr, bool value) {
-        watch_[addr - offset_] = value;
+        cell &c = cells_[addr - offset_];
+	if (c.tag() == tag_t::REF && value) {
+	    ref_cell &r = static_cast<ref_cell &>(c);
+	    r = ref_cell(r.index(), true);
+	} else if (c.tag() == tag_t::RFW && !value) {
+	    ref_cell &r = static_cast<ref_cell &>(c);
+	    r = ref_cell(r.index());
+	}
     }
 
     inline bool watched(size_t addr) const {
-        return watch_[addr - offset_];
+        auto c = cells_[addr - offset_];
+	return c.tag() == tag_t::RFW;
     }
 
 private:
@@ -769,7 +780,6 @@ private:
     size_t offset_;
     size_t size_;
     cell *cells_;
-    std::bitset<MAX_SIZE> watch_; // Flag if a particular cell is accessed
 };
 
 class heap; // Forward
@@ -921,9 +931,6 @@ public:
     inline cell & operator [] (size_t addr)
     {
 	auto &block = find_block(addr);
-	if (block.watched(addr)) {
-  	    watched_.push_back(addr);
-	}
 	return block[addr];
     }
 
@@ -1329,6 +1336,12 @@ public:
 
     void print(std::ostream &out) const;
     void print(std::ostream &out, size_t from, size_t to) const;
+
+    inline void add_watched(size_t addr) {
+        if (std::find(watched_.begin(), watched_.end(), addr) == watched_.end()) {
+           watched_.push_back(addr);
+	}
+    }
 
     inline bool has_watched() const {
         return !watched_.empty();

@@ -379,7 +379,7 @@ bool builtins::privkey_1(interpreter_base &interp, size_t arity, term args[])
 
     auto &ctx = get_ctx(interp);
 
-    if (args[0].tag() == tag_t::REF) {
+    if (args[0].tag().is_ref()) {
 
         new_private_key(interp, &bytes[1]);
 	term big = create_private_key(interp, &bytes[1]);
@@ -396,7 +396,7 @@ bool builtins::privkey_1(interpreter_base &interp, size_t arity, term args[])
 
 bool builtins::privkey_2(interpreter_base &interp, size_t arity, term args[])
 {
-    if (args[0].tag() == tag_t::REF) {
+    if (args[0].tag().is_ref()) {
 	throw interpreter_exception_not_sufficiently_instantiated(
 		  "ec:privkey/2: First argument, a raw private key"
                   " must be given.");
@@ -707,7 +707,7 @@ bool builtins::verify_signature(interpreter_base &interp,
 
 bool builtins::sign_3(interpreter_base &interp, size_t arity, term args[] )
 {
-    if (args[0].tag() == tag_t::REF) {
+    if (args[0].tag().is_ref()) {
 	throw interpreter_exception_not_sufficiently_instantiated(
 	  "ec:sign/3: Missing private key as first argument.");
     }
@@ -723,11 +723,11 @@ bool builtins::sign_3(interpreter_base &interp, size_t arity, term args[] )
 
 bool builtins::validate_3(interpreter_base &interp, size_t arity, term args[] )
 {
-    if (args[0].tag() == tag_t::REF) {
+    if (args[0].tag().is_ref()) {
 	throw interpreter_exception_not_sufficiently_instantiated(
 	  "ec:validate/3: Missing public key as first argument.");
     }
-    if (args[2].tag() == tag_t::REF) {
+    if (args[2].tag().is_ref()) {
 	throw interpreter_exception_not_sufficiently_instantiated(
 	  "ec:validate/3: Missing signature as third argument.");
     }
@@ -1406,7 +1406,7 @@ bool builtins::musig_start_7(interpreter_base &interp, size_t arity, term args[]
 {
     auto &ctx = get_ctx(interp);
 
-    if (args[0].tag() != tag_t::REF) {
+    if (!args[0].tag().is_ref()) {
         throw interpreter_exception_wrong_arg_type("musig_start/7: First argument must be an unbound variable; was " + interp.to_string(args[0]));
     }
 

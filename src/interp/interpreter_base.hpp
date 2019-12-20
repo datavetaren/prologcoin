@@ -291,7 +291,7 @@ public:
     }
     inline void set_term_code(const common::term t) { term_code_ = t; }
 
-    std::string to_string(interpreter_base &interp) const;
+    std::string to_string(const interpreter_base &interp) const;
 
 private:
     static const common::cell fail_term_;
@@ -473,6 +473,9 @@ public:
 
     static const size_t MAX_ARGS = 256;
 
+    inline con_cell current_module() const { return current_module_; }
+    inline void set_current_module(con_cell m) { current_module_ = m; }
+  
     inline const locale & current_locale() const { return locale_; }
     inline locale & current_locale() { return locale_; }
 
@@ -527,7 +530,7 @@ public:
     inline arithmetics & arith() { return arith_; }
 
     inline void load_builtin(con_cell f, builtin b)
-        { qname qn(EMPTY_LIST, f);
+        { qname qn(current_module_, f);
 	  load_builtin(qn, b);
 	}
 
@@ -598,6 +601,10 @@ public:
 	}
     }
 
+    inline const predicate & get_predicate(con_cell f)
+        { return get_predicate(std::make_pair(current_module_, f)); }
+
+  
     inline const predicate & get_predicate(con_cell module, con_cell f)
         { return get_predicate(std::make_pair(module, f)); }
 
@@ -621,7 +628,7 @@ public:
     inline void clear_updated_predicates()
         { updated_predicates_.clear(); }
 
-    std::string to_string_cp(const code_point &cp)
+    std::string to_string_cp(const code_point &cp) const
         { return cp.to_string(*this); }
 
     void print_db() const;
@@ -682,7 +689,8 @@ public:
     inline void set_maximum_cost(uint64_t cost) { maximum_cost_ = cost; }
 
     inline bool unify(term a, term b)
-       { uint64_t cost = 0;
+       { using namespace prologcoin::common;
+	 uint64_t cost = 0;
 	 bool ok = common::term_env::unify(a, b, cost);
 	 add_accumulated_cost(cost);
 	 return ok;
@@ -1334,6 +1342,8 @@ public:
     static const con_cell EMPTY_LIST;
     static const con_cell IMPLIED_BY;
     static const con_cell ACTION_BY;
+    static const con_cell USER_MODULE;
+
 private:
 
     std::string current_dir_; // Current directory
@@ -1360,6 +1370,9 @@ private:
 
     common::merkle_trie<term,60> frozen_closures;
 
+    // Current module (can be changed with builtin module/1/2)
+    common::con_cell current_module_;
+  
     std::unordered_map<common::con_cell, managed_data *> managed_data_;
   
 protected:
@@ -1379,7 +1392,6 @@ protected:
 	}
     }
     inline term get_frozen_closure(size_t index) {
-        static const common::con_cell EMPTY_LIST("[]",0);
 	auto *v = frozen_closures.find(index);
 	if (v == nullptr) {
 	    return EMPTY_LIST;
@@ -1453,14 +1465,20 @@ template<> inline environment_frozen_t * interpreter_base::allocate_environment<
 
 inline void interpreter_base::check_frozen()
 {
-    static const common::con_cell EMPTY_LIST("[]",0);
     auto &watched = heap_watched();
     size_t n = watched.size();
+    if (n == 0) {
+        return;
+    }
     // Go in reverse order so the first watched is pushed last.
+    if (is_debug()) {
+        std::cout << "Check frozen closures (n=" << n << ")" << std::endl;
+    }
     for (size_t i = 0; i < n; i++) {
 	auto addr = watched[n-i-1];
-	if (heap_get(addr).tag() != common::tag_t::REF) {
-	    auto cl = get_frozen_closure(addr);
+	auto h = heap_get(addr);
+	auto cl = get_frozen_closure(addr);
+	if (!h.tag().is_ref()) {
 	    clear_frozen_closure(addr);
 	    if (cl != EMPTY_LIST) {
 		allocate_environment<ENV_FROZEN, environment_frozen_t *>();
@@ -1470,6 +1488,21 @@ inline void interpreter_base::check_frozen()
 		set_qr(cl);
 	    }
 	    heap_watch(addr, false);
+	} else {
+	    // This could be a ref-ref binding where newer binds to older
+	    // Move index for frozen closure to the oldest one.
+	    term h2 = deref(h);
+	    if (h2.tag().is_ref()) {
+	        auto new_addr = static_cast<common::ref_cell &>(h2).index();
+		if (new_addr != addr) {
+	  	    if (is_debug()) {
+		      std::cout << "Move frozen closure: from=" << addr << " to=" << new_addr << std::endl;
+		    }
+		    set_frozen_closure(new_addr, cl);
+		    clear_frozen_closure(addr);
+		    heap_watch(addr, false);
+		}
+	    }
 	}
     }
     heap_clear_watched();

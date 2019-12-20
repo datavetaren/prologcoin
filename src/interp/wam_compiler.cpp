@@ -233,7 +233,7 @@ std::vector<wam_compiler::prim_unification> wam_compiler::flatten(
 
 		// Only flatten constants if we're at the top-level predicate
 		if (!is_predicate) {
-		    if (arg.tag() == common::tag_t::REF ||
+		    if (arg.tag().is_ref() ||
 		        arg.tag() == common::tag_t::CON ||
 		        arg.tag() == common::tag_t::INT ||
 			arg.tag() == common::tag_t::BIG) {
@@ -268,6 +268,7 @@ std::vector<wam_compiler::prim_unification> wam_compiler::flatten(
 	    break;
 	}
 	case common::tag_t::REF:
+	case common::tag_t::RFW:	  
 	case common::tag_t::CON: 
 	case common::tag_t::INT:
 	case common::tag_t::BIG: {
@@ -354,7 +355,7 @@ void wam_compiler::compile_query_str(wam_compiler::reg lhsreg, common::ref_cell 
 	    arg.tag() == common::tag_t::BIG) {
 	    instrs.push_back(wam_instruction<SET_CONSTANT>(arg));
 	} else {
-	    assert(arg.tag() == common::tag_t::REF);
+	    assert(arg.tag().is_ref());
 	    auto ref = static_cast<common::ref_cell &>(arg);
 
 	    reg r;
@@ -395,6 +396,7 @@ void wam_compiler::compile_query(wam_compiler::reg lhsreg, common::ref_cell lhsv
 	}
 	break;
       case common::tag_t::REF:
+      case common::tag_t::RFW:
 	compile_query_ref(lhsreg, static_cast<common::ref_cell &>(rhs), instrs);
 	break;
       case common::tag_t::STR:
@@ -455,7 +457,7 @@ void wam_compiler::compile_program_str(wam_compiler::reg lhsreg, common::ref_cel
 	    arg.tag() == common::tag_t::BIG) {
 	    instrs.push_back(wam_instruction<UNIFY_CONSTANT>(arg));
 	} else {
-	    assert(arg.tag() == common::tag_t::REF);
+	    assert(arg.tag().is_ref());
 	    auto ref = static_cast<common::ref_cell &>(arg);
 	    reg r;
 	    bool isnew = false;
@@ -491,6 +493,7 @@ void wam_compiler::compile_program(wam_compiler::reg lhsreg, common::ref_cell lh
         instrs.push_back(wam_instruction<GET_CONSTANT>(rhs, lhsreg.num));
 	break;
       case common::tag_t::REF:
+      case common::tag_t::RFW:
 	compile_program_ref(lhsreg, static_cast<common::ref_cell &>(rhs), instrs);
 	break;
       case common::tag_t::STR:
@@ -1253,7 +1256,7 @@ bool wam_compiler::clause_needs_environment(const term clause)
 	    }
 	    has_calls = true;
 	    last_call = goal;
-	} else if (module == env_.EMPTY_LIST && f == cut_op) {
+	} else if (module == interp_.current_module() && f == cut_op) {
 	    return true;
 	} else {
 	    auto &bn = get_builtin(module, f);
@@ -1283,7 +1286,7 @@ void wam_compiler::compile_builtin(common::con_cell module,
 {
     static const common::con_cell bn_true = common::con_cell("true",0);
 
-    if (module != env_.EMPTY_LIST || f != bn_true) {
+    if (module != interp_.current_module() || f != bn_true) {
 	auto &bn = get_builtin(module, f);
 	if (bn.is_recursive()) {
 	    seq.push_back(wam_instruction<BUILTIN_R>(module, f, bn.fn(), 0));
@@ -1499,7 +1502,8 @@ void wam_compiler::compile_goal(const term goal, bool first_goal,
     if (isbn) {
 	compile_builtin(module, f, first_goal, seq);
     } else {
-	seq.push_back(wam_instruction<CALL>(module, f, 0));
+        auto instr = wam_instruction<CALL>(module, f, 0);
+	seq.push_back(instr);
     }
 }
 
@@ -1523,7 +1527,7 @@ void wam_compiler::peephole_opt_execute(wam_interim_code &seq)
 	    // Memorize CALL and extract predicate (saved as 'f')
 	    wam_instruction<CALL> *call_instr
 	       = reinterpret_cast<wam_instruction<CALL> *>(*it_0);
-	    common::con_cell f = call_instr->pn();
+	    auto &f = call_instr->p();
 	    delete *it_0;
 	    delete *it_1;
 	    delete *it_2;
@@ -1539,7 +1543,7 @@ void wam_compiler::peephole_opt_execute(wam_interim_code &seq)
 	    // Memorize CALL and extract predicate (saved as 'f')
 	    wam_instruction<CALL> *call_instr
 	       = reinterpret_cast<wam_instruction<CALL> *>(*it_0);
-	    common::con_cell f = call_instr->pn();
+	    auto &f = call_instr->p();
 	    delete *it_0;
 	    delete *it_1;
 
@@ -1630,12 +1634,12 @@ void wam_compiler::compute_var_indices(const term clause)
 {
     size_t index = 0;
     for (auto t : env_.iterate_over(clause)) {
-	if (t.tag() == common::tag_t::REF) {
+        if (t.tag().is_ref()) {
 	    if (index == 256) {
 		std::string msg = "Number of vars in clause exceeded the maximum of " + boost::lexical_cast<std::string>(seen_vars_.size());
 		throw wam_exception_too_many_vars_in_clause(msg);
 	    }
-	    auto &v = reinterpret_cast<common::ref_cell &>(t);
+	    auto v = reinterpret_cast<common::ref_cell &>(t).unwatch();
 	    index_var_.push_back(v);
 	    var_index_[t] = index++;
 	}
@@ -1646,8 +1650,8 @@ void wam_compiler::find_vars(const term t0, varset_t &varset)
 {
     varset.reset();
     for (auto t : env_.iterate_over(t0)) {
-	if (t.tag() == common::tag_t::REF) {
-	    varset.set(var_index_[t]);
+        if (t.tag().is_ref()) {
+	    varset.set(var_index_[static_cast<common::ref_cell &>(t).unwatch()]);
 	}
     }
 }
@@ -1973,12 +1977,12 @@ void wam_compiler::compile_subsection(const managed_clauses &subsection,
     }
 }
 
-void wam_compiler::compile_predicate(const qname &qn, wam_interim_code &instrs)
+bool wam_compiler::compile_predicate(const qname &qn, wam_interim_code &instrs)
 {
     auto &clauses = interp_.get_predicate(qn);
 
     if (clauses.empty()) {
-	return;
+	return false;
     }
 
     auto sections = partition_clauses_nonvar(clauses);
@@ -1992,6 +1996,8 @@ void wam_compiler::compile_predicate(const qname &qn, wam_interim_code &instrs)
     } else {
         compile_subsection(sections[0], instrs);
     }
+
+    return true;
 }
 
 term wam_compiler::clause_head(const term clause)
@@ -2062,7 +2068,7 @@ term wam_compiler::first_arg(const term clause)
 {
     auto arg = env_.arg(clause_head(clause), 0);
     switch (arg.tag()) {
-    case common::tag_t::REF: return arg;
+    case common::tag_t::REF: case common::tag_t::RFW: return arg;
     case common::tag_t::CON: return arg;
     case common::tag_t::INT: return arg;
     case common::tag_t::BIG: return arg;
@@ -2080,7 +2086,7 @@ wam_compiler::first_arg_cat_t wam_compiler::first_arg_cat(const term cl)
     }
 
     switch (arg.tag()) {
-    case common::tag_t::REF: return FIRST_VAR;
+    case common::tag_t::REF: case common::tag_t::RFW: return FIRST_VAR;
     case common::tag_t::CON: return interp_.is_atom(arg) ? FIRST_CON : FIRST_STR;
     case common::tag_t::INT: return FIRST_CON;
     case common::tag_t::BIG: return FIRST_CON;
@@ -2092,7 +2098,7 @@ wam_compiler::first_arg_cat_t wam_compiler::first_arg_cat(const term cl)
 bool wam_compiler::first_arg_is_var(const term clause)
 {
     term arg = first_arg(clause);
-    return arg.tag() == common::tag_t::REF;
+    return arg.tag().is_ref();
 }
 
 bool wam_compiler::first_arg_is_con(const term clause)
@@ -2129,6 +2135,7 @@ std::vector<managed_clauses> wam_compiler::partition_clauses_first_arg(const man
 	auto arg = first_arg(head);
 	switch (arg.tag()) {
 	case common::tag_t::REF:
+	case common::tag_t::RFW:	  
 	case common::tag_t::BIG: // We don't index on BIG (maybe we should)
 	    refs.push_back(m_clause);
 	    break;

@@ -246,6 +246,8 @@ public:
        { return T::get_heap().is_list(t); }
 
     // Watch addresses
+    inline void heap_add_watched(size_t addr)
+       { T::get_heap().add_watched(addr); }
     inline void heap_watch(size_t addr, bool b)
        { T::get_heap().watch(addr, b); }
     inline const std::vector<size_t> & heap_watched() const
@@ -472,6 +474,9 @@ private:
 
     inline void bind(const ref_cell &a, term b)
     {
+        if (a.tag() == tag_t::RFW) {
+	    heap_add_watched(a.index());
+        }
         size_t index = a.index();
         heap_set(index, b);
         trail(index);
@@ -508,7 +513,7 @@ public:
      {
         auto range = const_cast<term_env_dock<HT,ST,OT> &>(*this).iterate_over(t);
         for (auto t1 : range) {
-   	    if (t1.tag() == tag_t::REF) {
+	    if (t1.tag().is_ref()) {
 	        return false;
 	    }
         }
@@ -784,7 +789,7 @@ public:
       std::for_each( begin(t0),
 		     end(t0),
 		     [this,&seen,&vars](const term t) {
-			 if (t.tag() == tag_t::REF) {
+		         if (t.tag().is_ref()) {
 			     const std::string name = this->to_string(t);
 			     if (!seen.count(t)) {
 				 vars.push_back(std::make_pair(name,t));
@@ -803,7 +808,7 @@ public:
       std::for_each(begin(t0),
 		  end(t0),
 		  [this,&count_occurrences] (const term t) {
-		    if (t.tag() == tag_t::REF) {
+		    if (t.tag().is_ref()) {
 			if (!this->has_name(t)) {
 			    ++count_occurrences[t];
 			}

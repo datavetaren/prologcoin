@@ -155,8 +155,9 @@ bool interpreter::execute(const term query)
     // Record all vars for this query
     std::for_each( begin(query),
 		   end(query),
-		   [&](const term &t) {
-		       if (t.tag() == tag_t::REF) {
+		   [&](term t) {
+		     if (t.tag().is_ref()) {
+		           t = static_cast<ref_cell &>(t).unwatch();
 			   const std::string name = to_string(t);
 			   if (!seen.count(name)) {
 			       query_vars_->push_back(binding(name,t));
@@ -443,7 +444,6 @@ bool interpreter::select_clause(const code_point &instruction,
 
 void interpreter::dispatch()
 {
-    static const con_cell default_module = interpreter_base::EMPTY_LIST;
     static const con_cell functor_colon(":",2);
 
     set_qr(p().term_code());
@@ -467,7 +467,7 @@ void interpreter::dispatch()
 	return;
     }
 
-    con_cell module = default_module;
+    con_cell module = current_module_;
 
     if (f == functor_colon) {
 	// This is module referred
@@ -525,6 +525,7 @@ void interpreter::dispatch()
     }
 
     // Is instruction already a built-in (can happen for native backtracking)
+    
     if (p().is_builtin()) {
 	if (!(p().bn())(*this, arity, args())) {
 	    fail();
@@ -571,7 +572,7 @@ void interpreter::dispatch()
 	if (clauses.empty()) {
 	    std::stringstream msg;
 	    msg << "Undefined predicate ";
-	    if (!is_empty_list(module)) {
+	    if (module != USER_MODULE) {
 		msg << atom_name(module) << ":";
 	    }
 
@@ -604,7 +605,9 @@ void interpreter::dispatch()
 
 void interpreter::dispatch_wam(wam_instruction_base *instruction)
 {
+    allocate_environment<ENV_WAM>();
     set_p(instruction);
+    set_cp(interpreter_base::EMPTY_LIST);
 }
 
 void interpreter::compute_matched_predicate(con_cell module,
@@ -640,6 +643,7 @@ size_t interpreter::matched_predicate_id(con_cell module,
     case tag_t::INT:
 	break;
     case tag_t::REF:
+    case tag_t::RFW:
 	index_arg = term();
 	break;
     }
@@ -666,8 +670,9 @@ std::string interpreter::get_result(bool newlines) const
     std::map<term, size_t> count_occurrences;
     std::for_each(begin(qr()),
 		  end(qr()),
-		  [&] (const term t) {
-		    if (t.tag() == tag_t::REF) {
+		  [&] (term t) {
+		      if (t.tag().is_ref()) {
+			t = static_cast<ref_cell &>(t).unwatch();
 			if (!has_name(t)) {
 			    ++count_occurrences[t];
 			}

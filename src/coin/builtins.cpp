@@ -38,7 +38,7 @@ static bool is_coin(interpreter_base &interp, term t) {
 
 static bool is_coin_spent(interpreter_base &interp, term t) {
     assert(is_coin(interp, t));
-    return interp.arg(t, 1).tag() != tag_t::REF;
+    return !interp.arg(t, 1).tag().is_ref();
 }
 
 static void spend_coin(interpreter_base &interp, term t) {

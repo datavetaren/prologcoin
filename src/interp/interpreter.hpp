@@ -92,7 +92,12 @@ private:
 		       managed_clauses &clauses,
 		       size_t from_clause);
 
-    const predicate & get_predicate(con_cell module, con_cell f)
+    inline const predicate & get_predicate(con_cell f)
+    {
+        return interpreter_base::get_predicate(f);
+    }
+  
+    inline const predicate & get_predicate(con_cell module, con_cell f)
     {
         return interpreter_base::get_predicate(module, f);
     }

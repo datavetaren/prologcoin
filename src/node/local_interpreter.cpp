@@ -398,7 +398,7 @@ bool me_builtins::initial_funds_1(interpreter_base &interp0, size_t arity, term 
 	uint64_t val = static_cast<uint64_t>(reinterpret_cast<int_cell &>(arg).value());
 	interp.self().set_initial_funds(val);
 	return true;
-    } else if (arg.tag() == tag_t::REF) {
+    } else if (arg.tag().is_ref()) {
 	auto val = static_cast<int64_t>(interp.self().get_initial_funds());
 	if (val <= 0) val = 0;
 	return interp.unify(arg, int_cell(val));
@@ -417,7 +417,7 @@ bool me_builtins::maximum_funds_1(interpreter_base &interp0, size_t arity, term 
 	uint64_t val = static_cast<uint64_t>(reinterpret_cast<int_cell &>(arg).value());
 	interp.self().set_maximum_funds(val);
 	return true;
-    } else if (arg.tag() == tag_t::REF) {
+    } else if (arg.tag().is_ref()) {
 	auto val = static_cast<int64_t>(interp.self().get_maximum_funds());
 	if (val <= 0) val = 0;
 	return interp.unify(arg, int_cell(val));
@@ -436,7 +436,7 @@ bool me_builtins::new_funds_per_second_1(interpreter_base &interp0, size_t arity
 	uint64_t val = static_cast<uint64_t>(reinterpret_cast<int_cell &>(arg).value());
 	interp.self().set_new_funds_per_second(val);
 	return true;
-    } else if (arg.tag() == tag_t::REF) {
+    } else if (arg.tag().is_ref()) {
 	auto val = static_cast<int64_t>(int_cell::saturate(interp.self().new_funds_per_second()));
 	return interp.unify(arg, int_cell(val));
     } else {
@@ -472,7 +472,7 @@ term me_builtins::preprocess_hashes(local_interpreter &interp, term t) {
 	auto body = interp.arg(t, 1);
 	if (head.tag() == tag_t::STR && interp.functor(head) == P) {
 	    auto hash_var = interp.arg(head, 0);
-	    if (hash_var.tag() == tag_t::REF) {
+	    if (hash_var.tag().is_ref()) {
 	        uint8_t hash[ec::builtins::RAW_HASH_SIZE];
 	        if (!ec::builtins::get_hashed_2_term(interp, t, hash)) {
 		    return t;

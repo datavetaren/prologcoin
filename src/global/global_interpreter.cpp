@@ -69,9 +69,10 @@ bool global_interpreter::execute_goal(buffer_t &serialized)
 	    // Scan all vars in goal, and set initial bindings
 	    std::for_each( begin(goal),
 		   end(goal),
-		   [&](const term &t) {
-		       if (t.tag() == tag_t::REF) {
-			   const std::string name = to_string(t);
+		   [&](term t) {
+		     if (t.tag().is_ref()) {
+		           ref_cell r = static_cast<ref_cell &>(t).unwatch();
+			   const std::string name = to_string(r);
 			   if (!seen.count(name)) {
 			       seen.insert(name);
 			       if (name_to_term_.count(name)) {

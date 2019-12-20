@@ -69,7 +69,7 @@ commitments([C1,C2,C3]) :-
     ec:musig_nonce_commit('$musig'(3), C3).
 
 ?- commitments([C1,C2,C3]).
-% Expect: C1 = 58'A3r8yAD3YGH1JavjpS5sELThEUnReef5DE7eKejmBspv, C2 = 58'AYh6Ng51fbmmFhi2d4Pj4KxCxH1EFmJranuHkNEq4fxb, C3 = 58'GAf5mMuWVbBvu6jMA9e8pKewTaxYkfrp1ULBZAawCzsN.
+% Expect: C1 = 58'EskMX7tspQzbaECqo8Cq1D2wBwJGgCGDnhuL6azEjBd1, C2 = 58'C1m8xmyiDVQ3nXKtr337geyByfwUgDpbX5tpBhmKhL1H, C3 = 58'EcYaYCsLW5npeuSDnm6Nv6gf1hwYBjRfzD6agG2DjBJY.
 % Expect: end
 
 %
@@ -83,7 +83,7 @@ nonces([N1,N2,N3]) :-
     ec:musig_prepare('$musig'(3), Cs, N3).
 
 ?- nonces([N1,N2,N3]).
-% Expect: N1 = 58'1hX2TMsabUHrNuRTAKJFBqZZwKYZ3rTbSyZbP4NGP8f8t, N2 = 58'21kFaroXBNCwTnavNpNss91u53raQ2TjDoRgGVJxue6w5, N3 = 58'2BEaznJE2b2atgz39S7xnppvL6f9iKqMUznF1tG6pBMT3.
+% Expect: N1 = 58'26Pkh1eE6Kvz4MK6Vw5Tvz5qUQDPZw7rJxJentnhEAnQJ, N2 = 58'1irLaF6CwTpEmUrDNcXSAFsatMiUcstTX7YS7QrsqN6sz, N3 = 58'1qsKGzUVEYK5QBmmFwoP6xy8Xz1xJ6Ti1EwEi1JSiBmSK.
 % Expect: end
 
 %
@@ -117,7 +117,7 @@ partial_sigs([Sig1,Sig2,Sig3]) :-
     ec:musig_partial_sign('$musig'(3), Sig3).
 
 ?- partial_sigs([Sig1,Sig2,Sig3]).
-% Expect: Sig1 = 58'AxsB2R6EDou2EupEHG7RTkZc3DWSswMuRMeudbAzQPRx, Sig2 = 58'8SH2rcSsf5Tbc4goGvkit3PuwDXc6BDNZXRk5kBDP2nf, Sig3 = 58'6HbjY6JGvqP2o5yrnA477dZAfjgYCsLJQGqu8wsNeD9a.
+% Expect: Sig1 = 58'3eEkSZb3cppQrFwNCLzZzxvTeJqtyw2w5xTa9kcrqkpY, Sig2 = 58'75YmuXVa7omykRpovodGeMPhn258L9gzYM67WDmnauuv, Sig3 = 58'E9Yi1YT9wXvqcEAiKov2D1wRwvCRakbDBGhAFCUchxLU.
 % Expect: end
 
 final_sigs([Fin1,Fin2,Fin3]) :-
@@ -127,7 +127,7 @@ final_sigs([Fin1,Fin2,Fin3]) :-
 	ec:musig_final_sign('$musig'(3), Sigs, Fin3).
 
 ?- final_sigs([Fin,Fin,Fin]).
-% Expect: Fin = 58'5UtiKTvTxjY5BJ2mg2HiPyp6JEZBCkTAEaiqnTFNUQFJJpgGuLtNZ5inKPUa5LzfnJL4t6HDHfmqqpER3rGgUHXQ.
+% Expect: Fin = 58'2ecP88M4UApA13vGGbQxP5m9TGqgNVmU7n5R8kNEMpQ1wiYvNPNJrmRvfWDke1S3dWtCzAVRsv7vYGJ58GM2arFs.
 % Expect: end
 
 %
@@ -135,7 +135,7 @@ final_sigs([Fin1,Fin2,Fin3]) :-
 %
 ?- ec:musig_verify(hello(world(42)),
 	           58'1uvCiduRL5GbS25LkrefndgjWbUjsk6f9EJpMYEPN1Ruu,
-	           58'5UtiKTvTxjY5BJ2mg2HiPyp6JEZBCkTAEaiqnTFNUQFJJpgGuLtNZ5inKPUa5LzfnJL4t6HDHfmqqpER3rGgUHXQ).
+	           58'2ecP88M4UApA13vGGbQxP5m9TGqgNVmU7n5R8kNEMpQ1wiYvNPNJrmRvfWDke1S3dWtCzAVRsv7vYGJ58GM2arFs).
 % Expect: true
 
 %
@@ -207,7 +207,7 @@ verify_adaptor_sig(Fin, Negated, Secret) :-
    write(Secret),
    nl,
    write('Everything is ok'), nl.
-% Expect: Fin = 58'5F2rhfdCWWwuUyiLWRSiPHxrSWwZr8F7Zswguy7eokMNmzjqUgDE5R4MEULPj9AKhq4thWyJevrn9Vue9yNhzCfB, Negated = false, Secret = "01 this is a secret! 12345678901"
+% Expect: Fin = 58'17ZdStiX8baS7ByhMgUkjhexoRLNwB7SrVma4Br1GY3mnzyP3BR1DKszXLvAPZwqxxA61qaJbskvTQuD4x6czSvo, Negated = false, Secret = "01 this is a secret! 12345678901"
 % Expect: end
 
 close_sessions :-
@@ -267,5 +267,5 @@ taproot(CombinedKeyToUse, PubKeyHash, SecretToUse, Fin) :-
    taproot(PublishedKey, PubKeyHash, Secret, Fin2),
    write('Verify cooperative spending path...'), nl,
    ec:musig_verify(hello(world(42)), PublishedKey, Fin2).
-% Expect: Secret = 58'4F821k9DUQn7cNsww2AmFxLBXvgqF1c7Hm7j6dPFt81W, PubKeyCombined = 58'1uvCiduRL5GbS25LkrefndgjWbUjsk6f9EJpMYEPN1Ruu, PubKeyHash = 58'AhNPU9P3s3MNsZqSYTsJ1Skyf1Sy4gT4E8eoh7ZWYLVx, Fin = 58'2ziHoVpWCvbES2uxzQr6UZXmeE1YX3zCShcwjHWSeYvk6qASQNVAZfFZU3FL6yYjAXZJ697fqVsNNUSNpYcdMvW2, PublishedKey = 58'213L2peqxu6fyiBipw8aE5sM718evDrswBe6yRiQZdNvc, Fin2 = 58'65UuNPYfp4c2LjssYwZGEsyKATpK2DKoy7oG6ArojzMtz1wC8tXn4Gy7TsYKG8ubaTpfmU2SGNxQcPGhb25dF5pq.
+% Expect: Secret = 58'4F821k9DUQn7cNsww2AmFxLBXvgqF1c7Hm7j6dPFt81W, PubKeyCombined = 58'1uvCiduRL5GbS25LkrefndgjWbUjsk6f9EJpMYEPN1Ruu, PubKeyHash = 58'AhNPU9P3s3MNsZqSYTsJ1Skyf1Sy4gT4E8eoh7ZWYLVx, Fin = 58'4yQTqpcg99nYhL3hcpgFvXtPgPTP3RgBGU8HjGNXL2s4DrwhWDEjf9iGdCWxX9P2LH2bzLqYpVvmUz2YJP9Y4DS7, PublishedKey = 58'213L2peqxu6fyiBipw8aE5sM718evDrswBe6yRiQZdNvc, Fin2 = 58'62seK8CNaDuJCwHYFrfFPL2yHiVPu8L2o4wgTed8iXLrKJjBk1RNkdMxMKCdQnGwQTTw35q3vu1ybXxDcnDtj9Qm
 % Expect: end

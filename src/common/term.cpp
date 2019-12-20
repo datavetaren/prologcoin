@@ -26,6 +26,7 @@ std::string cell::inner_str() const
 {
     switch (tag()) {
     case tag_t::REF: return static_cast<const ref_cell &>(*this).inner_str();
+    case tag_t::RFW: return static_cast<const ref_cell &>(*this).inner_str();
     case tag_t::CON: return static_cast<const con_cell &>(*this).inner_str();
     case tag_t::STR: return static_cast<const str_cell &>(*this).inner_str();
     case tag_t::INT: return static_cast<const int_cell &>(*this).inner_str();
@@ -375,7 +376,7 @@ bool heap::is_name(con_cell c, const std::string &name) const
 //
 cell heap::deref(cell c) const
 {
-    while (c.tag() == tag_t::REF) {
+    while (c.tag().is_ref()) {
       auto &rc = static_cast<ref_cell &>(c);
       size_t index = rc.index();
       cell referred = get(index);
@@ -390,7 +391,7 @@ cell heap::deref(cell c) const
 cell heap::deref_with_cost(cell c, uint64_t &cost) const
 {
     uint64_t cost_tmp = 1;
-    while (c.tag() == tag_t::REF) {
+    while (c.tag().is_ref()) {
       auto &rc = static_cast<ref_cell &>(c);
       size_t index = rc.index();
       cell referred = get(index);

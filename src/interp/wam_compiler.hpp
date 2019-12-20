@@ -310,7 +310,7 @@ public:
     typedef common::term term;
 
     wam_compiler(wam_interpreter &interp)
-        : interp_(interp), env_(interp), regs_a_(A_REG), regs_x_(X_REG), regs_y_(Y_REG), label_count_(1), goal_count_(0), level_count_(0), current_module_(common::con_cell("[]",0)) { }
+        : interp_(interp), env_(interp), regs_a_(A_REG), regs_x_(X_REG), regs_y_(Y_REG), label_count_(1), goal_count_(0), level_count_(0) { }
 
     ~wam_compiler();
 
@@ -339,13 +339,10 @@ public:
         return static_cast<size_t>(find_maximum_x_register(instrs) + 1);
     }
 
-    void compile_predicate(const qname &qn, wam_interim_code &instrs);
+    bool compile_predicate(const qname &qn, wam_interim_code &instrs);
 
     inline common::con_cell current_module()
-    { return current_module_; }
-
-    inline void set_current_module(common::con_cell module) 
-    { current_module_ = module; }
+    { return interp_.current_module(); }
 
 private:
     friend class test_wam_compiler;
@@ -616,8 +613,6 @@ private:
 
     std::vector<code_point> * new_merge();
     std::vector<std::vector<code_point> *> merges_;
-
-    common::con_cell current_module_;
 };
 
 template<> inline bool wam_compiler::has_reg<wam_compiler::A_REG>(common::ref_cell ref) { return regs_a_.contains(ref); }

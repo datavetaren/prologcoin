@@ -553,6 +553,10 @@ private:
 
 template<> class wam_instruction<CALL> : public wam_instruction_code_point_reg {
 public:
+    inline wam_instruction(const code_point &cp, uint32_t num_y) :
+        wam_instruction_code_point_reg(&invoke, sizeof(*this), CALL, cp, num_y) {
+        init();
+    }
     inline wam_instruction(common::con_cell module, common::con_cell name,
 			   uint32_t num_y) :
 	wam_instruction_code_point_reg(&invoke, sizeof(*this), CALL, code_point(module, name), num_y) {
@@ -693,15 +697,14 @@ public:
 	    size_t offset = to_code_addr(cp.wam_code());
 	    return "[" + boost::lexical_cast<std::string>(offset) + "]";
 	} else {
-	    std::string s("L:");
-	    s += to_string(cp.term_code());
-	    return s;
+	    return interpreter_base::to_string_cp(cp);
 	}
     }
 
     void compile();
     void compile(const qname &pred);
     void compile(common::con_cell module, common::con_cell name);
+    void compile(common::con_cell name);
 
 protected:
     void load_code(wam_interim_code &code);
@@ -960,7 +963,7 @@ private:
     {
         term t = deref(y(yn));
 
-	if (t.tag() != common::tag_t::REF) {
+	if (!t.tag().is_ref()) {
 	    a(ai) = t;
 	    goto_next_instruction();
 	    return;
@@ -1073,7 +1076,7 @@ private:
     {
         bool fail = false;
 	switch (t.tag()) {
-	case common::tag_t::REF: {
+	case common::tag_t::REF: case common::tag_t::RFW: {
 	    term s = new_term_str(f);
 	    auto ref = static_cast<common::ref_cell &>(t);
 	    bind(ref, s);
@@ -1123,7 +1126,7 @@ private:
         term t = deref(a(ai));
 
 	switch (t.tag()) {
-	case common::tag_t::REF: {
+	case common::tag_t::REF: case common::tag_t::RFW: {
 	  auto ref = static_cast<common::ref_cell &>(t);
 	  bind(ref, c);
 	  break;
@@ -1192,7 +1195,7 @@ private:
     inline void set_local_value_x(uint32_t xn)
     {
         term t = deref(x(xn));
-	if (t.tag() == common::tag_t::REF) {
+	if (t.tag().is_ref()) {
 	    auto ref = static_cast<common::ref_cell &>(t);
 	    if (is_stack(ref)) {
 	        term h = new_ref();
@@ -1209,7 +1212,7 @@ private:
     inline void set_local_value_y(uint32_t yn)
     {
         term t = deref(y(yn));
-	if (t.tag() == common::tag_t::REF) {
+	if (t.tag().is_ref()) {
 	    auto ref = static_cast<common::ref_cell &>(t);
 	    if (is_stack(ref)) {
 	        term h = new_ref();
@@ -1317,7 +1320,7 @@ private:
   	case READ: fail = !unify(x(xn), heap_get(register_s_)); break;
 	case WRITE: {
 	  term t = deref(x(xn));
-	  if (t.tag() == common::tag_t::REF) {
+	  if (t.tag().is_ref()) {
 	      auto ref = static_cast<common::ref_cell &>(t);
 	      if (is_stack(ref)) {
 		  auto h = new_ref();
@@ -1346,7 +1349,7 @@ private:
   	case READ: fail = !unify(x(xn), heap_get(register_s_)); break;
 	case WRITE: {
 	  term t = deref(x(xn));
-	  if (t.tag() == common::tag_t::REF) {
+	  if (t.tag().is_ref()) {
 	      auto ref = static_cast<common::ref_cell &>(t);
 	      if (is_stack(ref)) {
 		  auto h = new_ref();
@@ -1375,7 +1378,7 @@ private:
 	case READ: {
 	    term t = deref(heap_get(register_s_));
 	    switch (t.tag()) {
-	    case common::tag_t::REF: {
+	    case common::tag_t::REF: case common::tag_t::RFW: {
 	        auto ref = static_cast<common::ref_cell &>(t);
 		bind(ref, c);
 		break;
@@ -1625,6 +1628,7 @@ private:
 	    break;
 	}
 	case common::tag_t::REF:
+	case common::tag_t::RFW:
 	default: {
 	    if (pv.is_fail()) {
 		backtrack();
@@ -3071,10 +3075,7 @@ inline void wam_instruction<CALL>::invoke(wam_interpreter &interp, wam_instructi
 inline void wam_instruction<CALL>::print(std::ostream &out, wam_interpreter &interp, wam_instruction_base *self)
 {
     auto self1 = reinterpret_cast<wam_instruction<CALL> *>(self);
-    out << "call " << interp.to_string(self1->pn()) << "/" << self1->arity();
-    if (self1->p().has_wam_code()) {
-	out << " " << interp.to_string(self1->p());
-    }
+    out << "call " << interp.to_string(self1->p());
     out << ", " << self1->num_y();
 }
 
@@ -3086,8 +3087,12 @@ inline void wam_instruction<CALL>::updater(wam_instruction_base *self, code_t *o
 
 template<> class wam_instruction<EXECUTE> : public wam_instruction_code_point {
 public:
-    inline wam_instruction(common::con_cell l) :
-        wam_instruction_code_point(&invoke, sizeof(*this), EXECUTE, l) {
+    inline wam_instruction(const code_point &cp) :
+        wam_instruction_code_point(&invoke, sizeof(*this), EXECUTE, cp) {
+        init();
+    }
+    inline wam_instruction(common::con_cell module, common::con_cell name) :
+        wam_instruction_code_point(&invoke, sizeof(*this), EXECUTE, code_point(module, name)) {
         init();
     }
 
@@ -3130,10 +3135,7 @@ public:
     static void print(std::ostream &out, wam_interpreter &interp, wam_instruction_base *self)
     {
 	auto self1 = reinterpret_cast<wam_instruction<EXECUTE> *>(self);
-	out << "execute " << interp.to_string(self1->pn()) << "/" << self1->arity();
-	if (self1->p().has_wam_code()) {
-	    out << " " << interp.to_string(self1->p());
-	}
+	out << "execute " << interp.to_string(self1->p());
     }
 };
 

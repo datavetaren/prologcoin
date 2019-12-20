@@ -107,7 +107,9 @@ bool wam_interpreter::cont_wam()
 void wam_interpreter::compile(const qname &qn)
 {
     wam_interim_code instrs(*this);
-    compiler_->compile_predicate(qn, instrs);
+    if (!compiler_->compile_predicate(qn, instrs)) {
+        return;
+    }
     size_t xn_size = compiler_->get_num_x_registers(instrs);
     size_t yn_size = compiler_->get_environment_size_of(instrs);    
     size_t first_offset = next_offset();
@@ -134,6 +136,10 @@ void wam_interpreter::compile(common::con_cell module, common::con_cell name)
     compile(std::make_pair(module, name));
 }
 
+void wam_interpreter::compile(common::con_cell name)
+{
+    compile(std::make_pair(current_module(), name));
+}
 
 void wam_interpreter::compile()
 {
@@ -162,7 +168,7 @@ void wam_interpreter::bind_code_point(std::unordered_map<size_t, size_t> &label_
 	    }
 	} else if (term.tag() == common::tag_t::CON) {
 	    auto lbl_con = static_cast<const con_cell &>(term);
-	    if (auto instr = resolve_wam_predicate(interpreter_base::EMPTY_LIST, lbl_con)) {
+	    if (auto instr = resolve_wam_predicate(current_module(), lbl_con)) {
 		cp.set_wam_code(instr);
 	    }
 	} else if (term.tag() == common::tag_t::STR) {

@@ -16,6 +16,7 @@ const common::con_cell interpreter_base::COMMA = common::con_cell(",",2);
 const common::con_cell interpreter_base::EMPTY_LIST = common::con_cell("[]",0);
 const common::con_cell interpreter_base::IMPLIED_BY = common::con_cell(":-",2);
 const common::con_cell interpreter_base::ACTION_BY = common::con_cell(":-",1);
+const common::con_cell interpreter_base::USER_MODULE = common::con_cell("user",0);
 
 meta_context::meta_context(interpreter_base &i, meta_fn mfn)
 {
@@ -33,7 +34,7 @@ meta_context::meta_context(interpreter_base &i, meta_fn mfn)
     old_hb = i.get_register_hb();
 }
 
-interpreter_base::interpreter_base() : register_pr_("", 0), arith_(*this), locale_(*this)
+interpreter_base::interpreter_base() : register_pr_("", 0), arith_(*this), locale_(*this), current_module_("user",0)
 {
     init();
 
@@ -111,16 +112,22 @@ void interpreter_base::reset()
     }
 }
 
-std::string code_point::to_string(interpreter_base &interp) const
+std::string code_point::to_string(const interpreter_base &interp) const
 {
     if (has_wam_code()) {
 	std::stringstream ss;
-	wam_code()->print(ss, static_cast<wam_interpreter &>(interp));
+	wam_code()->print(ss, static_cast<wam_interpreter &>(const_cast<interpreter_base &>(interp)));
 	return ss.str();
     } else if (is_fail()) {
 	return "fail";
     } else {
-	return interp.to_string(term_code());
+        std::string s;
+        if (module() != interpreter_base::USER_MODULE) {
+	    s += interp.to_string(module());
+	    s += ":";
+        }
+	s += interp.to_string(term_code());
+	return s;
     }
 }
 
@@ -264,7 +271,7 @@ term interpreter_base::rewrite_freeze_body(term freezeVar, term freezeBody)
     vars_list.push_back(freezeVar);
     vars.insert(freezeVar);
     for (auto t : iterate_over(freezeBody)) {
-      if (t.tag() == common::tag_t::REF) {
+      if (t.tag().is_ref()) {
 	t = deref(t);
 	if (vars.count(t) == 0) {
 	  vars.insert(t);
@@ -286,7 +293,7 @@ term interpreter_base::rewrite_freeze_body(term freezeVar, term freezeBody)
 	size_t num_args = functor(t).arity();
 	for (size_t i = 0; i < num_args; i++) {
 	  term ai = arg(t, i);
-	  if (ai.tag() == common::tag_t::REF) {
+	  if (ai.tag().is_ref()) {
 	    set_arg(t, i, varmap[ai]);
 	  }
 	}
@@ -344,7 +351,7 @@ void interpreter_base::load_clause(const term t, bool as_program)
     // the most common case.
     preprocess_freeze(t);
 
-    con_cell module = EMPTY_LIST;
+    con_cell module = current_module_;
 
     // This is a valid clause. Let's lookup the functor of its head.
 
@@ -627,7 +634,7 @@ void interpreter_base::syntax_check_goal(const term t)
 	auto tg = t.tag();
 	// We don't know what variables will be bound to, so we need
 	// to conservatively skip the syntax check.
-	if (tg == tag_t::REF) {
+	if (tg.is_ref()) {
 	    return;
 	}
 	throw syntax_exception_bad_goal(t, "Goal is not callable.");
@@ -657,7 +664,7 @@ void interpreter_base::print_db(std::ostream &out) const
 	for (auto &m_clause : m_clauses) {
 	    if (do_nl) out << "\n";
 	    std::string mod = "";
-	    if (!is_empty_list(qn.first)) {
+	    if (qn.first != USER_MODULE) {
 	        mod = to_string(qn.first)+":";
 	    }
 	    auto str = mod+to_string(m_clause.clause(), opt);
@@ -740,14 +747,15 @@ void interpreter_base::tidy_trail()
 bool interpreter_base::definitely_inequal(const term a, const term b)
 {
     using namespace common;
-    if (a.tag() == tag_t::REF || b.tag() == common::tag_t::REF) {
-	return false;
+    if (a.tag().is_ref() || b.tag().is_ref()) {
+        return false;
     }
+    
     if (a.tag() != b.tag()) {
 	return true;
     }
     switch (a.tag()) {
-    case tag_t::REF: return false;
+    case tag_t::REF: case tag_t::RFW: return false;
     case tag_t::CON: return a != b;
     case tag_t::STR: {
 	con_cell fa = functor(a);
@@ -764,7 +772,7 @@ bool interpreter_base::definitely_inequal(const term a, const term b)
 common::cell interpreter_base::first_arg_index(const term t)
 {
     switch (t.tag()) {
-    case tag_t::REF: return t;
+    case tag_t::REF: case tag_t::RFW: return t;
     case tag_t::CON: return t;
     case tag_t::STR: {
 	con_cell f = functor(t);

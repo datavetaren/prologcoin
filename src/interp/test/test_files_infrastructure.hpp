@@ -363,7 +363,7 @@ static bool test_interpreter_file(const std::string &filepath,
 	    	            std::cout << "[DONT compile]: " << p_name << "\n";
 			} else {
 	    	            std::cout << "[Compile]: "<< p_name << "\n";
-			    interp.compile(interpreter_base::EMPTY_LIST, p);
+			    interp.compile(p);
 			}
 	   	    }
 		    // Also compile all freeze closures

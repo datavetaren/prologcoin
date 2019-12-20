@@ -228,7 +228,7 @@ namespace prologcoin { namespace interp {
     
     bool builtins::var_1(interpreter_base &interp, size_t arity, common::term args[])
     {
-	return args[0].tag() == tag_t::REF;
+        return args[0].tag().is_ref();
     }
 
     bool builtins::nonvar_1(interpreter_base &interp, size_t arity, common::term args[])
@@ -297,6 +297,7 @@ namespace prologcoin { namespace interp {
        std::string s;
        switch (from.tag()) {
          case tag_t::REF:
+         case tag_t::RFW:
 	     interp.abort(interpreter_exception_not_sufficiently_instantiated("upcase_atom/2: Arguments are not sufficiently instantiated"));
 	     return false;
          case tag_t::INT: {
@@ -330,12 +331,12 @@ namespace prologcoin { namespace interp {
    }
 
     bool builtins::bytes_number_2(interpreter_base &interp, size_t arity, common::term args[]) {
-        if (args[0].tag() == tag_t::REF && args[1].tag() == tag_t::REF) {
+        if (args[0].tag().is_ref() && args[1].tag().is_ref()) {
   	    std::string msg = "bytes_number/2: Not both arguments can be unbounded variables.";
 	    interp.abort(interpreter_exception_not_sufficiently_instantiated(msg));
         }
 	term charlst = args[0];
-        if (charlst.tag() != tag_t::REF) {
+        if (!charlst.tag().is_ref()) {
   	    if (!interp.is_list(charlst)) {
 	        interp.abort(interpreter_exception_wrong_arg_type("bytes_number/2: First argument must be a list of integers (in 0..255)"));
 	    }
@@ -456,10 +457,10 @@ namespace prologcoin { namespace interp {
 	  }
 	  break;
 	}
-	case tag_t::REF: {
+	case tag_t::REF: case tag_t::RFW: {
 	  {
 	    term deref_term = interp.deref(current_term);
-	    if (deref_term == current_term && current_tag == tag_t::REF) {
+	    if (deref_term == current_term && current_tag.is_ref()) {
 	      return false;
 	    }
 	    workstack.push_front(std::pair<term, int>(deref_term, 0));
@@ -555,7 +556,7 @@ namespace prologcoin { namespace interp {
 
         term arg_index_term = args[0];
 
-	if (arg_index_term.tag() == tag_t::REF) {
+	if (arg_index_term.tag().is_ref()) {
 	    static const common::con_cell ARG3("arg", 3);
 	    // Store current index
 	    interp.new_cell0(int_cell(0));
@@ -590,16 +591,16 @@ namespace prologcoin { namespace interp {
 
     bool builtins::functor_3(interpreter_base &interp, size_t arity, common::term args[]) {
 	term t = args[0];
-	if (t.tag() == tag_t::REF) {
+	if (t.tag().is_ref()) {
 	    // Create functor
 	    term f = args[1];
 	    term a = args[2];
-	    if (f.tag() == tag_t::REF) {
+	    if (f.tag().is_ref()) {
 	        std::string msg =
 	          "functor/3: Second argument must be a ground if first argument is a variable; was " + interp.to_string(f);
 	        interp.abort(interpreter_exception_not_sufficiently_instantiated(msg));
 	    }
-	    if (a.tag() == tag_t::REF) {
+	    if (a.tag().is_ref()) {
 	        std::string msg =
 	          "functor/3: Third argument must be a ground if first argument is a variable; was " + interp.to_string(a);
 	        interp.abort(interpreter_exception_not_sufficiently_instantiated(msg));
@@ -695,7 +696,7 @@ namespace prologcoin { namespace interp {
 	con_cell f = interp.functor(t);
 	size_t n = f.arity();
 	while (index < n) {
-	    if (lst.tag() == tag_t::REF) {
+	    if (lst.tag().is_ref()) {
 		term tail = deconstruct_write_list(interp, t, index);
 		return interp.unify(lst, tail);
 	    }
@@ -721,11 +722,11 @@ namespace prologcoin { namespace interp {
 	// To make deconstruction more efficient, let's handle the
 	// common scenarios first.
 
-	if (lhs.tag() == tag_t::REF && rhs.tag() == tag_t::REF) {
+	if (lhs.tag().is_ref() && rhs.tag().is_ref()) {
 		interp.abort(interpreter_exception_not_sufficiently_instantiated("=../2: Arguments are not sufficiently instantiated"));
 	}
 
-	if (lhs.tag() == tag_t::REF) {
+	if (lhs.tag().is_ref()) {
 	    if (!interp.is_list(rhs)) {
 		interp.abort(interpreter_exception_not_list("=../2: Second argument is not a list; found " + interp.to_string(rhs)));
 	    }
@@ -734,7 +735,7 @@ namespace prologcoin { namespace interp {
 		interp.abort(interpreter_exception_not_list("=../2: Second argument must be non-empty; found " + interp.to_string(rhs)));
 	    }
 	    term first_elem = interp.arg(rhs,0);
-	    if (first_elem.tag() == tag_t::REF) {
+	    if (first_elem.tag().is_ref()) {
 		interp.abort(interpreter_exception_not_sufficiently_instantiated("=../2: Arguments are not sufficiently instantiated"));
 	    }
 	    if (first_elem.tag() == tag_t::INT && lst_len == 1) {
@@ -748,7 +749,7 @@ namespace prologcoin { namespace interp {
 	    term t = interp.new_term(interp.to_functor(f, num_args));
 	    term lst = interp.arg(rhs, 1);
 	    for (size_t i = 0; i < num_args; i++) {
-		if (lst.tag() == tag_t::REF) {
+	        if (lst.tag().is_ref()) {
 		    term tail = deconstruct_write_list(interp, lhs, i);
 		    return interp.unify(lst, tail);
 		}
@@ -779,7 +780,7 @@ namespace prologcoin { namespace interp {
         term arg0 = args[0];
 	term arg1 = args[1];
 
-	if (arg0.tag() == tag_t::REF) {
+	if (arg0.tag().is_ref()) {
             interp.abort(interpreter_exception_not_sufficiently_instantiated("sort/2: Arguments are not sufficiently instantiated"));
 	}
 
@@ -991,7 +992,7 @@ namespace prologcoin { namespace interp {
     bool builtins::freeze_2(interpreter_base &interp, size_t arity, common::term args[])
     {
         term v = args[0];
-	if (v.tag() != common::tag_t::REF) {
+	if (!v.tag().is_ref()) {
 	    interp.set_p(args[1]);
 	    interp.set_cp(interpreter_base::EMPTY_LIST);
 	    return true;

@@ -112,8 +112,7 @@ void test_wam_compiler::test_compile()
 	    throw;
 	}
 
-	auto &clauses = interp_.get_predicate(con_cell("[]",0),
-					      con_cell("nrev",2));
+	auto &clauses = interp_.get_predicate(con_cell("nrev",2));
 
 	wam_interim_code seq(interp_);
 	comp_.compile_clause(clauses[0], seq);
@@ -227,8 +226,7 @@ Section 2:
 	throw ex;
     }
 
-    auto &clauses = interp_.get_predicate(con_cell("[]",0),
-					  con_cell("call",1));
+    auto &clauses = interp_.get_predicate(con_cell("call",1));
     
     auto p = comp_.partition_clauses_nonvar(clauses);
 
