@@ -8,7 +8,15 @@ int main(int argc, char *argv[])
     boost::filesystem::path bin_path(argv[1]);
 
     auto src_file = root / "src" / "main" / "startup.pl";
-    auto dst_file = bin_path / "prologcoin-data" / "startup.pl";
+    auto dst_file = bin_path;
+
+    // If this is the executable, then get its parent directory
+    if (boost::filesystem::exists(dst_file) &&
+	boost::filesystem::is_regular_file(dst_file)) {
+	dst_file = dst_file.parent_path();
+    }
+
+    dst_file = dst_file / "prologcoin-data" / "startup.pl";
 
     std::cout << "Copy file: " << src_file.string() << std::endl;
     std::cout << "       to: " << dst_file.string() << std::endl;
