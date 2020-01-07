@@ -42,6 +42,7 @@ public:
     using interpreter_base = prologcoin::interp::interpreter_base;
 
     static void load(interpreter_base &interp);
+    static void load_consensus(interpreter_base &interp);  
 
     // reward(Height, Coin)
     // Compute inflation reward at Height and make the sum available in Coin

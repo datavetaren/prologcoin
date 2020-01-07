@@ -402,7 +402,7 @@ bool terminal::process_query_reply()
     }
 
     if (e.functor(reply) == con_cell("ok",1)) {
-	auto context = e.capture_state();
+	auto context = e.save_state();
 	auto result_term = e.arg(reply,0);
 
 	if (e.functor(result_term) != con_cell("result",5)) {

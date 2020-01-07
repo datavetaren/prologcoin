@@ -165,8 +165,8 @@ namespace prologcoin { namespace interp {
 	static void restore_p_from_heap_if_wam(interpreter_base &interp);
 	static bool arg_3_cp(interpreter_base &interp, size_t arity, common::term args[]);
         static bool arg_3(interpreter_base &interp, size_t arity, common::term args[]);
+        static bool functor_3(interpreter_base &interp, size_t arity, common::term args[]);
 	static bool copy_term_2(interpreter_base &interp, size_t arity, common::term args[]);
-	static bool functor_3(interpreter_base &interp, size_t arity, common::term args[]);
 	static bool same_term_2(interpreter_base &interp, size_t arity, common::term args[]);
 	static bool operator_deconstruct(interpreter_base &interp, size_t arity, common::term args[]);
         static bool sort_2(interpreter_base &interp, size_t arity, common::term args[]);
@@ -183,7 +183,8 @@ namespace prologcoin { namespace interp {
 	//
 	// Meta
 	//
-	
+
+        static bool call_n(interpreter_base &interp, size_t arity, common::term args[]);
 	static bool operator_disprove(interpreter_base &interp, size_t arity, common::term args[]);
 	static bool operator_disprove_meta(interpreter_base &interp, const meta_reason_t &reason);
 	static bool findall_3(interpreter_base &interp, size_t arity, common::term args[]);
@@ -203,6 +204,8 @@ namespace prologcoin { namespace interp {
         static bool frozen_2(interpreter_base &interp, size_t arity, common::term args[] );
         // frozenk(K, Xs)
         static bool frozenk_2(interpreter_base &interp, size_t arity, common::term args[] );
+        // defrost(+HeapAddress, -Closure, +Values)
+        static bool defrost_3(interpreter_base &interp, size_t arity, common::term args[] );
     };
 
 }}

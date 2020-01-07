@@ -5,6 +5,7 @@
 
 #include "../interp/interpreter.hpp"
 #include "../common/term_serializer.hpp"
+#include <boost/filesystem.hpp>
 
 namespace prologcoin { namespace node {
 
@@ -36,6 +37,9 @@ public:
     static bool version_1(interpreter_base &interp, size_t arity, term args[]);
     static bool comment_1(interpreter_base &interp, size_t arity, term args[]);
 
+    // Get data directory
+    static bool datadir_1(interpreter_base &interp, size_t arity, term args[]);
+
     // Addresses & connections
     static bool peers_2(interpreter_base &interp, size_t arity, term args[]);
 
@@ -54,6 +58,7 @@ public:
     static bool funds_1(interpreter_base &interp, size_t arity, term args[]);
 
     // Commit to global state
+    static term preprocess_hashes(local_interpreter &interp, term t);
     static bool commit(local_interpreter &interp, buffer_t &buf, term t, bool naming);
     static bool commit_2(interpreter_base &interp, size_t arity, term args[]);
 };
@@ -101,6 +106,7 @@ public:
     void local_reset();
 
     void load_file(const std::string &filename);
+    void startup_file();
 
     inline in_session_state & session() { return session_; }
 
@@ -111,6 +117,10 @@ public:
     {
 	add_text(standard_output_.str());
 	standard_output_.str("");
+    }
+
+    inline std::ostream & out() {
+	return standard_output_;
     }
 
     inline void add_text(const std::string &str)
@@ -125,6 +135,7 @@ public:
 
 private:
     self_node & self();
+    bool is_root();
     void root_check(const char *name, size_t arity);
 
     friend class me_builtins;

@@ -9,6 +9,7 @@ static std::string program_name;
 static std::string home_dir;
 unsigned short port = self_node::DEFAULT_PORT;
 static std::string name;
+static std::string dir;
 
 static void help()
 {
@@ -17,7 +18,7 @@ static void help()
     std::cout << "  --interactive (non-interactive currently unavailable)" << std::endl;
     std::cout << "  --port <number> (start service on this port, default is " << self_node::DEFAULT_PORT << ")" << std::endl;
     std::cout << "  --name <string> (set friendly name on node, default is noname)" << std::endl;
-    // std::cout << "  --homedir <dir> (location of home directory, default userdir/" << program_name << ")" << std::endl;
+    std::cout << "  --datadir <dir> (location of data directory)" << std::endl;
 
     std::cout << std::endl;
     std::cout << "Example: " << program_name << " --interactive --port 8700" << std::endl;
@@ -34,8 +35,12 @@ static void start()
 	node.set_name(name);
     }
 
-    std::cout << "[" << program_name << " v" << self_node::VERSION_MAJOR << "." << self_node::VERSION_MINOR << "]" << std::endl << std::endl;
+    std::cout << "[" << program_name << " v" << self_node::VERSION_MAJOR << "." << self_node::VERSION_MINOR << "]" << std::endl;
+    std::cout << "Data directory: " << dir << std::endl;
+    std::cout << std::endl;
 
+    node.set_data_directory(dir);
+    
     node.start();
 
     prologcoin::main::interactive_terminal term(port);
@@ -110,7 +115,14 @@ int main(int argc, char *argv[])
     if (!name_opt.empty()) {
 	name = name_opt;
     }
-    // std::cout << "Dir     : " << home_dir << std::endl;
+
+    auto bdir = boost::filesystem::path(home_dir);
+    bdir /= "prologcoin-data";
+    dir = bdir.string();
+    std::string dir_opt = get_option(args, "--dir");
+    if (!dir_opt.empty()) {
+        dir = dir_opt;
+    }
 
     start();
 

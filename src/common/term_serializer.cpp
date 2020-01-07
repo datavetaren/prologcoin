@@ -38,6 +38,9 @@ void term_serializer::write(buffer_t &bytes, const term t)
 	case tag_t::INT:
 	    write_int_cell(bytes,offset,reinterpret_cast<const int_cell &>(t1));
 	    break;
+	case tag_t::RFW:
+	    t1 = reinterpret_cast<ref_cell &>(t1).unwatch();
+	    // Fall through
 	case tag_t::REF:
 	    write_ref_cell(bytes,offset,reinterpret_cast<const ref_cell &>(t1));
 	    break;
@@ -85,6 +88,7 @@ void term_serializer::write_all_header(buffer_t &bytes,const term t)
 	    } else {
 	      temp_set_.insert(t1);
 	    }
+
             if(t1.tag() == tag_t::STR) {
                 size_t num_args = f.arity();
                 for (size_t i = 0; i < num_args; i++) {
@@ -93,7 +97,7 @@ void term_serializer::write_all_header(buffer_t &bytes,const term t)
             }
             break;
         }
-        case tag_t::REF: { 
+        case tag_t::REF: case tag_t::RFW: { 
             ref_cell v = static_cast<ref_cell &>(t1);
             if (!is_indexed(v) && env_.has_name(v)) {
 	        const std::string &name = env_.get_name(t1);
@@ -222,6 +226,9 @@ term term_serializer::read(const buffer_t &bytes, size_t n,
 	    }
 	    break;
    	    }
+	case tag_t::RFW:
+	    c = static_cast<ref_cell &>(c).unwatch();
+	    // Fall through
 	case tag_t::BIG:
 	case tag_t::REF:
 	case tag_t::STR: {
@@ -438,6 +445,7 @@ void term_serializer::integrity_check(size_t heap_start, size_t heap_end,
 	    auto c = env_.heap_get(index+1+i);
 	    switch (c.tag()) {
 	    case tag_t::REF:
+	    case tag_t::RFW:
 	    case tag_t::INT:
 	    case tag_t::STR:
 	    case tag_t::BIG:
@@ -484,7 +492,7 @@ void term_serializer::integrity_check(size_t heap_start, size_t heap_end,
 	size_t index = heap_index;
 	auto c = env_.heap_get(index);
 	std::unordered_set<size_t> visit;
-	while (c.tag() == tag_t::REF) {
+	while (c.tag().is_ref()) {
 	    auto &ref = reinterpret_cast<const ref_cell &>(c);
 	    check_pointer(ref, index);
 	    visit.insert(index);
@@ -530,7 +538,7 @@ void term_serializer::integrity_check(size_t heap_start, size_t heap_end,
 	    check_functor_args(strcell, i);
 	    break;
 	    }
-	case tag_t::REF: {
+	case tag_t::REF: case tag_t::RFW: {
 	    auto &refcell = reinterpret_cast<const ref_cell &>(c);
 	    check_ref_chain(refcell, i);
 	    break;

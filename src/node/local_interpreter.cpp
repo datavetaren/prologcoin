@@ -5,6 +5,7 @@
 #include "task_reset.hpp"
 #include "../ec/builtins.hpp"
 #include "../coin/builtins.hpp"
+#include "../global/global_interpreter.hpp"
 
 namespace prologcoin { namespace node {
 
@@ -199,6 +200,14 @@ bool me_builtins::comment_1(interpreter_base &interp0, size_t arity, term args[]
     return interp.unify(args[0], comment);
 }
 
+bool me_builtins::datadir_1(interpreter_base &interp0, size_t arity, term args[] )
+{
+    auto &interp = to_local(interp0);
+    term datadir = interp.string_to_list(interp.self().data_directory());
+
+    return interp.unify(args[0], datadir);
+}
+
 bool me_builtins::peers_2(interpreter_base &interp0, size_t arity, term args[] )
 {
     auto &interp = to_local(interp0);
@@ -389,7 +398,7 @@ bool me_builtins::initial_funds_1(interpreter_base &interp0, size_t arity, term 
 	uint64_t val = static_cast<uint64_t>(reinterpret_cast<int_cell &>(arg).value());
 	interp.self().set_initial_funds(val);
 	return true;
-    } else if (arg.tag() == tag_t::REF) {
+    } else if (arg.tag().is_ref()) {
 	auto val = static_cast<int64_t>(interp.self().get_initial_funds());
 	if (val <= 0) val = 0;
 	return interp.unify(arg, int_cell(val));
@@ -408,7 +417,7 @@ bool me_builtins::maximum_funds_1(interpreter_base &interp0, size_t arity, term 
 	uint64_t val = static_cast<uint64_t>(reinterpret_cast<int_cell &>(arg).value());
 	interp.self().set_maximum_funds(val);
 	return true;
-    } else if (arg.tag() == tag_t::REF) {
+    } else if (arg.tag().is_ref()) {
 	auto val = static_cast<int64_t>(interp.self().get_maximum_funds());
 	if (val <= 0) val = 0;
 	return interp.unify(arg, int_cell(val));
@@ -427,7 +436,7 @@ bool me_builtins::new_funds_per_second_1(interpreter_base &interp0, size_t arity
 	uint64_t val = static_cast<uint64_t>(reinterpret_cast<int_cell &>(arg).value());
 	interp.self().set_new_funds_per_second(val);
 	return true;
-    } else if (arg.tag() == tag_t::REF) {
+    } else if (arg.tag().is_ref()) {
 	auto val = static_cast<int64_t>(int_cell::saturate(interp.self().new_funds_per_second()));
 	return interp.unify(arg, int_cell(val));
     } else {
@@ -443,21 +452,80 @@ bool me_builtins::funds_1(interpreter_base &interp0, size_t arity, term args[] )
     return interp.unify(arg, int_cell(funds));
 }
 
+term me_builtins::preprocess_hashes(local_interpreter &interp, term t) {
+    static const con_cell P("p", 1);
+
+    static const common::con_cell op_comma(",", 2);
+    static const common::con_cell op_semi(";", 2);
+    static const common::con_cell op_imply("->", 2);
+    static const common::con_cell op_clause(":-", 2);    
+
+    if (t.tag() != common::tag_t::STR) {
+        return t;
+    }
+    
+    auto f = interp.functor(t);
+
+    // Scan for :- and subsitute the hash for body
+    if (f == op_clause) {
+        auto head = interp.arg(t, 0);
+	auto body = interp.arg(t, 1);
+	if (head.tag() == tag_t::STR && interp.functor(head) == P) {
+	    auto hash_var = interp.arg(head, 0);
+	    if (hash_var.tag().is_ref()) {
+	        uint8_t hash[ec::builtins::RAW_HASH_SIZE];
+	        if (!ec::builtins::get_hashed_2_term(interp, t, hash)) {
+		    return t;
+	        }
+		term hash_term = interp.new_big(ec::builtins::RAW_HASH_SIZE*8);
+		interp.set_big(hash_term, hash, ec::builtins::RAW_HASH_SIZE);
+		if (!interp.unify(hash_var, hash_term)) {
+		    return t;
+		}
+		return body;
+	    }
+	}
+    }
+
+    if (f == op_comma || f == op_semi || f == op_imply) {
+        interp.set_arg(t, 0, preprocess_hashes(interp, interp.arg(t, 0)));
+        interp.set_arg(t, 1, preprocess_hashes(interp, interp.arg(t, 1)));
+    }
+
+    return t;
+}
 
 bool me_builtins::commit(local_interpreter &interp, term_serializer::buffer_t &buf, term t, bool naming)
 {
     global::global &g = interp.self().global();
 
     g.set_naming(naming);
-    
+
+    // Check if term is a clause:
+    // p(X) :- Body
+    // Then we compute the hash of Body (with X unbound) and bind X to the
+    // hashed value. Then we apply commit on Body.
+    //
+    t = preprocess_hashes(interp, t);
+
     // First serialize
     term_serializer ser(interp);
     buf.clear();
     ser.write(buf, t);
 
-    if (!g.execute_goal(buf)) {
-        return false;
+    try {
+        if (!g.execute_goal(buf)) {
+	   g.reset();
+           return false;
+	}
+    } catch (interpreter_exception &ex) {
+        g.reset();
+        throw ex;
+    } catch (serializer_exception &ex) {
+        g.reset();
+        throw ex;
     }
+	
     g.execute_cut();
 
     assert(g.is_clean());
@@ -509,9 +577,14 @@ self_node & local_interpreter::self()
     return session_.self();
 }
 
+bool local_interpreter::is_root() 
+{
+    return session_.is_root();
+}
+
 void local_interpreter::root_check(const char *name, size_t arity)
 {
-    if (!session_.is_root()) {
+    if (!is_root()) {
         std::stringstream ss;
         ss << name << "/" << arity << ": Non-root is not allowed to use this predicate in this context.";
 	abort(interpreter_exception_security(ss.str()));
@@ -533,6 +606,12 @@ void local_interpreter::ensure_initialized()
         coin::builtins::load(*this);
 
 	setup_local_builtins();
+
+	// Load startup file
+	startup_file();
+
+	// Setup this last, because it refers to some builtins above
+	global::global::setup_consensus_lib(*this);
     }
 }
 
@@ -549,7 +628,8 @@ void local_interpreter::setup_local_builtins()
     load_builtin(ME, functor("heartbeat", 0), &me_builtins::heartbeat_0);
     load_builtin(ME, con_cell("version",1), &me_builtins::version_1);
     load_builtin(ME, con_cell("comment",1), &me_builtins::comment_1);
-
+    load_builtin(ME, con_cell("datadir", 1), &me_builtins::datadir_1);
+    
     // Address book & connections
     load_builtin(ME, con_cell("peers", 2), &me_builtins::peers_2);
     load_builtin(ME, functor("connections",0), &me_builtins::connections_0);
@@ -568,6 +648,31 @@ void local_interpreter::setup_local_builtins()
     // Commit
     load_builtin(ME, con_cell("commit", 1), &me_builtins::commit_2);    
     load_builtin(ME, con_cell("commit", 2), &me_builtins::commit_2);
+}
+
+void local_interpreter::startup_file()
+{
+    if (!is_root()) {
+	return;
+    }
+
+    boost::filesystem::path file(self().data_directory());
+    file /= "startup.pl";
+
+    std::string file_path = file.string();
+
+    if (boost::filesystem::exists(file_path)) {
+	try {
+	    out() << "Loading " << file_path << std::endl;
+	    load_file(file_path);
+	} catch (const interpreter_exception &ex) {
+	    out() << ex.what() << std::endl;
+	} catch (const token_exception &ex) {
+	    print_error_messages(out(), ex);
+	} catch (const term_parse_exception &ex) {
+	    print_error_messages(out(), ex);
+	}
+    }
 }
 
 void local_interpreter::local_reset()
@@ -612,7 +717,23 @@ void local_interpreter::load_file(const std::string &filename)
     }
 
     try {
-	load_program(infile);
+	struct process_clause {
+	    process_clause(local_interpreter &interp) : interp_(interp) { }
+
+	    void operator () (term clause) {
+		auto head = interp_.clause_head(clause);
+		auto head_f = interp_.functor(head);
+
+		if (head_f == interpreter_base::ACTION_BY) {
+		    interp_.compile();
+		    auto body = interp_.arg(clause, 0);
+		    interp_.execute(body);
+		    interp_.reset();
+		}
+	    }
+	    local_interpreter &interp_;
+	} f(*this);
+	load_program(infile, f);
 	compile();
 	infile.close();
     } catch (const syntax_exception &ex) {

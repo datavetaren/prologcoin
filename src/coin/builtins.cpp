@@ -38,7 +38,7 @@ static bool is_coin(interpreter_base &interp, term t) {
 
 static bool is_coin_spent(interpreter_base &interp, term t) {
     assert(is_coin(interp, t));
-    return interp.arg(t, 1).tag() != tag_t::REF;
+    return !interp.arg(t, 1).tag().is_ref();
 }
 
 static void spend_coin(interpreter_base &interp, term t) {
@@ -168,4 +168,10 @@ void builtins::load(interpreter_base &interp)
     interp.load_builtin(con_cell("csplit", 3), &builtins::csplit_3);
 }
 
+void builtins::load_consensus(interpreter_base &interp)
+{
+    interp.load_builtin(con_cell("cjoin", 2), &builtins::cjoin_2);
+    interp.load_builtin(con_cell("csplit", 3), &builtins::csplit_3);
+}
+    
 }}

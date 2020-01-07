@@ -131,6 +131,7 @@ uint64_t term_utils::hash(term t)
 	case tag_t::CON:
 	case tag_t::INT:
 	case tag_t::REF:
+	case tag_t::RFW:	  
 	    h += t.raw_value();
 	    break;
         case tag_t::STR: {
@@ -169,6 +170,7 @@ uint64_t term_utils::cost(term t)
 	case tag_t::CON:
 	case tag_t::INT:
 	case tag_t::REF:
+	case tag_t::RFW:
 	    break;
         case tag_t::STR: {
 	    con_cell f = functor(t);
@@ -212,7 +214,9 @@ bool term_utils::unify(term a, term b, uint64_t &cost)
 void term_utils::restore_cells_after_unify() {
   while(temp_trail_size() > 0) {
     auto index = temp_trail_pop();
-    heap_set(index, heap_get(static_cast<fwd_cell &>(heap_get(index))));
+    auto fwd0 = heap_get(index);
+    auto fwd = static_cast<fwd_cell &>(fwd0);
+    heap_set(index, heap_get(fwd.index()));
   }
 }
 
@@ -242,16 +246,22 @@ bool term_utils::unify_helper(term a, term b, uint64_t &cost)
 	}
 
 	// If at least one of them is a REF, then bind it.
-	if (a.tag() == tag_t::REF) {
-  	    if (b.tag() == tag_t::REF) {
+	if (a.tag().is_ref()) {
+	    if (b.tag().is_ref()) {
 	      auto ra = static_cast<ref_cell &>(a);
 	      auto rb = static_cast<ref_cell &>(b);
 	      // It's more efficient to bind higher addresses
 	      // to lower if there's a choice. That way we
 	      // don't need to trail the bindings.
 	      if (ra.index() < rb.index()) {
+		if (rb.watched()) {
+		    heap_watch(ra.index(), true);
+		}
 		bind(rb, a);
 	      } else {
+		if (ra.watched()) {
+		    heap_watch(rb.index(), true);
+		}
 		bind(ra, b);
 	      }
 	      continue;
@@ -260,7 +270,7 @@ bool term_utils::unify_helper(term a, term b, uint64_t &cost)
 	      bind(ra, b);
 	      continue;
 	    }
-	} else if (b.tag() == tag_t::REF) {
+	} else if (b.tag().is_ref()) {
 	    auto rb = static_cast<ref_cell &>(b);
 	    bind(rb, a);
 	    continue;
@@ -429,6 +439,7 @@ int term_utils::standard_order(term a, term b, uint64_t &cost)
 	    return cmp;
 	  }
 	case tag_t::REF:
+	case tag_t::RFW:	  
 	case tag_t::INT:
 	  {
 	    trim_stack(d);
@@ -514,6 +525,7 @@ term term_utils::copy(term c, naming_map &names,
 
         switch (c.tag()) {
 	case tag_t::REF:
+	case tag_t::RFW:	  
 	  {
 	    cell v = new_ref();
 	    term_map[c] = v;

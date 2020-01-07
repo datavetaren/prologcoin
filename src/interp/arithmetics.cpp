@@ -113,7 +113,7 @@ namespace prologcoin { namespace interp {
 		}
 		break;
 	    }
-	    case tag_t::REF: {
+	    case tag_t::REF: case tag_t::RFW: {
 		interp_.abort(interpreter_exception_not_sufficiently_instantiated(context + ": Arguments are not sufficiently instantiated"));
 		break;
 	    }

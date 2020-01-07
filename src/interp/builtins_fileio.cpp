@@ -34,7 +34,7 @@ namespace prologcoin { namespace interp {
 	std::string full_path = interp.get_full_path(interp.atom_name(filename0));
 	std::string mode = interp.atom_name(mode0);
 
-	if (!boost::filesystem::exists(full_path)) {
+	if (mode == "read" && !boost::filesystem::exists(full_path)) {
 	    interp.abort(interpreter_exception_file_not_found(
 		    "open/3: File '" + full_path + "' not found"));
 	}
@@ -44,18 +44,16 @@ namespace prologcoin { namespace interp {
 		    "open/3: Mode must be 'read' or 'write'; was: " + mode));
 	}
 
+	file_stream &fs = interp.new_file_stream(full_path);
 	if (mode == "read") {
-	    file_stream &fs = interp.new_file_stream(full_path);
 	    fs.open(file_stream::READ);
-	    size_t id = fs.get_id();
-	    con_cell f = interp.functor("$stream", 1);
-	    term newstream = interp.new_term(f, {int_cell(id)} );
-	    return interp.unify(stream, newstream);
+	} else {
+	    fs.open(file_stream::WRITE);
 	}
-
-	// TODO: Mode write...
-
-	return false;
+	size_t id = fs.get_id();
+	con_cell f = interp.functor("$stream", 1);
+	term newstream = interp.new_term(f, {int_cell(id)} );
+	return interp.unify(stream, newstream);
     }
 
     size_t builtins_fileio::get_stream_id(interpreter_base &interp, term &stream,
@@ -123,6 +121,17 @@ namespace prologcoin { namespace interp {
     {
 	term arg = args[0];
 	interp.standard_output().write_term(arg);
+	return true;
+    }
+
+    bool builtins_fileio::write_2(interpreter_base &interp, size_t arity, term args[])
+    {
+	term stream = args[0];
+	size_t id = get_stream_id(interp, stream, "write/2");
+	file_stream &fs = interp.get_file_stream(id);
+	term t = args[1];
+	fs.write_term(t);
+
 	return true;
     }
     

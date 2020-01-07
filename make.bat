@@ -52,10 +52,19 @@ FOR %%X IN (%MODULES%) DO (
        echo ------------------------------------------------------
        cmd /c "cd src\%%X && make.bat"
        IF ERRORLEVEL 1 GOTO :EOF
+       IF EXIST src\%%X\script (
+       echo ------------------------------------------------------
+       echo  Script %%X
+       echo ------------------------------------------------------
+       cmd /c "cd src\%%X && make.bat script"
+       )
+       IF ERRORLEVEL 1 GOTO :EOF       
+       IF EXIST src\%%X\test (
        echo ------------------------------------------------------
        echo  Test %%X
        echo ------------------------------------------------------
        cmd /c "cd src\%%X && make.bat test"
+       )
        IF ERRORLEVEL 1 GOTO :EOF
    )
 )

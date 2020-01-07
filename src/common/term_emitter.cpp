@@ -496,6 +496,7 @@ bool term_emitter::is_begin_alphanum(cell f) const
     case tag_t::INT: return true;
     case tag_t::BIG: return true;
     case tag_t::REF: return true;
+    case tag_t::RFW: return true;      
     default: return false;
     }
 }
@@ -520,6 +521,7 @@ bool term_emitter::is_end_alphanum(cell f) const
     case tag_t::INT: return true;
     case tag_t::BIG: return true;
     case tag_t::REF: return true;
+    case tag_t::RFW: return true;      
     default: return false;
     }
 }
@@ -823,10 +825,10 @@ void term_emitter::emit_list(const cell lst0)
 
 void term_emitter::emit_ref(const term_emitter::elem &e)
 {
-    const ref_cell &ref = static_cast<const ref_cell &>(e.cell_);
-
+    auto ref = static_cast<const ref_cell &>(e.cell_).unwatch();
+    
     if (var_naming_ != nullptr) {
-	term search(heap_, ref);
+        term search(heap_, ref);
 	auto it = var_naming_->find(search);
 	if (it != var_naming_->end()) {
 	    const std::string &name = it->second;
@@ -931,6 +933,7 @@ void term_emitter::print_from_stack(size_t top)
 		emit_int(e);
 		break;
 	    case tag_t::REF:
+	    case tag_t::RFW:
 		emit_ref(e);
 		break;
 	    case tag_t::BIG:

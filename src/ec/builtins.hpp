@@ -43,6 +43,7 @@ public:
     static musig_env & get_musig_env(interpreter_base &interp);
   
     static void load(interpreter_base &interp, common::con_cell *module = nullptr);
+    static void load_consensus(interpreter_base &interp);  
 
     // privkey(X) true iff X is a private key.
     // Can be used to generate new private keys.
@@ -60,12 +61,15 @@ public:
     // Can also be used to generate the address Y from the public key X.
     static bool address_2(interpreter_base &interp, size_t arity, term args[] );
 
-    // sign(X, Data, Signature) true iff Signature is the obtained signature for
-    // signing Data using X. If Signature is provided (not a variable), then
-    // the same predicate can be used to verify the signature, but then
-    // X is the public key.
+    // sign(PrivKey, Data, Signature)
+    // Compute Signature by signing PrivKey on Data.
     static bool sign_3(interpreter_base &interp, size_t arity, term args[] );
 
+    // validate(PubKey, Data, Signature) true iff Signature is valid w.r.t
+    // public key and data.
+    static bool validate_3(interpreter_base &interp, size_t arity, term args[] );
+
+  
     // hash(Data, Hash) true iff Hash is the hash of Data.
     static bool hash_2(interpreter_base &interp, size_t arity, term args[] );
 
@@ -145,6 +149,15 @@ public:
 
     static void pedersen_test();
 
+    static bool get_hashed_1_data(uint8_t *data, size_t data_len,
+				  uint8_t hash[RAW_HASH_SIZE]);
+    static bool get_hashed_2_data(uint8_t *data, size_t data_len,
+				  uint8_t hash[RAW_HASH_SIZE]);
+    static bool get_hashed_1_term(interpreter_base &interp, const term data,
+				  uint8_t hash[RAW_HASH_SIZE]);
+    static bool get_hashed_2_term(interpreter_base &interp, const term data,
+				  uint8_t hash[RAW_HASH_SIZE]);  
+  
 private:
 
     static void get_checksum(const uint8_t *bytes, size_t n, uint8_t checksum[4]);
@@ -172,10 +185,8 @@ private:
 
     static bool verify_signature(interpreter_base &interp, const term data,
 				 const term pubkey, const term signature);
-    static bool get_hashed_data(uint8_t *data, size_t data_len,
-				uint8_t hash[32]);
-    static bool get_hashed2_data(interpreter_base &interp, const term data,
-				 uint8_t hash[32]);
+    static bool get_hashed_term(interpreter_base &interp, const term data,
+				uint8_t hash[32], size_t count);
     static bool get_signature_data(interpreter_base &interp, const term sign,
 				   uint8_t sign_data[64]);
     static bool compute_pedersen_commit(interpreter_base &interp,

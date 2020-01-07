@@ -152,6 +152,7 @@ protected:
   inline int current_state() const { return current_state_; }
 
   inline const sym & lookahead() const { return lookahead_; }
+  inline void set_lookahead(const sym &s) { lookahead_ = s; }
 
   args_t & args(int numArgs) {
     args_.clear();
@@ -1220,11 +1221,23 @@ public:
       return lookahead_;	
     }
 
-    auto candidates = ops_.prec(lexeme);
+    auto &candidates = ops_.prec(lexeme);
 
     if (consumed_name && candidates.empty()) {
         return lookahead_;
     }
+
+    resolve_op(candidates, tok);
+
+    if (!consumed_name) {
+        tokenizer().consume_token();
+    }
+
+    return lookahead_;
+  }
+
+  void resolve_op(const std::vector<term_ops::op_entry> &candidates, const term_tokenizer::token &tok) {
+    symbol_t symt = SYMBOL_UNKNOWN;
 
     if (candidates.empty()) {
         throw token_exception_unrecognized_operator(tokenizer().line_string(), tok.pos(), tok.lexeme());
@@ -1245,12 +1258,6 @@ public:
 
     lookahead_ = sym(current_state_, tok, symt);
     lookahead_.set_precedence(entry.precedence);
-
-    if (!consumed_name) {
-        tokenizer().consume_token();
-    }
-
-    return lookahead_;
   }
 
   bool check(sym symbol) {
@@ -1302,6 +1309,23 @@ public:
     return lexemes;
   }
 
+  void prepare_parse()
+  {
+      switch (lookahead_.ordinal()) {
+      case SYMBOL_OP_FX:
+      case SYMBOL_OP_FY:
+      case SYMBOL_OP_XF:
+      case SYMBOL_OP_XFX:
+      case SYMBOL_OP_XFY:
+      case SYMBOL_OP_YF:
+      case SYMBOL_OP_YFX:
+  	  resolve_op(ops_.prec(lookahead_.token().lexeme()), lookahead_.token());
+	  break;
+      default:
+	  break;
+      }
+  }
+
   void parse_next()
   {
       while (!is_accept() && !is_error()) {
@@ -1332,9 +1356,10 @@ void term_parser::set_debug(bool dbg)
 
 term term_parser::parse()
 {
-  impl_->init();
-  impl_->parse_next();
-  return impl_->get_result();
+    impl_->init();
+    impl_->prepare_parse();
+    impl_->parse_next();
+    return impl_->get_result();
 }
 
 term term_parser::positions() const

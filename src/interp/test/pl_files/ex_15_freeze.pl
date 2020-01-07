@@ -77,9 +77,6 @@ foo7(T) :- foo6(Closure), arg(2, Closure, Closure0), arg(1, Closure0, V), V = 42
 dummy_hash(thepubkey, thepubkeyhash).
 dummy_validate(sys(somehash), thepubkey, thesign).
 
-% Meta: fileio on
-% Meta: debug off
-
 tx(CoinIn, Hash, Sign, PubKey, PubKeyHash, CoinOut) :-
     CoinIn = coin(V, X),
     var(X),
@@ -101,6 +98,8 @@ foo8 :-
 % Now spend that frozen coin...
 %
 
+% Meta: fileio on
+    
 foo9 :-
     foo8, % Existing coin...
     frozenk(10, [Addr]),

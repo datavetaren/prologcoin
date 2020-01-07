@@ -246,6 +246,8 @@ public:
        { return T::get_heap().is_list(t); }
 
     // Watch addresses
+    inline void heap_add_watched(size_t addr)
+       { T::get_heap().add_watched(addr); }
     inline void heap_watch(size_t addr, bool b)
        { T::get_heap().watch(addr, b); }
     inline const std::vector<size_t> & heap_watched() const
@@ -453,6 +455,18 @@ public:
     std::vector<std::string> to_error_messages(const token_exception &ex);
     std::vector<std::string> to_error_messages(const term_parse_exception &ex);
 
+    void print_error_messages(std::ostream &out, const token_exception &ex) {
+	for (auto &s : to_error_messages(ex)) {
+	    out << s << std::endl;
+	}
+    }
+
+    void print_error_messages(std::ostream &out, const term_parse_exception &ex) {
+	for (auto &s : to_error_messages(ex)) {
+	    out << s << std::endl;
+	}
+    }
+
     void error_excerpt(const std::string &line, size_t column,
 		       std::vector<std::string> &msgs);
     
@@ -464,6 +478,9 @@ private:
 
     inline void bind(const ref_cell &a, term b)
     {
+        if (a.tag() == tag_t::RFW) {
+	    heap_add_watched(a.index());
+        }
         size_t index = a.index();
         heap_set(index, b);
         trail(index);
@@ -500,7 +517,7 @@ public:
      {
         auto range = const_cast<term_env_dock<HT,ST,OT> &>(*this).iterate_over(t);
         for (auto t1 : range) {
-   	    if (t1.tag() == tag_t::REF) {
+	    if (t1.tag().is_ref()) {
 	        return false;
 	    }
         }
@@ -758,7 +775,7 @@ public:
       size_t hb_;
   };
 
-  state_context capture_state() {
+  state_context save_state() {
       return state_context(stacks_dock<ST>::trail_size(), stacks_dock<ST>::stack_size(), stacks_dock<ST>::get_register_hb());
   }
 
@@ -776,7 +793,7 @@ public:
       std::for_each( begin(t0),
 		     end(t0),
 		     [this,&seen,&vars](const term t) {
-			 if (t.tag() == tag_t::REF) {
+		         if (t.tag().is_ref()) {
 			     const std::string name = this->to_string(t);
 			     if (!seen.count(t)) {
 				 vars.push_back(std::make_pair(name,t));
@@ -801,7 +818,7 @@ public:
 	  continue;
 	}
 	seen.insert(t);
-	if (t.tag() == tag_t::REF) {
+	if (t.tag().is_ref()) {
 	  if (!this->has_name(t)) {
 	    ++count_occurrences[t];
 	  }
@@ -853,6 +870,18 @@ public:
   {
       term_utils utils(heap_dock<HT>::get_heap(), stacks_dock<ST>::get_stacks(), ops_dock<OT>::get_ops());
       return utils.to_error_messages(ex);
+  }
+
+  inline void print_error_messages(std::ostream &out, const token_exception &ex)
+  {
+      term_utils utils(heap_dock<HT>::get_heap(), stacks_dock<ST>::get_stacks(), ops_dock<OT>::get_ops());
+      return utils.print_error_messages(out, ex);
+  }
+
+  inline void print_error_messages(std::ostream &out, const term_parse_exception &ex)
+  {
+      term_utils utils(heap_dock<HT>::get_heap(), stacks_dock<ST>::get_stacks(), ops_dock<OT>::get_ops());
+      return utils.print_error_messages(out, ex);
   }
 
   inline std::string to_string_debug(const term t) const

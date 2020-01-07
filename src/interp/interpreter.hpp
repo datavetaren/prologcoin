@@ -76,6 +76,11 @@ public:
 
     bool is_instance() const;
 
+protected:
+    inline void set_retain_state_between_queries(bool b) {
+        retain_state_between_queries_ = b;
+    }
+  
 private:
     static bool new_instance_meta(interpreter_base &interp, const meta_reason_t &reason);
 
@@ -87,7 +92,12 @@ private:
 		       managed_clauses &clauses,
 		       size_t from_clause);
 
-    const predicate & get_predicate(con_cell module, con_cell f)
+    inline const predicate & get_predicate(con_cell f)
+    {
+        return interpreter_base::get_predicate(f);
+    }
+  
+    inline const predicate & get_predicate(con_cell module, con_cell f)
     {
         return interpreter_base::get_predicate(module, f);
     }
@@ -119,6 +129,7 @@ private:
     bool wam_enabled_;
     std::vector<binding> *query_vars_;
     size_t num_instances_;
+    bool retain_state_between_queries_;
 
     friend struct new_instance_context;
     friend class test_wam_interpreter;

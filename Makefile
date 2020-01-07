@@ -20,6 +20,10 @@ all:
 	echo $(yellow)$(bold)  Testing $$dir $(off); \
 	echo $(yellow)$(bold) --------------------------------------- $(off); \
 	$(MAKE) -C $$dir -- test $(MAKECMDGOALS) || exit 1; \
+	echo $(yellow)$(bold) --------------------------------------- $(off); \
+	echo $(yellow)$(bold)  Scripting $$dir $(off); \
+	echo $(yellow)$(bold) --------------------------------------- $(off); \
+	$(MAKE) -C $$dir -- script $(MAKECMDGOALS) || exit 1; \
 	done;
 
 clean:

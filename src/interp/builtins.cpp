@@ -228,7 +228,7 @@ namespace prologcoin { namespace interp {
     
     bool builtins::var_1(interpreter_base &interp, size_t arity, common::term args[])
     {
-	return args[0].tag() == tag_t::REF;
+        return args[0].tag().is_ref();
     }
 
     bool builtins::nonvar_1(interpreter_base &interp, size_t arity, common::term args[])
@@ -297,6 +297,7 @@ namespace prologcoin { namespace interp {
        std::string s;
        switch (from.tag()) {
          case tag_t::REF:
+         case tag_t::RFW:
 	     interp.abort(interpreter_exception_not_sufficiently_instantiated("upcase_atom/2: Arguments are not sufficiently instantiated"));
 	     return false;
          case tag_t::INT: {
@@ -330,12 +331,12 @@ namespace prologcoin { namespace interp {
    }
 
     bool builtins::bytes_number_2(interpreter_base &interp, size_t arity, common::term args[]) {
-        if (args[0].tag() == tag_t::REF && args[1].tag() == tag_t::REF) {
+        if (args[0].tag().is_ref() && args[1].tag().is_ref()) {
   	    std::string msg = "bytes_number/2: Not both arguments can be unbounded variables.";
 	    interp.abort(interpreter_exception_not_sufficiently_instantiated(msg));
         }
 	term charlst = args[0];
-        if (charlst.tag() != tag_t::REF) {
+        if (!charlst.tag().is_ref()) {
   	    if (!interp.is_list(charlst)) {
 	        interp.abort(interpreter_exception_wrong_arg_type("bytes_number/2: First argument must be a list of integers (in 0..255)"));
 	    }
@@ -456,10 +457,10 @@ namespace prologcoin { namespace interp {
 	  }
 	  break;
 	}
-	case tag_t::REF: {
+	case tag_t::REF: case tag_t::RFW: {
 	  {
 	    term deref_term = interp.deref(current_term);
-	    if (deref_term == current_term && current_tag == tag_t::REF) {
+	    if (deref_term == current_term && current_tag.is_ref()) {
 	      return false;
 	    }
 	    workstack.push_front(std::pair<term, int>(deref_term, 0));
@@ -555,7 +556,7 @@ namespace prologcoin { namespace interp {
 
         term arg_index_term = args[0];
 
-	if (arg_index_term.tag() == tag_t::REF) {
+	if (arg_index_term.tag().is_ref()) {
 	    static const common::con_cell ARG3("arg", 3);
 	    // Store current index
 	    interp.new_cell0(int_cell(0));
@@ -587,6 +588,66 @@ namespace prologcoin { namespace interp {
 	term val = interp.arg(t, arg_index-1);
         return interp.unify(args[2], val);
     }
+
+    bool builtins::functor_3(interpreter_base &interp, size_t arity, common::term args[]) {
+	term t = args[0];
+	if (t.tag().is_ref()) {
+	    // Create functor
+	    term f = args[1];
+	    term a = args[2];
+	    if (f.tag().is_ref()) {
+	        std::string msg =
+	          "functor/3: Second argument must be a ground if first argument is a variable; was " + interp.to_string(f);
+	        interp.abort(interpreter_exception_not_sufficiently_instantiated(msg));
+	    }
+	    if (a.tag().is_ref()) {
+	        std::string msg =
+	          "functor/3: Third argument must be a ground if first argument is a variable; was " + interp.to_string(a);
+	        interp.abort(interpreter_exception_not_sufficiently_instantiated(msg));
+	    }
+	    if (a.tag() != tag_t::INT) {
+	        std::string msg =
+	          "functor/3: Expected third argument to be an integer; was " + interp.to_string(a);
+	        interp.abort(interpreter_exception_wrong_arg_type(msg));
+	    }
+	    size_t arity = static_cast<int_cell &>(a).value();
+	    if (arity < 0 || arity > con_cell::MAX_ARITY) {
+	        std::stringstream msg;
+		msg << "functor/3: Arity must be 0 or maximum " << con_cell::MAX_ARITY << "; was " << interp.to_string(arity);
+	        interp.abort(interpreter_exception_wrong_arg_type(msg.str()));
+	    }
+	    switch (f.tag()) {
+	    case tag_t::CON: break;
+	    case tag_t::INT: case tag_t::BIG:
+	        return interp.unify(t, f) && interp.unify(a, int_cell(0));
+	    case tag_t::STR:
+	        return false;
+	    }
+
+	    auto c = static_cast<con_cell &>(f);
+	    con_cell newfun = interp.to_functor(c, arity);
+	    return interp.unify(t, interp.new_term(newfun));
+	} else {
+	    // Extract functor
+ 	    if (t.tag() == tag_t::INT || t.tag() == tag_t::BIG) {
+	        return interp.unify(args[1], t) &&
+		       interp.unify(args[2], int_cell(0));
+	    }
+	  
+	    if (t.tag() != tag_t::STR && t.tag() != tag_t::CON) {
+	        std::string msg =
+	          "functor/3: First argument must be a functor (or a variable); was " + interp.to_string(t);
+	        interp.abort(interpreter_exception_wrong_arg_type(msg));
+	    }
+
+	    con_cell fun = interp.functor(t);
+	    con_cell atom = interp.to_atom(fun);
+	    size_t arity = fun.arity();
+
+	    return interp.unify(args[1], atom) &&
+	           interp.unify(args[2], int_cell(arity));
+	}
+    }
     
     bool builtins::copy_term_2(interpreter_base &interp, size_t arity, common::term args[])
     {
@@ -595,33 +656,6 @@ namespace prologcoin { namespace interp {
 	term copy_arg1 = interp.copy(arg1);
 	bool ok = interp.unify(arg2, copy_arg1);
 	return ok;
-    }
-
-    bool builtins::functor_3(interpreter_base &interp, size_t arity, common::term args[])
-    {
-	term t = args[0];
-	term f = args[1];
-	term a = args[2];
-
-	switch (t.tag()) {
-  	  case tag_t::REF:
-            interp.abort(interpreter_exception_not_sufficiently_instantiated("functor/3: Arguments are not sufficiently instantiated"));
-	    return false;
-	  case tag_t::INT:
- 	  case tag_t::BIG: {
-	    term zero = int_cell(0);
-	    return interp.unify(f, t) && interp.unify(a, zero);
-	    }
-	  case tag_t::STR:
-  	  case tag_t::CON: {
-	      con_cell tf = interp.functor(t);
-	      term fun = interp.to_atom(tf);
-	      term arity = int_cell(tf.arity());
-	      return interp.unify(f, fun) && interp.unify(a, arity);
-	    }
-	}
-
-        return false;
     }
 
     bool builtins::same_term_2(interpreter_base &interp, size_t arity, common::term args[])
@@ -662,7 +696,7 @@ namespace prologcoin { namespace interp {
 	con_cell f = interp.functor(t);
 	size_t n = f.arity();
 	while (index < n) {
-	    if (lst.tag() == tag_t::REF) {
+	    if (lst.tag().is_ref()) {
 		term tail = deconstruct_write_list(interp, t, index);
 		return interp.unify(lst, tail);
 	    }
@@ -688,11 +722,11 @@ namespace prologcoin { namespace interp {
 	// To make deconstruction more efficient, let's handle the
 	// common scenarios first.
 
-	if (lhs.tag() == tag_t::REF && rhs.tag() == tag_t::REF) {
+	if (lhs.tag().is_ref() && rhs.tag().is_ref()) {
 		interp.abort(interpreter_exception_not_sufficiently_instantiated("=../2: Arguments are not sufficiently instantiated"));
 	}
 
-	if (lhs.tag() == tag_t::REF) {
+	if (lhs.tag().is_ref()) {
 	    if (!interp.is_list(rhs)) {
 		interp.abort(interpreter_exception_not_list("=../2: Second argument is not a list; found " + interp.to_string(rhs)));
 	    }
@@ -701,7 +735,7 @@ namespace prologcoin { namespace interp {
 		interp.abort(interpreter_exception_not_list("=../2: Second argument must be non-empty; found " + interp.to_string(rhs)));
 	    }
 	    term first_elem = interp.arg(rhs,0);
-	    if (first_elem.tag() == tag_t::REF) {
+	    if (first_elem.tag().is_ref()) {
 		interp.abort(interpreter_exception_not_sufficiently_instantiated("=../2: Arguments are not sufficiently instantiated"));
 	    }
 	    if (first_elem.tag() == tag_t::INT && lst_len == 1) {
@@ -715,7 +749,7 @@ namespace prologcoin { namespace interp {
 	    term t = interp.new_term(interp.to_functor(f, num_args));
 	    term lst = interp.arg(rhs, 1);
 	    for (size_t i = 0; i < num_args; i++) {
-		if (lst.tag() == tag_t::REF) {
+	        if (lst.tag().is_ref()) {
 		    term tail = deconstruct_write_list(interp, lhs, i);
 		    return interp.unify(lst, tail);
 		}
@@ -746,7 +780,7 @@ namespace prologcoin { namespace interp {
         term arg0 = args[0];
 	term arg1 = args[1];
 
-	if (arg0.tag() == tag_t::REF) {
+	if (arg0.tag().is_ref()) {
             interp.abort(interpreter_exception_not_sufficiently_instantiated("sort/2: Arguments are not sufficiently instantiated"));
 	}
 
@@ -790,6 +824,47 @@ namespace prologcoin { namespace interp {
     // Meta
     //
 
+    bool builtins::call_n(interpreter_base &interp, size_t arity, common::term args[]) {
+	// Get functor of args[0]
+	term c = args[0];
+	if (c.tag() != tag_t::STR && c.tag() != tag_t::CON) {
+	    std::stringstream msg;
+	    msg << "call/" << arity << ": First argument must be something callable; was " << interp.to_string(c);
+	    interp.abort(interpreter_exception_wrong_arg_type(msg.str()));
+	}
+	con_cell f = interp.functor(args[0]);
+
+	// Get number of extra arguments (this arity - 1)
+	size_t num_extra_args = arity - 1;
+	size_t f_arity = f.arity();
+	size_t new_f_arity = f_arity + num_extra_args;
+	con_cell new_f = f;
+	
+	if (num_extra_args > 0) {
+	    new_f = interp.to_functor(interp.to_atom(f), new_f_arity);
+	}
+
+	term new_call = interp.new_term(new_f);
+
+	// Copy existing arguments from 'f'
+	for (size_t i = 0; i < f_arity; i++) {
+	    interp.set_arg(new_call, i, interp.arg(c, i));
+	}
+
+	// Append extra arguments
+	for (size_t i = 0; i < num_extra_args; i++) {
+	    interp.set_arg(new_call, f_arity + i, args[i+1]);
+	}
+
+	// Setup new environment and where to continue
+        interp.allocate_environment<ENV_NAIVE>();
+	
+	interp.set_p(new_call);
+	interp.set_cp(interpreter_base::EMPTY_LIST);
+
+	return true;
+    }
+    
     bool builtins::operator_disprove(interpreter_base &interp, size_t arity, common::term args[])
     {
 	term arg = args[0];
@@ -917,7 +992,7 @@ namespace prologcoin { namespace interp {
     bool builtins::freeze_2(interpreter_base &interp, size_t arity, common::term args[])
     {
         term v = args[0];
-	if (v.tag() != common::tag_t::REF) {
+	if (!v.tag().is_ref()) {
 	    interp.set_p(args[1]);
 	    interp.set_cp(interpreter_base::EMPTY_LIST);
 	    return true;
@@ -1030,4 +1105,76 @@ namespace prologcoin { namespace interp {
 	return interp.unify(args[1], lst);
     }
 
+    bool builtins::defrost_3(interpreter_base &interp, size_t arity, common::term args[] ) {
+
+        term addr_term = args[0];
+	if (addr_term.tag() != common::tag_t::INT) {
+	    std::string msg = "defrost/3: "
+	      "First argument was not an integer representing a heap address; was "
+	      + interp.to_string(addr_term);
+	    interp.abort(interpreter_exception_wrong_arg_type(msg));
+	}
+
+	auto addr = static_cast<int_cell &>(addr_term).value();
+	if (addr < 0) {
+	    std::string msg = "defrost/3: "
+	      "Integer must be a positive integer; was "
+	      + interp.to_string(addr_term);
+	    interp.abort(interpreter_exception_wrong_arg_type(msg));
+	}
+	
+        auto *closure = interp.frozen_closures.find(addr);
+	if (closure == nullptr) {
+	    return false;
+	}
+
+	// Third argument must be a list of values where the first value
+	// is ground (the var freeze is frozen on.)
+
+        term values_term = args[2];
+	if (!interp.is_list(values_term) || !interp.is_dotted_pair(values_term)) {
+	    std::string msg = "defrost/3: "
+	      "Third argument must be a proper non-empty list of values; was "
+	      + interp.to_string(values_term);
+	    interp.abort(interpreter_exception_wrong_arg_type(msg));	  
+	}
+
+	term first_arg = interp.arg(values_term, 0);
+	if (!interp.is_ground(first_arg)) {
+	    std::string msg = "defrost/3: "
+	      "First element in third argument must be ground; was "
+	      + interp.to_string(first_arg);
+	    interp.abort(interpreter_exception_wrong_arg_type(msg));
+	}
+
+	// Note that a closure is ':'('$freeze', TermWithVars)
+	// Where TermWithVars is the actual closure.
+
+	term closure_term = interp.arg(*closure, 1);
+
+	if (!interp.unify(args[1], closure_term)) {
+	    return false;
+	}
+	
+	auto context = interp.save_term_state();
+ 
+	size_t i = 0;
+	size_t closure_arity = interp.functor(closure_term).arity();
+
+	while (values_term != interpreter_base::EMPTY_LIST && i < closure_arity) {
+	    term next_arg = interp.arg(values_term, 0);
+	    term closure_arg = interp.arg(closure_term, i);
+
+	    if (!interp.is_ground(closure_arg)) {
+		if (!interp.unify(next_arg, closure_arg)) {
+		    interp.restore_term_state(context);
+		    return false;
+		}
+		values_term = interp.arg(values_term, 1);
+	    }
+	    i++;
+	}
+
+	return true;
+    }
 }}

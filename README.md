@@ -386,6 +386,67 @@ Script = ...
 Note that the tx3/7 wakes up at the moment when Hash is bound, which
 happens in the commit phase (as previously described.)
 
+## Generalizing Transactions
+
+Note that tx/6, tx2/6 and tx3/7 have a similar pattern, and we can generalize
+the transaction model and factor the gateway predicate as follows:
+
+```
+tx(CoinIn, Hash, Script, Args, CoinOut) :-
+    CoinIn = '$coin'(V, X),
+    var(X),
+    X = [],
+    freeze(Hash,
+           ground(Hash),
+	   Hash = '$sys'(_),
+           call(Script, Hash, Args),
+	   CoinOut = '$coin'(V, _)).
+```
+
+Can can then formulate the variants as:
+
+First is pay-to-pubkey-hash:
+
+```
+tx1(Hash, args(Sign, PubKey, PubKeyHash)) :-
+    hash(PubKey, PubKeyHash),
+    validate(Hash, PubKey, Sign).
+```
+
+where we then can rewrite the call to tx/5 as:
+
+```
+tx(CoinIn, Hash, tx1, args(Sign, PubKey, PubKeyHash)).
+```
+
+
+MuSig batched transactions is then:
+
+```
+tx2(Hash, args(Sign, PubKey, PubKeys)) :-
+   member(PubKey, PubKeys),
+   eu:musig_combine(PubKeys, CombinedPubKey, _),
+   ec:musig_verify(Hash, CombinedPubKey, Sign).
+```
+
+And finally Taproot:
+
+```
+tx3(Hash, args(Sign, PubKeyMusig, PubKeyScript, Script)) :-
+   (var(PubKeyScript) ->
+        ec:musig_verify(Hash, PubKeyMusig, Sign)
+      ; ec:musig_verify(Hash, PubKeyScript, Sign),
+        hash([PubKeyMusig,Script], H),
+	ec:pubkey_tweak_add(PubKeyScript, H, PubKeyMusig),
+        call(Script)
+   ).
+```
+
+The important thing to notice is that the transaction that moves the
+coin is separate in 'tx' which guarantees that the money supply
+cannot be altered. The gateway predicate to control whenever a coin
+can be moved is thus abstracted in tx1, tx2 and tx3.
+
 ## Global State
 
 The intent of Prologcoin is to run a regular Prolog execution of a
@@ -401,8 +462,8 @@ maintained by all the nodes of the system.
 It turns out that the only relevant thing to keep around for the
 global expandable query are the frozen closures (those are created
 when calling freeze/2.) Everything else can be thrown away. Frozen
-closures are like "interrupts" when programming embedded systems. They
-can suddenly become awake, and they have the potential to falsify.
+closures are like "interrupts" for embedded systems. They can suddenly
+become awake, and they have the potential to falsify.
 
 Thus we keep a set of all frozen closures, and all the data they can
 reach. This is our live root set in a garbage collection system.
@@ -418,6 +479,96 @@ both the live set and the heap blocks. By using proof-of-work on the
 state (and not on the transitions) we also enable fast synching yet it
 is possible for any node in the network to detect if a miner is
 producing an erroneous state.
+
+## Custom Tokens
+
+The current security model for '$coin' in Prologcoin is that only a
+limited set of predicates have write mode access for that particular
+term. Recall that write mode means that new terms are created on the
+heap.
+
+It's possible to enable users create their own custom tokens by a
+similar security model. Let's say have we token/2:
+
+```
+token('$mytoken', [mysplit, myjoin, mytx])
+```
+
+That creates a new token ('$mytoken') and only the predicates mysplit,
+myjoin and mytx have write mode access to these terms. Now it's
+possible to create a replica of '$coin' but for '$mytoken'.
+
+We'll now extend the predicates with hidden local states.
+If we annotate a predicate (in the list predicates of token/2) as:
+
+```
+token('$mytoken', [mysplit, myjoin, mytx, myswapin(state), myswapout(state)])
+```
+
+Then myswapin is assumed to be defined as:
+
+```
+myswapin(StateIn, StateOut, ... Args ...) :- ...
+```
+
+That is, the first two arguments are state variables, the input state
+and the resulting output state. However, these arguments are omitted in
+the call of myswapin:
+
+```
+myswapin( ... Args ...)
+```
+
+will be rewritten by the system to pass in the current state for that
+token as well as what the output state is. Note that these states are
+still declarative (i.e. they don't destructively update anything.)
+This is similar to state monads in lazy functional programming
+languages.
+
+Before introducing the example, let's assume we make the following
+modificatons.
+
+* cjoin/2 and csplit/3 can accept any $-term (not just $coin)
+* Same with tx/5 (the generalized version)
+* czero/1 is czero('$coin'(0, _)) and can be accessed from any predicate
+
+Consider the following definitions of myswapin and myswapout:
+
+```
+myswapin(StateIn, StateOut, RealCoinIn, TokenOut) :-
+    % Extract from StateIn, or initialize a new state (StateIn = [] initially)
+    (StateIn = state(CoinSum,Count) ; czero(CoinSum),Count=0),
+    Count1 is Count + 1,                 % Increment counter
+    StateOut = state(CoinNewSum,Count1), % Prepare new state
+    cjoin([CoinSum, RealCoinIn], CoinNewSum), % Add real coin to sum
+    RealCoinIn = '$coin'(Value, _), % Read mode as '$coin'(...) is ground
+    TokenOut = '$mytoken'(Value, _).
+
+myswapout(StateIn, StateOut, TokenIn, RealCoinOut) :-
+    TokenIn = '$mytoken'(Value, X),
+    var(X), % Not currently spent
+    X = [], % Spend it
+    StateIn = state(RealCoinSum, Count),
+    Count1 is Count + 1,
+    StateOut = state(NewCoinSum, Count1),
+    csplit(RealCoinSum, [Value], [NewCoinSum, RealCoinOut]).
+```
+
+The things to notice:
+
+* myswapin/4 is used to swap a real '$coin' for a '$mytoken'
+* myswapout/4 is used to swap a '$mytoken' for a real '$coin'.
+* The exchange rate between '$coin' and '$mytoken' is 1:1.
+* The initial state is [] (set by system when the token is created)
+* The state is represented with a term : state(RealCoin, Count)
+* Count is the current number of swaps (in or out)
+
+The basic idea is to enable users swapping real coins for something
+else (and back) so that "something else" can be used in experiments.
+Think Bitcoin Liquid, or off chain ZK SNARKs, Mimblewimble, etc.  The
+idea is to have a state where coins can be accumulated and used with
+different smart contracts without having to worry about wrecking the
+original money supply for '$coin'.
 
 ## Appendix
 

@@ -88,11 +88,11 @@ private string thisMain;
        return relPath;
    }
 
-   private static void ComputeDepsDir(string srcDir, string subdir, bool isTest, string exeName)
+   private static void ComputeDepsDir(string srcDir, string subdir, bool isRun, string exeName)
    {
-       string name = exeName != null ? exeName : subdir.Replace(@"\", "_");
+       string name = subdir.Replace(@"\", "_");
 
-       if (!isTest) {
+       if (!isRun) {
            string [] deps = GetDependingLibs(srcDir, subdir);
 	   theDeps[name] = deps;
 	   /*
@@ -101,6 +101,9 @@ private string thisMain;
 	       Console.WriteLine("    " + n);
 	   }
 	   */
+	   if (exeName != null) {
+	      theDeps[exeName] = deps;
+	   }
        }
    }
 
@@ -131,14 +134,14 @@ private string thisMain;
        while (stack.Count() > 0) {
        	     string dir = stack.Pop();
              string [] cppFiles = Directory.GetFiles(dir, "*.cpp");
-	     bool isTestDir = false;
+	     bool isRunDir = false;
 	     if (cppFiles.Count() > 0) {
-	         if (dir.EndsWith(@"\test")) {
-		     isTestDir = true;
+	         if (dir.EndsWith(@"\test") || dir.EndsWith(@"\script")) {
+		     isRunDir = true;
 		 }
 		 string exeName = GetExeName(dir);
     	         string subdir = MakeRelative(dir, srcDir);
-	         ComputeDepsDir(srcDir, subdir, isTestDir, exeName);
+	         ComputeDepsDir(srcDir, subdir, isRunDir, exeName);
              }
 
 	     string [] subdirs = Directory.GetDirectories(dir);
@@ -179,7 +182,8 @@ private string thisMain;
 	    if (IsLibrary(proj)) {
 	         continue;
 	    }
-	    if (proj.EndsWith("_test.vcxproj")) {
+	    if (proj.EndsWith("_test.vcxproj") ||
+	        proj.EndsWith("_script.vcxproj")) {
 	         continue;
 	    }
 	    return proj;
@@ -252,11 +256,17 @@ private string thisMain;
 	   Console.WriteLine( projFile );
            sw.WriteLine("Project(\"{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}\") = \"" + Path.GetFileNameWithoutExtension(projFile) + "\", \"" + projFile + "\", \"" + projGuid + "\"");
 
-	   // Is this a unittest?
+	   // Is this a unittest or script?
 	   if (!IsLibrary(binDir + @"\" + projFile)) {
+	        var modName = Path.GetFileNameWithoutExtension(projFile);
+
 	        var depLib = projFile.Substring(0, projFile.Length);
-	        // Extract the non-unittest lib project
-	        if (projFile.EndsWith("_test.vcxproj")) {
+	        if (projFile.EndsWith("_script.vcxproj")) {
+		   // Extract the non-script lib project
+	           depLib = projFile.Substring(0, projFile.Length
+		   	            - "_script.vcxproj".Length);
+	        } else if (projFile.EndsWith("_test.vcxproj")) {
+		   // Extract the non-unittest lib project
 	           depLib = projFile.Substring(0, projFile.Length
 		   	            - "_test.vcxproj".Length);
 	        } else if (projFile.EndsWith(".vcxproj")) {
@@ -265,13 +275,17 @@ private string thisMain;
 		} else {	    
 		   Debug.Assert(false, "Unknown project vcxproj file" );
 		}
+
 		AddDep(names, depLib, sw);
 
 		// Add all dependent libs
-		var deps = theDeps[depLib];
-		foreach (var dep in deps) {
-		    AddDep(names, dep, sw);
-		}
+		if (theDeps.ContainsKey(depLib)) {
+		    var deps = theDeps[depLib];
+
+		    foreach (var dep in deps) {
+		        AddDep(names, dep, sw);
+		    }
+                }
            }
 
            sw.WriteLine("EndProject");

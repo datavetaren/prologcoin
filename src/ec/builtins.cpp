@@ -379,7 +379,7 @@ bool builtins::privkey_1(interpreter_base &interp, size_t arity, term args[])
 
     auto &ctx = get_ctx(interp);
 
-    if (args[0].tag() == tag_t::REF) {
+    if (args[0].tag().is_ref()) {
 
         new_private_key(interp, &bytes[1]);
 	term big = create_private_key(interp, &bytes[1]);
@@ -396,7 +396,7 @@ bool builtins::privkey_1(interpreter_base &interp, size_t arity, term args[])
 
 bool builtins::privkey_2(interpreter_base &interp, size_t arity, term args[])
 {
-    if (args[0].tag() == tag_t::REF) {
+    if (args[0].tag().is_ref()) {
 	throw interpreter_exception_not_sufficiently_instantiated(
 		  "ec:privkey/2: First argument, a raw private key"
                   " must be given.");
@@ -498,20 +498,37 @@ bool builtins::address_2(interpreter_base &interp, size_t arity, term args[])
     return interp.unify(args[1], big);
 }
 
-bool builtins::get_hashed_data(uint8_t *data, size_t data_len,
-			       uint8_t hash[32])
+// MuSig does a single hash computation for nonce commitments
+bool builtins::get_hashed_1_data(uint8_t *data, size_t data_len,
+			         uint8_t hash[32])
 {
     secp256k1_sha256 ctx;
     secp256k1_sha256_initialize(&ctx);
     secp256k1_sha256_write(&ctx, data, data_len);
     secp256k1_sha256_finalize(&ctx, hash);
+    return true;
+}
+
+// Normally we take SHA256(SHA256(data))
+bool builtins::get_hashed_2_data(uint8_t *data, size_t data_len,
+			         uint8_t hash[32])
+{
+    secp256k1_sha256 ctx;
+    secp256k1_sha256_initialize(&ctx);
+    secp256k1_sha256_write(&ctx, data, data_len);
+    secp256k1_sha256_finalize(&ctx, hash);
+    secp256k1_sha256_initialize(&ctx);
+    secp256k1_sha256_write(&ctx, hash, 32);
+    secp256k1_sha256_finalize(&ctx, hash);
 
     return true;
 }
 
-bool builtins::get_hashed2_data(interpreter_base &interp, const term data,
-				uint8_t hash[32])
+bool builtins::get_hashed_term(interpreter_base &interp, const term data,
+			       uint8_t hash[32], size_t count)
 {
+    assert(count == 1 || count == 2);
+  
     if (data.tag() == tag_t::BIG) {
 	auto &big_data = reinterpret_cast<const big_cell &>(data);
 	big_iterator bi = interp.get_heap().begin(big_data);
@@ -519,7 +536,8 @@ bool builtins::get_hashed2_data(interpreter_base &interp, const term data,
 
 	// If the data size is exactly 32 bytes, then don't hash anything.
 	// Just return the data as is. This enables compatibility with
-	// computing signatures over data that has already been hashed.
+	// computing signatures over data that has already been hashed
+	// manually.
 	size_t data_size = bi_end - bi;
 	if (data_size == 32) {
 	    for (size_t i = 0; i < data_size; i++, ++bi) {
@@ -529,7 +547,7 @@ bool builtins::get_hashed2_data(interpreter_base &interp, const term data,
 	}
 
 	// If the data is a bignum with more (or less) than 32 bytes, then
-	// use SHA256 on it and return the hashed value.
+	// hash the raw data (excluding any metadata.)
 	static const size_t BUFFER_CAPACITY = 32;
 	uint8_t buffer[BUFFER_CAPACITY];
 	size_t buffer_len = 0;
@@ -546,6 +564,13 @@ bool builtins::get_hashed2_data(interpreter_base &interp, const term data,
 	}
 	secp256k1_sha256_finalize(&ctx, hash);
 
+	if (count == 2) {
+	    // Apply SHA256 once again.
+	    secp256k1_sha256_initialize(&ctx);
+	    secp256k1_sha256_write(&ctx, hash, 32);
+	    secp256k1_sha256_finalize(&ctx, hash);
+	}
+
 	return true;
     }
 
@@ -555,12 +580,21 @@ bool builtins::get_hashed2_data(interpreter_base &interp, const term data,
     term_serializer::buffer_t buf;
     ser.write(buf, data);
 
-    secp256k1_sha256 ctx;
-    secp256k1_sha256_initialize(&ctx);
-    secp256k1_sha256_write(&ctx, &buf[0], buf.size());
-    secp256k1_sha256_finalize(&ctx, hash);
+    if (count == 1) {
+        return get_hashed_1_data(&buf[0], buf.size(), hash);
+    } else {
+        return get_hashed_2_data(&buf[0], buf.size(), hash);      
+    }
+}
 
-    return true;
+bool builtins::get_hashed_1_term(interpreter_base &interp, const term data,
+				 uint8_t hash[32]) {
+    return get_hashed_term(interp, data, hash, 1);
+}
+
+bool builtins::get_hashed_2_term(interpreter_base &interp, const term data,
+				 uint8_t hash[32]) {
+    return get_hashed_term(interp, data, hash, 2);
 }
 
 bool builtins::compute_signature(interpreter_base &interp,
@@ -592,7 +626,7 @@ bool builtins::compute_signature(interpreter_base &interp, const term data,
     }
 
     uint8_t hash[32];
-    if (!get_hashed2_data(interp, data, hash)) {
+    if (!get_hashed_2_term(interp, data, hash)) {
 	return false;
     }
 
@@ -664,7 +698,7 @@ bool builtins::verify_signature(interpreter_base &interp,
     }
 
     uint8_t hash[32];
-    if (!get_hashed2_data(interp, data, hash)) {
+    if (!get_hashed_2_term(interp, data, hash)) {
 	return false;
     }
 
@@ -673,25 +707,67 @@ bool builtins::verify_signature(interpreter_base &interp,
 
 bool builtins::sign_3(interpreter_base &interp, size_t arity, term args[] )
 {
-    if (args[0].tag() == tag_t::REF) {
+    if (args[0].tag().is_ref()) {
 	throw interpreter_exception_not_sufficiently_instantiated(
-		  "ec:sign/3: First argument, a public or private key"
-                  " (private for signing), must be given.");
+	  "ec:sign/3: Missing private key as first argument.");
     }
 
-    if (args[2].tag() == tag_t::REF) {
-	term out;
-	if (!compute_signature(interp, args[1], args[0], out)) {
-	    return false;
-	}
-	return interp.unify(args[2], out);
-
-    } else {
-	if (!verify_signature(interp, args[1], args[0], args[2])) {
-	    return false;
-	}
-	return true;
+    term out;
+    if (!compute_signature(interp, args[1], args[0], out)) {
+        return false;
     }
+    bool r = interp.unify(args[2], out);
+
+    return r;
+}
+
+bool builtins::validate_3(interpreter_base &interp, size_t arity, term args[] )
+{
+    if (args[0].tag().is_ref()) {
+	throw interpreter_exception_not_sufficiently_instantiated(
+	  "ec:validate/3: Missing public key as first argument.");
+    }
+    if (args[2].tag().is_ref()) {
+	throw interpreter_exception_not_sufficiently_instantiated(
+	  "ec:validate/3: Missing signature as third argument.");
+    }
+    if (args[2].tag() != tag_t::BIG) {
+         throw interpreter_exception_wrong_arg_type(
+	    "ec:validate/3: Third argument must be a signature; was "
+	    + interp.to_string(args[2]));
+    }
+    
+    if (!verify_signature(interp, args[1], args[0], args[2])) {
+        return false;
+    }
+    return true;
+}
+
+bool builtins::hash_2(interpreter_base &interp, size_t arity, term args[] )
+{
+    static const con_cell HASH("$hash", 1);
+
+    if (args[0].tag() == tag_t::STR) {
+        if (interp.functor(args[0]) == HASH) {
+	    term hash_arg = interp.arg(args[0], 0);
+	    if (hash_arg.tag() != tag_t::BIG) {
+	        throw interpreter_exception_wrong_arg_type("hash/2: Hash argument must be a bignum; was " + interp.to_string(hash_arg));
+	    }
+	    return interp.unify(args[1], hash_arg);
+        }
+    }
+
+    uint8_t hashed[32];
+    if (!get_hashed_2_term(interp, args[0], hashed)) {
+        return false;
+    }
+
+    auto big = interp.new_big(RAW_HASH_SIZE*8);
+    interp.set_big(big, hashed, RAW_HASH_SIZE);
+    
+    bool r =  interp.unify(args[1], big);
+    
+    return r;
 }
 
 bool builtins::compute_pedersen_commit(interpreter_base &interp,
@@ -816,7 +892,7 @@ bool builtins::pproof_3(interpreter_base &interp,
     utime ut = utime::now();
     ut.to_bytes(msg);
     uint8_t hash[32];
-    get_hashed_data(msg, sizeof(msg), hash);
+    get_hashed_2_data(msg, sizeof(msg), hash);
     if (!compute_signature(interp, hash, b3, signature)) {
 	return false;
     }
@@ -934,7 +1010,7 @@ bool builtins::pverify_1(interpreter_base &interp, size_t arity, term args[])
     uint8_t msg[8];
     ut.to_bytes(msg);
     uint8_t hash[32];
-    get_hashed_data(msg, sizeof(msg), hash);
+    get_hashed_2_data(msg, sizeof(msg), hash);
     if (!verify_signature(interp, hash, pubkey_raw, signature_raw)) {
 	return false;
     }
@@ -1087,7 +1163,7 @@ bool builtins::musig_verify_3(interpreter_base &interp, size_t arity, term args[
     auto &ctx = get_ctx(interp);
 
     uint8_t hash[RAW_HASH_SIZE];
-    if (!get_hashed2_data(interp, args[0], hash)) {
+    if (!get_hashed_2_term(interp, args[0], hash)) {
         throw interpreter_exception_wrong_arg_type("musig_verify/3: Couldn't compute hash of first argument: " + interp.to_string(args[0]));
     }
     
@@ -1121,7 +1197,7 @@ bool builtins::musig_secret_7(interpreter_base &interp, size_t arity, term args[
     auto &ctx = get_ctx(interp);
 
     uint8_t hash[RAW_HASH_SIZE];
-    if (!get_hashed2_data(interp, args[0], hash)) {
+    if (!get_hashed_2_term(interp, args[0], hash)) {
         throw interpreter_exception_wrong_arg_type("musig_secret/7: Couldn't compute hash of first argument: " + interp.to_string(args[0]));
     }
     
@@ -1165,8 +1241,8 @@ bool builtins::musig_secret_7(interpreter_base &interp, size_t arity, term args[
 	nonces = interp.arg(nonces,1);
 	
 	(nonce_commitments_ptr.get())[i] = &(nonce_commitments_data.get())[i*RAW_HASH_SIZE];
-	get_hashed_data(nonce_raw, RAW_KEY_SIZE+1,
-	                nonce_commitments_ptr.get()[i]);
+	get_hashed_1_data(nonce_raw, RAW_KEY_SIZE+1,
+	                  nonce_commitments_ptr.get()[i]);
 	i++;
     }
 
@@ -1330,7 +1406,7 @@ bool builtins::musig_start_7(interpreter_base &interp, size_t arity, term args[]
 {
     auto &ctx = get_ctx(interp);
 
-    if (args[0].tag() != tag_t::REF) {
+    if (!args[0].tag().is_ref()) {
         throw interpreter_exception_wrong_arg_type("musig_start/7: First argument must be an unbound variable; was " + interp.to_string(args[0]));
     }
 
@@ -1369,7 +1445,7 @@ bool builtins::musig_start_7(interpreter_base &interp, size_t arity, term args[]
     }
 
     uint8_t datahash[RAW_HASH_SIZE];
-    if (!get_hashed2_data(interp, args[6], datahash)) {
+    if (!get_hashed_2_term(interp, args[6], datahash)) {
         return false;
     }
 
@@ -1793,6 +1869,8 @@ void builtins::load(interpreter_base &interp, con_cell *module0)
     interp.load_builtin(M, con_cell("pubkey", 2), &builtins::pubkey_2);
     interp.load_builtin(M, con_cell("address", 2), &builtins::address_2);
     interp.load_builtin(M, con_cell("sign", 3), &builtins::sign_3);
+    interp.load_builtin(M, interp.functor("validate", 3), &builtins::validate_3);
+    interp.load_builtin(M, con_cell("hash", 2), &builtins::hash_2);
 
     interp.load_builtin(M, interp.functor("pubkey_tweak_add", 3), &builtins::pubkey_tweak_add_3);
     interp.load_builtin(M, interp.functor("privkey_tweak_add", 3), &builtins::privkey_tweak_add_3);    
@@ -1818,6 +1896,25 @@ void builtins::load(interpreter_base &interp, con_cell *module0)
     interp.load_builtin(M, interp.functor("musig_final_sign", 4), &builtins::musig_final_sign_4);
     interp.load_builtin(M, interp.functor("musig_nonce_negated", 2), &builtins::musig_nonce_negated_2);
     interp.load_builtin(M, interp.functor("musig_end", 1), &builtins::musig_end_1);
+}
+
+void builtins::load_consensus(interpreter_base &interp) {
+    const con_cell EC("ec", 0);
+    const con_cell M = EC;
+
+    interp.load_builtin(M, con_cell("address", 2), &builtins::address_2);
+    interp.load_builtin(M, interp.functor("validate", 3), &builtins::validate_3);
+    interp.load_builtin(M, con_cell("hash", 2), &builtins::hash_2);
+
+    interp.load_builtin(M, interp.functor("pubkey_tweak_add", 3), &builtins::pubkey_tweak_add_3);
+    interp.load_builtin(M, interp.functor("privkey_tweak_add", 3), &builtins::privkey_tweak_add_3);    
+    
+    interp.load_builtin(M, con_cell("pverify", 1), &builtins::pverify_1);
+
+    // MuSig
+    interp.load_builtin(M, interp.functor("musig_combine", 3), &builtins::musig_combine_3);
+    interp.load_builtin(M, interp.functor("musig_verify", 3), &builtins::musig_verify_3);
+    interp.load_builtin(M, interp.functor("musig_secret", 7), &builtins::musig_secret_7);
 }
 
 }}

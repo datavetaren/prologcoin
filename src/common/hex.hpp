@@ -10,7 +10,7 @@ namespace prologcoin { namespace common {
 
 class hex {
 public:
-    static inline std::string to_string(uint8_t *bytes, size_t n)
+    static inline std::string to_string(const uint8_t *bytes, size_t n)
     {
 	std::stringstream ss;
 	for (size_t i = 0; i < n; i++) {

@@ -230,7 +230,8 @@ public:
 	      raw_value <<= 8;
 	      raw_value |= read_byte(bytes, from_offset+7-i);
 	  }
-	  return cell(raw_value);
+	  cell c = cell(raw_value);
+	  return c;
 	}
 
     static inline void write_cell(buffer_t &bytes, size_t offset, const untagged_cell c)
@@ -270,15 +271,19 @@ private:
 	}
 
     inline void write_ref_cell(buffer_t &bytes, size_t offset, const ref_cell c)
-        { write_cell(bytes, offset, remapped_term(c, cell_count(offset))); }
+    { write_cell(bytes, offset, remapped_term(c.unwatch(), cell_count(offset))); }
 
     void write_str_cell(buffer_t &bytes, size_t offset, const str_cell c);
     void write_big_cell(buffer_t &bytes, size_t offset, const big_cell c);
 
     inline bool is_indexed(const term t)
         { return term_index_.is_indexed(t); }
-    inline term remapped_term(const term t, size_t cell_index)
+    inline term remapped_term(term t, size_t cell_index)
         { switch (t.tag()) {
+  	    case tag_t::RFW:
+	      return ptr_cell(tag_t::REF,
+			      index_term(static_cast<ref_cell &>(t).unwatch(),
+					 cell_index));
 	    case tag_t::REF:
 	    case tag_t::BIG:
 	    case tag_t::STR: {

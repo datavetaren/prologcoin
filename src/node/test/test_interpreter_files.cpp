@@ -1,5 +1,13 @@
+#include <iostream>
+#include <stdio.h>
+#include <stdlib.h>
+#include <iomanip>
+#include <node/self_node.hpp>
+#include <node/session.hpp>
+#include <node/terminal.hpp>
 #include "../../interp/test/test_files_infrastructure.hpp"
-#include "../builtins.hpp"
+
+using namespace prologcoin::node;
 
 static void header( const std::string &str )
 {
@@ -38,12 +46,17 @@ int main( int argc, char *argv[] )
 
     const char *name = find_name(argc, argv);
 
-    const std::string dir = "/src/coin/test/pl_files";
+    const std::string dir = "/src/node/test/pl_files";
+
+    self_node node;
+    auto state = node.new_in_session(nullptr, true);
+    auto &interp = state->interp();
+    interp.ensure_initialized();
 
     if (argc == 2) {
-        test_interpreter_files<interpreter>(dir, [](interpreter &i){prologcoin::coin::builtins::load(i);}, name);
+        test_interpreter_files(dir, interp, name);
     } else {
-        test_interpreter_files<interpreter>(dir, [](interpreter &i){prologcoin::coin::builtins::load(i);});
+        test_interpreter_files(dir, interp);
     }
 
     return 0;

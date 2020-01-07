@@ -4,7 +4,6 @@
 #include "wam_interpreter.hpp"
 #include <boost/filesystem.hpp>
 #include <boost/timer/timer.hpp>
-#include <boost/range/adaptor/reversed.hpp>
 
 #define PROFILER 0
 
@@ -16,6 +15,8 @@ const common::term code_point::fail_term_ = common::ref_cell(0);
 const common::con_cell interpreter_base::COMMA = common::con_cell(",",2);
 const common::con_cell interpreter_base::EMPTY_LIST = common::con_cell("[]",0);
 const common::con_cell interpreter_base::IMPLIED_BY = common::con_cell(":-",2);
+const common::con_cell interpreter_base::ACTION_BY = common::con_cell(":-",1);
+const common::con_cell interpreter_base::USER_MODULE = common::con_cell("user",0);
 
 meta_context::meta_context(interpreter_base &i, meta_fn mfn)
 {
@@ -33,7 +34,7 @@ meta_context::meta_context(interpreter_base &i, meta_fn mfn)
     old_hb = i.get_register_hb();
 }
 
-interpreter_base::interpreter_base() : register_pr_("", 0), arith_(*this), locale_(*this)
+interpreter_base::interpreter_base() : register_pr_("", 0), arith_(*this), locale_(*this), current_module_("user",0)
 {
     init();
 
@@ -111,16 +112,22 @@ void interpreter_base::reset()
     }
 }
 
-std::string code_point::to_string(interpreter_base &interp) const
+std::string code_point::to_string(const interpreter_base &interp) const
 {
     if (has_wam_code()) {
 	std::stringstream ss;
-	wam_code()->print(ss, static_cast<wam_interpreter &>(interp));
+	wam_code()->print(ss, static_cast<wam_interpreter &>(const_cast<interpreter_base &>(interp)));
 	return ss.str();
     } else if (is_fail()) {
 	return "fail";
     } else {
-	return interp.to_string(term_code());
+        std::string s;
+        if (module() != interpreter_base::USER_MODULE) {
+	    s += interp.to_string(module());
+	    s += ":";
+        }
+	s += interp.to_string(term_code());
+	return s;
     }
 }
 
@@ -264,7 +271,7 @@ term interpreter_base::rewrite_freeze_body(term freezeVar, term freezeBody)
     vars_list.push_back(freezeVar);
     vars.insert(freezeVar);
     for (auto t : iterate_over(freezeBody)) {
-      if (t.tag() == common::tag_t::REF) {
+      if (t.tag().is_ref()) {
 	t = deref(t);
 	if (vars.count(t) == 0) {
 	  vars.insert(t);
@@ -286,7 +293,7 @@ term interpreter_base::rewrite_freeze_body(term freezeVar, term freezeBody)
 	size_t num_args = functor(t).arity();
 	for (size_t i = 0; i < num_args; i++) {
 	  term ai = arg(t, i);
-	  if (ai.tag() == common::tag_t::REF) {
+	  if (ai.tag().is_ref()) {
 	    set_arg(t, i, varmap[ai]);
 	  }
 	}
@@ -344,11 +351,15 @@ void interpreter_base::load_clause(const term t, bool as_program)
     // the most common case.
     preprocess_freeze(t);
 
-    con_cell module = EMPTY_LIST;
+    con_cell module = current_module_;
 
     // This is a valid clause. Let's lookup the functor of its head.
 
     term head = clause_head(t);
+
+    if (head == ACTION_BY) {
+	return;
+    }
 
     con_cell predicate = functor(head);
     
@@ -454,12 +465,18 @@ void interpreter_base::load_builtins()
     load_builtin(con_cell("findall",3), builtin(&builtins::findall_3,true));
     load_builtin(con_cell("freeze",2), builtin(&builtins::freeze_2,true));
 
+    // call/n with n [1..11]
+    for (size_t i = 1; i <= 11; i++) {
+        load_builtin(con_cell("call", i), builtin(&builtins::call_n,true));
+    }
+
     // System
     load_builtin(functor("use_module",1), builtin(&builtins::use_module_1,false));
 
     // Non-standard
     load_builtin(con_cell("frozen",2), builtin(&builtins::frozen_2));
     load_builtin(con_cell("frozenk",2), builtin(&builtins::frozenk_2));
+    load_builtin(con_cell("defrost",3), builtin(&builtins::defrost_3));
 }
 
 void interpreter_base::enable_file_io()
@@ -491,58 +508,12 @@ void interpreter_base::load_builtins_file_io()
     load_builtin(con_cell("read", 2), &builtins_fileio::read_2);
     load_builtin(functor("at_end_of_stream", 1), &builtins_fileio::at_end_of_stream_1);
     load_builtin(con_cell("write", 1), &builtins_fileio::write_1);
+    load_builtin(con_cell("write", 2), &builtins_fileio::write_2);
     load_builtin(con_cell("nl", 0), &builtins_fileio::nl_0);
     load_builtin(con_cell("tell",1), &builtins_fileio::tell_1);
     load_builtin(con_cell("told",0), &builtins_fileio::told_0);
     load_builtin(con_cell("format",2), builtin(&builtins_fileio::format_2,true));
     load_builtin(con_cell("sformat",3), builtin(&builtins_fileio::sformat_3,true));
-}
-
-void interpreter_base::load_program(const term t)
-{
-    syntax_check_stack_.push_back(
-		  std::bind(&interpreter_base::syntax_check_program, this,
-			    t));
-    syntax_check();
-
-    for (auto clause : list_iterator(*this, t)) {
-	load_clause(clause, true);
-    }
-}
-
-void interpreter_base::load_program(const std::string &str)
-{
-    std::stringstream ss(str);
-    load_program(ss);
-}
-
-void interpreter_base::load_program(std::istream &in)
-{
-    term_tokenizer tok(in);
-    term_parser parser(tok, *this);
-
-    std::vector<term> clauses;
-
-    while (!parser.is_eof()) {
-        parser.clear_var_names();
-
-	auto clause = parser.parse();
-
-	// Once parsing is done we'll copy over the var-name bindings
-	// so we can pretty print the variable names.
-	parser.for_each_var_name( [&](const term  &ref,
-				    const std::string &name)
-	  { set_name(ref, name); } );
-
-	clauses.push_back(clause);
-    }
-
-    term clause_list = EMPTY_LIST;
-    for (auto clause : boost::adaptors::reverse(clauses)) {
-	clause_list = new_dotted_pair(clause, clause_list);
-    }
-	
-    load_program(clause_list);
 }
 
 qname interpreter_base::gen_predicate(const common::con_cell module,
@@ -663,7 +634,7 @@ void interpreter_base::syntax_check_goal(const term t)
 	auto tg = t.tag();
 	// We don't know what variables will be bound to, so we need
 	// to conservatively skip the syntax check.
-	if (tg == tag_t::REF) {
+	if (tg.is_ref()) {
 	    return;
 	}
 	throw syntax_exception_bad_goal(t, "Goal is not callable.");
@@ -693,7 +664,7 @@ void interpreter_base::print_db(std::ostream &out) const
 	for (auto &m_clause : m_clauses) {
 	    if (do_nl) out << "\n";
 	    std::string mod = "";
-	    if (!is_empty_list(qn.first)) {
+	    if (qn.first != USER_MODULE) {
 	        mod = to_string(qn.first)+":";
 	    }
 	    auto str = mod+to_string(m_clause.clause(), opt);
@@ -776,14 +747,15 @@ void interpreter_base::tidy_trail()
 bool interpreter_base::definitely_inequal(const term a, const term b)
 {
     using namespace common;
-    if (a.tag() == tag_t::REF || b.tag() == common::tag_t::REF) {
-	return false;
+    if (a.tag().is_ref() || b.tag().is_ref()) {
+        return false;
     }
+    
     if (a.tag() != b.tag()) {
 	return true;
     }
     switch (a.tag()) {
-    case tag_t::REF: return false;
+    case tag_t::REF: case tag_t::RFW: return false;
     case tag_t::CON: return a != b;
     case tag_t::STR: {
 	con_cell fa = functor(a);
@@ -800,7 +772,7 @@ bool interpreter_base::definitely_inequal(const term a, const term b)
 common::cell interpreter_base::first_arg_index(const term t)
 {
     switch (t.tag()) {
-    case tag_t::REF: return t;
+    case tag_t::REF: case tag_t::RFW: return t;
     case tag_t::CON: return t;
     case tag_t::STR: {
 	con_cell f = functor(t);
