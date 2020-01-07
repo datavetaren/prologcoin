@@ -1,7 +1,9 @@
 #include "term_emitter.hpp"
 #include "token_chars.hpp"
 #include "term_env.hpp"
+#include <set>
 
+#define DOT3_STACK_LIMIT 256
 namespace prologcoin { namespace common {
 
 term_emitter::term_emitter(std::ostream &out, const term_env &e) : out_(out), heap_(e), ops_(e)
@@ -162,12 +164,12 @@ size_t term_emitter::get_emit_length(cell c)
     char current_last_char = last_char_;
     scan_mode_ = true;
     size_t siz = stack_.size();
-    ///* Jan
-    if (options().test(emitter_option::EMIT_INTERACTIVE) && (stack_.size() > 10)) {
-      return 3;
+    if (options().test(emitter_option::EMIT_INTERACTIVE) &&
+	(stack_.size() > DOT3_STACK_LIMIT)) {
+      emit_dot3();
+    } else {
+      stack_.push_back(elem(c));
     }
-    //    */
-    stack_.push_back(elem(c));
     print_from_stack(siz);
     stack_.resize(siz);
     scan_mode_ = false;
@@ -430,12 +432,11 @@ void term_emitter::emit_functor_args(const con_cell &f, size_t index, bool with_
 
 void term_emitter::emit_functor(const term_emitter::elem &e, const con_cell &f, size_t index)
 {
-  // /* Jan
-  if (options().test(emitter_option::EMIT_INTERACTIVE) && (stack_.size() > 10)) {
-      emit_dot3();
-      return;
+    if (options().test(emitter_option::EMIT_INTERACTIVE)
+	&& (stack_.size() > DOT3_STACK_LIMIT)) {
+	emit_dot3();
+	return;
     }
-    //  */
     if (!e.is_skip_functor()) {
         emit_functor_name(f);
     }
@@ -786,13 +787,12 @@ void term_emitter::emit_list(const cell lst0)
         auto dotfirst = heap_.deref(heap_.arg0(lst, 0));
 	auto elem(dotfirst);
 	size_t elem_index = stack_.size();
-	//	/* Jan
-	if (options().test(emitter_option::EMIT_INTERACTIVE) && (stack_.size() > 10)) {
-	  emit_dot3();
-	  lst = empty_list_;
-	  break;
+	if (options().test(emitter_option::EMIT_INTERACTIVE) &&
+	    (stack_.size() > DOT3_STACK_LIMIT)) {
+            emit_dot3();
+            lst = empty_list_;
+            break;
 	}
-	//	*/
 	bool wrapped = check_wrap_paren(elem, 1000);
 	if (wrapped) std::reverse(stack_.begin() + elem_index, stack_.end());
         lst = heap_.arg(lst, 1);
@@ -866,10 +866,10 @@ void term_emitter::print_from_stack(size_t top)
 {
     static const con_cell comma(",", 2);
     static const con_cell curly("{}", 1);
-
+    std::unordered_set<term> already_printed;
     bool is_top_level = true;
 
-    while (!stack_.empty() && stack_.size() > top /*Jan && stack_.size() < 50 */) {
+    while (!stack_.empty() && stack_.size() > top) {
 
 	if (scan_mode_ && column_ >= max_column_) {
 	    return;
@@ -906,7 +906,19 @@ void term_emitter::print_from_stack(size_t top)
 		emit_token(str);
 	    }
 	} else {
-	    switch (e.cell_.tag()) {
+	  if (var_naming_ != nullptr) {
+	    if(already_printed.find(e.cell_) != already_printed.end()) {
+	      auto it = var_naming_->find(e.cell_);
+	      if (it != var_naming_->end()) {
+		const std::string &name = it->second;
+		emit_token(name);
+		continue;
+	      }
+	    } else {
+	      already_printed.insert(e.cell_);
+	    }
+	  }
+	  switch (e.cell_.tag()) {
 	    case tag_t::CON: {
 		const con_cell &c = static_cast<const con_cell &>(e.cell_);
 		emit_atom_name(heap_.atom_name(c));

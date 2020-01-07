@@ -797,6 +797,10 @@ public:
 
       while(temp_size() > 0) {
 	auto t = temp_pop();
+	if(seen.find(t) != seen.end()) {
+	  continue;
+	}
+	seen.insert(t);
 	if (t.tag() == tag_t::REF) {
 	  if (!this->has_name(t)) {
 	    ++count_occurrences[t];
@@ -804,7 +808,7 @@ public:
 	} else if(t.tag() == tag_t::STR) {
 	  auto f = functor(t);
 	  auto num_args = f.arity();
-	  for (size_t i; i < num_args; i++) {
+	  for (size_t i = 0; i < num_args; i++) {
 	    temp_push(arg(t, num_args-i-1));
 	  }
 	}
@@ -824,7 +828,6 @@ public:
 	      set_name(v.first, name);
 	  }
       }
-
       return touched;
   }
 
