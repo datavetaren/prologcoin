@@ -94,6 +94,7 @@ interpreter_base::~interpreter_base()
     program_db_.clear();
     module_db_.clear();
     module_db_set_.clear();
+    module_meta_db_.clear();
     program_predicates_.clear();
 }
 
@@ -856,6 +857,43 @@ void interpreter_base::unwind(size_t from_tr)
     unwind_frozen_closures(from_tr, n);
     unwind_trail(from_tr, n);
     trim_trail(from_tr);
+}
+
+void interpreter_base::save_program(con_cell module, std::ostream &out)
+{
+    std::unordered_set<qname> seen_predicates;
+
+    for (auto &se : module_meta_db_[module]) {
+	switch (se.type()) {
+	case source_element::SOURCE_NONE: break;
+	case source_element::SOURCE_COMMENT: out << se.comment(); break;
+	case source_element::SOURCE_ACTION: save_clause(se.action(), out); break;
+	case source_element::SOURCE_PREDICATE:
+	    qname qn(module, se.predicate());
+	    save_predicate(qn, out);
+	    seen_predicates.insert(qn); break;
+	}
+    }
+
+    for (auto &qn : module_db_[module]) {
+	save_predicate(qn, out);
+    }
+}
+
+void interpreter_base::save_clause(term t, std::ostream &out)
+{
+    term_emitter emit(out, *this);
+    emit.options().set(emitter_option::EMIT_PROGRAM);
+    emit.print(t);
+}
+
+void interpreter_base::save_predicate(const qname &qn, std::ostream &out)
+{
+    term_emitter emit(out, *this);
+    emit.options().set(emitter_option::EMIT_PROGRAM);
+    for (auto &managed : get_predicate(qn)) {
+	emit.print(managed.clause());
+    }
 }
 
 }}

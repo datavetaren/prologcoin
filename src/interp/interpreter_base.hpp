@@ -604,17 +604,10 @@ public:
 	    clause_list = new_dotted_pair(clause, clause_list);
 	}
 
-	con_cell start_module = current_module();
-	con_cell primary_module = start_module;
+	con_cell primary_module = current_module();
 	load_program<F>(clause_list, f, primary_module);
 
-	if (primary_module != start_module) {
-	    // There's a :- module(...) command in this file, so we record its
-    	    // source meta data and associates its structure, that way when
-	    // we do a save command we can keep its source structure as close
-	    // as possible to the existing one.
-	    module_meta_db_[primary_module] = source_list;
-	}
+        module_meta_db_[primary_module] = source_list;
     }
 
     template<typename F = none> void load_program(const term clauses, F f = F()) {
@@ -644,6 +637,10 @@ public:
 	    }
 	}
     }
+
+    void save_program(con_cell module, std::ostream &out);
+    void save_predicate(const qname &qn, std::ostream &out);
+    void save_clause(term t, std::ostream &out);
 
     inline const predicate & get_predicate(con_cell f)
         { return get_predicate(std::make_pair(current_module_, f)); }
