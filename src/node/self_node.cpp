@@ -36,7 +36,7 @@ self_node::self_node(unsigned short port)
       new_funds_per_second_(DEFAULT_NEW_FUNDS_PER_SECOND),
       grant_root_for_local_(true)
 {
-    set_timer_interval(utime::ss(DEFAULT_TIMER_INTERVAL_SECONDS));
+    set_timer_interval(utime::ms(DEFAULT_TIMER_INTERVAL_MILLISECONDS));
     set_time_to_live(utime::ss(DEFAULT_TTL_SECONDS));
     id_ = random::next();
 }

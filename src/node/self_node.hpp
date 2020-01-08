@@ -242,7 +242,7 @@ public:
 private:
     bool join_us(uint64_t microsec);
 
-    static const int DEFAULT_TIMER_INTERVAL_SECONDS = 10;
+    static const int DEFAULT_TIMER_INTERVAL_MILLISECONDS = 10000;
 
     void stop_all_connections();
     bool all_connections_closed();

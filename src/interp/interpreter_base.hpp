@@ -15,6 +15,7 @@
 #include "file_stream.hpp"
 #include "arithmetics.hpp"
 #include "locale.hpp"
+#include "source_element.hpp"
 
 namespace prologcoin { namespace interp {
 // This pair represents functor with first argument. If first argument
@@ -566,10 +567,28 @@ public:
     
 	std::vector<term> clauses;
 
+	std::vector<source_element> source_list;
+
+	std::unordered_set<con_cell> seen_predicates;
+	
 	while (!parser.is_eof()) {
 	    parser.clear_var_names();
 
 	    auto clause = parser.parse();
+
+	    auto comments = parser.get_comments_string();
+	    if (!comments.empty()) {
+	        source_list.push_back(source_element(comments));
+	    }
+
+	    auto pred = clause_predicate(clause);
+
+	    if (pred == ACTION_BY) {
+	        source_list.push_back(source_element(clause));
+	    } else if (seen_predicates.count(pred) == 0) {
+	        seen_predicates.insert(pred);
+		source_list.push_back(source_element(pred));
+	    }
 
 	    // Once parsing is done we'll copy over the var-name bindings
 	    // so we can pretty print the variable names.
@@ -584,20 +603,45 @@ public:
 	for (auto clause : boost::adaptors::reverse(clauses)) {
 	    clause_list = new_dotted_pair(clause, clause_list);
 	}
-	
-	load_program<F>(clause_list, f);
+
+	con_cell start_module = current_module();
+	con_cell primary_module = start_module;
+	load_program<F>(clause_list, f, primary_module);
+
+	if (primary_module != start_module) {
+	    // There's a :- module(...) command in this file, so we record its
+    	    // source meta data and associates its structure, that way when
+	    // we do a save command we can keep its source structure as close
+	    // as possible to the existing one.
+	    module_meta_db_[primary_module] = source_list;
+	}
     }
 
-    template<typename F = none> void load_program(const term clauses, F f = F())
+    template<typename F = none> void load_program(const term clauses, F f = F()) {
+        con_cell dummy;
+        load_program<F>(clauses, f, dummy);
+    }
+  
+    template<typename F = none> void load_program(const term clauses, F f , con_cell &primary_module)
     {
 	syntax_check_stack_.push_back(
 		  std::bind(&interpreter_base::syntax_check_program, this,
 			    clauses));
 	syntax_check();
 
+	con_cell current_mod = current_module();
+	primary_module = current_mod;
+
+	bool first_mod = true;
 	for (auto clause : list_iterator(*this, clauses)) {
 	    load_clause(clause, true);
 	    f(clause);
+	    if (current_mod != current_module() && first_mod) {
+	        // First module change!
+	        current_mod = current_module();
+		first_mod = false;
+		primary_module = current_mod;
+	    }
 	}
     }
 
@@ -1298,6 +1342,7 @@ private:
     std::unordered_map<con_cell, std::unordered_set<qname> > module_db_set_;
     std::vector<qname> program_predicates_;
     std::unordered_set<qname> updated_predicates_;
+    std::unordered_map<con_cell, std::vector<source_element> > module_meta_db_;
 
     // Stack is emulated at heap offset >= 2^59 (3 bits for tag, remember!)
     // (This conforms to the WAM standard where addr(stack) > addr(heap))
