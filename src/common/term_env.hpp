@@ -809,11 +809,11 @@ public:
       std::vector<term> touched;
       std::map<term, size_t> count_occurrences;
       std::unordered_set<term> seen;
-      temp_clear();
-      temp_push(t0);
+      stacks_dock<ST>::temp_clear();
+      stacks_dock<ST>::temp_push(t0);
 
-      while(temp_size() > 0) {
-	auto t = temp_pop();
+      while(stacks_dock<ST>::temp_size() > 0) {
+	auto t = stacks_dock<ST>::temp_pop();
 	if(seen.find(t) != seen.end()) {
 	  continue;
 	}
@@ -823,10 +823,10 @@ public:
 	    ++count_occurrences[t];
 	  }
 	} else if(t.tag() == tag_t::STR) {
-	  auto f = functor(t);
+	  auto f = heap_dock<HT>::functor(t);
 	  auto num_args = f.arity();
 	  for (size_t i = 0; i < num_args; i++) {
-	    temp_push(arg(t, num_args-i-1));
+	      stacks_dock<ST>::temp_push(heap_dock<HT>::arg(t, num_args-i-1));
 	  }
 	}
       }

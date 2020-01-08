@@ -35,6 +35,7 @@ public:
       }
       element_type_ = other.element_type_;
       switch (element_type_) {
+      case SOURCE_NONE: break;
       case SOURCE_PREDICATE: predicate_ = other.predicate_; break;
       case SOURCE_COMMENT: comment_->assign(*other.comment_); break;
       case SOURCE_ACTION: action_ = other.action_; break;
