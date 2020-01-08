@@ -69,21 +69,38 @@ void term_serializer::write_all_header(buffer_t &bytes,const term t)
 {
     write_con_cell(bytes, bytes.size(), con_cell("ver1",0));
     write_con_cell(bytes, bytes.size(), con_cell("remap", 0));
-    for (auto t1 : env_.iterate_over(t)) {
-	switch (t1.tag()) {
-	case tag_t::CON: case tag_t::STR: {
-	    con_cell f = env_.functor(t1);
-	    if (!f.is_direct() && !is_indexed(f)) {
-		std::string name = env_.atom_name(f);
-		write_con_cell(bytes, bytes.size(), f);
-		write_encoded_string(bytes, name);
+    temp_set_.clear();
+    temp_stack_.clear();
+    temp_stack_.push_back(t);
+    while(temp_stack_.size() > 0) {
+        auto t1 = env_.deref(temp_stack_.back());
+        temp_stack_.pop_back();
+        switch (t1.tag()) {
+        case tag_t::CON: case tag_t::STR: {
+            con_cell f = env_.functor(t1);
+            if (!f.is_direct() && !is_indexed(f)) {
+                std::string name = env_.atom_name(f);
+                write_con_cell(bytes, bytes.size(), f);
+                write_encoded_string(bytes, name);
+            }
+	    if(temp_set_.find(t1) != temp_set_.end()) {
+	      continue;
+	    } else {
+	      temp_set_.insert(t1);
 	    }
-	    break;
-	    }
+
+            if(t1.tag() == tag_t::STR) {
+                size_t num_args = f.arity();
+                for (size_t i = 0; i < num_args; i++) {
+		    temp_stack_.push_back(env_.deref(env_.arg(t1, num_args-i-1)));
+                }
+            }
+            break;
+        }
         case tag_t::REF: case tag_t::RFW: { 
-	    ref_cell v = static_cast<ref_cell &>(t1).unwatch();
-	    if (!is_indexed(v) && env_.has_name(v)) {
-		const std::string &name = env_.get_name(v);
+            ref_cell v = static_cast<ref_cell &>(t1);
+            if (!is_indexed(v) && env_.has_name(v)) {
+	        const std::string &name = env_.get_name(t1);
 		write_ref_cell(bytes, bytes.size(), v);
 		write_encoded_string(bytes, name);
 	    }

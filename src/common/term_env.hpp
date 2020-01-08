@@ -350,6 +350,10 @@ public:
 	}
       }
 
+  inline size_t temp_size()
+     { return T::get_temp().size(); }
+  inline void temp_clear()
+     { T::get_temp().clear();   }
   inline void temp_push(const term t)
       { T::get_temp().push_back(t); }
   inline term temp_pop()
@@ -803,18 +807,29 @@ public:
   std::vector<term> prettify_var_names(const term t0)
   {
       std::vector<term> touched;
-
       std::map<term, size_t> count_occurrences;
-      std::for_each(begin(t0),
-		  end(t0),
-		  [this,&count_occurrences] (const term t) {
-		    if (t.tag().is_ref()) {
-			if (!this->has_name(t)) {
-			    ++count_occurrences[t];
-			}
-		    }
-		  }
-		  );
+      std::unordered_set<term> seen;
+      temp_clear();
+      temp_push(t0);
+
+      while(temp_size() > 0) {
+	auto t = temp_pop();
+	if(seen.find(t) != seen.end()) {
+	  continue;
+	}
+	seen.insert(t);
+	if (t.tag().is_ref()) {
+	  if (!this->has_name(t)) {
+	    ++count_occurrences[t];
+	  }
+	} else if(t.tag() == tag_t::STR) {
+	  auto f = functor(t);
+	  auto num_args = f.arity();
+	  for (size_t i = 0; i < num_args; i++) {
+	    temp_push(arg(t, num_args-i-1));
+	  }
+	}
+      }
 
       // Those vars with a singleton occurrence will be named
       // '_'.
@@ -830,7 +845,6 @@ public:
 	      set_name(v.first, name);
 	  }
       }
-
       return touched;
   }
 

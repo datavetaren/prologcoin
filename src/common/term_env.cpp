@@ -491,6 +491,7 @@ term term_utils::copy(term c, naming_map &names,
     std::unordered_map<con_cell, con_cell> con_map;
     std::vector<std::pair<term, size_t> >cyclic_args;
     std::unordered_set<term> current_path;
+    temp_clear();
 
     size_t current_stack = stack_size();
     
@@ -498,7 +499,6 @@ term term_utils::copy(term c, naming_map &names,
 
     push(src.deref(c));
     push(int_cell(0));
-
     while (stack_size() > current_stack) {
 	cost_tmp++;
 

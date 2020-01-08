@@ -22,7 +22,8 @@ enum class emitter_option {
     EMIT_PROGRAM,
     EMIT_NEWLINE,
     EMIT_QUOTED,
-    EMIT_CANONICAL
+    EMIT_CANONICAL,
+    EMIT_INTERACTIVE
 };
 
 class emitter_options : public flags<emitter_option> {
@@ -133,6 +134,7 @@ private:
     void emit_space();
     void emit_space4();
     void emit_dot();
+    void emit_dot3();
     void emit_str(const std::string &str);
     void emit_nl();
     void emit_indent_increment();
