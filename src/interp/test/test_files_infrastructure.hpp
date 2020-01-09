@@ -1,9 +1,15 @@
+#pragma once
+
+#ifndef _interp_test_interpreter_files_hpp
+#define _interp_test_interpreter_files_hpp
+
 #include "../../common/test/test_home_dir.hpp"
 #include "../../common/term_tools.hpp"
 #include "../../common/term_parser.hpp"
 #include "../interpreter.hpp"
 #include <fstream>
 
+#include <string>
 #include <boost/algorithm/string.hpp>
 #include <boost/filesystem.hpp>
 
@@ -13,7 +19,7 @@ using namespace prologcoin::interp;
 static bool do_compile = true;
 static bool full_mode = false;
 
-static std::vector<std::string> parse_x(const std::string &key, std::string &comments)
+static inline std::vector<std::string> parse_x(const std::string &key, std::string &comments)
 {
     std::vector<std::string> matched;
     size_t i = 0;
@@ -39,10 +45,10 @@ static std::vector<std::string> parse_x(const std::string &key, std::string &com
     return matched;
 }
 
-static void parse_expected(std::string &comments,
-			   std::vector<std::string> &expected,
-			   std::vector<std::pair<std::string, std::string> >
-			        &expected_files)
+static inline void parse_expected(std::string &comments,
+				  std::vector<std::string> &expected,
+				  std::vector<std::pair<std::string, std::string> >
+				      &expected_files)
 {
     expected = parse_x("Expect:", comments);
     std::vector<std::string> files = parse_x("Expect-file:", comments);
@@ -57,13 +63,13 @@ static void parse_expected(std::string &comments,
     }
 }
 
-static std::vector<std::string> parse_meta(std::string &comments)
+static inline std::vector<std::string> parse_meta(std::string &comments)
 {
     return parse_x("Meta:", comments);
 }
 
-static void process_meta(interpreter &interp, std::string &comments,
-			 std::unordered_map<std::string, int> &opt)
+static inline void process_meta(interpreter &interp, std::string &comments,
+				std::unordered_map<std::string, int> &opt)
 {
     auto meta = parse_meta(comments);
     for (auto cmd : meta) {
@@ -90,8 +96,8 @@ static void process_meta(interpreter &interp, std::string &comments,
     }
 }
 
-static bool match_strings(const std::string &actual,
-			  const std::string &expect)
+static inline bool match_strings(const std::string &actual,
+				 const std::string &expect)
 {
     // Compare at token level
     std::stringstream in_actual(actual);
@@ -105,8 +111,8 @@ static bool match_strings(const std::string &actual,
     return true;
 }
 
-static bool compare_files(const std::string &gen_path,
-			  const std::string &gold_path)
+static inline bool compare_files(const std::string &gen_path,
+				 const std::string &gold_path)
 {
     if (!boost::filesystem::exists(gen_path)) {
 	std::cout << "Missing file '" << gen_path << "' (supposed to be generated)\n";
@@ -128,6 +134,8 @@ static bool compare_files(const std::string &gen_path,
     while (!in_expect.eof()) {
 	std::getline(in_actual, actual);
 	std::getline(in_expect, expect);
+	boost::trim(actual);
+	boost::trim(expect);
 	if (actual != expect) {
 	    std::cout << "Error while comparing '" << gen_path << "' and '"
 		      << gold_path << "' at line " << line_no << "\n";
@@ -144,10 +152,10 @@ static bool compare_files(const std::string &gen_path,
     return true;
 }
 
-static bool test_run_once(interpreter &interp,
-	  size_t iteration,
-	  const term &query,
-	  std::vector<std::string> &expected,
+static inline bool test_run_once(interpreter &interp,
+				 size_t iteration,
+				 const term &query,
+				 std::vector<std::string> &expected,
 	  std::vector<std::pair<std::string,std::string> > &expected_files)
 {
     std::string actual;
@@ -192,7 +200,7 @@ static bool test_run_once(interpreter &interp,
     return r;
 }
 
-static bool test_interpreter_file(const std::string &filepath,
+static inline bool test_interpreter_file(const std::string &filepath,
 				  interpreter &interp)
 {
     std::cout << std::endl;
@@ -430,7 +438,7 @@ static bool test_interpreter_file(const std::string &filepath,
     }
 }
 
-static std::vector<boost::filesystem::path> test_interpreter_get_files(const std::string &dir, const char *filter = nullptr)
+static inline std::vector<boost::filesystem::path> test_interpreter_get_files(const std::string &dir, const char *filter = nullptr)
 {
     const std::string &home_dir = find_home_dir();
     std::string files_dir = home_dir + dir;
@@ -462,7 +470,7 @@ static std::vector<boost::filesystem::path> test_interpreter_get_files(const std
     return files;
 }
 
-template<typename Interpreter = interpreter> static void test_interpreter_files(const std::string &dir, std::function<void (Interpreter &)> init_fn, const char *filter = nullptr)
+template<typename Interpreter = interpreter> static inline void test_interpreter_files(const std::string &dir, std::function<void (Interpreter &)> init_fn, const char *filter = nullptr)
 {
     auto files = test_interpreter_get_files(dir, filter);
     for (auto &filepath : files) {
@@ -473,7 +481,7 @@ template<typename Interpreter = interpreter> static void test_interpreter_files(
     }
 }
 
-template<typename Interpreter = interpreter>static void test_interpreter_files(const std::string &dir, Interpreter &interp, const char *filter = nullptr)
+template<typename Interpreter = interpreter>static inline void test_interpreter_files(const std::string &dir, Interpreter &interp, const char *filter = nullptr)
 {
     auto files = test_interpreter_get_files(dir, filter);
     for (auto &filepath : files) {
@@ -482,3 +490,4 @@ template<typename Interpreter = interpreter>static void test_interpreter_files(c
     }
 }
 
+#endif

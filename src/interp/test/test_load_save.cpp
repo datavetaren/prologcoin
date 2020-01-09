@@ -1,5 +1,8 @@
 #include <iostream>
 #include <boost/filesystem.hpp>
+
+#define TEST_INTERPRETER_FILES_UNSUED 1
+
 #include "test_files_infrastructure.hpp"
 #include "../interpreter.hpp"
 
@@ -15,7 +18,7 @@ static void header( const std::string &str )
 int main( int argc, char *argv[] )
 {
     header( "test_load_save" );
-    
+
     find_home_dir(argv[0]);
 
     const std::string dir = "/src/interp/test/pl_files";

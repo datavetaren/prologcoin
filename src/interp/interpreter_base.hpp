@@ -572,7 +572,6 @@ public:
 
 	std::unordered_set<con_cell> seen_predicates;
 
-	int last_chunk_start = -1, last_chunk_end = -1;
 	while (!parser.is_eof()) {
 	    parser.clear_var_names();
 
