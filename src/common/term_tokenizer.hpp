@@ -178,6 +178,10 @@ public:
 
 	bool is_quoted() const { return quoted_; }
 
+        bool is_whitespace() const {
+	    return std::all_of(lexeme_.cbegin(), lexeme_.cend(), isspace);
+        }
+
         // Pretty print token
         const std::string str() const;
 

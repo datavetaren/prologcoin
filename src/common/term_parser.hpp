@@ -68,6 +68,9 @@ public:
 
     term parse();
 
+    const term_tokenizer::token & first_non_whitespace_token() const;  
+    const term_tokenizer::token & last_non_whitespace_token() const;
+  
     term positions() const;
     int line(term position) const;
     int column(term position) const;
@@ -80,6 +83,7 @@ public:
     const term_tokenizer::token & lookahead() const;
     const std::vector<term_tokenizer::token> & get_comments() const;
     std::string get_comments_string() const;
+    void clear_comments();
 
     std::vector<std::string> get_expected(const term_parse_exception &ex) const;
 

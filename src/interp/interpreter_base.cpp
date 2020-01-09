@@ -4,6 +4,7 @@
 #include "wam_interpreter.hpp"
 #include <boost/filesystem.hpp>
 #include <boost/timer/timer.hpp>
+#include <boost/algorithm/string.hpp>
 
 #define PROFILER 0
 
@@ -363,6 +364,10 @@ void interpreter_base::load_clause(const term t, bool as_program)
     }
 
     con_cell predicate = functor(head);
+
+    if (predicate == ACTION_BY) {
+        return;
+    }
     
     auto qn = std::make_pair(module, predicate);
 
@@ -866,7 +871,7 @@ void interpreter_base::save_program(con_cell module, std::ostream &out)
     for (auto &se : module_meta_db_[module]) {
 	switch (se.type()) {
 	case source_element::SOURCE_NONE: break;
-	case source_element::SOURCE_COMMENT: out << se.comment(); break;
+	case source_element::SOURCE_COMMENT: save_comment(se.comment(), out); break;
 	case source_element::SOURCE_ACTION: save_clause(se.action(), out); break;
 	case source_element::SOURCE_PREDICATE:
 	    qname qn(module, se.predicate());
@@ -876,25 +881,41 @@ void interpreter_base::save_program(con_cell module, std::ostream &out)
     }
 
     for (auto &qn : module_db_[module]) {
-	save_predicate(qn, out);
+        if (!seen_predicates.count(qn)) {
+	    save_predicate(qn, out);
+	}
     }
+}
+
+void interpreter_base::save_comment(const term_tokenizer::token &comment, std::ostream &out)
+{
+    std::string lexeme = comment.lexeme();
+    boost::trim(lexeme);
+    out << lexeme;
+    out << std::endl;
 }
 
 void interpreter_base::save_clause(term t, std::ostream &out)
 {
     term_emitter emit(out, *this);
+    emit.set_var_naming(var_naming());
     emit.options().set(emitter_option::EMIT_PROGRAM);
     emit.print(t);
+    emit.nl();
 }
 
 void interpreter_base::save_predicate(const qname &qn, std::ostream &out)
 {
     term_emitter emit(out, *this);
+    emit.set_var_naming(var_naming());    
     emit.options().set(emitter_option::EMIT_PROGRAM);
+    bool empty = true;
     for (auto &managed : get_predicate(qn)) {
+        empty = false;
 	emit.print(managed.clause());
+	emit.nl();
     }
+    if (!empty) emit.nl();
 }
 
 }}
-

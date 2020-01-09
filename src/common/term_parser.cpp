@@ -127,6 +127,8 @@ protected:
   std::vector<sym> stack_;
   sym lookahead_;
   sym old_lookahead_;
+  term_tokenizer::token first_non_whitespace_token_;  
+  term_tokenizer::token last_non_whitespace_token_;
 
   std::vector<term_tokenizer::token> comments_;
 
@@ -1023,9 +1025,15 @@ public:
   bool track_positions() const { return track_positions_; }
   void set_track_positions(bool b) { track_positions_ = b; }
 
-  void init() {
+  void clear_comments() {
       comments_.clear();
+  }
+  
+  void init() {
+      clear_comments();
       current_state_ = 0;
+      first_non_whitespace_token_ = term_tokenizer::token();
+      last_non_whitespace_token_ = term_tokenizer::token();
       accept_ = false;
       error_ = false;
       check_mode_ = false;
@@ -1118,6 +1126,16 @@ public:
   const sym & lookahead() const
   {
       return lookahead_;
+  }
+
+  const term_tokenizer::token & first_non_whitespace_token() const
+  {
+      return first_non_whitespace_token_;
+  }
+  
+  const term_tokenizer::token & last_non_whitespace_token() const
+  {
+      return last_non_whitespace_token_;
   }
 
   const sym next_symbol()
@@ -1275,7 +1293,11 @@ public:
   void process_next()
   {
     if (lookahead_.ordinal() == SYMBOL_UNKNOWN) {
+	last_non_whitespace_token_ = lookahead_.token();
         lookahead_ = next_symbol();
+    }
+    if (first_non_whitespace_token_.pos().line() == -1) {
+        first_non_whitespace_token_ = lookahead_.token();
     }
 
     if (is_debug_) {
@@ -1360,6 +1382,21 @@ term term_parser::parse()
     impl_->prepare_parse();
     impl_->parse_next();
     return impl_->get_result();
+}
+
+void term_parser::clear_comments()
+{
+    impl_->clear_comments();
+}
+
+const term_tokenizer::token & term_parser::first_non_whitespace_token() const
+{
+    return impl_->first_non_whitespace_token();
+}
+
+const term_tokenizer::token & term_parser::last_non_whitespace_token() const
+{
+    return impl_->last_non_whitespace_token();
 }
 
 term term_parser::positions() const

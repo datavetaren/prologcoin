@@ -1,6 +1,6 @@
 #include <iostream>
 #include <boost/filesystem.hpp>
-#include "../../common/test/test_home_dir.hpp"
+#include "test_files_infrastructure.hpp"
 #include "../interpreter.hpp"
 
 using namespace prologcoin::interp;
@@ -20,9 +20,12 @@ int main( int argc, char *argv[] )
 
     const std::string dir = "/src/interp/test/pl_files";
 
+    const std::string filename = "flightconn.pl";
+
     const std::string &home_dir = find_home_dir();
-    auto src_file0 = boost::filesystem::path(home_dir) / dir / "/ex_99_bitone_full.pl";
-    auto src_file = boost::filesystem::path(home_dir) / "/bin/test/interp/ex_99_load.pl";
+    auto src_file0 = boost::filesystem::path(home_dir) / dir / filename;
+    auto src_file = boost::filesystem::path(home_dir) / "bin" / "test" /"interp" / (filename + ".load");
+    auto gold_file = boost::filesystem::path(home_dir) / dir / (filename + ".save.gold");
 
     try {
       boost::filesystem::create_directories(src_file.parent_path());
@@ -38,10 +41,13 @@ int main( int argc, char *argv[] )
     interp.load_program(ifs);
     ifs.close();
 
-    auto dst_file = boost::filesystem::path(home_dir) / "/bin/test/interp/ex_99_save.pl";
+    auto dst_file = boost::filesystem::path(home_dir) / "bin" / "test" / "interp" / (filename + ".save");
     std::ofstream ofs(dst_file.string());
     interp.save_program(interp.current_module(), ofs);
     ofs.close();
+
+    // Compare with gold file
+    assert(compare_files(dst_file.string(), gold_file.string()));
 
     return 0;
 }

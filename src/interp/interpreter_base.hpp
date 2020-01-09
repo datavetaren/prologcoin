@@ -10,6 +10,7 @@
 #include <map>
 #include <boost/range/adaptor/reversed.hpp>
 #include "../common/term_env.hpp"
+#include "../common/term_tokenizer.hpp"
 #include "../common/merkle_trie.hpp"
 #include "builtins.hpp"
 #include "file_stream.hpp"
@@ -570,15 +571,28 @@ public:
 	std::vector<source_element> source_list;
 
 	std::unordered_set<con_cell> seen_predicates;
-	
+
+	int last_chunk_start = -1, last_chunk_end = -1;
 	while (!parser.is_eof()) {
 	    parser.clear_var_names();
 
-	    auto clause = parser.parse();
+	    // The check for EOF may skip comments which is stored in the
+	    // parser.
+	    for (auto &comment : parser.get_comments()) {
+	        if (!comment.is_whitespace()) {
+	            source_list.push_back(source_element(comment));
+		}
+	    }
 
-	    auto comments = parser.get_comments_string();
-	    if (!comments.empty()) {
-	        source_list.push_back(source_element(comments));
+	    // Calling parse() restes the comment list to empty in the parser
+	    auto clause = parser.parse();
+	    auto first_pos = parser.first_non_whitespace_token().pos();
+	    auto last_pos = parser.last_non_whitespace_token().pos();
+
+	    for (auto &comment : parser.get_comments()) {
+	        if (!comment.is_whitespace() && comment.pos().line() < first_pos.line()) {
+		    source_list.push_back(source_element(comment));
+		}
 	    }
 
 	    auto pred = clause_predicate(clause);
@@ -589,6 +603,14 @@ public:
 	        seen_predicates.insert(pred);
 		source_list.push_back(source_element(pred));
 	    }
+
+	    for (auto &comment : parser.get_comments()) {
+	        if (!comment.is_whitespace() && comment.pos().line() >= last_pos.line()) {
+	            source_list.push_back(source_element(comment));
+		}
+	    }
+
+	    parser.clear_comments();
 
 	    // Once parsing is done we'll copy over the var-name bindings
 	    // so we can pretty print the variable names.
@@ -641,6 +663,7 @@ public:
     void save_program(con_cell module, std::ostream &out);
     void save_predicate(const qname &qn, std::ostream &out);
     void save_clause(term t, std::ostream &out);
+    void save_comment(const common::term_tokenizer::token &comment, std::ostream &out);
 
     inline const predicate & get_predicate(con_cell f)
         { return get_predicate(std::make_pair(current_module_, f)); }
