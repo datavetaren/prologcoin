@@ -114,7 +114,7 @@ public:
   
     enum extended_type { EXTENDED_PUBLIC = 0, EXTENDED_PRIVATE = 1 };
 
-    inline extended_key(extended_type t) : type_(t), level_(0), child_number_(0) { memset(fingerprint_, 0, 4); }
+    inline extended_key(extended_type t) : type_(t), level_(0), child_number_(0) { memset(fingerprint_, 0, 4); (void)type_; }
     inline size_t level() const { return level_; }
     inline const uint8_t * fingerprint() const { return fingerprint_; }
     inline uint32_t child_number() const { return child_number_; }

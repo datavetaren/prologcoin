@@ -84,7 +84,6 @@ void sha512::finalize(uint8_t digest[HASH_SIZE])
 
 void sha512::block()
 {
-    size_t t;
     uint64_t t1, t2;
 
     uint64_t a = h_[0], b = h_[1], c = h_[2], d = h_[3];

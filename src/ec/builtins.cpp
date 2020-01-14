@@ -349,8 +349,6 @@ bool builtins::privkey_1(interpreter_base &interp, size_t arity, term args[])
     // Generate a new private key. We'll use the bitcoin private key
     // format where first byte is 0x80 followed by 
 
-    uint8_t bytes[1+RAW_KEY_SIZE+8];
-
     auto &ctx = get_ctx(interp);
 
     if (args[0].tag().is_ref()) {
