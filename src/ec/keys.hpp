@@ -70,6 +70,7 @@ protected:
     private_key(const private_key &other) = default;
 
 public:
+    private_key(key_create_t k);
     private_key(key_create_t k, secp256k1_ctx &ctx);
 
     void create_new(secp256k1_ctx &ctx);
@@ -80,6 +81,8 @@ public:
     inline const uint8_t * bytes() const { return bytes_; }
 
     bool compute_public_key(secp256k1_ctx &ctx, public_key &pubkey) const;
+
+    void compute_fingerprint(uint8_t fingerprint[4]) const;
   
 private:
     uint8_t bytes_[SIZE];
@@ -110,7 +113,7 @@ private:
 
 class extended_key {
 public:
-    static const uint32_t HARDENED_CHILD = 1 << 31;
+    static const uint32_t HARDENED_KEY = 1 << 31;
   
     enum extended_type { EXTENDED_PUBLIC = 0, EXTENDED_PRIVATE = 1 };
 
@@ -119,7 +122,7 @@ public:
     inline const uint8_t * fingerprint() const { return fingerprint_; }
     inline uint32_t child_number() const { return child_number_; }
     inline void set_level(size_t level) { level_ = level; }
-    inline void set_fingerprint(const uint8_t fingerprint[4]) { std::copy(fingerprint, &fingerprint[4], fingerprint_); }
+    inline void set_fingerprint(const uint8_t fingerp[4]) { std::copy(fingerp, &fingerp[4], fingerprint_); }
     inline void set_child_number(uint32_t child_num) { child_number_ = child_num; }
     inline chain_code & get_chain_code() { return chain_code_; }
     inline const chain_code & get_chain_code() const { return chain_code_; }
@@ -139,7 +142,7 @@ public:
     inline extended_public_key() : extended_key(extended_key::EXTENDED_PUBLIC) { }
     inline extended_public_key(public_key &pubkey) : public_key(pubkey), extended_key(extended_key::EXTENDED_PUBLIC) { }
 
-    inline void set_public_key(public_key &pubkey) { this->operator = (pubkey); }
+    inline void set_public_key(public_key &pubkey) { static_cast<public_key *>(this)->operator = (pubkey); }
 
     void write(uint8_t data[78]) const;
     bool read(uint8_t data[78]);
@@ -153,6 +156,7 @@ private:
 class hd_keys;
 class extended_private_key : public private_key, public extended_key {
 public:
+    extended_private_key() : private_key(private_key::NO_KEY), extended_key(extended_key::EXTENDED_PRIVATE) { }
     extended_private_key(private_key &privkey) : private_key(privkey), extended_key(extended_key::EXTENDED_PRIVATE) { }
 
     void write(uint8_t bytes[78]) const;
@@ -173,8 +177,11 @@ public:
     const extended_private_key & master_private() { return master_; }
     const extended_public_key & master_public() { return master_public_; }
   
-    bool generate_child(const extended_public_key &parent, size_t index, extended_public_key &out);
-    bool generate_child(const extended_private_key &parent, size_t index, extended_private_key &out);
+    static inline uint32_t H(uint32_t i) { return i + extended_key::HARDENED_KEY; }
+
+    bool generate_child(const extended_public_key &parent, uint32_t index, extended_public_key &out);
+    bool generate_child(const extended_private_key &parent, uint32_t index, extended_private_key &out);
+    bool generate_child(const extended_private_key &parent, uint32_t index, extended_public_key &out);
 
 private:
     secp256k1_ctx &ctx_;
