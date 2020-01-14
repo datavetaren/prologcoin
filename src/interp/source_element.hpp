@@ -31,8 +31,10 @@ public:
   inline ~source_element() { if (element_type_ == SOURCE_COMMENT) delete comment_; }
 
   inline source_element & operator = (const source_element &other) {
-      if (element_type_ == SOURCE_NONE && other.element_type_ == SOURCE_COMMENT) {
+      if (element_type_ != SOURCE_COMMENT) {
 	  comment_ = new token();
+      } else if (other.element_type_ != SOURCE_COMMENT) {
+	  delete comment_;
       }
       element_type_ = other.element_type_;
       switch (element_type_) {

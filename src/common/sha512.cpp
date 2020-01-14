@@ -38,7 +38,7 @@ const uint64_t sha512::K[80] = {
   0x4CC5D4BECB3E42B6,0x597F299CFC657E2A,0x5FCB6FAB3AD6FAEC,0x6C44198C4A475817
  };    
    
-void sha512::init(const uint8_t *password, size_t password_len) {
+void sha512::init() {
     h_[0] = 0x6A09E667F3BCC908;
     h_[1] = 0xBB67AE8584CAA73B;
     h_[2] = 0x3C6EF372FE94F82B;
@@ -71,7 +71,6 @@ void sha512::update(const void *p, size_t len)
 void sha512::finalize(uint8_t digest[HASH_SIZE])
 {
     size_t pad_size = (size_ < 112) ? 112 - size_ : 128 + 112 - size_;
-
     uint64_t total_size_bits = total_size_ * 8; // Length of message in bits
     update(PADDING, pad_size);
     w_[14] = 0;

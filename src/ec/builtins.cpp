@@ -6,6 +6,7 @@
 #include "../common/term_serializer.hpp"
 #include "../common/hex.hpp"
 #include "ripemd160.h"
+#include "keys.hpp"
 
 #include "src/util.h"
 #include "src/hash_impl.h"
@@ -17,27 +18,6 @@ using namespace prologcoin::interp;
 
 static const size_t MAX_SIGNERS = 1024;
     
-class secp256k1_ctx : public managed_data {
-public:
-    inline secp256k1_ctx(unsigned int flags) {
-        ctx_ = secp256k1_context_create(flags);
-	scratch_ = secp256k1_scratch_space_create(ctx_, 1024*1024);
-    }
-    virtual ~secp256k1_ctx() override {
-        secp256k1_scratch_space_destroy(ctx_, scratch_);
-        secp256k1_context_destroy(ctx_);
-    }
-    inline operator secp256k1_context * () {
-        return ctx_;
-    }
-    inline secp256k1_scratch_space * scratch() {
-        return scratch_;
-    }
-private:
-    secp256k1_context *ctx_;
-    secp256k1_scratch_space *scratch_;
-};
-
 class musig_session {
 public:
     static const size_t RAW_KEY_SIZE = builtins::RAW_KEY_SIZE;
@@ -59,7 +39,7 @@ public:
   
     bool init(size_t my_index, const secp256k1_pubkey &combined_pubkey,
 	      const uint8_t pubkey_hash[RAW_HASH_SIZE],
-	      const uint8_t privkey[RAW_KEY_SIZE],
+	      const private_key &privkey,
 	      const uint8_t datahash[RAW_HASH_SIZE]);
 
     bool prepare(const uint8_t * const *nonce_commitment,
@@ -180,7 +160,7 @@ musig_session::~musig_session() {
     delete [] pubkeys_;
 }
 
-bool musig_session::init(size_t my_index, const secp256k1_pubkey &combined_pubkey, const uint8_t pubkey_hash[RAW_HASH_SIZE], const uint8_t privkey[RAW_KEY_SIZE], const uint8_t data_hash[RAW_HASH_SIZE]) {
+bool musig_session::init(size_t my_index, const secp256k1_pubkey &combined_pubkey, const uint8_t pubkey_hash[RAW_HASH_SIZE], const private_key &privkey, const uint8_t data_hash[RAW_HASH_SIZE]) {
     if (secp256k1_musig_session_initialize(ctx_, &session_,
 					   signers_, nonce_commitment_,
 					   session_id_, data_hash,
@@ -236,25 +216,25 @@ void builtins::get_checksum(const uint8_t *bytes, size_t n, uint8_t checksum[4])
     memcpy(&checksum[0], out32, 4);
 }
 
-term builtins::create_private_key(interpreter_base &interp, uint8_t rawkey[RAW_KEY_SIZE], bool with_checksum)
+term builtins::create_private_key(interpreter_base &interp, private_key &rawkey, bool with_checksum)
 {
     if (!with_checksum) {
-        term big = interp.new_big(RAW_KEY_SIZE*8);
-	interp.set_big(big, rawkey, RAW_KEY_SIZE);
+        term big = interp.new_big(private_key::SIZE*8);
+	interp.set_big(big, &rawkey[0], private_key::SIZE);
 	return big;
     }
   
-    uint8_t bytes[1+RAW_KEY_SIZE+1+4];
+    uint8_t bytes[1+private_key::SIZE+1+4];
 
-    memcpy(&bytes[1], rawkey, RAW_KEY_SIZE);
+    memcpy(&bytes[1], &rawkey[0], private_key::SIZE);
 
     uint8_t checksum[4];
     bytes[0] = 0x80;
     bytes[RAW_KEY_SIZE+1] = 0x01;
-    get_checksum(&bytes[0], RAW_KEY_SIZE+2, checksum);
+    get_checksum(&bytes[0], private_key::SIZE+2, checksum);
     memcpy(&bytes[34], checksum, 4);
 
-    term big = interp.new_big(8+(RAW_KEY_SIZE)*8+8+32);
+    term big = interp.new_big(8+(private_key::SIZE)*8+8+32);
     interp.set_big(big, bytes, sizeof(bytes));
 
     return big;
@@ -297,20 +277,20 @@ term builtins::new_bignum(interpreter_base &interp, const uint8_t *bytes, size_t
     return big;
 }
 
-bool builtins::get_private_key(interpreter_base &interp, term big0, uint8_t rawkey[builtins::RAW_KEY_SIZE]) {
+bool builtins::get_private_key(interpreter_base &interp, term big0, private_key &rawkey) {
     bool checksum_existed = false;
     return get_private_key(interp, big0, rawkey, checksum_existed);
 }
     
-bool builtins::get_private_key(interpreter_base &interp, term big0, uint8_t rawkey[builtins::RAW_KEY_SIZE], bool &checksum_existed)
+bool builtins::get_private_key(interpreter_base &interp, term big0, private_key &rawkey, bool &checksum_existed)
 {
-    uint8_t bytes[1+RAW_KEY_SIZE+8];
+    uint8_t bytes[1+private_key::SIZE+8];
 
     if (big0.tag() != tag_t::BIG) {
 	return false;
     }
 
-    static const size_t BITS = RAW_KEY_SIZE*8;
+    static const size_t BITS = private_key::SIZE*8;
 
     auto &big = reinterpret_cast<const big_cell &>(big0);
     size_t nbits = interp.num_bits(big);
@@ -329,17 +309,17 @@ bool builtins::get_private_key(interpreter_base &interp, term big0, uint8_t rawk
 	}
 	if (nbits == 8+BITS+8+32) {
 	    uint8_t checksum[4];
-	    get_checksum(&bytes[0], RAW_KEY_SIZE+2, checksum);
-	    if (memcmp(&bytes[RAW_KEY_SIZE+2], checksum, 4) != 0) {
+	    get_checksum(&bytes[0], private_key::SIZE+2, checksum);
+	    if (memcmp(&bytes[private_key::SIZE+2], checksum, 4) != 0) {
 		return false;
 	    }
 	}
-	memcpy(&rawkey[0], &bytes[1], RAW_KEY_SIZE);
+	memcpy(&rawkey[0], &bytes[1], private_key::SIZE);
     }
     return true;
 }
 
-bool builtins::get_public_key(interpreter_base &interp, term big0, uint8_t pubkey[builtins::RAW_KEY_SIZE+1])
+bool builtins::get_public_key(interpreter_base &interp, term big0, public_key &pubkey)
 {
     if (big0.tag() != tag_t::BIG) {
 	return false;
@@ -357,16 +337,10 @@ bool builtins::get_public_key(interpreter_base &interp, term big0, uint8_t pubke
     return true;
 }
 
-bool builtins::new_private_key(interpreter_base &interp, uint8_t rawkey[builtins::RAW_KEY_SIZE])
+bool builtins::new_private_key(interpreter_base &interp, private_key &rawkey)
 {
     auto &ctx = get_ctx(interp);
-
-    bool ok = true;
-    do {
-	random::next_bytes(&rawkey[0], RAW_KEY_SIZE);
-	ok = secp256k1_ec_seckey_verify(ctx, &rawkey[0]);
-    } while (!ok);
-
+    rawkey.create_new(ctx);
     return true;
 }
 
@@ -381,15 +355,15 @@ bool builtins::privkey_1(interpreter_base &interp, size_t arity, term args[])
 
     if (args[0].tag().is_ref()) {
 
-        new_private_key(interp, &bytes[1]);
-	term big = create_private_key(interp, &bytes[1]);
-
+        private_key rawkey(private_key::NEW_KEY, ctx);
+	term big = create_private_key(interp, rawkey);
 	return interp.unify(args[0], big);
     } else {
-	if (!get_private_key(interp, args[0], &bytes[0])) {
+        private_key key(private_key::NO_KEY, ctx);
+	if (!get_private_key(interp, args[0], key)) {
 	    return false;
 	}
-	bool ok = secp256k1_ec_seckey_verify(ctx, &bytes[0]);
+	bool ok = secp256k1_ec_seckey_verify(ctx, &key[0]);
 	return ok;
     }
 }
@@ -402,13 +376,13 @@ bool builtins::privkey_2(interpreter_base &interp, size_t arity, term args[])
                   " must be given.");
     }
 
-    uint8_t rawkey[RAW_KEY_SIZE];
-    size_t n = RAW_KEY_SIZE;
+    private_key rawkey(private_key::NO_KEY, get_ctx(interp));
+    size_t n = private_key::SIZE;
     if (!get_bignum(interp, args[0], &rawkey[0], n)) {
 	return false;
     }
 
-    size_t dn = RAW_KEY_SIZE - n;
+    size_t dn = private_key::SIZE - n;
 
     // Pad with leading 0s
     memmove(&rawkey[dn], &rawkey[0], n);
@@ -420,8 +394,8 @@ bool builtins::privkey_2(interpreter_base &interp, size_t arity, term args[])
 }
 
 bool builtins::compute_public_key(interpreter_base &interp,
-				  uint8_t priv_raw[builtins::RAW_KEY_SIZE],
-				  uint8_t pub_raw[builtins::RAW_KEY_SIZE+1])
+				  private_key &priv_raw,
+				  public_key &pub_raw)
 {
     auto &ctx = get_ctx(interp);
 
@@ -430,42 +404,42 @@ bool builtins::compute_public_key(interpreter_base &interp,
     if (!r) {
 	return false;
     }
-    size_t pub_raw_len = RAW_KEY_SIZE+1;
+    size_t pub_raw_len = public_key::SIZE;
     r = secp256k1_ec_pubkey_serialize(ctx, &pub_raw[0], &pub_raw_len,
 				      &pubkey, SECP256K1_EC_COMPRESSED);
     if (!r) {
 	return false;
     }
-    if (pub_raw_len != RAW_KEY_SIZE+1) {
+    if (pub_raw_len != public_key::SIZE) {
 	return false;
     }
     return true;
 }
 
 term builtins::create_public_key(interpreter_base &interp,
-				 uint8_t pub_raw[builtins::RAW_KEY_SIZE+1])
+				 public_key &pub_raw)
 {
-    term big = interp.new_big((RAW_KEY_SIZE+1)*8);
-    interp.set_big(big, pub_raw, RAW_KEY_SIZE+1);
+    term big = interp.new_big(public_key::SIZE*8);
+    interp.set_big(big, &pub_raw[0], public_key::SIZE);
     return big;
 }
 
 bool builtins::pubkey_2(interpreter_base &interp, size_t arity, term args[])
 {
     
-    uint8_t priv_raw[RAW_KEY_SIZE];
-    if (!get_private_key(interp, args[0], &priv_raw[0])) {
+    private_key pkey(private_key::NO_KEY, get_ctx(interp));
+    if (!get_private_key(interp, args[0], pkey)) {
 	return false;
     }
-    uint8_t pub_raw[RAW_KEY_SIZE+1];
-    if (!compute_public_key(interp, &priv_raw[0], &pub_raw[0])) {
+    public_key pub_raw;
+    if (!compute_public_key(interp, pkey, pub_raw)) {
 	return false;
     }
     term big = create_public_key(interp, pub_raw);
     return interp.unify(args[1], big);
 }
 
-bool builtins::get_address(uint8_t pubkey[33], uint8_t addr[25])
+bool builtins::get_address(public_key &pubkey, uint8_t addr[25])
 {
     uint8_t out32[32];
 
@@ -484,7 +458,7 @@ bool builtins::get_address(uint8_t pubkey[33], uint8_t addr[25])
 bool builtins::address_2(interpreter_base &interp, size_t arity, term args[])
 {
     // Generate a bitcoin address from the public key.
-    uint8_t pubkey[33];
+    public_key pubkey;
     if (!get_public_key(interp, args[0], pubkey)) {
 	return false;
     }
@@ -599,13 +573,13 @@ bool builtins::get_hashed_2_term(interpreter_base &interp, const term data,
 
 bool builtins::compute_signature(interpreter_base &interp,
 				 uint8_t hashed_data[32],
-				 uint8_t priv_raw[builtins::RAW_KEY_SIZE],
+				 private_key &priv_raw,
 				 uint8_t signature[64])
 {
     auto &ctx = get_ctx(interp);
 
     secp256k1_ecdsa_signature sig;
-    if (secp256k1_ecdsa_sign(ctx, &sig, hashed_data, priv_raw,
+    if (secp256k1_ecdsa_sign(ctx, &sig, hashed_data, &priv_raw[0],
 			      nullptr, nullptr) != 1) {
 	return false;
     }
@@ -620,7 +594,7 @@ bool builtins::compute_signature(interpreter_base &interp,
 bool builtins::compute_signature(interpreter_base &interp, const term data,
 				 const term privkey, term &out_signature)
 {
-    uint8_t rawkey[RAW_KEY_SIZE];
+    private_key rawkey(private_key::NO_KEY, get_ctx(interp));
     if (!get_private_key(interp, privkey, rawkey)) {
 	return false;
     }
@@ -661,13 +635,13 @@ bool builtins::get_signature_data(interpreter_base &interp, term big0, uint8_t s
 
 bool builtins::verify_signature(interpreter_base &interp,
 				uint8_t hash[32],
-				uint8_t pubkey[33],
+				public_key &pubkey,
 				uint8_t sign_data[64])
 {
     auto &ctx = get_ctx(interp);
 
     secp256k1_pubkey pubkey1;
-    if (secp256k1_ec_pubkey_parse(ctx, &pubkey1, pubkey, 33) != 1) {
+    if (secp256k1_ec_pubkey_parse(ctx, &pubkey1, &pubkey[0], 33) != 1) {
 	return false;
     }
 
@@ -687,7 +661,7 @@ bool builtins::verify_signature(interpreter_base &interp,
 				const term pubkey,
 				const term signature)
 {
-    uint8_t pubkey_raw[33];
+    public_key pubkey_raw;
     if (!get_public_key(interp, pubkey, pubkey_raw)) {
 	return false;
     }
@@ -775,7 +749,7 @@ bool builtins::compute_pedersen_commit(interpreter_base &interp,
 				       const term value,
 				       uint8_t commit_raw[33])
 {
-    uint8_t blinding_raw[RAW_KEY_SIZE];
+    private_key blinding_raw(private_key::NO_KEY, get_ctx(interp));
 
     if (!get_private_key(interp, blinding, blinding_raw)) {
 	return false;
@@ -788,7 +762,7 @@ bool builtins::compute_pedersen_commit(interpreter_base &interp,
     auto &ctx = get_ctx(interp);
 
     secp256k1_pedersen_commitment commit;
-    if (secp256k1_pedersen_commit(ctx, &commit, blinding_raw, value_raw,
+    if (secp256k1_pedersen_commit(ctx, &commit, &blinding_raw[0], value_raw,
 				  secp256k1_generator_h) != 1) {
 	return false;
     }
@@ -809,7 +783,7 @@ bool builtins::pproof_3(interpreter_base &interp,
     const term blinding = args[0];
     const term value = args[1];
 
-    uint8_t blinding_raw[RAW_KEY_SIZE];
+    private_key blinding_raw(private_key::NO_KEY, get_ctx(interp));
 
     if (!get_private_key(interp, blinding, blinding_raw)) {
 	return false;
@@ -821,16 +795,16 @@ bool builtins::pproof_3(interpreter_base &interp,
     uint64_t value_raw = reinterpret_cast<const int_cell &>(value).value();
     static_cast<void>(value_raw);
 
+    auto &ctx = get_ctx(interp);
+
     // Generate random value
-    uint8_t b1[RAW_KEY_SIZE], b2[RAW_KEY_SIZE], b3[RAW_KEY_SIZE];
+    private_key b1(private_key::NO_KEY, ctx), b2(private_key::NO_KEY, ctx), b3(private_key::NO_KEY, ctx);
 
     bool ok = false;
 
-    auto &ctx = get_ctx(interp);
-
     // The original commit
     secp256k1_pedersen_commitment commit;
-    if (secp256k1_pedersen_commit(ctx, &commit, blinding_raw, value_raw, secp256k1_generator_h) != 1) {
+    if (secp256k1_pedersen_commit(ctx, &commit, &blinding_raw[0], value_raw, secp256k1_generator_h) != 1) {
 	return false;
     }
 
@@ -841,12 +815,12 @@ bool builtins::pproof_3(interpreter_base &interp,
     secp256k1_pedersen_commitment commit1, commit2, commit3;
 
     while (!ok) {
-        new_private_key(interp, b1);
-        new_private_key(interp, b2);
+        b1.create_new(ctx);
+        b2.create_new(ctx);
 
 	// Compute b3 = b - b1 - b2
 	uint8_t *bs[] = { &blinding_raw[0], &b1[0], &b2[0] };
-	if (secp256k1_pedersen_blind_sum(ctx, b3, bs, 3, 1) != 1) {
+	if (secp256k1_pedersen_blind_sum(ctx, &b3[0], bs, 3, 1) != 1) {
 	    continue;
 	}
 
@@ -855,13 +829,13 @@ bool builtins::pproof_3(interpreter_base &interp,
 
 	// Create pedersen commit b1*G+v1*H + b2*G+v2*H
 
-	if (secp256k1_pedersen_commit(ctx, &commit1, b1, v1, secp256k1_generator_h) != 1) {
+	if (secp256k1_pedersen_commit(ctx, &commit1, &b1[0], v1, secp256k1_generator_h) != 1) {
 	    continue;
 	}
-	if (secp256k1_pedersen_commit(ctx, &commit2, b2, v2, secp256k1_generator_h) != 1) {
+	if (secp256k1_pedersen_commit(ctx, &commit2, &b2[0], v2, secp256k1_generator_h) != 1) {
 	    continue;
 	}
-	if (secp256k1_pedersen_commit(ctx, &commit3, b3, 0, secp256k1_generator_h) != 1) {
+	if (secp256k1_pedersen_commit(ctx, &commit3, &b3[0], 0, secp256k1_generator_h) != 1) {
 	    continue;
 	}
 
@@ -879,7 +853,7 @@ bool builtins::pproof_3(interpreter_base &interp,
 	return false;
     }
 
-    uint8_t pub_b3[RAW_KEY_SIZE+1];
+    public_key pub_b3;
     
     // We need the public key for b3
     if (!compute_public_key(interp, b3, pub_b3)) {
@@ -909,7 +883,7 @@ bool builtins::pproof_3(interpreter_base &interp,
     term term_commit = new_bignum(interp, commit_raw, 33);
     term term_commit1 = new_bignum(interp, commit1_raw, 33);
     term term_commit2 = new_bignum(interp, commit2_raw, 33);
-    term term_pubkey = new_bignum(interp, pub_b3, 33);
+    term term_pubkey = new_bignum(interp, &pub_b3[0], public_key::SIZE);
     term term_utime = int_cell(static_cast<int64_t>(ut.in_us()));
     term term_signature = new_bignum(interp, signature, 64);
 
@@ -942,7 +916,7 @@ bool builtins::pverify_1(interpreter_base &interp, size_t arity, term args[])
     uint8_t commit_raw[33];
     uint8_t commit1_raw[33];
     uint8_t commit2_raw[33];
-    uint8_t pubkey_raw[33];
+    public_key pubkey_raw;
     uint8_t signature_raw[64];
 
     size_t n1 = 33, n2 = 33, n3 = 33, n4 = 33, n5 = 64;
@@ -950,7 +924,7 @@ bool builtins::pverify_1(interpreter_base &interp, size_t arity, term args[])
     if (!get_bignum(interp, term_commit, commit_raw, n1) ||
 	!get_bignum(interp, term_commit1, commit1_raw, n2) ||
 	!get_bignum(interp, term_commit2, commit2_raw, n3) ||
-	!get_bignum(interp, term_pubkey, pubkey_raw, n4) ||
+	!get_bignum(interp, term_pubkey, &pubkey_raw[0], n4) ||
 	!get_bignum(interp, term_signature, signature_raw, n5)) {
 	return false;
     }
@@ -977,7 +951,7 @@ bool builtins::pverify_1(interpreter_base &interp, size_t arity, term args[])
 	return false;
     }
 
-    if (secp256k1_pedersen_commitment_load_pubkey(ctx, &commit3, pubkey_raw) != 1) {
+    if (secp256k1_pedersen_commitment_load_pubkey(ctx, &commit3, &pubkey_raw[0]) != 1) {
     	return false;
     }
     uint8_t commit3_raw[33];
@@ -1053,29 +1027,29 @@ bool builtins::pubkey_tweak_add_3(interpreter_base &interp, size_t arity, term a
 {
     secp256k1_pubkey pubkey;
     term pubkey_term = args[0];
-    uint8_t pubkey_data[RAW_KEY_SIZE+1];
+    public_key pubkey_data;
 
     auto &ctx = get_ctx(interp);
   
     if (!get_public_key(interp, pubkey_term, pubkey_data) ||
-        secp256k1_ec_pubkey_parse(ctx,&pubkey,pubkey_data,RAW_KEY_SIZE+1) != 1) {
+        secp256k1_ec_pubkey_parse(ctx,&pubkey,&pubkey_data[0],RAW_KEY_SIZE+1) != 1) {
        throw interpreter_exception_not_public_key("pubkey_tweak_add/3: First argument is not a public key; was " + interp.to_string(pubkey_term));
    }
 
     term tweak_term = args[1];
-    uint8_t tweak_data[RAW_KEY_SIZE];
+    private_key tweak_data(private_key::NO_KEY, ctx);
     if (!get_private_key(interp, tweak_term, tweak_data)) {
        throw interpreter_exception_wrong_arg_type("pubkey_tweak_add/3: Second argument is not a private key (or secret); was " + interp.to_string(tweak_term));      
     }
 
-    if (secp256k1_ec_pubkey_tweak_add(ctx, &pubkey, tweak_data) != 1) {
+    if (secp256k1_ec_pubkey_tweak_add(ctx, &pubkey, &tweak_data[0]) != 1) {
         throw interpreter_exception_tweak("pubkey_tweak_add/3: Failed while tweaking public key.");
     }
 
-    size_t result_raw_len = RAW_KEY_SIZE+1;
-    uint8_t result_raw[RAW_KEY_SIZE+1];
+    size_t result_raw_len = public_key::SIZE;
+    public_key result_raw;
     int r = secp256k1_ec_pubkey_serialize(ctx, &result_raw[0], &result_raw_len, &pubkey, SECP256K1_EC_COMPRESSED);
-    if (r != 1 || result_raw_len != RAW_KEY_SIZE+1) {
+    if (r != 1 || result_raw_len != public_key::SIZE) {
         throw interpreter_exception_tweak("pubkey_tweak_add/3: Failed when serializing tweaked public key.");      
     }
     
@@ -1086,9 +1060,10 @@ bool builtins::pubkey_tweak_add_3(interpreter_base &interp, size_t arity, term a
 bool builtins::privkey_tweak_add_3(interpreter_base &interp, size_t arity, term args[] )
 {
     term privkey_term = args[0];
-    uint8_t privkey_data[RAW_KEY_SIZE+1];
 
     auto &ctx = get_ctx(interp);
+
+    private_key privkey_data(private_key::NO_KEY, ctx);
 
     bool with_checksum = false;
     if (!get_private_key(interp, privkey_term, privkey_data, with_checksum)) {
@@ -1096,12 +1071,12 @@ bool builtins::privkey_tweak_add_3(interpreter_base &interp, size_t arity, term 
    }
 
     term tweak_term = args[1];
-    uint8_t tweak_data[RAW_KEY_SIZE];
+    private_key tweak_data(private_key::NO_KEY, ctx);
     if (!get_private_key(interp, tweak_term, tweak_data)) {
        throw interpreter_exception_wrong_arg_type("privkey_tweak_add/3: Second argument is not a private key (or secret); was " + interp.to_string(tweak_term));      
     }
 
-    if (secp256k1_ec_privkey_tweak_add(ctx, privkey_data, tweak_data) != 1) {
+    if (secp256k1_ec_privkey_tweak_add(ctx, &privkey_data[0], &tweak_data[0]) != 1) {
         throw interpreter_exception_tweak("pubkey_tweak_add/3: Failed while tweaking private key.");
     }
 
@@ -1123,9 +1098,9 @@ bool builtins::musig_combine_3(interpreter_base &interp, size_t arity, term args
     while (!interp.is_empty_list(l)) {
         secp256k1_pubkey pubkey;
         term pubkey_term = interp.arg(l, 0);
-	uint8_t pubkey_data[RAW_KEY_SIZE+1];
+	public_key pubkey_data;
 	if (!get_public_key(interp, pubkey_term, pubkey_data) ||
-	     secp256k1_ec_pubkey_parse(ctx, &pubkey, pubkey_data, RAW_KEY_SIZE+1) != 1) {
+	     secp256k1_ec_pubkey_parse(ctx, &pubkey, &pubkey_data[0], public_key::SIZE) != 1) {
 	     throw interpreter_exception_not_public_key("musig_combine/3: Not a public key: " + interp.to_string(pubkey_term));
         }
         pubkeys.push_back(pubkey);
@@ -1168,9 +1143,9 @@ bool builtins::musig_verify_3(interpreter_base &interp, size_t arity, term args[
     }
     
     secp256k1_pubkey pubkey;
-    uint8_t pubkey_data[RAW_KEY_SIZE+1];
+    public_key pubkey_data;
     if (!get_public_key(interp, args[1], pubkey_data) ||
-	secp256k1_ec_pubkey_parse(ctx, &pubkey, pubkey_data, RAW_KEY_SIZE+1) != 1) {
+	secp256k1_ec_pubkey_parse(ctx, &pubkey, &pubkey_data[0], public_key::SIZE) != 1) {
         throw interpreter_exception_wrong_arg_type("musig_verify/3: Second argument is not a public key; was " + interp.to_string(args[1]));
     }
 
@@ -1231,9 +1206,9 @@ bool builtins::musig_secret_7(interpreter_base &interp, size_t arity, term args[
     size_t i = 0;
     while (nonces != interpreter_base::EMPTY_LIST) {
         term nonce_term = interp.arg(nonces, 0);
-	uint8_t nonce_raw[RAW_KEY_SIZE+1];
+	public_key nonce_raw;
 	bool r = get_public_key(interp, nonce_term, nonce_raw);
-	if (!r || secp256k1_ec_pubkey_parse(ctx, &(nonces_data.get())[i], nonce_raw,RAW_KEY_SIZE+1) != 1) {
+	if (!r || secp256k1_ec_pubkey_parse(ctx, &(nonces_data.get())[i], &nonce_raw[0],public_key::SIZE) != 1) {
   	    std::stringstream msg;
 	    msg << "musig_secret/7: Third argument is not a list of nonces; element " << (i+1) << " was " << interp.to_string(nonce_term);
             throw interpreter_exception_not_list(msg.str());
@@ -1241,7 +1216,7 @@ bool builtins::musig_secret_7(interpreter_base &interp, size_t arity, term args[
 	nonces = interp.arg(nonces,1);
 	
 	(nonce_commitments_ptr.get())[i] = &(nonce_commitments_data.get())[i*RAW_HASH_SIZE];
-	get_hashed_1_data(nonce_raw, RAW_KEY_SIZE+1,
+	get_hashed_1_data(&nonce_raw[0], public_key::SIZE,
 	                  nonce_commitments_ptr.get()[i]);
 	i++;
     }
@@ -1263,9 +1238,9 @@ bool builtins::musig_secret_7(interpreter_base &interp, size_t arity, term args[
     while (!interp.is_empty_list(pubkeys_list)) {
         secp256k1_pubkey pubkey;
         term pubkey_term = interp.arg(pubkeys_list, 0);
-	uint8_t pubkey_data[RAW_KEY_SIZE+1];
+	public_key pubkey_data;
 	if (!get_public_key(interp, pubkey_term, pubkey_data) ||
-	     secp256k1_ec_pubkey_parse(ctx, &pubkey, pubkey_data, RAW_KEY_SIZE+1) != 1) {
+	     secp256k1_ec_pubkey_parse(ctx, &pubkey, &pubkey_data[0], public_key::SIZE) != 1) {
 	     throw interpreter_exception_not_public_key("musig_secret/7: Not a public key: " + interp.to_string(pubkey_term));
         }
         pubkeys.push_back(pubkey);
@@ -1315,9 +1290,9 @@ bool builtins::musig_secret_7(interpreter_base &interp, size_t arity, term args[
     // Get adaptor
     secp256k1_pubkey adaptor;
     term adaptor_term = args[5];
-    uint8_t adaptor_data[RAW_KEY_SIZE+1];
+    public_key adaptor_data;
     bool r = get_public_key(interp, adaptor_term, adaptor_data);
-    if (!r || secp256k1_ec_pubkey_parse(ctx, &adaptor, adaptor_data, RAW_KEY_SIZE+1) != 1) {
+    if (!r || secp256k1_ec_pubkey_parse(ctx, &adaptor, &adaptor_data[0], public_key::SIZE) != 1) {
         std::stringstream msg;
 	msg << "musig_secret/" << arity;
 	msg << ": Sixth argument is not an adaptor (public key); was";
@@ -1410,12 +1385,12 @@ bool builtins::musig_start_7(interpreter_base &interp, size_t arity, term args[]
         throw interpreter_exception_wrong_arg_type("musig_start/7: First argument must be an unbound variable; was " + interp.to_string(args[0]));
     }
 
-    uint8_t pubkey_raw[RAW_KEY_SIZE+1];
+    public_key pubkey_raw;
     if (!get_public_key(interp, args[1], pubkey_raw)) {
         throw interpreter_exception_wrong_arg_type("musig_start/7: Second argument must be a public key; was " + interp.to_string(args[1]));
     }
     secp256k1_pubkey combined_pubkey;
-    if (secp256k1_ec_pubkey_parse(ctx, &combined_pubkey, &pubkey_raw[0], RAW_KEY_SIZE+1) != 1) {
+    if (secp256k1_ec_pubkey_parse(ctx, &combined_pubkey, &pubkey_raw[0], public_key::SIZE) != 1) {
         throw interpreter_exception_wrong_arg_type("musig_start/7: Second argument must be a valid public key; was " + interp.to_string(args[1]));
     }
 
@@ -1439,8 +1414,8 @@ bool builtins::musig_start_7(interpreter_base &interp, size_t arity, term args[]
         throw interpreter_exception_wrong_arg_type("musig_start/7: Number of signers must be 1..1024; was " + interp.to_string(args[4]));       
     }
 
-    uint8_t privkey[RAW_KEY_SIZE];
-    if (!get_private_key(interp, args[5], &privkey[0])) {
+    private_key privkey(private_key::NO_KEY, ctx);
+    if (!get_private_key(interp, args[5], privkey)) {
         throw interpreter_exception_wrong_arg_type("musig_start/7: Sixth argument must be a private key for signing; was " + interp.to_string(args[5]));
     }
 
@@ -1484,9 +1459,9 @@ bool builtins::musig_set_public_key_3(interpreter_base &interp, size_t arity, te
     
     term pubkey_term = args[2];
     secp256k1_pubkey pubkey;
-    uint8_t pubkey_data[RAW_KEY_SIZE+1];
+    public_key pubkey_data;
     bool r = get_public_key(interp, pubkey_term, pubkey_data);
-    if (!r || secp256k1_ec_pubkey_parse(ctx, &pubkey, pubkey_data, RAW_KEY_SIZE+1) != 1) {
+    if (!r || secp256k1_ec_pubkey_parse(ctx, &pubkey, &pubkey_data[0], public_key::SIZE) != 1) {
       std::stringstream msg;
 	    msg << "musig_set_public_key/" << arity;
 	    msg << ": Third argument is not a public key; was";
@@ -1556,8 +1531,8 @@ bool builtins::musig_prepare_3(interpreter_base &interp, size_t arity, term args
     }
 
     auto &ctx = get_ctx(interp);
-    size_t nonce_raw_len = RAW_KEY_SIZE+1;
-    uint8_t nonce_raw[RAW_KEY_SIZE+1];
+    size_t nonce_raw_len = public_key::SIZE;
+    public_key nonce_raw;
     if (secp256k1_ec_pubkey_serialize(ctx, &nonce_raw[0], &nonce_raw_len,
 				      &nonce, SECP256K1_EC_COMPRESSED) != 1) {
         throw interpreter_exception_musig("musig_prepare/3: Couldn't get public nonce. MuSig session could be in an invalid state.");
@@ -1599,7 +1574,7 @@ bool builtins::musig_nonces_3(interpreter_base &interp, size_t arity, term args[
     size_t i = 0;
     while (nonces_list != interpreter_base::EMPTY_LIST) {
         term nonce_term = interp.arg(nonces_list, 0);
-	uint8_t nonce[RAW_KEY_SIZE+1];
+	public_key nonce;
 	bool r = get_public_key(interp, nonce_term, nonce);
 	if (!r) {
   	    std::stringstream msg;
@@ -1610,7 +1585,7 @@ bool builtins::musig_nonces_3(interpreter_base &interp, size_t arity, term args[
 	nonces_list = interp.arg(nonces_list,1);
 
         secp256k1_pubkey nonce_pubkey;
-	if (secp256k1_ec_pubkey_parse(ctx, &nonce_pubkey, nonce, RAW_KEY_SIZE+1) != 1) {
+	if (secp256k1_ec_pubkey_parse(ctx, &nonce_pubkey, &nonce[0], public_key::SIZE) != 1) {
 	    std::stringstream msg;
 	    msg << "musig_nonces/" << arity;
  	    msg << ": Nonce is not a public key; was ";
@@ -1626,7 +1601,7 @@ bool builtins::musig_nonces_3(interpreter_base &interp, size_t arity, term args[
     secp256k1_pubkey *adaptor_used = nullptr;
     if (arity >= 3) {
         term adaptor_term = args[2];
-	uint8_t adaptor_data[RAW_KEY_SIZE+1];
+	public_key adaptor_data;
 	bool r = get_public_key(interp, adaptor_term, adaptor_data);
 	if (!r) {
   	    std::stringstream msg;
@@ -1635,7 +1610,7 @@ bool builtins::musig_nonces_3(interpreter_base &interp, size_t arity, term args[
 	    msg << interp.to_string(adaptor_term);
             throw interpreter_exception_not_list(msg.str());
 	}
-	if (secp256k1_ec_pubkey_parse(ctx, &adaptor, adaptor_data, RAW_KEY_SIZE+1) != 1) {
+	if (secp256k1_ec_pubkey_parse(ctx, &adaptor, &adaptor_data[0], public_key::SIZE) != 1) {
 	    std::stringstream msg;
 	    msg << "musig_nonces/" << arity;
  	    msg << ": Third argument is not a public key (adaptor); was ";
@@ -1715,7 +1690,7 @@ bool builtins::musig_partial_sign_adapt_4(interpreter_base &interp, size_t arity
     }
 
     term adaptor_private_term = args[2];
-    uint8_t adaptor_secret[RAW_KEY_SIZE];
+    private_key adaptor_secret(private_key::NO_KEY, ctx);
     if (!get_private_key(interp, adaptor_private_term, adaptor_secret)) {
       std::stringstream msg;
       msg << "musig_partial_sign_adapt/4";
@@ -1724,7 +1699,7 @@ bool builtins::musig_partial_sign_adapt_4(interpreter_base &interp, size_t arity
       throw interpreter_exception_wrong_arg_type(msg.str());
     }
     
-    if (!session->partial_sign_adapt(partial_signature, adaptor_secret)) {
+    if (!session->partial_sign_adapt(partial_signature, &adaptor_secret[0])) {
 	throw interpreter_exception_musig(
    	      "musig_partial_sign_adapt/4: Couldn't adapt signature.");
     }
@@ -1796,7 +1771,7 @@ bool builtins::musig_final_sign_4(interpreter_base &interp, size_t arity, term a
 
     size_t last_arg_index = arity - 1;
 
-    uint8_t tweak_data[RAW_KEY_SIZE];
+    private_key tweak_data(private_key::NO_KEY, ctx);
     uint8_t *tweak_used = nullptr;
     if (arity == 4) {
         term tweak_term = args[2];

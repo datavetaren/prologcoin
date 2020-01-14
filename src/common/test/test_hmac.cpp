@@ -4,6 +4,7 @@
 #include <iostream>
 #include <assert.h>
 #include <string>
+#include <common/sha512.hpp>
 
 using namespace prologcoin::common;
 
@@ -42,9 +43,31 @@ static void test_hmacsha1()
   }
 }
 
+static void test_hmacsha2()
+{
+    header("test_hmacsha2");
+  
+    hmac<sha512> h;
+    uint8_t key[20] = {0xb,0xb,0xb,0xb,0xb,0xb,0xb,0xb,0xb,0xb,
+		       0xb,0xb,0xb,0xb,0xb,0xb,0xb,0xb,0xb,0xb};
+    uint8_t data[8] = {'H', 'i', ' ', 'T', 'h', 'e', 'r', 'e'};
+
+    h.init(key, 20);
+    h.update(data, 8);
+    uint8_t result[64];
+    h.finalize(result);
+    
+    std::cout << "HMAC-SHA512: " << hex::to_string(result, 64) << std::endl;
+
+    assert(hex::to_string(result,64) ==
+	   "87aa7cdea5ef619d4ff0b4241a1d6cb02379f4e2ce4ec2787ad0b30545e17cde"
+	   "daa833b7d6b8a702038b274eaea3f4e4be9d914eeb61f1702e696c203a126854");
+}
+
 int main(int argc, char *argv[])
 {
     test_hmacsha1();
+    test_hmacsha2();
 
     return 0;
 }

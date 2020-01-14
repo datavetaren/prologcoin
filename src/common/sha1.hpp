@@ -31,10 +31,10 @@ public:
   static const size_t BLOCK_SIZE = 64;
     
   sha1() {
-    init(nullptr, 0);
+    init();
   }
 
-  void init(const uint8_t *password, size_t password_len) {
+  void init() {
     state[0] = 0x67452301;
     state[1] = 0xefcdab89;
     state[2] = 0x98badcfe;

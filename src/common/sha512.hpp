@@ -49,11 +49,8 @@ public:
   static const uint8_t PADDING[128];
   static const uint64_t K[80];
   
-  inline sha512() {
-    init(nullptr, 0);
-  }
-
-  void init(const uint8_t *password, size_t password_len);
+  inline sha512() { init(); }
+  void init();
   void update(const void *p, size_t len);
   inline const std::string finalize() {
     uint8_t dig[HASH_SIZE];

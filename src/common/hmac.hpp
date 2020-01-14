@@ -31,7 +31,7 @@ public:
     for (size_t i = 0; i < BLOCK_SIZE; i++) {
       inner_block[i] = key_block_[i] ^ 0x36;
     }
-    inner_hash_.init(nullptr, 0);
+    inner_hash_.init();
     inner_hash_.update(inner_block, BLOCK_SIZE);
   }
 

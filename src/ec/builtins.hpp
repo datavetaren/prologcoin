@@ -5,6 +5,7 @@
 
 #include "../common/term.hpp"
 #include "../interp/interpreter.hpp"
+#include "keys.hpp"
 
 namespace prologcoin { namespace ec {
 
@@ -158,29 +159,29 @@ public:
     static bool get_hashed_2_term(interpreter_base &interp, const term data,
 				  uint8_t hash[RAW_HASH_SIZE]);  
   
-private:
-
     static void get_checksum(const uint8_t *bytes, size_t n, uint8_t checksum[4]);
+
+private:
 
     static bool get_bignum(interpreter_base &interp, term big, uint8_t *bytes, size_t &n);
     static term new_bignum(interpreter_base &interp, const uint8_t *bytes, size_t n);
-    static bool get_private_key(interpreter_base &interp, term big0, uint8_t rawkey[RAW_KEY_SIZE]);
-    static bool get_private_key(interpreter_base &interp, term big0, uint8_t rawkey[RAW_KEY_SIZE], bool &checksum_existed);
-    static bool get_public_key(interpreter_base &interp, term big0, uint8_t rawkey[RAW_KEY_SIZE+1]);
+    static bool get_private_key(interpreter_base &interp, term big0, private_key &rawkey);
+    static bool get_private_key(interpreter_base &interp, term big0, private_key &rawkey, bool &checksum_existed);
+    static bool get_public_key(interpreter_base &interp, term big0, public_key &rawkey);
     static bool compute_public_key(interpreter_base &interp,
-	  			   uint8_t priv_raw[RAW_KEY_SIZE],
-				   uint8_t pub_raw[RAW_KEY_SIZE+1]);
+	  			   private_key &priv_raw,
+				   public_key &pub_raw);
     static term create_public_key(interpreter_base &interp,
-				  uint8_t pub_raw[RAW_KEY_SIZE+1]);
-    static bool get_address(uint8_t pubkey[32], uint8_t address[20]);
+				  public_key &pub_raw);
+    static bool get_address(public_key &pubkey, uint8_t address[20]);
     static bool compute_signature(interpreter_base &interp,
 				  uint8_t hashed_data[32],
-				  uint8_t priv_raw[RAW_KEY_SIZE],
+				  private_key &priv_raw,
 				  uint8_t signature[64]);
     static bool compute_signature(interpreter_base &interp, const term data,
 				  const term privkey, term &out_signature);
     static bool verify_signature(interpreter_base &interp,
-			         uint8_t hash[32], uint8_t pubkey[33],
+			         uint8_t hash[32], public_key &pubkey,
 				 uint8_t sign_data[64]);
 
     static bool verify_signature(interpreter_base &interp, const term data,
@@ -193,8 +194,8 @@ private:
 					const term blinding,
 					const term value,
 					uint8_t commit[33]);
-    static bool new_private_key(interpreter_base &interp, uint8_t rawkey[RAW_KEY_SIZE]);
-    static term create_private_key(interpreter_base &interp, uint8_t rawkey[RAW_KEY_SIZE], bool with_checksum = true);
+    static bool new_private_key(interpreter_base &interp, private_key &rawkey);
+    static term create_private_key(interpreter_base &interp, private_key &rawkey, bool with_checksum = true);
 };
 
 }}

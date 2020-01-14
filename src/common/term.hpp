@@ -1263,7 +1263,8 @@ public:
     void get_big(cell big, uint8_t *bytes, size_t n) const;
     void set_big(cell big, const uint8_t *bytes, size_t n);
 
-    std::string big_to_string(const boost::multiprecision::cpp_int &i, size_t base, size_t nbits) const;
+    static std::string big_to_string(const boost::multiprecision::cpp_int &i, size_t base, size_t nbits);
+  
     std::string big_to_string(cell big, size_t base, bool capital = false) const;
 
     inline size_t num_cells(const boost::multiprecision::cpp_int &i)

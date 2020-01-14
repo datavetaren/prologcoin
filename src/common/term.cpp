@@ -422,7 +422,7 @@ bool heap::is_list(const cell c) const
     return true;
 }
 
-std::string heap::big_to_string(const boost::multiprecision::cpp_int &i, size_t base, size_t nbits) const
+std::string heap::big_to_string(const boost::multiprecision::cpp_int &i, size_t base, size_t nbits)
 {
     using namespace boost::multiprecision;
 
