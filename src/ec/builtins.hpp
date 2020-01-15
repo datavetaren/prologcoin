@@ -148,6 +148,22 @@ public:
     // Verifies the given proof.
     static bool pverify_1(interpreter_base &interp, size_t arity, term args[]);
 
+    // BIP32
+
+    // master_key(+Seed, -MasterPrivate, -MasterPublic)
+    static bool master_key_3(interpreter_base &interp, size_t arity, term args[]);
+
+    // child_pubkey(+ParentPubKey, +Path, -ChildKey)
+    // Example path: m/h(2)/3    (master / hardened child 2 / child 3)
+    //               'm/' can be skipped; h(2)/3 means the same thing
+    static bool child_pubkey_3(interpreter_base &interp, size_t arity, term args[]);
+    static bool child_privkey_3(interpreter_base &interp, size_t arity, term args[]);
+
+private:
+    static bool derive_child(const std::string &pname, interpreter_base &interp, term parent, term path, term result);
+
+public:
+  
     static void pedersen_test();
 
     static bool get_hashed_1_data(uint8_t *data, size_t data_len,

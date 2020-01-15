@@ -117,7 +117,8 @@ public:
   
     enum extended_type { EXTENDED_PUBLIC = 0, EXTENDED_PRIVATE = 1 };
 
-    inline extended_key(extended_type t) : type_(t), level_(0), child_number_(0) { memset(fingerprint_, 0, 4); (void)type_; }
+    inline extended_key(extended_type t) : type_(t), level_(0), child_number_(0) { memset(fingerprint_, 0, 4); }
+    inline extended_type type() const { return type_; }
     inline size_t level() const { return level_; }
     inline const uint8_t * fingerprint() const { return fingerprint_; }
     inline uint32_t child_number() const { return child_number_; }
@@ -148,6 +149,8 @@ public:
     bool read(uint8_t data[78]);
 
     std::string to_string() const;
+    std::string to_xxx() const;
+    common::term to_term(common::term_env &env) const;
   
 private:
     chain_code chain_code_;
@@ -160,9 +163,14 @@ public:
     extended_private_key(private_key &privkey) : private_key(privkey), extended_key(extended_key::EXTENDED_PRIVATE) { }
 
     void write(uint8_t bytes[78]) const;
+    bool read(uint8_t data[78]);
+  
     std::string to_string() const;
+    common::term to_term(common::term_env &env) const;  
   
     void set_from_hash(const uint8_t hash[64]);
+
+    void compute_extended_public_key(secp256k1_ctx &ctx, extended_public_key &pubkey);
   
 private:
     inline extended_private_key(secp256k1_ctx &ctx) : private_key(private_key::NO_KEY, ctx), extended_key(extended_key::EXTENDED_PRIVATE) { }
@@ -172,6 +180,7 @@ private:
     
 class hd_keys {
 public:
+    hd_keys(secp256k1_ctx &ctx);
     hd_keys(secp256k1_ctx &ctx, const uint8_t *seed, size_t seed_len);
 
     const extended_private_key & master_private() { return master_; }

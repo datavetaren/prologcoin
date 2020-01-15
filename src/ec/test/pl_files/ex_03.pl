@@ -207,7 +207,7 @@ verify_adaptor_sig(Fin, Negated, Secret) :-
    write(Secret),
    nl,
    write('Everything is ok'), nl.
-% Expect: Fin = 58'17ZdStiX8baS7ByhMgUkjhexoRLNwB7SrVma4Br1GY3mnzyP3BR1DKszXLvAPZwqxxA61qaJbskvTQuD4x6czSvo, Negated = false, Secret = "01 this is a secret! 12345678901"
+% Expect: Fin = 58'7ZdStiX8baS7ByhMgUkjhexoRLNwB7SrVma4Br1GY3mnzyP3BR1DKszXLvAPZwqxxA61qaJbskvTQuD4x6czSvo, Negated = false, Secret = "01 this is a secret! 12345678901"
 % Expect: end
 
 close_sessions :-

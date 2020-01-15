@@ -439,10 +439,17 @@ std::string heap::big_to_string(const boost::multiprecision::cpp_int &i, size_t 
 
     cpp_int val = i;
     cpp_int maxval = 1;
-    // When we use base 16 or base 58 we pad with 0s to make it compatible
-    // with the common bitcoin representations.
-    if (base == 16 || base == 58) {
-	maxval <<= (nbits-1);
+    // When we use base 16 or base 58 we pad with leading 0s except
+    // when number of bits == 82 bytesto make it compatible with the common bitcoin
+    // representations (i.e. we expect a leading '1' when the leading 6+ bits
+    // are zero)
+    if ((base == 16 || base == 58)) {
+        size_t numeric_nbits = msb(val) + 1;
+	if (nbits > numeric_nbits && nbits - numeric_nbits >= 6) {
+            maxval <<= (nbits-1);
+	} else {
+	    maxval = val;
+	}
     } else {
 	maxval = val;
     }
@@ -466,6 +473,7 @@ std::string heap::big_to_string(cell big, size_t base, bool capital) const
     cpp_int val;
     size_t nbits = 0;
     get_big(big, val, nbits);
+
     std::string s = big_to_string(val, base, nbits);
     if (capital) {
 	boost::to_upper(s);

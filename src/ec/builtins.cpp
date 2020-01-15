@@ -1869,6 +1869,13 @@ void builtins::load(interpreter_base &interp, con_cell *module0)
     interp.load_builtin(M, interp.functor("musig_final_sign", 4), &builtins::musig_final_sign_4);
     interp.load_builtin(M, interp.functor("musig_nonce_negated", 2), &builtins::musig_nonce_negated_2);
     interp.load_builtin(M, interp.functor("musig_end", 1), &builtins::musig_end_1);
+
+    // BIP32
+
+    interp.load_builtin(M, interp.functor("master_key", 3), &builtins::master_key_3);
+    interp.load_builtin(M, interp.functor("child_pubkey", 3), &builtins::child_pubkey_3);
+    interp.load_builtin(M, interp.functor("child_privkey", 3), &builtins::child_privkey_3);
+    
 }
 
 void builtins::load_consensus(interpreter_base &interp) {
@@ -1888,6 +1895,216 @@ void builtins::load_consensus(interpreter_base &interp) {
     interp.load_builtin(M, interp.functor("musig_combine", 3), &builtins::musig_combine_3);
     interp.load_builtin(M, interp.functor("musig_verify", 3), &builtins::musig_verify_3);
     interp.load_builtin(M, interp.functor("musig_secret", 7), &builtins::musig_secret_7);
+}
+
+template<typename XKey> static void execute_path(const std::string &pname, interpreter_base &interp, XKey &key, term path)
+{
+    static const con_cell H("h",1);
+    static const con_cell M("m",0);
+    static const con_cell SLASH("/",2);
+
+    hd_keys hd(get_ctx(interp));
+
+    std::vector<term> ops;
+    while (path.tag() == tag_t::STR && interp.functor(path) == SLASH) {
+        ops.push_back(interp.arg(path, 1));
+	path = interp.arg(path, 0);
+    }
+    ops.push_back(path);
+    std::reverse(ops.begin(), ops.end());
+
+    bool first = true;
+    
+    for (auto op : ops) {
+        // std::cout << "EXECUTE: " << interp.to_string(op) << std::endl;
+	if (op.tag() == tag_t::STR) {
+	    auto f = interp.functor(op);
+	    if (f != H) {
+  	        std::stringstream msg;
+	        msg << pname << ": Unexpected path component: " << interp.to_string(op);
+	        throw interpreter_exception_wrong_arg_type(msg.str());
+	    }
+	    if (key.type() != extended_key::EXTENDED_PRIVATE) {
+  	        std::stringstream msg;
+	        msg << pname << ": Can only apply hardening if parent key is private: " << interp.to_string(op);
+	        throw interpreter_exception_wrong_arg_type(msg.str());
+	    }
+	    op = interp.arg(op,0);
+	    if (op.tag() != tag_t::INT) {
+  	        std::stringstream msg;
+	        msg << pname << ": Unexpected path component: " << interp.to_string(op);
+	        throw interpreter_exception_wrong_arg_type(msg.str());
+	    }
+	    int64_t val = static_cast<int_cell &>(op).value();
+	    if (val < 0 || val >= extended_key::HARDENED_KEY) {
+  	        std::stringstream msg;
+	        msg << pname << ": Hardened child number is outside its valid range: " << interp.to_string(op);
+	        throw interpreter_exception_wrong_arg_type(msg.str());	        
+	    }
+	    uint32_t child_num = static_cast<uint32_t>(val);
+	    hd.generate_child(key, hd_keys::H(child_num), key);
+	} else if (op.tag() == tag_t::CON) {
+	    if (!first || op != M) {
+  	        std::stringstream msg;
+	        msg << pname << ": Unexpected path component: " << interp.to_string(op);
+	        throw interpreter_exception_wrong_arg_type(msg.str());
+	    }
+	} else if (op.tag() == tag_t::INT) {
+	    int64_t val = static_cast<int_cell &>(op).value();
+	    if (val < 0 || val >= extended_key::HARDENED_KEY) {
+  	        std::stringstream msg;
+	        msg << pname << ": Child number is outside its valid range: " << interp.to_string(op);
+	        throw interpreter_exception_wrong_arg_type(msg.str());	        
+	    }
+	    uint32_t child_num = static_cast<uint32_t>(val);
+	    hd.generate_child(key, child_num, key);
+	} else {
+	    std::stringstream msg;
+	    msg << pname << ": Unexpected path component: " << interp.to_string(op);
+	    throw interpreter_exception_wrong_arg_type(msg.str());
+	}
+	first = false;
+    }
+}
+
+bool builtins::master_key_3(interpreter_base &interp, size_t arity, term args[]) {
+
+    term seed = args[0];
+    if (seed.tag() == tag_t::REF) {
+        // Generate a new seed, use bignum
+        uint8_t bytes[32];
+	random::next_bytes(bytes, 32);
+	seed = new_bignum(interp, bytes, 32);
+	interp.unify(args[0], seed);
+    }
+
+    static const size_t MAX_SEED_LEN = 128;
+    uint8_t seed_bytes[MAX_SEED_LEN];
+    size_t seed_bytes_num = 128;
+    if (seed.tag() == tag_t::BIG) {
+        if (!get_bignum(interp, seed, seed_bytes, seed_bytes_num)) {
+	    return false;
+        }
+    } else if (seed.tag() == tag_t::STR) {
+        if (!interp.is_list(args[0])) {
+	    throw interpreter_exception_not_list("master_key/3: First argument is not a proper list; was " + interp.to_string(args[0]));
+	}
+	size_t n = interp.list_length(seed);
+	if (interp.list_length(seed) > MAX_SEED_LEN) {
+	    std::stringstream msg;
+	    msg << "master_key/3: Seed cannot exceed 128 bytes; length of list is " << n;
+	    throw interpreter_exception_wrong_arg_type(msg.str());
+	}
+	seed_bytes_num = 0;
+	while (!interp.is_empty_list(seed)) {
+	    term elem = interp.arg(seed, 0);
+	    if (elem.tag() != tag_t::INT) {
+	        std::stringstream msg;
+		msg << "master_key/3: Seed must be a list of integers; encountered " << interp.to_string(elem);
+		throw interpreter_exception_wrong_arg_type(msg.str());	      
+	    }
+	    auto ival = static_cast<int_cell &>(elem);
+	    if (ival.value() < 0 || ival.value() > 255) {
+	        std::stringstream msg;
+		msg << "master_key/3: Seed must be a list of integers within 0 and 255; encountered " << interp.to_string(elem);
+		throw interpreter_exception_wrong_arg_type(msg.str());	      
+	    }
+	    seed_bytes[seed_bytes_num++] = static_cast<uint8_t>(ival.value());
+	    seed = interp.arg(seed, 1);
+	}
+    } else {
+        throw interpreter_exception_not_list("master_key/3: Seed must be either a list of integers, or a bignum; was " + interp.to_string(seed));
+    }
+
+    hd_keys hd(get_ctx(interp), seed_bytes, seed_bytes_num);
+    return interp.unify(args[1], hd.master_private().to_term(interp)) &&
+           interp.unify(args[2], hd.master_public().to_term(interp));
+}
+
+bool builtins::derive_child(const std::string &pname, interpreter_base &interp, term parent, term path, term result) {
+    if (parent.tag() != tag_t::BIG) {
+        std::stringstream msg;
+        msg << pname << ": First argument must be a valid extended parent key; was " << interp.to_string(parent);
+        throw interpreter_exception_wrong_arg_type(msg.str());
+    }
+  
+    static const size_t XKEY_LEN = 82;
+    uint8_t xkey_bytes[XKEY_LEN];
+    size_t xkey_bytes_num = XKEY_LEN;
+    if (!get_bignum(interp, parent, xkey_bytes, xkey_bytes_num) || xkey_bytes_num != 82) {
+        std::stringstream msg;
+        msg << pname << ": First argument must be a valid extended parent key; was " << interp.to_string(parent);
+        throw interpreter_exception_wrong_arg_type(msg.str());      
+    }
+    
+    // Checksum
+    uint8_t checksum[4];
+    get_checksum(xkey_bytes, XKEY_LEN-4, checksum);
+    if (memcmp(checksum, &xkey_bytes[XKEY_LEN-4], 4) != 0) {
+        std::stringstream msg;
+        msg << pname << ": Provided extended key checksum failed; " << interp.to_string(parent);
+        throw interpreter_exception_wrong_arg_type(msg.str());      
+    }
+
+    // Check if key is public or private
+
+    if (xkey_bytes[0] == 0x04 &&
+	xkey_bytes[1] == 0x88 &&
+	xkey_bytes[2] == 0xB2 &&
+	xkey_bytes[3] == 0x1E) {
+
+        // If attempting generating a private child but parent is public!
+        if (pname == "child_privkey/3") {
+	    std::stringstream msg;
+	    msg << pname << ": Cannot derive private keys from a public parent; " << interp.to_string(parent);
+	    throw interpreter_exception_wrong_arg_type(msg.str());      
+        }
+      
+        // Extended public key
+        extended_public_key xpub;
+	if (!xpub.read(xkey_bytes)) {
+	    std::stringstream msg;
+            msg << pname << ": Couldn't parse parent public key; " << interp.to_string(parent);
+            throw interpreter_exception_wrong_arg_type(msg.str());      
+	}
+
+	execute_path(pname, interp, xpub, path);
+	
+	return interp.unify(result, xpub.to_term(interp));
+    } else if (xkey_bytes[0] == 0x04 &&
+	       xkey_bytes[1] == 0x88 &&
+	       xkey_bytes[2] == 0xAD &&
+	       xkey_bytes[3] == 0xE4) {
+        // Extended private key
+        extended_private_key xpriv;
+	if (!xpriv.read(xkey_bytes)) {
+	    std::stringstream msg;
+            msg << pname << ": Couldn't parse parent private key; " << interp.to_string(parent);
+            throw interpreter_exception_wrong_arg_type(msg.str());      
+	  
+	}
+	execute_path(pname, interp, xpriv, path);
+
+	if (pname == "child_pubkey/3") {
+	     extended_public_key xpub;
+	     xpriv.compute_extended_public_key(get_ctx(interp), xpub);
+	     return interp.unify(result, xpub.to_term(interp));
+	} else {
+	     return interp.unify(result, xpriv.to_term(interp));
+	}
+    } else {
+	std::stringstream msg;
+	msg << pname << ": Unrecognized parent key; " << interp.to_string(parent);
+	throw interpreter_exception_wrong_arg_type(msg.str());      
+    }
+}
+
+bool builtins::child_pubkey_3(interpreter_base &interp, size_t arity, term args[]) {
+    return derive_child("child_pubkey/3", interp, args[0], args[1], args[2]);
+}
+
+bool builtins::child_privkey_3(interpreter_base &interp, size_t arity, term args[]) {
+    return derive_child("child_privkey/3", interp, args[0], args[1], args[2]);
 }
 
 }}

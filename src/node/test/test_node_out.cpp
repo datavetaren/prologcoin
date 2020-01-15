@@ -263,7 +263,7 @@ static void test_address_propagation()
     std::cout << "Waiting for effect to propagate to other nodes (max 30 seconds)" << std::endl;
     size_t changes = 0;
     auto stopped_port = stopped_node->port();
-    for (size_t i = 0; i < 30 && changes < 5; i++) {
+    for (size_t i = 0; i < 60 && changes < 5; i++) {
 	utime::sleep(utime::ss(1));
 
         for (auto *node : nodes) {

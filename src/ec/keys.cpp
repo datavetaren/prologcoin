@@ -127,24 +127,45 @@ bool extended_public_key::read(uint8_t data[78])
 		     (static_cast<uint32_t>(data[11]) << 8) |
 		     (static_cast<uint32_t>(data[12])));
     std::copy(&data[13], &data[13+32], &get_chain_code()[0]);
-    std::copy(&data[45], &data[45+32], &(*this)[0]);
+    std::copy(&data[45], &data[45+33], &(*this)[0]);
     return true;
 }
 
 std::string extended_public_key::to_string() const {
     uint8_t bytes[78+4];
     write(bytes);
+
     checksum(&bytes[0], 78, &bytes[78]);
     
     boost::multiprecision::cpp_int big;
-    import_bits(big, bytes, bytes+78+4);
-    return heap::big_to_string(big, 58, (78+3)*8);
+    import_bits(big, bytes, bytes+(78+4), 8);
+    return heap::big_to_string(big, 58, (78+4)*8);
+}
+
+term extended_public_key::to_term(term_env &env) const {
+    static const size_t N = 78+4;
+    uint8_t bytes[N];
+    write(bytes);
+    checksum(&bytes[0], 78, &bytes[78]);
+    term big = env.new_big(N*8);
+    env.set_big(big, &bytes[0], N);
+    return big;
 }
     
 void extended_private_key::set_from_hash(const uint8_t hash[64]) {
     std::copy(&hash[0], &hash[32], &(*this)[0]);
     std::copy(&hash[32], &hash[64], &get_chain_code()[0]);
 }
+
+void extended_private_key::compute_extended_public_key(secp256k1_ctx &ctx, extended_public_key &extpub){
+    public_key pubkey;
+    compute_public_key(ctx, pubkey);
+    extpub.set_public_key(pubkey);
+    extpub.set_chain_code(get_chain_code());
+    extpub.set_fingerprint(fingerprint());
+    extpub.set_child_number(child_number());
+    extpub.set_level(level());
+}    
 
 void extended_private_key::write(uint8_t data[78]) const
 {
@@ -163,6 +184,24 @@ void extended_private_key::write(uint8_t data[78]) const
     std::copy(&(*this)[0], &(*this)[private_key::SIZE], &data[46]);
 }
 
+bool extended_private_key::read(uint8_t data[78])
+{
+    if (data[0] != 0x04) return false;
+    if (data[1] != 0x88) return false;
+    if (data[2] != 0xAD) return false;
+    if (data[3] != 0xE4) return false;
+    set_level(data[4]);
+    set_fingerprint(&data[5]);
+    set_child_number((static_cast<uint32_t>(data[9]) << 24) |
+		     (static_cast<uint32_t>(data[10]) << 16) |
+		     (static_cast<uint32_t>(data[11]) << 8) |
+		     (static_cast<uint32_t>(data[12])));
+    std::copy(&data[13], &data[13+32], &get_chain_code()[0]);
+    if (data[45] != 0) return false;
+    std::copy(&data[46], &data[46+32], &(*this)[0]);
+    return true;
+}
+
 std::string extended_private_key::to_string() const {
     uint8_t bytes[78+4];
     write(bytes);
@@ -171,9 +210,23 @@ std::string extended_private_key::to_string() const {
     
     boost::multiprecision::cpp_int big;
     import_bits(big, bytes, bytes+(78+4), 8);
-    return heap::big_to_string(big, 58, (78+3)*8);
+    return heap::big_to_string(big, 58, (78+4)*8);
 }
 
+term extended_private_key::to_term(term_env &env) const {
+    static const size_t N = 78+4;
+    uint8_t bytes[N];
+    write(bytes);
+    checksum(&bytes[0], 78, &bytes[78]);
+    term big = env.new_big(N*8);
+    env.set_big(big, &bytes[0], N);
+    return big;
+}    
+
+hd_keys::hd_keys(secp256k1_ctx &ctx)
+  : ctx_(ctx), master_(ctx) {
+}
+    
 hd_keys::hd_keys(secp256k1_ctx &ctx, const uint8_t *seed, size_t seed_len)
   : ctx_(ctx), master_(ctx)
 {
@@ -188,13 +241,7 @@ hd_keys::hd_keys(secp256k1_ctx &ctx, const uint8_t *seed, size_t seed_len)
 
     master_.set_from_hash(hash);
 
-    public_key pubkey;
-    master_.compute_public_key(ctx, pubkey);
-    master_public_.set_public_key(pubkey);
-    master_public_.set_chain_code(master_.get_chain_code());
-    master_public_.set_fingerprint(master_.fingerprint());
-    master_public_.set_child_number(0);
-    master_public_.set_level(0);
+    master_.compute_extended_public_key(ctx_, master_public_);
 }
 
 bool hd_keys::generate_child(const extended_public_key &parent, uint32_t index, extended_public_key &out)
