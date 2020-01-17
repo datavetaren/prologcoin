@@ -703,6 +703,7 @@ std::string interpreter::get_result(bool newlines) const
     std::stringstream ss;
     for (auto &v : *query_vars_) {
 	auto &name = v.name();
+	if (name == "_") continue;
 	auto &value = v.value();
 	auto value_str = to_string(value);
 	if (name != value_str) {

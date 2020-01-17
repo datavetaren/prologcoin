@@ -7,6 +7,11 @@
 #include "../common/hex.hpp"
 #include "ripemd160.h"
 #include "keys.hpp"
+#include "mnemonic.hpp"
+#include "../common/pbkdf2.hpp"
+#include "../common/sha256.hpp"
+#include "../common/sha512.hpp"
+#include "../common/aes256.hpp"
 
 #include "src/util.h"
 #include "src/hash_impl.h"
@@ -1870,11 +1875,18 @@ void builtins::load(interpreter_base &interp, con_cell *module0)
     interp.load_builtin(M, interp.functor("musig_nonce_negated", 2), &builtins::musig_nonce_negated_2);
     interp.load_builtin(M, interp.functor("musig_end", 1), &builtins::musig_end_1);
 
-    // BIP32
+    // BIP32 & BIP39
 
     interp.load_builtin(M, interp.functor("master_key", 3), &builtins::master_key_3);
+    interp.load_builtin(M, interp.functor("master_key", 4), &builtins::master_key_3);
+    interp.load_builtin(M, interp.functor("words", 1), &builtins::words_2);
+    interp.load_builtin(M, interp.functor("words", 2), &builtins::words_2);
     interp.load_builtin(M, interp.functor("child_pubkey", 3), &builtins::child_pubkey_3);
     interp.load_builtin(M, interp.functor("child_privkey", 3), &builtins::child_privkey_3);
+
+    // Encryption
+    
+    interp.load_builtin(M, interp.functor("encrypt", 4), &builtins::encrypt_4);
     
 }
 
@@ -1967,8 +1979,21 @@ template<typename XKey> static void execute_path(const std::string &pname, inter
     }
 }
 
-bool builtins::master_key_3(interpreter_base &interp, size_t arity, term args[]) {
+bool builtins::is_int_list(interpreter_base &interp, term lst)
+{
+    while (!interp.is_empty_list(lst)) {
+        if (interp.arg(lst, 0).tag() != tag_t::INT) {
+	    return false;
+        }
+	lst = interp.arg(lst, 1);
+    }
+    return true;
+}
 
+bool builtins::master_key_3(interpreter_base &interp, size_t arity, term args[]) {
+    std::string pname = "master_key/";
+    pname += boost::lexical_cast<std::string>(arity);
+  
     term seed = args[0];
     if (seed.tag() == tag_t::REF) {
         // Generate a new seed, use bignum
@@ -1987,38 +2012,93 @@ bool builtins::master_key_3(interpreter_base &interp, size_t arity, term args[])
         }
     } else if (seed.tag() == tag_t::STR) {
         if (!interp.is_list(args[0])) {
-	    throw interpreter_exception_not_list("master_key/3: First argument is not a proper list; was " + interp.to_string(args[0]));
+	    throw interpreter_exception_not_list(pname + ": First argument is not a proper list; was " + interp.to_string(args[0]));
 	}
-	size_t n = interp.list_length(seed);
-	if (interp.list_length(seed) > MAX_SEED_LEN) {
-	    std::stringstream msg;
-	    msg << "master_key/3: Seed cannot exceed 128 bytes; length of list is " << n;
-	    throw interpreter_exception_wrong_arg_type(msg.str());
-	}
-	seed_bytes_num = 0;
-	while (!interp.is_empty_list(seed)) {
-	    term elem = interp.arg(seed, 0);
-	    if (elem.tag() != tag_t::INT) {
+
+	// Check if list is a list of integers (= raw seed)
+	if (is_int_list(interp, seed)) {
+	    size_t n = interp.list_length(seed);
+	    if (interp.list_length(seed) > MAX_SEED_LEN) {
 	        std::stringstream msg;
-		msg << "master_key/3: Seed must be a list of integers; encountered " << interp.to_string(elem);
-		throw interpreter_exception_wrong_arg_type(msg.str());	      
+		msg << pname << ": Seed cannot exceed 128 bytes; length of list is " << n;
+		throw interpreter_exception_wrong_arg_type(msg.str());
 	    }
-	    auto ival = static_cast<int_cell &>(elem);
-	    if (ival.value() < 0 || ival.value() > 255) {
-	        std::stringstream msg;
-		msg << "master_key/3: Seed must be a list of integers within 0 and 255; encountered " << interp.to_string(elem);
-		throw interpreter_exception_wrong_arg_type(msg.str());	      
+	    seed_bytes_num = 0;
+	    while (!interp.is_empty_list(seed)) {
+	        term elem = interp.arg(seed, 0);
+	        if (elem.tag() != tag_t::INT) {
+	            std::stringstream msg;
+		    msg << pname << ": Seed must be a list of integers; encountered " << interp.to_string(elem);
+		    throw interpreter_exception_wrong_arg_type(msg.str());	      
+		}
+		auto ival = static_cast<int_cell &>(elem);
+		if (ival.value() < 0 || ival.value() > 255) {
+		    std::stringstream msg;
+		    msg << pname << ": Seed must be a list of integers within 0 and 255; encountered " << interp.to_string(elem);
+		    throw interpreter_exception_wrong_arg_type(msg.str());	      
+		}
+		seed_bytes[seed_bytes_num++] = static_cast<uint8_t>(ival.value());
+		seed = interp.arg(seed, 1);
 	    }
-	    seed_bytes[seed_bytes_num++] = static_cast<uint8_t>(ival.value());
-	    seed = interp.arg(seed, 1);
+	} else {
+	    // List of words.
+	    mnemonic mem(interp);
+	    term chkseed = seed;
+	    while (!interp.is_empty_list(chkseed)) {
+	        term word = interp.arg(chkseed, 0);
+		if (!mem.is_valid_word(word)) {
+	   	      std::string word_str = interp.to_string(word);
+		      throw interpreter_exception_not_list(pname + ": '" + word_str + "' is not a legal word from the expected word list");		  
+		}
+		chkseed = interp.arg(chkseed, 1);
+	    }
+	    if (!mem.from_sentence(seed)) {
+	        throw interpreter_exception_wrong_arg_type(pname + ": Checksum computation failed on word sentence.");
+	    }
+	    
+	    std::string passphrase = "";
+	    if (arity == 4) {
+	      if (!interp.is_string(args[1])) {
+		throw interpreter_exception_wrong_arg_type(pname + ": Second argument must be a proper string; was " + interp.to_string(args[1]));
+		}
+	        passphrase = interp.list_to_string(args[1]);
+	    }
+	    mem.compute_seed(seed_bytes, passphrase);
+	    seed_bytes_num = 64;
 	}
     } else {
-        throw interpreter_exception_not_list("master_key/3: Seed must be either a list of integers, or a bignum; was " + interp.to_string(seed));
+        throw interpreter_exception_not_list(pname + ": Seed must be either a list of integers, a list of words or a bignum; was " + interp.to_string(seed));
     }
 
+    term private_output = (arity == 3) ? args[1] : args[2];
+    term public_output = (arity == 3) ? args[2] : args[3];    
+	    
     hd_keys hd(get_ctx(interp), seed_bytes, seed_bytes_num);
-    return interp.unify(args[1], hd.master_private().to_term(interp)) &&
-           interp.unify(args[2], hd.master_public().to_term(interp));
+    return interp.unify(private_output, hd.master_private().to_term(interp)) &&
+           interp.unify(public_output, hd.master_public().to_term(interp));
+}
+
+bool builtins::words_2(interpreter_base &interp, size_t arity, term args[]) {
+    std::string pname = "words/";
+    pname += boost::lexical_cast<std::string>(arity);
+    
+    mnemonic mem(interp);
+    size_t num_words = 24;
+    term out = args[0];
+    if (arity == 2) {
+        out = args[1];
+        if (args[0].tag() != tag_t::INT) {
+	    throw interpreter_exception_not_list(pname + ": Number of words must be an integer; was " + interp.to_string(args[0]));
+        }
+        int64_t val = static_cast<int_cell &>(args[0]).value();
+        if (val != 12 && val != 15 && val != 18 && val != 21 && val != 24) {
+	    throw interpreter_exception_not_list(pname + ": Number of words must be 12, 15, 18, 21 or 24; was " + interp.to_string(args[0]));
+        }
+        num_words = static_cast<size_t>(val);
+    }
+    size_t ent = (num_words/3)*32;
+    mem.generate_new(ent);
+    return interp.unify(out, mem.to_sentence());
 }
 
 bool builtins::derive_child(const std::string &pname, interpreter_base &interp, term parent, term path, term result) {
@@ -2105,6 +2185,129 @@ bool builtins::child_pubkey_3(interpreter_base &interp, size_t arity, term args[
 
 bool builtins::child_privkey_3(interpreter_base &interp, size_t arity, term args[]) {
     return derive_child("child_privkey/3", interp, args[0], args[1], args[2]);
+}
+
+bool builtins::decrypt(interpreter_base &interp, term input, const uint8_t *key, term result) {
+
+    term inner = interp.arg(input, 0);
+
+    if (inner.tag() != tag_t::BIG) {
+         throw interpreter_exception_wrong_arg_type(
+	    "encrypt/4: Inner argument of input must be a big number; was "
+	    + interp.to_string(inner));
+    }
+
+    big_cell big = static_cast<big_cell &>(inner);
+    size_t num_bits = interp.num_bits(big);
+    if (num_bits % 128 != 0) {
+         throw interpreter_exception_wrong_arg_type(
+	    "encrypt/4: Inner argument of input must be a big number in multiples of 128 bits; was " + boost::lexical_cast<std::string>(num_bits));
+    }
+    size_t num_bytes = num_bits / 8;
+    term_serializer::buffer_t buf;
+    buf.resize(num_bytes);
+    interp.get_big(big, &buf[0], num_bytes);
+
+    if (num_bytes < 32) {
+         throw interpreter_exception_wrong_arg_type(
+	    "encrypt/4: Inner argument has too few bytes, must be at least 32 bytes or more; wss " + boost::lexical_cast<std::string>(num_bits/8));
+        
+    }
+
+    // Decrypt
+    aes256 aes(key, 32);
+    aes.cbc_decrypt(buf);
+
+    // Check checksum
+    sha256 hash;
+    uint8_t checksum[sha256::HASH_SIZE];
+    hash.update(&buf[0], buf.size()-16);
+    hash.finalize(checksum);
+
+    // Wrong password
+    if (memcmp(checksum, &buf[buf.size()-15], 15) != 0) {
+        return false;
+    }
+
+    size_t num_zeros = buf[buf.size()-16];
+    if (num_zeros > 16) {
+        return false;
+    }
+
+    term_serializer ser(interp);
+    term t = ser.read(buf, buf.size()-16-num_zeros);
+
+    return interp.unify(result, t);
+}
+
+bool builtins::encrypt_4(interpreter_base &interp, size_t arity, term args[]) {
+    static const con_cell ENCRYPT = con_cell("encrypt",1);
+
+    if (!interp.is_string(args[1])) {
+         throw interpreter_exception_wrong_arg_type(
+	    "encrypt/4: Second argument must be a string; was "
+	    + interp.to_string(args[1]));
+    }
+    if (args[2].tag() != tag_t::INT) {
+         throw interpreter_exception_wrong_arg_type(
+	    "encrypt/4: Third argument must be an integer; was "
+	    + interp.to_string(args[2]));
+    }
+    int64_t iter = static_cast<int_cell &>(args[2]).value();
+    if (iter < 1 || iter > 1000000) {
+         throw interpreter_exception_wrong_arg_type(
+	    "encrypt/4: Number of iterations must be with 1 and 1000000; was "
+	    + interp.to_string(args[2]));
+    }
+
+    std::string passwd = interp.list_to_string(args[1]);
+    
+    // Derive encryption key
+    pbkdf2_t<hmac<sha512> > keygen("encrypted", 9, iter, 64);
+    keygen.set_password(passwd.c_str(), passwd.size());
+    const uint8_t *key = keygen.get_key();
+    
+    if (args[0].tag() == tag_t::STR && interp.functor(args[0]) == ENCRYPT) {
+        return decrypt(interp, args[0], key, args[3]);
+    }
+
+    const size_t block_size = aes256::BLOCK_SIZE;
+    
+    uint8_t checksum[sha256::HASH_SIZE];
+
+    term_serializer ser(interp);
+    term_serializer::buffer_t buf;
+    ser.write(buf, args[0]);
+    size_t pad_n = block_size - buf.size() % block_size;
+    if (pad_n < 16) pad_n += 16;
+    size_t num_zeros = 0;
+    while (pad_n > 16) {
+        buf.push_back(0);
+        pad_n--;
+	num_zeros++;
+    }
+
+    sha256 hash;
+    hash.update(&buf[0], buf.size());
+    hash.finalize(checksum);
+
+    buf.push_back(static_cast<uint8_t>(num_zeros));
+    for (size_t i = 0; i < 15; i++) {
+        buf.push_back(checksum[i]);
+    }
+
+    // At this point buf should be even number of AES256 blocks (16 bytes)
+
+    aes256 aes(key, 32);
+    aes.cbc_encrypt(buf);
+
+    // Construct term
+    term big = interp.new_big(buf.size()*8);
+    interp.set_big(big, &buf[0], buf.size());
+
+    term result = interp.new_term( ENCRYPT, { big });
+
+    return interp.unify(args[3], result);
 }
 
 }}

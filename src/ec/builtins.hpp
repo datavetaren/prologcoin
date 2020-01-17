@@ -148,18 +148,33 @@ public:
     // Verifies the given proof.
     static bool pverify_1(interpreter_base &interp, size_t arity, term args[]);
 
-    // BIP32
+    // BIP32 & BIP39
 
     // master_key(+Seed, -MasterPrivate, -MasterPublic)
+    // Seed can be a list of integers (raw seed)
+    //          or a list of words (bip39)
     static bool master_key_3(interpreter_base &interp, size_t arity, term args[]);
 
+    // Words (seed)
+    //
+    // words(-WordList)
+    // words(+Length, -WordList)
+    static bool words_2(interpreter_base &interp, size_t arity, term args[]);
+  
     // child_pubkey(+ParentPubKey, +Path, -ChildKey)
     // Example path: m/h(2)/3    (master / hardened child 2 / child 3)
     //               'm/' can be skipped; h(2)/3 means the same thing
     static bool child_pubkey_3(interpreter_base &interp, size_t arity, term args[]);
     static bool child_privkey_3(interpreter_base &interp, size_t arity, term args[]);
 
+    // Encryption
+    // encrypt(+Input, +Password, +Iterations, -Output)
+    // If input is the term encrypt(Term), then Term is attempted for decryption.
+    // If input is does not use 'encrypt' as functor, then we apply encryption is not of decryption.
+    static bool encrypt_4(interpreter_base &interp, size_t arity, term args[]);
+
 private:
+    static bool decrypt(interpreter_base &interp, term input, const uint8_t *key, term result);
     static bool derive_child(const std::string &pname, interpreter_base &interp, term parent, term path, term result);
 
 public:
@@ -178,6 +193,7 @@ public:
     static void get_checksum(const uint8_t *bytes, size_t n, uint8_t checksum[4]);
 
 private:
+    static bool is_int_list(interpreter_base &interp, term lst);
 
     static bool get_bignum(interpreter_base &interp, term big, uint8_t *bytes, size_t &n);
     static term new_bignum(interpreter_base &interp, const uint8_t *bytes, size_t n);

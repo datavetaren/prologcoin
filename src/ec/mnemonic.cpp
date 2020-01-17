@@ -16,6 +16,24 @@ namespace prologcoin { namespace ec {
 
 static std::unordered_map<std::string, size_t> word_2_index;
 
+bool mnemonic::is_valid_word(term t)
+{
+    ensure_reverse_word_map();
+    if (t.tag() != tag_t::CON) {
+        return false;
+    }
+    con_cell f = env_.functor(t);
+    if (f.arity() != 0) {
+        return false;
+    }
+    std::string word = env_.atom_name(f);
+    if (word_2_index.find(word) == word_2_index.end()) {
+        return false;
+    }
+
+    return true;
+}
+    
 void mnemonic::generate_new(size_t ent)
 {
     assert(ent % 32 == 0);
@@ -57,13 +75,18 @@ bool mnemonic::check_checksum()
     return expect == actual;
 }
 
-bool mnemonic::from_sentence(term words)
+void mnemonic::ensure_reverse_word_map()
 {
     if (word_2_index.empty()) {
 	for (size_t i = 0; i < 2048; i++) {
 	    word_2_index[BIP39_ENGLISH_WORD_LIST[i]] = i;
 	}
     }
+}
+
+bool mnemonic::from_sentence(term words)
+{
+    ensure_reverse_word_map();
     size_t off = 0;
     memset(bytes_, 0, 32+1);
     ent_ = 0;
