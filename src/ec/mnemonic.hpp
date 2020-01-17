@@ -6,6 +6,7 @@
 // Implements BIP39
 
 #include "../common/term_env.hpp"
+#include "keys.hpp"
 
 namespace prologcoin { namespace ec {
 
@@ -15,11 +16,16 @@ public:
 
     void generate_new(size_t ent);
     void set(const uint8_t *bytes, size_t n);
+    void to_integers(std::vector<size_t> &ints);
     common::term to_sentence();
-    void from_sentence(common::term atoms);
+    std::string to_sentence_string();
+    bool from_sentence(common::term atoms);
     common::term atom_list();
+    void compute_key(hd_keys &key, const std::string &passphrase = "");
+    void compute_seed(uint8_t seed[64], const std::string &passphrase = "");
   
 private:
+    bool check_checksum();
     void add_checksum();
     common::term_env &env_;
     uint8_t bytes_[32+1];

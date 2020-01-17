@@ -149,7 +149,6 @@ public:
     bool read(uint8_t data[78]);
 
     std::string to_string() const;
-    std::string to_xxx() const;
     common::term to_term(common::term_env &env) const;
   
 private:
@@ -182,6 +181,7 @@ class hd_keys {
 public:
     hd_keys(secp256k1_ctx &ctx);
     hd_keys(secp256k1_ctx &ctx, const uint8_t *seed, size_t seed_len);
+    void set_seed(const uint8_t *seed, size_t seed_len);
 
     const extended_private_key & master_private() { return master_; }
     const extended_public_key & master_public() { return master_public_; }

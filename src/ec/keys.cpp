@@ -230,6 +230,11 @@ hd_keys::hd_keys(secp256k1_ctx &ctx)
 hd_keys::hd_keys(secp256k1_ctx &ctx, const uint8_t *seed, size_t seed_len)
   : ctx_(ctx), master_(ctx)
 {
+    set_seed(seed, seed_len);
+}
+
+void hd_keys::set_seed(const uint8_t *seed, size_t seed_len)
+{
     const char *key = "Bitcoin seed";
   
     hmac<sha512> hasher;
