@@ -9,9 +9,9 @@ My main idea on how wallets should work:
 
 ## Key management
 
-** wallet:pubkey(Count, X) X is the public key X using integer Count as identifier
-** wallet:numkeys(N) true iff N is the next unused public key identifier. All integers up to N must be valid public keys (i.e. wallet:pubkey(Count, X) should be true for all Count = 0..N-1).
-** wallet:privkey(Count, PrivKey) is true iff PrivKey is the private key to use for corresponding PubKey with the same Count.
+* wallet:pubkey(Count, X) X is the public key X using integer Count as identifier
+* wallet:numkeys(N) true iff N is the next unused public key identifier. All integers up to N must be valid public keys (i.e. wallet:pubkey(Count, X) should be true for all Count = 0..N-1).
+* wallet:privkey(Count, PrivKey) is true iff PrivKey is the private key to use for corresponding PubKey with the same Count.
 
 This allows the user to write a fixed list of facts:
 
