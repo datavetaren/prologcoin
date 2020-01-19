@@ -1,3 +1,4 @@
+#include <algorithm>
 #include <iostream>
 #include <boost/endian/conversion.hpp>
 #include "sha512.hpp"
@@ -36,8 +37,8 @@ const uint64_t sha512::K[80] = {
   0x06F067AA72176FBA,0x0A637DC5A2C898A6,0x113F9804BEF90DAE,0x1B710B35131C471B,
   0x28DB77F523047D84,0x32CAAB7B40C72493,0x3C9EBE0A15C9BEBC,0x431D67C49C100D4C,
   0x4CC5D4BECB3E42B6,0x597F299CFC657E2A,0x5FCB6FAB3AD6FAEC,0x6C44198C4A475817
- };    
-   
+ };
+
 void sha512::init() {
     h_[0] = 0x6A09E667F3BCC908;
     h_[1] = 0xBB67AE8584CAA73B;
@@ -102,7 +103,7 @@ void sha512::block()
 #define SIGMA2(x) (ROR64(x,14) ^ ROR64(x,18) ^ ROR64(x, 41))
 #define SIGMA3(x) (ROR64(x,1) ^ ROR64(x,8) ^ SHR64(x, 7))
 #define SIGMA4(x) (ROR64(x,19) ^ ROR64(x,61) ^ SHR64(x, 6))
-    
+
     for (size_t i = 0; i < 80; i++) {
         if (i >= 16) {
 	    W(i) += SIGMA4(W(i+14)) + W(i+9) + SIGMA3(W(i+1));
@@ -115,5 +116,5 @@ void sha512::block()
     h_[0] += a; h_[1] += b; h_[2] += c; h_[3] += d;
     h_[4] += e; h_[5] += f; h_[6] += g; h_[7] += h;
 }
-    
+
 }}
