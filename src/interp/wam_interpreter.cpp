@@ -154,6 +154,33 @@ void wam_interpreter::compile()
     clear_updated_predicates();
 }
 
+void wam_interpreter::recompile()
+{
+    std::vector<qname> recompiled;
+    for (auto &qn : get_updated_predicates()) {
+        if (is_compiled(qn)) {
+	    remove_compiled(qn);
+	    compile(qn);
+	    recompiled.push_back(qn);
+	}
+    }
+    for (auto &qn : recompiled) {
+        clear_updated_predicate(qn);
+    }
+}
+
+void wam_interpreter::recompile_if_needed(const qname &qn)
+{
+    if (!is_compiled(qn)) {
+        return;
+    }
+    if (is_updated_predicate(qn)) {
+        remove_compiled(qn);
+	compile(qn);
+	clear_updated_predicate(qn);
+    }
+}
+    
 void wam_interpreter::bind_code_point(std::unordered_map<size_t, size_t> &label_map, code_point &cp)
 {
     if (!cp.has_wam_code()) {

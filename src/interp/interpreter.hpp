@@ -112,7 +112,7 @@ private:
 				   predicate &matched);
     size_t matched_predicate_id(con_cell module,
 				con_cell functor, const term first_arg);
-
+    void clear_matched_predicate(con_cell module, con_cell functor);
 
     std::unordered_map<functor_index, size_t> predicate_id_;
     std::vector<predicate> id_to_predicate_;

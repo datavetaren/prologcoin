@@ -541,9 +541,11 @@ public:
 	  load_builtin(qn, b);
 	}
 
+    enum clause_position { FIRST_CLAUSE, LAST_CLAUSE, LAST_CLAUSE_OVERRIDE_OLD };
+  
     void load_clause(const std::string &str);
     void load_clause(std::istream &is);
-    void load_clause(const term t, bool as_program = false);
+    void load_clause(term t, clause_position pos);
 
     term clause_head(const term clause);
     term clause_body(const term clause);
@@ -648,7 +650,7 @@ public:
 
 	bool first_mod = true;
 	for (auto clause : list_iterator(*this, clauses)) {
-	    load_clause(clause, true);
+	    load_clause(clause, LAST_CLAUSE_OVERRIDE_OLD);
 	    f(clause);
 	    if (current_mod != current_module() && first_mod) {
 	        // First module change!
@@ -682,15 +684,33 @@ public:
     inline const std::vector<qname> & get_predicates() const
         { return program_predicates_; }
 
+    inline bool has_updated_predicates() const {
+        return has_updated_predicates_;
+    }
+    inline void add_updated_predicate(const qname &qn) {
+        updated_predicates_.insert(qn);
+	has_updated_predicates_ = true;
+    }
+  
     inline const std::unordered_set<qname> & get_updated_predicates() const
         { return updated_predicates_; }
 
     inline bool is_updated_predicate(const qname &pn) const
         { return updated_predicates_.find(pn) != updated_predicates_.end(); }
-
     inline void clear_updated_predicates()
-        { updated_predicates_.clear(); }
-
+        { updated_predicates_.clear();
+	  has_updated_predicates_ = false;
+	}
+    inline void clear_updated_predicate(const qname &qn) {
+        auto it = updated_predicates_.find(qn);
+	if (it != updated_predicates_.end()) {
+	    updated_predicates_.erase(it);
+	    if (updated_predicates_.empty()) {
+  	        has_updated_predicates_ = false;
+	    }
+	}
+    }
+ 
     std::string to_string_cp(const code_point &cp) const
         { return cp.to_string(*this); }
 
@@ -758,6 +778,16 @@ public:
 	 add_accumulated_cost(cost);
 	 return ok;
        }
+
+    inline bool can_unify(term a, term b) {
+        using namespace prologcoin::common;
+	size_t current_tr = trail_size();
+	bool r = unify(a, b);
+	if (r) {
+	    unwind(current_tr);
+	}
+	return r;
+    }
 
     inline int standard_order(const term a, const term b)
        { uint64_t cost = 0;
@@ -1360,6 +1390,7 @@ private:
     std::unordered_map<con_cell, std::vector<qname> > module_db_;
     std::unordered_map<con_cell, std::unordered_set<qname> > module_db_set_;
     std::vector<qname> program_predicates_;
+    bool has_updated_predicates_;
     std::unordered_set<qname> updated_predicates_;
     std::unordered_map<con_cell, std::vector<source_element> > module_meta_db_;
 

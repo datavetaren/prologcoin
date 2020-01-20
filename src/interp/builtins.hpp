@@ -197,6 +197,17 @@ namespace prologcoin { namespace interp {
 	static bool use_module_1(interpreter_base &interp, size_t arity, common::term args[]);
 
         //
+        // Program database
+        //
+        static bool show_0(interpreter_base &interp, size_t arity, common::term args[]);
+        static bool asserta_1(interpreter_base &interp, size_t arity, common::term args[]);
+        static bool assertz_1(interpreter_base &interp, size_t arity, common::term args[]);
+        static bool assert_1(interpreter_base &interp, size_t arity, common::term args[]);
+        static bool retract_1(interpreter_base &interp, size_t arity, common::term args[]);
+        static bool retractall_1(interpreter_base &interp, size_t arity, common::term args[]);
+        static bool retract(interpreter_base &interp, const std::string &pame, common::term head, bool all);
+
+        //
         // Non-standard, Prologcoin specific
         //
       
@@ -206,6 +217,9 @@ namespace prologcoin { namespace interp {
         static bool frozenk_2(interpreter_base &interp, size_t arity, common::term args[] );
         // defrost(+HeapAddress, -Closure, +Values)
         static bool defrost_3(interpreter_base &interp, size_t arity, common::term args[] );
+
+        // load
+        static void load(interpreter_base &interp);
     };
 
 }}

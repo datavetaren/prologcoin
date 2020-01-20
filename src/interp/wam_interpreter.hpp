@@ -705,6 +705,8 @@ public:
     void compile(const qname &pred);
     void compile(common::con_cell module, common::con_cell name);
     void compile(common::con_cell name);
+    void recompile();
+    void recompile_if_needed(const qname &qn);
 
 protected:
     void load_code(wam_interim_code &code);

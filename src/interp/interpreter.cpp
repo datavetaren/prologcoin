@@ -552,7 +552,17 @@ void interpreter::dispatch()
 	return;
     }
 
+    bool is_updated = has_updated_predicates() && is_updated_predicate(qn);
+    if (is_updated) {
+        clear_matched_predicate(module, f);
+    }
+    
     if (is_wam_enabled() && code.has_wam_code()) {
+        // If the predicate has been updated, then may need to recompile it
+        if (is_updated) {
+   	    recompile_if_needed(qn);
+        }
+      
         dispatch_wam(code.wam_code());
 	return;
     }
@@ -627,6 +637,20 @@ void interpreter::compute_matched_predicate(con_cell module,
 	    }
 	}
 	matched.push_back(m_clause);
+    }
+}
+
+void interpreter::clear_matched_predicate(con_cell module, con_cell func)
+{
+    auto search_qn = qname{module, func};
+    for (auto it = predicate_id_.begin(); it != predicate_id_.end();) {
+        auto &findex = (*it).first;
+	auto &qn = findex.first;
+	if (qn == search_qn) {
+	    it = predicate_id_.erase(it);
+	} else {
+	    ++it;
+	}
     }
 }
 

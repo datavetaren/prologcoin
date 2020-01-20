@@ -35,11 +35,11 @@ meta_context::meta_context(interpreter_base &i, meta_fn mfn)
     old_hb = i.get_register_hb();
 }
 
-interpreter_base::interpreter_base() : register_pr_("", 0), arith_(*this), locale_(*this), current_module_("user",0)
+interpreter_base::interpreter_base() : register_pr_("", 0), arith_(*this), locale_(*this), has_updated_predicates_(false), current_module_("user",0)
 {
     init();
 
-    load_builtins();
+    builtins::load(*this);
 
     tidy_size = 0;
 
@@ -320,7 +320,7 @@ term interpreter_base::rewrite_freeze_body(term freezeVar, term freezeBody)
     return closure_mod;
 }
     
-void interpreter_base::load_clause(const term t, bool as_program)
+void interpreter_base::load_clause(term t, interpreter_base::clause_position pos)
 {
     syntax_check_stack_.push_back(
 		  std::bind(&interpreter_base::syntax_check_clause, this,
@@ -376,7 +376,7 @@ void interpreter_base::load_clause(const term t, bool as_program)
         program_db_[qn] = managed_clauses();
 	program_predicates_.push_back(qn);
     } else {
-	if (as_program) {
+        if (pos == LAST_CLAUSE_OVERRIDE_OLD) {
 	    if (!is_updated_predicate(qn)) {
 		// This is the first time. So we'll retract whatever
 		// we currently have in our database.
@@ -384,8 +384,14 @@ void interpreter_base::load_clause(const term t, bool as_program)
 	    }
 	}
     }
-    updated_predicates_.insert(qn);
-    program_db_[qn].push_back(managed_clause(t, cost(t)));
+    add_updated_predicate(qn);
+
+    auto &lst = program_db_[qn];
+    if (pos == FIRST_CLAUSE) {
+        lst.insert(lst.begin(), managed_clause(t, cost(t)));
+    } else {
+        lst.push_back(managed_clause(t, cost(t)));
+    }
 
     if (module_db_set_[module].count(qn) == 0) {
         module_db_set_[module].insert(qn);
@@ -407,82 +413,6 @@ void interpreter_base::set_debug_enabled()
 {
     load_builtin(functor("debug_on",0), &builtins::debug_on_0);
     load_builtin(functor("debug_check",0), &builtins::debug_check_0);
-}
-
-void interpreter_base::load_builtins()
-{
-    // Profiling
-    load_builtin(con_cell("profile", 0), &builtins::profile_0);
-
-    // Simple
-    load_builtin(con_cell("true",0), &builtins::true_0);
-    load_builtin(con_cell("fail",0), &builtins::fail_0);
-
-    // Control flow
-    load_builtin(con_cell(",",2), builtin(&builtins::operator_comma,true));
-    load_builtin(con_cell("!",0), &builtins::operator_cut);
-    load_builtin(con_cell("_!",0), &builtins::operator_cut_if);
-    load_builtin(con_cell(";",2), builtin(&builtins::operator_disjunction,true));
-    load_builtin(con_cell("->",2), builtin(&builtins::operator_if_then, true));
-
-    // Standard order, equality and unification
-
-    load_builtin(con_cell("@<",2), &builtins::operator_at_less_than);
-    load_builtin(con_cell("@=<",2), &builtins::operator_at_equals_less_than);
-    load_builtin(con_cell("@>",2), &builtins::operator_at_greater_than);
-    load_builtin(con_cell("@>=",2), &builtins::operator_at_greater_than_equals);
-    load_builtin(con_cell("==",2), &builtins::operator_equals);
-    load_builtin(con_cell("\\==",2), &builtins::operator_not_equals);
-    load_builtin(con_cell("compare",3), &builtins::compare_3);
-    load_builtin(con_cell("=",2), &builtins::operator_unification);
-    load_builtin(con_cell("\\=",2), &builtins::operator_cannot_unify);
-
-    // Type tests
-    load_builtin(con_cell("var",1), &builtins::var_1);
-    load_builtin(con_cell("nonvar",1), &builtins::nonvar_1);
-    load_builtin(con_cell("integer",1), &builtins::integer_1);
-    load_builtin(con_cell("number",1), &builtins::number_1);
-    load_builtin(con_cell("atom",1), &builtins::atom_1);
-    load_builtin(con_cell("atomic",1), &builtins::atomic_1);
-    load_builtin(functor("compound",1), &builtins::compound_1);
-    load_builtin(functor("callable",1), &builtins::callable_1);
-    load_builtin(con_cell("ground", 1), &builtins::ground_1);
-    load_builtin(functor("cyclic_term", 1), &builtins::cyclic_term_1);
-    load_builtin(functor("acyclic_term", 1), &builtins::acyclic_term_1);
-    load_builtin(con_cell("is_list",1), &builtins::is_list_1);
-
-    // Character properties
-    load_builtin(functor("upcase_atom",2), &builtins::upcase_atom_2);
-    load_builtin(functor("bytes_number",2), &builtins::bytes_number_2);
-
-    // Arithmetics
-    load_builtin(con_cell("is",2), &builtins::is_2);
-
-    // Analyzing & constructing terms
-    load_builtin(con_cell("arg",3), &builtins::arg_3);
-    load_builtin(functor("functor",3), &builtins::functor_3);
-    load_builtin(functor("same_term", 2), &builtins::same_term_2);
-    load_builtin(functor("copy_term",2), &builtins::copy_term_2);
-    load_builtin(con_cell("=..", 2), &builtins::operator_deconstruct);
-    load_builtin(con_cell("sort", 2), &builtins::sort_2);
-
-    // Meta
-    load_builtin(con_cell("\\+", 1), builtin(&builtins::operator_disprove,true));
-    load_builtin(con_cell("findall",3), builtin(&builtins::findall_3,true));
-    load_builtin(con_cell("freeze",2), builtin(&builtins::freeze_2,true));
-
-    // call/n with n [1..11]
-    for (size_t i = 1; i <= 11; i++) {
-        load_builtin(con_cell("call", i), builtin(&builtins::call_n,true));
-    }
-
-    // System
-    load_builtin(functor("use_module",1), builtin(&builtins::use_module_1,false));
-
-    // Non-standard
-    load_builtin(con_cell("frozen",2), builtin(&builtins::frozen_2));
-    load_builtin(con_cell("frozenk",2), builtin(&builtins::frozenk_2));
-    load_builtin(con_cell("defrost",3), builtin(&builtins::defrost_3));
 }
 
 void interpreter_base::enable_file_io()
@@ -544,6 +474,7 @@ qname interpreter_base::gen_predicate(const common::con_cell module,
     qname pn(module, p);
     program_predicates_.push_back(pn);
     updated_predicates_.insert(pn);
+    has_updated_predicates_ = true;
 
     if (module_db_set_[module].count(pn) == 0) {
         module_db_set_[module].insert(pn);
