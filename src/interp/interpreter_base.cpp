@@ -35,7 +35,7 @@ meta_context::meta_context(interpreter_base &i, meta_fn mfn)
     old_hb = i.get_register_hb();
 }
 
-interpreter_base::interpreter_base() : register_pr_("", 0), arith_(*this), locale_(*this), has_updated_predicates_(false), current_module_("user",0)
+interpreter_base::interpreter_base() : has_updated_predicates_(false), register_pr_("", 0), arith_(*this), locale_(*this), current_module_("user",0)
 {
     init();
 
