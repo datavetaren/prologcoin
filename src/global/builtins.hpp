@@ -10,17 +10,19 @@ namespace prologcoin { namespace global {
 
 using interpreter_exception = ::prologcoin::interp::interpreter_exception;
 
+class global;
+    
 class builtins {
 public:
     using term = prologcoin::common::term;
     using interpreter_base = prologcoin::interp::interpreter_base;
 
+    static global & get_global(interpreter_base &interp);
     static void load(interpreter_base &interp, common::con_cell *module = nullptr);
+    // reward(Height, Coin)
+    static bool reward_2(interpreter_base &interp, size_t arity, term args[] );
 
-    // commit(X): if X is not a clause, then it's equivalent to call(X).
-    // If X is a clause p(Hash) :- Body, then Hash is bound to the standard
-    // (term) hash of Body followed by call(Body).
-    static bool commit_1(interpreter_base &interp, size_t arity, term args[] );
+    static bool current_height_1(interpreter_base &interp, size_t arity, term args[] );
 };
 
 }}

@@ -31,11 +31,11 @@ public:
         return interp_.reset();
     }
   
-    inline bool execute_goal(term t) {
-        return interp_.execute_goal(t);
+    inline bool execute_goal(term t, bool and_undo) {
+        return interp_.execute_goal(t, and_undo);
     }
-    inline bool execute_goal(buffer_t &buf) {
-        return interp_.execute_goal(buf);
+    inline bool execute_goal(buffer_t &buf, bool and_undo) {
+        return interp_.execute_goal(buf, and_undo);
     }
     inline void execute_cut() {
         interp_.execute_cut();
@@ -54,12 +54,21 @@ public:
         return interp_.trail_size();
     }
 
+    inline size_t current_height() const {
+        return current_height_;
+    }
+
+    inline void increment_height() {
+        current_height_++;
+    }
+
     inline global_interpreter & interp() {
         return interp_;
     }
   
 private:
     global_interpreter interp_;
+    size_t current_height_;
 };
 
 }}

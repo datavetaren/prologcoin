@@ -29,6 +29,8 @@ public:
 	interpreter_exception(msg) { }
 };
 
+class global;
+    
 class global_interpreter : public interp::interpreter {
 public:
     using interperter_base = interp::interpreter_base;
@@ -36,14 +38,16 @@ public:
     using term_serializer = common::term_serializer;
     using buffer_t = common::term_serializer::buffer_t;
 
-    global_interpreter();
+    global_interpreter(global &g);
+
+    global & get_global() { return global_; }
 
     static void setup_consensus_lib(interpreter &interp);
   
     inline void set_naming(bool b) { naming_ = b; }
   
-    bool execute_goal(term t);
-    bool execute_goal(buffer_t &serialized);
+    bool execute_goal(term t, bool and_undo);
+    bool execute_goal(buffer_t &serialized, bool and_undo);
     void execute_cut();
   
     inline bool is_empty_stack() const {
@@ -62,6 +66,7 @@ public:
         return trail_size() == 0;
     }
 private:
+    global &global_;
     bool naming_;
     std::unordered_map<std::string, term> name_to_term_;
 };

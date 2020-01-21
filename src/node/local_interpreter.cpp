@@ -514,7 +514,7 @@ bool me_builtins::commit(local_interpreter &interp, term_serializer::buffer_t &b
     ser.write(buf, t);
 
     try {
-        if (!g.execute_goal(buf)) {
+        if (!g.execute_goal(buf, false)) {
 	   g.reset();
            return false;
 	}
@@ -560,6 +560,41 @@ bool me_builtins::commit_2(interpreter_base &interp0, size_t arity, term args[])
     }
     
     return true;
+}
+
+bool me_builtins::query_1(interpreter_base &interp0, size_t arity, term args[] )
+{
+    auto &interp = to_local(interp0);
+
+    interp.root_check("commit", arity);
+  
+    global::global &g = interp.self().global();
+
+    term t = args[0];
+    
+    // First serialize
+    term_serializer ser(interp);
+    buffer_t buf;
+    buf.clear();
+    ser.write(buf, t);
+
+    try {
+        if (!g.execute_goal(buf, true)) {
+           return false;
+	}
+    } catch (interpreter_exception &ex) {
+        g.reset();
+        throw ex;
+    } catch (serializer_exception &ex) {
+        g.reset();
+        throw ex;
+    }
+
+    assert(g.is_clean());
+
+    term t1 = ser.read(buf);
+    g.reset();
+    return interp.unify(t, t1);
 }
 
 local_interpreter::local_interpreter(in_session_state &session)
@@ -645,9 +680,12 @@ void local_interpreter::setup_local_builtins()
     load_builtin(ME, functor("new_funds_per_second",1), &me_builtins::new_funds_per_second_1);
     load_builtin(ME, con_cell("funds",1), &me_builtins::funds_1);
 
-    // Commit
-    load_builtin(ME, con_cell("commit", 1), &me_builtins::commit_2);    
+    // Commit to the global interpreter
+    load_builtin(ME, con_cell("commit", 1), &me_builtins::commit_2);
     load_builtin(ME, con_cell("commit", 2), &me_builtins::commit_2);
+
+    // Query the global interpreter (do not modify its state)
+    load_builtin(ME, con_cell("query", 1), &me_builtins::query_1);
 }
 
 void local_interpreter::startup_file()

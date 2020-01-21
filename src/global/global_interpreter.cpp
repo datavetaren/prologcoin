@@ -4,11 +4,13 @@
 #include "../coin/builtins.hpp"
 
 using namespace prologcoin::common;
+using namespace prologcoin::interp;
+
+extern "C" void DebugBreak();
 
 namespace prologcoin { namespace global {
 
-global_interpreter::global_interpreter() {
-    builtins::load(*this);
+global_interpreter::global_interpreter(global &g) : global_(g) {
     setup_standard_lib();
     set_retain_state_between_queries(true);
 
@@ -21,6 +23,7 @@ global_interpreter::global_interpreter() {
 void global_interpreter::setup_consensus_lib(interpreter &interp) {
   ec::builtins::load_consensus(interp);
   coin::builtins::load_consensus(interp);
+  builtins::load(interp); // Overrides reward_2 from coin
     
   std::string lib = R"PROG(
 
@@ -48,20 +51,33 @@ tx1(Hash,args(Signature,PubKey,PubKeyAddr)) :-
     ec:address(PubKey,PubKeyAddr),
     ec:validate(PubKey,Hash,Signature).
 
+reward(PubKeyAddr) :-
+    reward(_, Coin),
+    tx(Coin, _, tx1, args(_,_,PubKeyAddr), _).
+
 )PROG";
 
     interp.load_program(lib);
     interp.compile();
 }
   
-bool global_interpreter::execute_goal(term t) {
-    return execute(t);
+bool global_interpreter::execute_goal(term t, bool and_undo) {
+    if (and_undo) {
+        allocate_choice_point(code_point::fail());
+    }  
+    bool r = execute(t);
+    if (and_undo) unwind_to_top_choice_point();
+    return r;
 }
 
-bool global_interpreter::execute_goal(buffer_t &serialized)
+bool global_interpreter::execute_goal(buffer_t &serialized, bool and_undo)
 {
     term_serializer ser(*this);
     try {
+	if (and_undo) {
+	    allocate_choice_point(code_point::fail());
+	}
+	
         term goal = ser.read(serialized);
 
 	if (naming_) {
@@ -86,10 +102,13 @@ bool global_interpreter::execute_goal(buffer_t &serialized)
 	}
 
 	if (!execute(goal)) {
-	    return false;
+            return false;
 	}
 	serialized.clear();
 	ser.write(serialized, goal);
+	if (and_undo) {
+	    reset();
+	}
 	return true;
     } catch (serializer_exception &ex) {
         throw ex;
