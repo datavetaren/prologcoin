@@ -20,11 +20,16 @@ public:
     static const int KEY_DOWN = 1001;
     static const int KEY_LEFT = 1002;
     static const int KEY_RIGHT = 1003;
+    static const int KEY_HOME = 1004;
+    static const int KEY_END = 1005;
+    static const int KEY_LAST = 1100;
 
     readline();
 
     inline void set_callback( callback_fn callback )
       { callback_ = callback; }
+    inline void ignore_callback( bool b ) 
+      { ignore_callback_ = b; }
     inline void set_accept_ctrl_c(bool b)
       { accept_ctrl_c_ = b; }
 
@@ -40,7 +45,9 @@ public:
     void add_char(char ch);
     void del_char();
     void go_back();
+    void go_beginning();
     void go_forward();
+    void go_end();
 
     void add_history(const std::string &str);
     void reset_history_search();
@@ -54,8 +61,7 @@ public:
     bool has_standard_handling(int ch) {
 	return (ch >= ' ' && ch <= 255) ||
 	       (ch == 10 || ch == 127 ||
-		ch == KEY_LEFT || ch == KEY_RIGHT ||
-		ch == KEY_UP || ch == KEY_DOWN ||
+	       (ch >= KEY_LEFT && ch <= KEY_LAST) ||
 		ch == 3);
     }
 
@@ -80,9 +86,12 @@ private:
     size_t position_;
     size_t old_position_;
     size_t old_size_;
+    size_t start_column_;
+    size_t column_width_;
     bool echo_;
     render_t render_;
     bool accept_ctrl_c_;
+    bool ignore_callback_;
     callback_fn callback_;
     bool tick_;
 

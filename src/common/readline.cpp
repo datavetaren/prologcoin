@@ -17,7 +17,7 @@ namespace prologcoin { namespace common {
 
 static bool global_handle_ctrl_c = false;
 
-readline::readline() : keep_reading_(false), position_(0), old_position_(0), echo_(true), accept_ctrl_c_(false), tick_(false), search_active_(false), history_search_index_(-1)
+readline::readline() : keep_reading_(false), position_(0), old_position_(0), echo_(true), accept_ctrl_c_(false), ignore_callback_(false), callback_(nullptr), tick_(false), search_active_(false), history_search_index_(-1)
 {
 }
 
@@ -199,6 +199,7 @@ static void term_restore(int signo)
 void readline::enter_read()
 {
     static const int STDIN = 0;
+    static const int STDOUT = 1;
 
     // Use termios to turn off line buffering
     if (!stdin_init) {
@@ -215,12 +216,33 @@ void readline::enter_read()
 	sigaction(SIGKILL, &sa, &old_kill);
     }
 
+    struct winsize ws;
+    ws.ws_col = 80;
+    ioctl(STDOUT_FILENO, TIOCGWINSZ, &ws);
+    column_width_ = ws.ws_col;
+
     struct termios term;
     tcgetattr(STDIN, &term);
     assert(sizeof(term_old_) >= sizeof(term));
     memcpy(&term_old_[0], &term, sizeof(term));
     term.c_lflag &= ~(ICANON | ECHO);
     tcsetattr(STDIN, TCSANOW, &term);
+
+    start_column_ = 0;
+    ignore_callback(true);
+    write(STDOUT, "\033[6n", 4);
+    char ch;
+    for (size_t i = 0; ::read(STDIN, &ch, 1) == 1 && ch != ';'; i++) { }
+    for (size_t i = 0; ::read(STDIN, &ch, 1) == 1 && ch != 'R'; i++) {
+	if (ch >= '0' && ch <= '9') {
+	    start_column_ *= 10;
+	    start_column_ += ch - '0';
+	}
+    }
+    if (start_column_ != 0) start_column_--;
+    write(STDOUT, "\033[?7h", 5);
+
+    ignore_callback(false);
 }
 
 void readline::leave_read()
@@ -300,6 +322,11 @@ int readline::getch(bool with_timeout)
 
     if (n == 1) {
 	ch = keybuf[0];
+	switch (ch) {
+	case 1: ch = KEY_HOME; break;
+	case 5: ch = KEY_END; break;
+	default: break;
+	}
     } else if (n == 3) {
 	if (keybuf[0] == 27 && keybuf[1] == '[') {
 	    switch (keybuf[2]) {
@@ -307,6 +334,8 @@ int readline::getch(bool with_timeout)
 	    case 'B': ch = KEY_DOWN; break;
 	    case 'C': ch = KEY_RIGHT; break;
 	    case 'D': ch = KEY_LEFT; break;
+            case 'H': ch = KEY_HOME; break;
+            case 'F': ch = KEY_END; break;
 	    }
 	}
     }
@@ -363,12 +392,29 @@ void readline::go_back()
     render_ = ALL;
 }
 
+void readline::go_beginning()
+{
+    if (position_ == 0) {
+	return;
+    }
+    position_ = 0;
+    render_ = ALL;
+}
+
 void readline::go_forward()
 {
     if (position_ == buffer_.size()) {
 	return;
     }
     position_++;
+    render_ = ALL;
+}
+
+void readline::go_end() {
+    if (position_ == buffer_.size()) {
+	return;
+    }
+    position_ = buffer_.size();
     render_ = ALL;
 }
 
@@ -383,8 +429,14 @@ void readline::render()
 {
     switch (render_) {
     case NOTHING: break;
-    case SIMPLE_ADD: std::cout << buffer_.back(); break;
-    case SIMPLE_DEL: std::cout << "\b \b"; break;
+    case SIMPLE_ADD: std::cout << buffer_.back();
+	if ((position_ + start_column_) % column_width_ == 0) {
+	    std::cout << " \b";
+	}
+	break;
+    case SIMPLE_DEL: std::cout << "\b ";
+	if ((position_ + start_column_) % column_width_ != column_width_-1) std::cout << "\b";
+	break;
     case ALL: {
 	size_t blank_out = (buffer_.size() < old_size_) ?
 	    old_size_ - buffer_.size() : 0;
@@ -484,7 +536,7 @@ std::string readline::read()
     while (!std::cin.eof() && keep_reading_) {
 	int ch = getch(tick_);
 	if (ch != -1) {
-	    bool r = (callback_ != nullptr) ? callback_(*this, ch) : true;
+	    bool r = (callback_ != nullptr && !ignore_callback_) ? callback_(*this, ch) : true;
 	    if (r) {
 		render_ = NOTHING;
 		old_position_ = position_;
@@ -499,6 +551,8 @@ std::string readline::read()
 		    case KEY_RIGHT: go_forward(); break;
 		    case KEY_UP: search_history_back(); break;
 		    case KEY_DOWN: search_history_forward(); break;
+		    case KEY_HOME: go_beginning(); break;
+		    case KEY_END: go_end(); break;
 		    case 3: case 10: keep_reading_ = false; break;
 		    }
 		}

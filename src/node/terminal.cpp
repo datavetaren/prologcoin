@@ -154,7 +154,7 @@ void terminal::add_error(const std::string &str)
 void terminal::add_text_output(const std::string &str)
 {
     if (!boost::ends_with(str, "\n")) {
-	text_output_queue_.push(str + "\n");
+	text_output_queue_.push(str + "\r\n");
     } else {
 	text_output_queue_.push(str);
     }
