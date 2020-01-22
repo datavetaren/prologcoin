@@ -2,6 +2,7 @@
 #include <boost/algorithm/string/predicate.hpp>
 #include "../node/self_node.hpp"
 #include "interactive_terminal.hpp"
+#include "../common/readline.hpp"
 
 using namespace prologcoin::node;
 
@@ -90,6 +91,12 @@ int main(int argc, char *argv[])
 	args.push_back(argv[i]);
     }
 
+    std::string checkkey_opt = get_option(args, "--check_key");
+    if (!checkkey_opt.empty()) {
+        prologcoin::common::readline::check_key();
+	return 0;
+    }
+    
     std::string help_opt = get_option(args, "--help");
     if (!help_opt.empty()) {
 	help();

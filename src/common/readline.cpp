@@ -1,4 +1,5 @@
 #include <iostream>
+#include <sstream>
 #include "readline.hpp"
 #if _WIN32
 #include <conio.h>
@@ -24,8 +25,23 @@ readline::readline() : keep_reading_(false), position_(0), old_position_(0), ech
 // Platform dependent!
 #if _WIN32
 
-static DWORD oldMode;
-static bool oldModeSaved = false;
+void readline::check_key() {
+  int buf[10];
+  for (size_t i = 0; i < 10; i++) {
+    int ch = _getch();
+    buf[i] = ch;
+  }
+  std::cout << "DONE: We have: " << std::endl;
+  for (size_t i = 0; i < 10; i++) {
+    std::cout << std::hex << buf[i] << " ";
+  }
+  std::cout << std::endl;
+}
+    
+static DWORD oldInMode;
+static DWORD oldOutMode;
+static bool oldInModeSaved = false;
+static bool oldOutModeSaved = false;
 
 static HANDLE hKeyThread;
 static HANDLE hKeyPressed;
@@ -124,6 +140,11 @@ int readline::getch(bool with_timeout)
 	case 0x4D: ch = KEY_RIGHT; break;
 	case 0x48: ch = KEY_UP; break;
 	case 0x50: ch = KEY_DOWN; break;
+	case 0x47: ch = KEY_HOME; break;
+	case 0x4F: ch = KEY_END; break;
+	case 0x73: ch = KEY_WORD_BACK; break;
+	case 0x74: ch = KEY_WORD_FORWARD; break;
+	case 0x53: ch = KEY_DEL; break;
 	default: ch = 0; break;
 	}
     } else {
@@ -139,24 +160,49 @@ int readline::getch(bool with_timeout)
 void readline::enter_read()
 {
     HANDLE hin = GetStdHandle(STD_INPUT_HANDLE);
-    if (GetConsoleMode(hin, &oldMode)) {
-        SetConsoleMode(hin, oldMode & ~ENABLE_PROCESSED_INPUT);
-	oldModeSaved = true;
+    if (GetConsoleMode(hin, &oldInMode)) {
+        SetConsoleMode(hin, (oldInMode & ~ENABLE_PROCESSED_INPUT));
+	oldInModeSaved = true;
     }
+    HANDLE hout = GetStdHandle(STD_OUTPUT_HANDLE);
+    if (GetConsoleMode(hout, &oldOutMode)) {
+        // Enable virtual terminal processing so we can enable reverse wrapping
+        // on backspace
+        SetConsoleMode(hout, oldOutMode | ENABLE_VIRTUAL_TERMINAL_PROCESSING );
+	oldOutModeSaved = true;
+    }
+    CONSOLE_SCREEN_BUFFER_INFO info;
+    column_width_ = 80;
+    if (GetConsoleScreenBufferInfo(hout, &info)) {
+        start_column_ = info.dwCursorPosition.X;
+	column_width_ = info.dwSize.X;
+    }
+    // Make sure we get reverse wrapping on backspace
+    std::cout << "\033[?45h"; std::cout.flush();
     startKeyThread();
 }
 
 void readline::leave_read()
 {
-    if (oldModeSaved) {
+    if (oldInModeSaved) {
         HANDLE hin = GetStdHandle(STD_INPUT_HANDLE);
-	SetConsoleMode(hin, oldMode);
-	oldModeSaved = false;
+	SetConsoleMode(hin, oldInMode);
+	oldInModeSaved = false;
+    }
+    if (oldOutModeSaved) {
+        HANDLE hout = GetStdHandle(STD_OUTPUT_HANDLE);
+	SetConsoleMode(hout, oldOutMode);
+	oldOutModeSaved = false;      
     }
     stopKeyThread();
 }
 
 #else
+
+void readline::check_key()
+{
+    std::cout << "Not supported" << std::endl;
+}
 
 static bool stdin_init = false;
 static termios stdin_attr_old;
@@ -366,7 +412,7 @@ void readline::add_char(char ch)
     }
 }
 
-void readline::del_char()
+void readline::del_backspace()
 {
     if (position_ == 0) {
 	render_ = NOTHING;
@@ -381,6 +427,52 @@ void readline::del_char()
 	render_ = ALL;
     }
     reset_history_search();
+}
+
+void readline::del_char()
+{
+    if (position_ == buffer_.size()) {
+        render_ = NOTHING;
+        return;
+    }
+    buffer_.erase(position_, 1);
+    render_ = ALL;
+    reset_history_search();
+}
+
+void readline::do_paste()
+{
+#ifdef _WIN32
+    static HINSTANCE hDLL = 0;
+    typedef BOOL (*OpenClipboard_FN)(HWND);
+    typedef BOOL (*CloseClipboard_FN)(void);
+    typedef HANDLE (*GetClipboardData_FN)(UINT);
+
+    static OpenClipboard_FN OpenClipboard_fn;
+    static CloseClipboard_FN CloseClipboard_fn;
+    static GetClipboardData_FN GetClipboardData_fn;
+    
+    if (hDLL == 0) {
+        hDLL = LoadLibrary("USER32.DLL");
+	OpenClipboard_fn = (OpenClipboard_FN) GetProcAddress(hDLL, "OpenClipboard");
+	CloseClipboard_fn = (CloseClipboard_FN) GetProcAddress(hDLL, "CloseClipboard");
+	GetClipboardData_fn = (GetClipboardData_FN) GetProcAddress(hDLL, "GetClipboardData");
+    }
+
+    if(OpenClipboard_fn(NULL)) {
+        char *buffer = (char*)GetClipboardData_fn(CF_TEXT);
+	if (buffer != nullptr) {
+	    for (size_t i = 0; buffer[i] != '\0'; i++) {
+	        char ch = buffer[i];
+		if ((ch >= ' ' && ch <= 255) && ch != 127) {
+	            add_char(ch);
+		}
+	    }
+	    CloseClipboard_fn();
+	}
+	render_ = ALL;
+    }
+#endif
 }
 
 void readline::go_back()
@@ -418,6 +510,41 @@ void readline::go_end() {
     render_ = ALL;
 }
 
+void readline::go_word_forward() {
+    if (position_ == buffer_.size()) {
+        return;
+    }
+    if (buffer_[position_] == ' ') {
+        while (position_ < buffer_.size() && buffer_[position_] == ' ') position_++;
+    } else {
+        while (position_ < buffer_.size() && buffer_[position_] != ' ') position_++;
+	while (position_ < buffer_.size() && buffer_[position_] == ' ') position_++;
+    }
+    render_ = ALL;
+}
+
+void readline::go_word_back() {
+    if (position_ == 0) {
+        return;
+    }
+    if (position_ == 1) {
+        position_ = 0;
+    } else {
+        size_t origin = position_;
+        position_--;
+        while (position_ > 0 && buffer_[position_] == ' ') position_--;
+        while (position_ > 0 && buffer_[position_] != ' ') position_--;
+	if (position_ == 0 && buffer_[position_] == ' ') {
+	    size_t pos = position_;
+	    while (buffer_[pos] == ' ' && pos < origin) pos++;
+	    if (pos != origin) position_ = pos;
+	} else {
+  	    if (buffer_[position_] == ' ') position_++;
+	}
+    }
+    render_ = ALL;
+}
+
 void readline::clear_render()
 {
     old_position_ = 0;
@@ -425,26 +552,76 @@ void readline::clear_render()
     render_ = ALL;
 }
 
+void readline::render_simple_del()
+{
+#ifdef _WIN32
+  std::cout << "\b \b";
+#else
+  if (position_ <= 1 || ((position_ + start_column_) % column_width_ != column_width_-1)) {
+      std::cout << "\b";
+  }
+#endif
+}
+
+void readline::render_all()
+{
+#ifdef _WIN32
+    // Compute location of origin
+    CONSOLE_SCREEN_BUFFER_INFO info;
+    if (GetConsoleScreenBufferInfo(GetStdHandle(STD_OUTPUT_HANDLE), &info)) {
+       auto x = info.dwCursorPosition.X;
+       auto y = info.dwCursorPosition.Y;
+       size_t pos = old_position_;
+       while (pos > 0) {
+ 	  if (x == 0) {
+	      y--; x = column_width_ - 1;
+	  } else {
+	      x--;
+	  }
+	  pos--;
+       }
+       COORD new_coord = {x, y};
+       SetConsoleCursorPosition(GetStdHandle(STD_OUTPUT_HANDLE),new_coord);
+       size_t blank_out = (buffer_.size() < old_size_) ?
+           old_size_ - buffer_.size() : 0;
+       std::stringstream ss;
+       ss << buffer_ << std::string(blank_out, ' ')
+ 	  << std::string(buffer_.size()-position_+blank_out, '\b');
+       std::string str = ss.str();
+       DWORD written = 0;
+       WriteConsole(GetStdHandle(STD_OUTPUT_HANDLE), str.c_str(), str.size(), &written, NULL);
+       return;
+    }
+#endif
+    size_t blank_out = (buffer_.size() < old_size_) ?
+        old_size_ - buffer_.size() : 0;
+
+    std::cout << std::string(old_position_, '\b')
+	    << buffer_ << std::string(blank_out, ' ')
+	    << std::string(buffer_.size()-position_+blank_out, '\b');
+}
+
+
 void readline::render()
 {
+  /*
+    CONSOLE_SCREEN_BUFFER_INFO info;
+    GetConsoleScreenBufferInfo(GetStdHandle(STD_OUTPUT_HANDLE), &info);
+    COORD coord = {0,info.dwCursorPosition.Y - 10};
+    SetConsoleCursorPosition(GetStdHandle(STD_OUTPUT_HANDLE), coord);
+    std::cout << "STATUS: " << position_ << "    ";
+    SetConsoleCursorPosition(GetStdHandle(STD_OUTPUT_HANDLE), info.dwCursorPosition);
+  */
+  
     switch (render_) {
     case NOTHING: break;
     case SIMPLE_ADD: std::cout << buffer_.back();
-	if ((position_ + start_column_) % column_width_ == 0) {
+        if (position_ > 0 && ((position_ + start_column_) % column_width_) == 0) {
 	    std::cout << " \b";
 	}
 	break;
-    case SIMPLE_DEL: std::cout << "\b ";
-	if ((position_ + start_column_) % column_width_ != column_width_-1) std::cout << "\b";
-	break;
-    case ALL: {
-	size_t blank_out = (buffer_.size() < old_size_) ?
-	    old_size_ - buffer_.size() : 0;
-	std::cout << std::string(old_position_, '\b')
-		  << buffer_ << std::string(blank_out, ' ')
-		  << std::string(buffer_.size()-position_+blank_out, '\b');
-	break;
-        }
+    case SIMPLE_DEL: render_simple_del(); break;
+    case ALL: render_all(); break;
     }
     if (render_ != NOTHING) std::cout.flush();
 }
@@ -546,13 +723,17 @@ std::string readline::read()
 		    add_char(c);
 		} else {
 		    switch (ch) {
-		    case 127: del_char(); break;
+		    case 22: do_paste(); break;
+		    case 127: del_backspace(); break;
 		    case KEY_LEFT: go_back(); break;
 		    case KEY_RIGHT: go_forward(); break;
 		    case KEY_UP: search_history_back(); break;
 		    case KEY_DOWN: search_history_forward(); break;
 		    case KEY_HOME: go_beginning(); break;
 		    case KEY_END: go_end(); break;
+		    case KEY_WORD_BACK: go_word_back(); break;
+		    case KEY_WORD_FORWARD: go_word_forward(); break;
+		    case KEY_DEL: del_char(); break;
 		    case 3: case 10: keep_reading_ = false; break;
 		    }
 		}

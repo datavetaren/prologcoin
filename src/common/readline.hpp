@@ -16,13 +16,17 @@ public:
     typedef std::function<bool(readline &, int)> callback_fn;
 
     static const int TIMEOUT = 10000;
+    static const int KEY_SPECIAL_FIRST = 1000;
     static const int KEY_UP = 1000;
     static const int KEY_DOWN = 1001;
     static const int KEY_LEFT = 1002;
     static const int KEY_RIGHT = 1003;
     static const int KEY_HOME = 1004;
     static const int KEY_END = 1005;
-    static const int KEY_LAST = 1100;
+    static const int KEY_WORD_BACK = 1006;
+    static const int KEY_WORD_FORWARD = 1007;
+    static const int KEY_DEL = 1008;
+    static const int KEY_SPECIAL_LAST = 1100;
 
     readline();
 
@@ -44,10 +48,14 @@ public:
 
     void add_char(char ch);
     void del_char();
+    void del_backspace();
+    void do_paste();
     void go_back();
     void go_beginning();
     void go_forward();
     void go_end();
+    void go_word_back();
+    void go_word_forward();
 
     void add_history(const std::string &str);
     void reset_history_search();
@@ -55,20 +63,23 @@ public:
     void search_history_forward();
 
     void clear_render();
+    void render_simple_del();
+    void render_all();
     void render();
     void clear_line();
 
     bool has_standard_handling(int ch) {
 	return (ch >= ' ' && ch <= 255) ||
-	       (ch == 10 || ch == 127 ||
-	       (ch >= KEY_LEFT && ch <= KEY_LAST) ||
-		ch == 3);
+	       ch == 10 || ch == 127 || ch == 22 || ch == 3 ||
+	      (ch >= KEY_SPECIAL_FIRST && ch <= KEY_SPECIAL_LAST);
     }
 
     void enter_read();
     void leave_read();
     int getch(bool with_timeout);
 
+    static void check_key();
+  
 private:
     static const int TIMEOUT_INTERVAL_MILLIS = 100;
 
