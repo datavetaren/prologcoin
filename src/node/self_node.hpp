@@ -19,6 +19,7 @@
 #include "connection.hpp"
 #include "address_book.hpp"
 #include "../global/global.hpp"
+#include "../terminal/terminal.hpp"
 
 namespace prologcoin { namespace node {
 
@@ -63,8 +64,8 @@ public:
     static const int VERSION_MAJOR = 0;
     static const int VERSION_MINOR = 10;
 
-    static const unsigned short DEFAULT_PORT = 8783;
-    static const size_t MAX_BUFFER_SIZE = 65536;
+    static const unsigned short DEFAULT_PORT = prologcoin::terminal::terminal::DEFAULT_PORT;
+    static const size_t MAX_BUFFER_SIZE = prologcoin::terminal::terminal::MAX_BUFFER_SIZE;
     static const size_t DEFAULT_NUM_STANDARD_OUT_CONNECTIONS = 8;
     static const size_t DEFAULT_NUM_VERIFIER_CONNECTIONS = 3;
     static const size_t DEFAULT_NUM_DOWNLOAD_ADDRESSES = 100;

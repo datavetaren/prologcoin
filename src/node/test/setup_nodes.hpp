@@ -3,7 +3,7 @@
 #include <unordered_map>
 #include <common/utime.hpp>
 #include <node/self_node.hpp>
-#include <node/terminal.hpp>
+#include <terminal/terminal.hpp>
 #include <memory>
 #include <functional>
 #include <common/term_tools.hpp>
@@ -15,6 +15,8 @@
 
 namespace prologcoin { namespace node {
 
+using terminal = prologcoin::terminal::terminal;
+    
 class setup_nodes {
 public:
     struct node_spec {

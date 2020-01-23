@@ -454,7 +454,9 @@ class managed_data {
 public:
     virtual ~managed_data() { }
 };
-    
+
+class interpreter_base;
+
 class interpreter_base : public common::term_env {
     friend class builtins;
     friend class builtins_opt;
@@ -552,9 +554,9 @@ public:
     common::con_cell clause_predicate(const term clause);
 
     struct none {
-	void operator () (term t)  { }
+        void operator () (term t)  { }
     };
-
+      
     template<typename F = none> void load_program(const std::string &str, F f = F())
     {
 	std::stringstream ss(str);
@@ -633,12 +635,12 @@ public:
         module_meta_db_[primary_module] = source_list;
     }
 
-    template<typename F = none> void load_program(const term clauses, F f = F()) {
+    template<typename F = none> void load_program(term clauses, F f = F()) {
         con_cell dummy;
         load_program<F>(clauses, f, dummy);
     }
   
-    template<typename F = none> void load_program(const term clauses, F f , con_cell &primary_module)
+    template<typename F = none> void load_program(term clauses, F f , con_cell &primary_module)
     {
 	syntax_check_stack_.push_back(
 		  std::bind(&interpreter_base::syntax_check_program, this,
@@ -661,6 +663,8 @@ public:
 	}
     }
 
+    void use_module(con_cell module);
+  
     void save_program(con_cell module, std::ostream &out);
     void save_predicate(const qname &qn, std::ostream &out);
     void save_clause(term t, std::ostream &out);

@@ -755,8 +755,8 @@ void local_interpreter::load_file(const std::string &filename)
     }
 
     try {
-	struct process_clause {
-	    process_clause(local_interpreter &interp) : interp_(interp) { }
+        struct pre_action {
+	    pre_action(interpreter &interp) : interp_(interp) { }
 
 	    void operator () (term clause) {
 		auto head = interp_.clause_head(clause);
@@ -764,14 +764,11 @@ void local_interpreter::load_file(const std::string &filename)
 
 		if (head_f == interpreter_base::ACTION_BY) {
 		    interp_.compile();
-		    auto body = interp_.arg(clause, 0);
-		    interp_.execute(body);
-		    interp_.reset();
 		}
 	    }
-	    local_interpreter &interp_;
-	} f(*this);
-	load_program(infile, f);
+	    interpreter &interp_;
+	};
+	load_program<pre_action>(infile);
 	compile();
 	infile.close();
     } catch (const syntax_exception &ex) {

@@ -397,6 +397,8 @@ void interpreter_base::load_clause(term t, interpreter_base::clause_position pos
         module_db_set_[module].insert(qn);
 	module_db_[module].push_back(qn);
     }
+
+    set_code(qn, code_point(module, predicate));
 }
 
 void interpreter_base::load_builtin(const qname &qn, builtin b)
@@ -795,6 +797,19 @@ void interpreter_base::unwind(size_t from_tr)
     trim_trail(from_tr);
 }
 
+void interpreter_base::use_module(con_cell module_name)
+{
+    auto &qnames = get_module(module_name);
+
+    auto module = current_module();
+    
+    for (auto &qn : qnames) {
+        auto &cp = get_code(qn);
+        qname imported_qn(module, qn.second);
+	set_code(imported_qn, cp);
+    }
+}
+    
 void interpreter_base::save_program(con_cell module, std::ostream &out)
 {
     std::unordered_set<qname> seen_predicates;

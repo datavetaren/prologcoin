@@ -194,6 +194,7 @@ namespace prologcoin { namespace interp {
 	//
 	// System
 	//
+        static bool module_1(interpreter_base &interp, size_t arity, common::term args[]);
 	static bool use_module_1(interpreter_base &interp, size_t arity, common::term args[]);
 
         //

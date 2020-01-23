@@ -4,7 +4,7 @@
 #define _main_interactive_terminal_hpp
 
 #include "../common/readline.hpp"
-#include "../node/terminal.hpp"
+#include "../terminal/terminal.hpp"
 
 namespace prologcoin { namespace main {
 
@@ -12,7 +12,7 @@ namespace prologcoin { namespace main {
 // This is the main terminal window that acts like a Prolog prompt
 // and establishes a direct link to the node on the local machine.
 //
-class interactive_terminal : public node::terminal {
+class interactive_terminal : public terminal::terminal {
 public:
     interactive_terminal(unsigned short port);
     ~interactive_terminal();

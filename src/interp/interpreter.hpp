@@ -3,6 +3,7 @@
 #ifndef _interp_interpreter_hpp
 #define _interp_interpreter_hpp
 
+#include <iostream>
 #include "wam_interpreter.hpp"
 
 namespace prologcoin { namespace interp {
@@ -10,6 +11,23 @@ namespace prologcoin { namespace interp {
 class test_wam_compiler;
 class test_wam_interpreter;
 
+class interpreter;
+
+struct no_processing {
+    no_processing(interpreter &interp) { }
+    void operator() (common::term clause) { }
+};
+    
+template<typename Pre = no_processing, typename Post = no_processing>
+struct standard_clause_processing {
+    standard_clause_processing(interpreter &interp) : interp_(interp), pre_(interp), post_(interp) { }
+    void operator () (common::term clause);
+private:
+    interpreter &interp_;
+    Pre pre_;
+    Post post_;
+};
+    
 class interpreter : public wam_interpreter
 {
 public:
@@ -18,6 +36,26 @@ public:
 
     void setup_standard_lib();
 
+    template<typename Pre = no_processing, typename Post = no_processing> void load_program(const std::string &str) {
+        standard_clause_processing<Pre,Post> process(*this);
+	interpreter_base::load_program(str, process);
+    }
+
+    template<typename Pre = no_processing, typename Post = no_processing> void load_program(std::istream &is) {
+        standard_clause_processing<Pre,Post> process(*this);
+	interpreter_base::load_program(is, process);
+    }
+
+    template<typename Pre = no_processing, typename Post = no_processing> void load_program(term clauses) {
+        standard_clause_processing<Pre,Post> process(*this);
+	interpreter_base::load_program(clauses, process);
+    }
+
+    template<typename Pre = no_processing, typename Post = no_processing> void load_program(term clauses, con_cell &primary_module) {
+        standard_clause_processing<Pre,Post> process(*this);
+	interpreter_base::load_program(clauses, process, primary_module);
+    }
+  
     void new_instance();
     size_t num_instances() const { return num_instances_; }
     void delete_instance();
@@ -136,6 +174,25 @@ private:
     friend class test_wam_compiler;
 };
 
+template<typename Pre, typename Post> void standard_clause_processing<Pre,Post>::operator () (common::term clause)
+{
+    auto head = interp_.clause_head(clause);
+    auto head_f = interp_.functor(head);
+
+    if (head_f == interpreter_base::ACTION_BY) {
+        // Make a copy of the term before executing it,
+        // because we don't want any side-effects of bound variables
+        // persist in the program database.
+        auto clause_copy = interp_.copy(clause);
+      
+        pre_(clause_copy);
+        auto body = interp_.arg(clause_copy, 0);
+	interp_.execute(body);
+	interp_.reset();
+        post_(clause_copy);	
+    }
+}
+    
 }}
 
 #endif

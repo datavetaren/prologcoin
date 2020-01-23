@@ -4,7 +4,6 @@
 #include <iomanip>
 #include <node/self_node.hpp>
 #include <node/session.hpp>
-#include <node/terminal.hpp>
 #include "../../interp/test/test_files_infrastructure.hpp"
 
 using namespace prologcoin::node;

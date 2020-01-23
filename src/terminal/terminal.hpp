@@ -1,9 +1,9 @@
 #pragma once
 
-#ifndef _node_terminal_hpp
-#define _node_terminal_hpp
+#ifndef _terminal_terminal_hpp
+#define _terminal_terminal_hpp
 
-#include "../node/asio_win32_check.hpp"
+#include "asio_win32_check.hpp"
 
 #include <boost/thread.hpp>
 #include <boost/asio/io_service.hpp>
@@ -18,8 +18,9 @@
 #include "../common/term_env.hpp"
 #include "../common/term_tokenizer.hpp"
 #include "../common/term_parser.hpp"
+#include "../common/term_serializer.hpp"
 
-namespace prologcoin { namespace node {
+namespace prologcoin { namespace terminal {
 
 //
 // This class provides terminal access to a node programmatically (non-interactive.)
@@ -36,6 +37,9 @@ private:
     using term_serializer = common::term_serializer;
 
 public:
+    static const size_t MAX_BUFFER_SIZE = 65536;
+    static const unsigned short DEFAULT_PORT = 8783;
+  
     terminal(unsigned short port, const std::string &addr = "127.0.0.1");
     ~terminal();
 

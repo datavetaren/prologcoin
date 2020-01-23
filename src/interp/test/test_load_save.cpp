@@ -40,6 +40,8 @@ int main( int argc, char *argv[] )
     }
     
     interpreter interp;
+    interp.enable_file_io();
+    interp.setup_standard_lib();
     std::ifstream ifs(src_file.string());
     interp.load_program(ifs);
     ifs.close();

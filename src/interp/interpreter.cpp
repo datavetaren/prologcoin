@@ -65,7 +65,10 @@ append([X|Xs], Ys, [X|Zs]) :-
 
 )PROG";
 
+    set_current_module(con_cell("system",0));
     load_program(lib);
+    set_current_module(con_cell("user",0));
+    use_module(con_cell("system",0));
     compile();
 }
 
@@ -552,6 +555,12 @@ void interpreter::dispatch()
 	return;
     }
 
+    // Refine module and qualified name if this is an imported predicate
+    if (!code.is_fail()) {
+        module = code.module();
+	qn = qname(module, f);
+    }
+
     bool is_updated = has_updated_predicates() && is_updated_predicate(qn);
     if (is_updated) {
         clear_matched_predicate(module, f);
@@ -568,7 +577,6 @@ void interpreter::dispatch()
     }
 
     auto first_arg = get_first_arg();
-
     size_t predicate_id = matched_predicate_id(module, f, first_arg);
     predicate  &pred = get_predicate_by_id(predicate_id);
 

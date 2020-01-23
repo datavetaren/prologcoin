@@ -3,10 +3,11 @@
 #include <stdlib.h>
 #include <iomanip>
 #include <node/self_node.hpp>
-#include <node/terminal.hpp>
+#include <terminal/terminal.hpp>
 
 using namespace prologcoin::common;
 using namespace prologcoin::node;
+using namespace prologcoin::terminal;
 
 static void header( const std::string &str )
 {

@@ -617,6 +617,9 @@ void term_emitter::emit_xf(bool is_def, cell x, con_cell f, bool x_ok)
 
 void term_emitter::emit_fx(bool is_def, con_cell f, cell x, bool x_ok)
 {
+    static const con_cell IMPLIED_BY(":-", 2);
+    static const con_cell ACTION_BY(":-", 1);
+  
     bool op_is_alnum = is_end_alphanum(f);
 
     if (is_def) {
@@ -630,7 +633,7 @@ void term_emitter::emit_fx(bool is_def, con_cell f, cell x, bool x_ok)
 	wrap_paren(elem(x));
     }
 
-    if (is_def) {
+    if (is_def && (f == IMPLIED_BY || f == ACTION_BY)) {
 	emit_nl();
 	emit_set_indent(4);
         emit_indent_increment();

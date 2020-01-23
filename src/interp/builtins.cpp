@@ -1032,11 +1032,20 @@ bool builtins::use_module_1(interpreter_base &interp, size_t arity, common::term
 	interp.abort(interpreter_exception_wrong_arg_type(msg.str()));
     }
 
-    for (auto &qn : qnames) {
-        auto &cp = interp.get_code(qn);
-        qname imported_qn(interpreter_base::EMPTY_LIST, qn.second);
-	interp.set_code(imported_qn, cp);
+    interp.use_module(name);
+
+    return true;
+}
+
+bool builtins::module_1(interpreter_base &interp, size_t arity, common::term args[] ) {
+    if (args[0].tag() != tag_t::STR && args[0].tag() != tag_t::CON) {
+        std::string msg = "module/1: "
+	  "Module name must be an atom; was " + interp.to_string(args[0]);
+	interp.abort(interpreter_exception_wrong_arg_type(msg));
     }
+
+    con_cell name = interp.functor(args[0]);
+    interp.set_current_module(name);
 
     return true;
 }
@@ -1314,6 +1323,7 @@ void builtins::load(interpreter_base &interp) {
     }
 
     // System
+    i.load_builtin(i.functor("module",1), builtin(&builtins::module_1,false));    
     i.load_builtin(i.functor("use_module",1), builtin(&builtins::use_module_1,false));
 
     // Non-standard

@@ -2,10 +2,9 @@
 #include <ctype.h>
 #include <boost/algorithm/string/predicate.hpp>
 #include "../common/term_serializer.hpp"
-#include "self_node.hpp"
 #include "terminal.hpp"
 
-namespace prologcoin { namespace node {
+namespace prologcoin { namespace terminal {
 
 using namespace prologcoin::common;
 
@@ -14,7 +13,7 @@ terminal::terminal(unsigned short port, const std::string &ip_address)
     ioservice_(),
     endpoint_(boost::asio::ip::address::from_string(ip_address),port),
     socket_(ioservice_),
-    buffer_(self_node::MAX_BUFFER_SIZE, ' '),
+    buffer_(MAX_BUFFER_SIZE, ' '),
     buffer_len_(sizeof(cell)),
     has_more_(false),
     result_to_text_(true)
@@ -238,9 +237,9 @@ term terminal::read_reply()
 	return term();
     }
 
-    if (ic.value() > static_cast<int>(self_node::MAX_BUFFER_SIZE)) {
+    if (ic.value() > static_cast<int>(MAX_BUFFER_SIZE)) {
 	std::stringstream ss;
-	ss << "Length of reply too big (" << ic.value() << " > " << self_node::MAX_BUFFER_SIZE;
+	ss << "Length of reply too big (" << ic.value() << " > " << MAX_BUFFER_SIZE;
 	add_error(ss.str());
 	return term();
     }
