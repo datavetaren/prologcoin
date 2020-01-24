@@ -8,7 +8,7 @@ using namespace prologcoin::interp;
 
 namespace prologcoin { namespace wallet {
 
-wallet::wallet(const std::string &wallet_file) : wallet_file_(wallet_file), interp_(wallet_file), killed_(false)
+wallet::wallet(const std::string &wallet_file) : wallet_file_(wallet_file), interp_(*this, wallet_file), killed_(false)
 {
 }
 
@@ -73,5 +73,21 @@ std::string wallet::execute(const std::string &cmd)
         return "UNKNOWN ERROR";
     }
 }
+
+remote_return_t wallet::execute_at(term query, term_env &query_src, const std::string &where)
+{
+    return remote_return_t();
+}
+
+remote_return_t wallet::continue_at(term_env &query_src, const std::string &where)
+{
+    return remote_return_t();
+}
+
+bool wallet::delete_instance_at(term_env &query_src, const std::string &where)
+{
+    return false;
+}
+    
     
 }}

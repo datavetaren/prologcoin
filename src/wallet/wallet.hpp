@@ -20,6 +20,7 @@ namespace prologcoin { namespace wallet {
 class wallet {
 public:
     using terminal = prologcoin::terminal::terminal;
+    using remote_return_t = interp::remote_return_t;
   
     // Wallet file is some Prolog source code (.pl) representing a wallet.
     wallet(const std::string &wallet_file);
@@ -36,6 +37,10 @@ public:
     void print();
 
     std::string execute(const std::string &cmd);
+
+    remote_return_t execute_at(common::term query, common::term_env &query_src, const std::string &where);
+    remote_return_t continue_at(common::term_env &query_src, const std::string &where);
+    bool delete_instance_at(common::term_env &query_src, const std::string &where);
   
 private:
     std::string wallet_file_;
