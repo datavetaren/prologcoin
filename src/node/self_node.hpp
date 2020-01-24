@@ -170,39 +170,20 @@ public:
 
     out_connection * find_out_connection(const std::string &where);
 
-    class execute_at_return_t {
-    public:
-	execute_at_return_t() : result_(), has_more_(false), at_end_(false) { }
-	execute_at_return_t(term r) : result_(r), has_more_(false), at_end_(false) { }
-	execute_at_return_t(term r, bool has_more, bool at_end, uint64_t cost) : result_(r), has_more_(has_more), at_end_(at_end), cost_(cost) { }
-	execute_at_return_t(const execute_at_return_t &other) = default;
-
-	term result() const { return result_; }
-	bool failed() const { return result_ == term(); }
-	bool has_more() const { return has_more_; }
-	bool at_end() const { return at_end_; }
-	uint64_t get_cost() const { return cost_; }
-    private:
-	term result_;
-	bool has_more_;
-	bool at_end_;
-	uint64_t cost_;
-    };
-
     task_execute_query * schedule_execute_new_instance(const std::string &where);    
     task_execute_query * schedule_execute_delete_instance(const std::string &where);    
     task_execute_query * schedule_execute_query(term query, term_env &query_src, const std::string &where);
     task_execute_query * schedule_execute_next(const std::string &where);
 
-    execute_at_return_t schedule_execute_wait_for_result(task_execute_query *task, term_env &query_src);
+    interp::remote_return_t schedule_execute_wait_for_result(task_execute_query *task, term_env &query_src);
 
     bool new_instance_at(term_env &query_src, const std::string &where);
     bool delete_instance_at(term_env &query_src, const std::string &where);
-    execute_at_return_t execute_at(term query, term_env &query_src,
-				   const std::string &where);
+    interp::remote_return_t execute_at(term query, term_env &query_src,
+				       const std::string &where);
 
-    execute_at_return_t continue_at(term_env &query_src,
-				    const std::string &where);
+    interp::remote_return_t continue_at(term_env &query_src,
+					const std::string &where);
 
     in_session_state * new_in_session(in_connection *conn, bool is_root);
     in_session_state * find_in_session(const std::string &id);

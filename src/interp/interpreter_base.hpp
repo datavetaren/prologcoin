@@ -465,6 +465,7 @@ class interpreter_base : public common::term_env {
     friend struct meta_context;
     friend class interpreter;
     friend struct new_instance_context;
+    friend class remote_execution_proxy;
 
 public:
     typedef common::term term;
@@ -823,8 +824,20 @@ public:
 	 }
        }
 
-  inline void set_managed_data(common::con_cell key, managed_data *data)
+    inline void set_managed_data(common::con_cell key, managed_data *data)
        { managed_data_[key] = data; }
+
+    inline meta_context * get_current_meta_context()
+        { return register_m_; }
+
+    inline const meta_context * get_current_meta_context() const
+        { return register_m_; }
+
+    template<typename T> inline T * get_current_meta_context()
+        { return reinterpret_cast<T *>(get_current_meta_context()); }
+
+    inline bool has_meta_context() const
+        { return register_m_ != nullptr; }
 
 protected:
     friend class wam_interpreter;
@@ -1281,8 +1294,8 @@ protected:
     void abort(const interpreter_exception &ex);
     bool definitely_inequal(const term a, const term b);
 
-    template<typename T> inline T * new_meta_context(meta_fn fn) {
-	T *context = new(allocate_stack(true)) T(*this, fn);
+    template<typename T, typename... Args> inline T * new_meta_context(meta_fn fn, Args... args) {
+        T *context = new(allocate_stack(true)) T(*this, fn, args...);
 	context->size_in_words = sizeof(T) / sizeof(word_t);
 
 	if (is_debug()) {
@@ -1311,18 +1324,6 @@ protected:
 	    std::cout << "interpreter_base::release_meta_context(): ---- e=" << e() << " ----\n";
 	}
     }
-
-    inline meta_context * get_current_meta_context()
-        { return register_m_; }
-
-    inline const meta_context * get_current_meta_context() const
-        { return register_m_; }
-
-    template<typename T> inline T * get_current_meta_context()
-        { return reinterpret_cast<T *>(get_current_meta_context()); }
-
-    inline bool has_meta_context() const
-        { return register_m_ != nullptr; }
 
     inline term_env & secondary_env()
         { return secondary_env_; }

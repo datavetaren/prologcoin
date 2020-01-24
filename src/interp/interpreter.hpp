@@ -27,6 +27,176 @@ private:
     Pre pre_;
     Post post_;
 };
+
+class remote_return_t {
+public:
+    remote_return_t() : result_(), has_more_(false), at_end_(false) { }
+    remote_return_t(common::term r) : result_(r), has_more_(false), at_end_(false) { }
+    remote_return_t(common::term r, bool has_more, bool at_end, uint64_t cost) : result_(r), has_more_(has_more), at_end_(at_end), cost_(cost) { }
+    remote_return_t(const remote_return_t &other) = default;
+
+    common::term result() const { return result_; }
+    bool failed() const { return result_ == common::term(); }
+    bool has_more() const { return has_more_; }
+    bool at_end() const { return at_end_; }
+    uint64_t get_cost() const { return cost_; }
+
+private:
+    common::term result_;
+    bool has_more_;
+    bool at_end_;
+    uint64_t cost_;
+};
+
+//
+// This is a generic meta context for remote execution.
+// It basically captures the query and the destination where it should
+// be executed (represented as a string). This string can represent anything
+// (which is up to the actual builtin to implement. For example, the
+//  string could be a name of a connection, or an IP address. As we'll have
+// multiple sub-interpreters implementing remote execution is a slightly
+// different way (e.g. the node vs the wallet) we'll at least provide the
+// common framework for it here.
+//
+typedef std::function<remote_return_t (interpreter_base &, common::term, const std::string &)> remote_execute_fn_t;
+typedef std::function<remote_return_t (interpreter_base &, const std::string &)> remote_continue_fn_t;
+typedef std::function<bool (interpreter_base &, const std::string &)> remote_delete_fn_t;
+  
+class meta_context_remote : public meta_context {
+public:
+    inline meta_context_remote(interpreter_base &interp, meta_fn fn,
+			       common::term query, const std::string &where,
+			       remote_continue_fn_t remote_cont,
+			       remote_delete_fn_t remote_del)
+      : meta_context(interp, fn), interp_(interp), query_(query), where_(where),
+        remote_continue_(remote_cont), remote_delete_(remote_del) { }
+
+    const std::string & where() const {
+        return where_;
+    }
+    common::term query() const {
+        return query_;
+    }
+    remote_return_t do_remote_continue() {
+        return remote_continue_(interp_, where_);
+    }
+    bool do_remote_delete() {
+        return remote_delete_(interp_, where_);
+    }
+    
+private:
+    interpreter_base &interp_;
+    std::string where_;
+    common::term query_;
+    remote_continue_fn_t remote_continue_;
+    remote_delete_fn_t remote_delete_;
+};
+
+class interpreter_exception_remote : public interpreter_exception {
+public:
+    interpreter_exception_remote(const std::string &msg)
+      : interpreter_exception(msg) { }
+};
+
+class remote_execution_proxy {
+public:
+    remote_execution_proxy(interpreter_base &interp,
+			   remote_execute_fn_t remote_execute_fn,
+			   remote_continue_fn_t remote_continue_fn,
+			   remote_delete_fn_t remote_delete_fn)
+      : interp_(interp),
+	remote_execute_(remote_execute_fn),
+        remote_continue_(remote_continue_fn),
+        remote_delete_(remote_delete_fn) { }
+
+    static bool callback(interpreter_base& interp,
+			 const interp::meta_reason_t &reason) {
+
+        auto *mc = interp.get_current_meta_context<meta_context_remote>();
+
+	interp.set_p(interp.EMPTY_LIST);
+	interp.set_cp(interp.EMPTY_LIST);
+
+	if (reason == interp::meta_reason_t::META_DELETE) {
+	    interp.release_last_meta_context();
+	    return true;
+	}
+
+	bool failed = interp.is_top_fail();
+	if (!failed) {
+  	    // If we did not fail, then unwind the environment and
+	    // the current meta context. (The current meta context will be
+	    // restored if we backtrack to a choice point.)
+	    interp.set_top_fail(false);
+	    interp.set_complete(false);
+	    interp.set_top_e(mc->old_top_e);
+	    interp.set_m(mc->old_m);
+	    return true;
+	}
+
+	interp.set_top_fail(false);
+	interp.set_complete(false);
+
+	// interp.unwind_to_top_choice_point();
+	// Query remote machine for next solution (this should be implemented
+	// by the builtin)
+	auto r = mc->do_remote_continue();
+	if (r.failed()) {
+	    interp.release_last_meta_context();
+	    if (r.at_end()) {
+	        bool ok = mc->do_remote_delete();
+		if (!ok) {
+		    throw interpreter_exception_remote(
+			       "Failed to delete remote instance at "
+			       + mc->where() + " for query "
+			       + interp.to_string(mc->query()));
+		}
+	    }
+	    return false;
+	}
+	common::term qr = mc->query();
+
+	if (!r.has_more()) {
+	    interp.release_last_meta_context();
+	    if (r.at_end()) {
+	        bool ok = mc->do_remote_delete();
+		if (!ok) {
+		    throw interpreter_exception_remote(
+			       "Failed to delete remote instance at "
+			       + mc->where() + " for query "
+			       + interp.to_string(mc->query()));
+		}
+	    }
+	    return false;
+	} else {
+	    interp.allocate_choice_point(code_point::fail());
+	    interp.set_p(interp.EMPTY_LIST);
+	}
+
+	return interp.unify(qr, r.result());
+    }
+			 
+    bool start(common::term query, const std::string where) {
+        auto result = remote_execute_(interp_, query, where);
+	if (result.failed()) {
+	    return false;
+	}
+
+	if (result.has_more()) {
+	    interp_.new_meta_context<meta_context_remote>(&callback, query, where, remote_continue_, remote_delete_);
+	    interp_.set_top_b(interp_.b());
+	    interp_.allocate_choice_point(code_point::fail());
+	}
+	return interp_.unify(result.result(), query);
+    }
+    
+private:
+    interpreter_base &interp_;
+
+    remote_execute_fn_t remote_execute_;
+    remote_continue_fn_t remote_continue_;
+    remote_delete_fn_t remote_delete_;
+};
     
 class interpreter : public wam_interpreter
 {

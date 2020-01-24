@@ -16,17 +16,7 @@ const con_cell local_interpreter::ME("me", 0);
 const con_cell local_interpreter::COLON(":", 2);
 const con_cell local_interpreter::COMMA(",", 2);
 
-struct meta_context_operator_at : public interp::meta_context {
-    meta_context_operator_at(interpreter_base &interp, meta_fn fn)
-	: meta_context(interp, fn) { }
-
-    // Where to execute. Don't store a reference to the connection directly,
-    // as the connection may die. This means we'll do a lookup every time
-    // but it's not efficient to begin with (think about all the network
-    // communication, serialization, etc.)
-    std::string where_;
-    term query_;
-};
+typedef meta_context_remote meta_context_operator_at;
 
 bool me_builtins::list_load_2(interpreter_base &interp0, size_t arity, term args[] )
 {
@@ -82,81 +72,19 @@ bool me_builtins::operator_at_2(interpreter_base &interp0, size_t arity, term ar
 	interp.abort(interpreter_exception_wrong_arg_type("@/2: Second argument must be an atom to represent a connection name; was " + interp.to_string(where_term)));
     }
 
-    std::string where_str = interp.atom_name(where_term);
+    std::string where = interp.atom_name(where_term);
 
-    auto result = interp.self().execute_at(query, interp, where_str);
-    if (result.failed()) {
-	return false;
-    }
+#define LL(interp) reinterpret_cast<local_interpreter &>(interp)
+    
+    remote_execution_proxy proxy(interp,
+        [](interpreter_base &interp, term query, const std::string &where)
+	   {return LL(interp).self().execute_at(query, interp, where);},
+	[](interpreter_base &interp, const std::string &where)
+	   {return LL(interp).self().continue_at(interp, where);},
+	[](interpreter_base &interp, const std::string &where)
+	   {return LL(interp).self().delete_instance_at(interp, where);});
 
-    if (result.has_more()) {
-	auto *mc = interp.new_meta_context<meta_context_operator_at>(&operator_at_2_meta);
-	interp.set_top_b(interp.b());
-	interp.allocate_choice_point(code_point::fail());
-	mc->where_ = where_str;
-	mc->query_ = query;
-    }
-    return interp.unify(result.result(), query);
-}
-
-bool me_builtins::operator_at_2_meta(interpreter_base &interp0, const interp::meta_reason_t &reason)
-{
-    auto &interp = to_local(interp0);
-    auto *mc = interp.get_current_meta_context<meta_context_operator_at>();
-
-    interp.set_p(interp.EMPTY_LIST);
-    interp.set_cp(interp.EMPTY_LIST);
-
-    if (reason == interp::meta_reason_t::META_DELETE) {
-	interp.release_last_meta_context();
-	return true;
-   } 
-
-    bool failed = interp.is_top_fail();
-    if (!failed) {
-	// If @/2 operator did not fail, then unwind the environment and
-	// the current meta context. (The current meta context will be
-	// restored if we backtrack to a choice point.)
-        interp.set_top_fail(false);
-	interp.set_complete(false);
-	interp.set_top_e(mc->old_top_e);
-	interp.set_m(mc->old_m);
-	return true;
-    }
-
-    interp.set_top_fail(false);
-    interp.set_complete(false);
-
-    // interp.unwind_to_top_choice_point();
-    // Now query remote machine for next solution
-    auto r = interp.self().continue_at(interp, mc->where_);
-    if (r.failed()) {
-	interp.release_last_meta_context();
-	if (r.at_end()) {
-	    bool ok = interp.self().delete_instance_at(interp, mc->where_);
-	    if (!ok) {
-		// TODO: Throw exception
-	    }
-	}
-	return false;
-    }
-    term qr = mc->query_;
-
-    if (!r.has_more()) {
-	interp.release_last_meta_context();
-	if (r.at_end()) {
-	    bool ok = interp.self().delete_instance_at(interp, mc->where_);
-	    if (!ok) {
-		// TODO: Throw exception
-	    }
-	}
-	return false;
-    } else {
-	interp.allocate_choice_point(code_point::fail());
-	interp.set_p(interp.EMPTY_LIST);
-    }
-
-    return interp.unify(qr, r.result());
+    return proxy.start(query, where);
 }
 
 bool me_builtins::id_1(interpreter_base &interp0, size_t arity, term args[] )

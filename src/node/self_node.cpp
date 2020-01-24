@@ -223,11 +223,11 @@ task_execute_query * self_node::schedule_execute_next(const std::string &where)
     return task;
 }
 
-self_node::execute_at_return_t self_node::schedule_execute_wait_for_result(task_execute_query *task, term_env &query_src)
+interp::remote_return_t self_node::schedule_execute_wait_for_result(task_execute_query *task, term_env &query_src)
 {
     task->wait_for_result();
     if (task->failed()) {
-	return execute_at_return_t();
+        return interp::remote_return_t();
     }
 
     term result_term = task->get_result();
@@ -240,25 +240,25 @@ self_node::execute_at_return_t self_node::schedule_execute_wait_for_result(task_
     term result_copy = query_src.copy(result_term, task->env(), cost_tmp);
     task->consume_result();
 
-    return execute_at_return_t(result_copy, has_more, at_end, cost);
+    return interp::remote_return_t(result_copy, has_more, at_end, cost);
 }
 
-self_node::execute_at_return_t self_node::execute_at(term query, term_env &query_src, const std::string &where)
+interp::remote_return_t self_node::execute_at(term query, term_env &query_src, const std::string &where)
 {
     auto *task = schedule_execute_query(query, query_src, where);
     if (task == nullptr) {
 	// TODO: Throw an exception instead
-	return execute_at_return_t();
+        return interp::remote_return_t();
     }
     return schedule_execute_wait_for_result(task, query_src);
 }
 
-self_node::execute_at_return_t self_node::continue_at(term_env &query_src, const std::string &where)
+interp::remote_return_t self_node::continue_at(term_env &query_src, const std::string &where)
 {
     auto *task = schedule_execute_next(where);
     if (task == nullptr) {
 	// TODO: Throw an exception instead
-	return execute_at_return_t();
+        return interp::remote_return_t();
     }
     return schedule_execute_wait_for_result(task, query_src);
 }
