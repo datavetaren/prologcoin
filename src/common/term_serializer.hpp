@@ -249,8 +249,12 @@ private:
     static inline uint8_t read_byte(const buffer_t &bytes, size_t from_offset)
         { return bytes[from_offset]; }
 
+    void set_used(size_t heap_start, std::vector<bool> &used, size_t heap_index);
+    bool is_used(size_t heap_start, std::vector<bool> &used, size_t heap_index);
+
     void integrity_check(size_t heap_start, size_t heap_end,
-			 size_t old_hdr_size, size_t new_hdr_size);
+			 size_t old_hdr_size, size_t new_hdr_size,
+			 std::vector<bool> &used);
 
     friend class test::test_term_serializer;
 
@@ -308,8 +312,9 @@ private:
     void write_encoded_string(buffer_t &bytes, const std::string &str);
     void write_all_header(buffer_t &bytes, const term t);
 
-    term read(const buffer_t &bytes, size_t n,
-	      size_t &offset, size_t &old_hdr_size, size_t &new_hdr_size);
+    term read(const buffer_t &bytes, size_t n, size_t heap_start,
+	      std::vector<bool> &used, size_t &offset,
+	      size_t &old_hdr_size, size_t &new_hdr_size);
     void read_all_header(const buffer_t &bytes, size_t &offset);
     void read_index(const buffer_t &bytes, size_t &offset, cell c);
     std::string read_encoded_string(const buffer_t &bytes, size_t &offset);
