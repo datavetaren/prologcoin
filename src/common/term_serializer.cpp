@@ -316,11 +316,11 @@ term term_serializer::read(const buffer_t &bytes, size_t n,
     }
 
     for(auto &tindex : ptr_terms) {
-      ptr_cell pcell =
-	reinterpret_cast<const ptr_cell&>(env_.heap_get(tindex));
+      cell c = env_.heap_get(tindex);
+      auto &pcell = reinterpret_cast<ptr_cell&>(c);
       size_t old_index = pcell.index();
       size_t new_index = old_new_index[old_index];
-      pcell.set_index(old_new_index[old_index]);
+      pcell.set_index(new_index);
       env_.heap_set(tindex, pcell);
     }
 
