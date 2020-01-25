@@ -319,7 +319,13 @@ term term_serializer::read(const buffer_t &bytes, size_t n,
       cell c = env_.heap_get(tindex);
       auto &pcell = reinterpret_cast<ptr_cell&>(c);
       size_t old_index = pcell.index();
-      size_t new_index = old_new_index[old_index];
+      auto new_index_iter = old_new_index.find(old_index);
+      size_t new_index = 0;
+      if(new_index_iter == old_new_index.end()) {
+        new_index = old_index + old_hdr; // Set to original value since we cannot find the new
+      } else {
+        new_index = (*new_index_iter).second;
+      }
       pcell.set_index(new_index);
       env_.heap_set(tindex, pcell);
     }
