@@ -86,8 +86,8 @@ public:
     
 private:
     interpreter_base &interp_;
-    std::string where_;
     common::term query_;
+    std::string where_;
     remote_continue_fn_t remote_continue_;
     remote_delete_fn_t remote_delete_;
 };
