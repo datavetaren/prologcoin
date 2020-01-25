@@ -1287,12 +1287,22 @@ public:
 	import_bits(i, begin(b), end(b), 8);
     }
     
-    inline void new_cell0(cell c)
+    inline size_t new_cell0(cell c, bool has_tag = true)
     {
         cell *p;
         size_t index;
+	if(has_tag) {
+	  if(c.tag() == tag_t::CON) {
+	    auto &con = reinterpret_cast<con_cell &>(c);
+	    ensure_allocate(1+con.arity());
+	  } else if(c.tag() == tag_t::DAT) {
+	    auto &dat = reinterpret_cast<dat_cell &>(c);
+	    ensure_allocate(dat.num_cells());
+	  }
+	}
         std::tie(p, index) = allocate(tag_t::STR, 1);
 	*p = c;
+	return index;
     }
 
     inline term new_dotted_pair()

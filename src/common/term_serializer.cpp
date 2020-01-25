@@ -168,20 +168,46 @@ term term_serializer::read(const buffer_t &bytes)
 
 term term_serializer::read(const buffer_t &bytes, size_t n)
 {
+    std::vector<bool> used;
     size_t offset = 0;
     size_t heap_start = env_.heap_size();
     size_t old_hdr_size = 0, new_hdr_size = 0;
-    term t = read(bytes, n, offset, old_hdr_size, new_hdr_size);
+    term t =
+      read(bytes, n, heap_start, used, offset, old_hdr_size, new_hdr_size);
     size_t heap_end = env_.heap_size();
-    integrity_check(heap_start, heap_end, old_hdr_size, new_hdr_size);
+    integrity_check(heap_start, heap_end, old_hdr_size, new_hdr_size, used);
     return t;
 }
 
+void term_serializer::set_used(size_t heap_start, std::vector<bool> &used,
+			       size_t heap_index) {
+  size_t rel = heap_index - heap_start;
+  if (used.size() <= rel) {
+    used.resize(rel+1);
+  }
+  used[rel] = true;
+};
+
+bool term_serializer::is_used(size_t heap_start, std::vector<bool> &used,
+			      size_t heap_index) {
+  size_t rel = heap_index - heap_start;
+  if (rel >= used.size()) {
+    return false;
+  }
+  bool r = used[rel];
+  return r;
+};
+
 term term_serializer::read(const buffer_t &bytes, size_t n,
+			   size_t heap_start,
+			   std::vector<bool> &used,
 			   size_t &offset,
 			   size_t &old_header_size,
 			   size_t &new_header_size)
 {
+    std::vector<size_t> ptr_terms;
+    std::map<size_t, size_t> old_new_index;
+
     term_index_.clear();
 
     size_t old_addr_base = offset;
@@ -199,29 +225,39 @@ term term_serializer::read(const buffer_t &bytes, size_t n,
 
     size_t num_dat = 0;
 
+    size_t result_index = 0;
+    size_t result_set = false;
+
     while (offset < n) {
+        size_t new_index = 0;
+        size_t old_index =
+	  (offset - old_addr_base - old_header_size)/sizeof(cell);
+
 	cell c = read_cell(bytes, offset, "reading for term construction");
 
 	// Process as untagged cells if num_dat > 0
 	if (num_dat > 0) {
-	    env_.new_cell0(c);
+            env_.new_cell0(c, false);
 	    num_dat--;
 	    offset += sizeof(cell);
 	    continue;
 	}
 
 	switch (c.tag()) {
-	case tag_t::INT: env_.new_cell0(c); break;
+	case tag_t::INT:
+	  new_index = env_.new_cell0(c);
+	  break;
 	case tag_t::CON: {
 	    auto &con = reinterpret_cast<const con_cell &>(c);
+
 	    if (con.is_direct()) {
-		env_.new_cell0(c);
+	      new_index = env_.new_cell0(c);
 	    } else {
 		if (!is_indexed(c)) {
 		    throw serializer_exception_missing_index(c);
 		}
 		auto newcon = con_cell(index_term(c,0), con.arity());
-		env_.new_cell0(newcon);
+		new_index  = env_.new_cell0(newcon);
 		new_to_old_[newcon] = c;
 	    }
 	    break;
@@ -234,16 +270,22 @@ term term_serializer::read(const buffer_t &bytes, size_t n,
 	case tag_t::STR: {
 	    auto &pc = reinterpret_cast<const ptr_cell&>(c);
 	    size_t new_addr;
+	    bool needs_patching = false;
+
 	    if (pc.index() < old_hdr) {
 		if (!is_indexed(c)) {
 		    throw serializer_exception_missing_index(pc);
 		}
 		new_addr = index_term(c, 0);
 	    } else {
-		new_addr = pc.index() - old_hdr + new_addr_base + new_hdr_size;
+                new_addr = pc.index() - old_hdr; // Old index to patch
+                needs_patching = true;
 	    }
 	    cell new_cell = ptr_cell(c.tag(), new_addr);
-	    env_.new_cell0(new_cell);
+	    new_index = env_.new_cell0(new_cell);
+	    if (needs_patching) {
+	      ptr_terms.push_back(new_index);
+	    }
 	    new_to_old_[new_cell] = c;
 	    break;
    	    }
@@ -256,15 +298,34 @@ term term_serializer::read(const buffer_t &bytes, size_t n,
 	    if (offset + nc*sizeof(cell) > n) {
 		throw serializer_exception_dat_too_big(c, offset, n);
 	    }
-	    env_.new_cell0(c);
+	    new_index = env_.new_cell0(c);
 	    num_dat = nc - 1;
 	    break;
 	    }
 	}
+
+	if(!result_set) {
+	  result_index = new_index;
+	  result_set = true;
+	}
+
+	old_new_index[old_index] = new_index;
+	set_used(heap_start, used, new_index);
+
 	offset += sizeof(cell);
     }
 
-    return env_.heap_get(new_addr_base + new_hdr_size);
+    for(auto &tindex : ptr_terms) {
+      ptr_cell pcell =
+	reinterpret_cast<const ptr_cell&>(env_.heap_get(tindex));
+      size_t old_index = pcell.index();
+      size_t new_index = old_new_index[old_index];
+      pcell.set_index(old_new_index[old_index]);
+      env_.heap_set(tindex, pcell);
+    }
+
+    term result = env_.heap_get(result_index);
+    return result;
 }
 
 void term_serializer::read_all_header(const buffer_t &bytes, size_t &offset)
@@ -355,8 +416,8 @@ void term_serializer::read_index(const buffer_t &bytes, size_t &offset, cell c)
 }
 
 void term_serializer::integrity_check(size_t heap_start, size_t heap_end,
-				      size_t old_hdr_size,
-				      size_t new_hdr_size)
+				      size_t old_hdr_size, size_t new_hdr_size,
+				      std::vector<bool> &used)
 {
     std::vector<bool> checked;
 
@@ -513,7 +574,7 @@ void term_serializer::integrity_check(size_t heap_start, size_t heap_end,
     };
 
     for (size_t i = heap_start; i < heap_end; i++) {
-	if (is_checked(i)) {
+      if (is_checked(i) || !is_used(heap_start, used, i)) {
 	    continue;
 	}
 	cell c = env_.heap_get(i);
