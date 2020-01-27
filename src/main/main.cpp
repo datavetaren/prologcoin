@@ -1,22 +1,27 @@
 #include <boost/filesystem.hpp>
 #include <boost/algorithm/string/predicate.hpp>
 #include "../node/self_node.hpp"
-#include "interactive_terminal.hpp"
+#include "interactive_prompt.hpp"
 #include "../common/readline.hpp"
+#include "../wallet/wallet.hpp"
 
 using namespace prologcoin::node;
+using namespace prologcoin::wallet;
 
 static std::string program_name;
 static std::string home_dir;
 unsigned short port = self_node::DEFAULT_PORT;
 static std::string name;
 static std::string dir;
+static bool is_wallet = false;
 
 static void help()
 {
     std::cout << std::endl;
-    std::cout << "Usage: " << program_name << " --interactive [--port <number>]" << std::endl;
+    std::cout << "Usage: " << program_name << " --interactive(-wallet) [--port <number>]" << std::endl;
     std::cout << "  --interactive (non-interactive currently unavailable)" << std::endl;
+    std::cout << "  --interactive-wallet (will start both the node and a walet " << std::endl;
+    std::cout << "                        connecting to that node.)" << std::endl;
     std::cout << "  --port <number> (start service on this port, default is " << self_node::DEFAULT_PORT << ")" << std::endl;
     std::cout << "  --name <string> (set friendly name on node, default is noname)" << std::endl;
     std::cout << "  --datadir <dir> (location of data directory)" << std::endl;
@@ -31,6 +36,7 @@ static void start()
     std::cout << std::endl;
 
     self_node node(port);
+    std::shared_ptr<wallet> wallet_ptr;
 
     if (!name.empty()) {
 	node.set_name(name);
@@ -44,11 +50,26 @@ static void start()
     
     node.start();
 
-    prologcoin::main::interactive_terminal term(port);
-    if (!term.connect()) {
-	std::cout << "Couldn't connect to node." << std::endl;
-    } else {
-	term.run();
+    prologcoin::main::interactive_prompt prompt;
+    if (!prompt.connect_node(port)) {
+        std::cout << "Couldn't connect to node." << std::endl;
+	return;
+    }
+
+    if (is_wallet) {
+        std::string wallet_file = dir;
+        wallet_file += boost::filesystem::path::preferred_separator;
+	wallet_file += "wallet.pl";
+	std::cout << "[In wallet mode using: " << wallet_file << "]" << std::endl;
+        wallet_ptr = std::shared_ptr<wallet>(new wallet(wallet_file));
+	prompt.connect_wallet(wallet_ptr);
+	wallet_ptr->connect_node(prompt.node_terminal());
+    }
+    
+    prompt.run();
+
+    if (is_wallet) {
+	wallet_ptr.reset();
     }
 
     node.stop();
@@ -104,10 +125,14 @@ int main(int argc, char *argv[])
     }
 
     std::string interactive_opt = get_option(args, "--interactive");
-    if (interactive_opt.empty()) {
-	std::cout << std::endl << program_name << ": --interactive is missing (see --help.)" << std::endl << std::endl;
+    std::string interactive_wallet_opt = get_option(args, "--interactive-wallet");
+    
+    if (interactive_wallet_opt.empty() && interactive_opt.empty()) {
+	std::cout << std::endl << program_name << ": --interactive or --interactive-wallet is missing (see --help.)" << std::endl << std::endl;
 	return 0;
     }
+
+    is_wallet = !interactive_wallet_opt.empty();
 
     std::string port_opt = get_option(args, "--port");
     if (!port_opt.empty()) {

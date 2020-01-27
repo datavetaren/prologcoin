@@ -44,7 +44,10 @@ public:
     ~terminal();
 
     bool connect();
+    bool delete_instance();
     void close();
+
+    void node_pulse();
 
     void lock_text_output_and(std::function<void()> fn);
     void add_text_output(const std::string &line);
@@ -66,6 +69,7 @@ public:
     inline bool execute(term t) { return execute_query(t); }
 
     inline bool has_more() const { return has_more_; }
+    inline bool at_end() const { return at_end_; }
     inline bool next() { if (!has_more_) { return false; } else return execute_in_query(";"); }
     bool reset();
 
@@ -85,8 +89,8 @@ public:
 	if (it == var_result_string_.end()) return empty; else return it->second;
     }
 
-protected:
     inline void set_has_more() { has_more_ = true; }
+    inline void set_at_end() { at_end_ = true; }
 
 private:
     void run();
@@ -119,6 +123,7 @@ private:
 
     std::string session_id_;
     bool has_more_;
+    bool at_end_;
 
     term result_;
     std::vector<std::string> var_names_;

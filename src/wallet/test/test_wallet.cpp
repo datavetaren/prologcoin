@@ -1,9 +1,11 @@
 #include <common/test/test_home_dir.hpp>
 #include <common/utime.hpp>
 #include <wallet/wallet.hpp>
+#include <terminal/terminal.hpp>
 
 using namespace prologcoin::common;
 using namespace prologcoin::wallet;
+using namespace prologcoin::terminal;
 
 std::string home_dir;
 std::string wallet_home;
@@ -27,13 +29,6 @@ static void test_wallet()
     w.print();
     
     std::cout << "WE GOT: " << w.execute("wallet:pubkey(1, X).") << std::endl;
-    
-    w.start();
-
-    utime::sleep( utime::ss(3) );
-
-    w.stop();
-    w.join();
 }
 
 int main(int argc, char *argv[])

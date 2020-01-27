@@ -572,9 +572,6 @@ void local_interpreter::ensure_initialized()
 
 	// Load startup file
 	startup_file();
-
-	// Setup this last, because it refers to some builtins above
-	global::global::setup_consensus_lib(*this);
     }
 }
 

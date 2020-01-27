@@ -24,31 +24,36 @@ void wallet::load()
     interp_.load_program(ifs);
 }
 
-void wallet::start(unsigned short port, const std::string &address)
+void wallet::connect_node(std::shared_ptr<terminal> &node_term)
 {
-    thread_ = boost::thread([&](){ run(); });
-}
-    
-void wallet::stop() {
-    killed_ = true;
+    terminal_ = node_term;
 }
 
-void wallet::join() {
-    thread_.join();
-}
-
-void wallet::run()
+void wallet::node_pulse()
 {
-    while (!killed_) {
-        std::cout << "Tic" << std::endl;
-	std::cout.flush();
-        utime::sleep(utime::ss(1));
+    if (terminal_ != nullptr) {
+        terminal_->node_pulse();
     }
 }
 
 void wallet::print()
 {
     interp_.print_db();
+}
+
+void wallet::reset()
+{
+    interp_.reset();
+}
+
+bool wallet::has_more()
+{
+    return interp_.has_more();
+}
+
+bool wallet::next()
+{
+    return interp_.next();
 }
     
 std::string wallet::execute(const std::string &cmd)
@@ -74,19 +79,64 @@ std::string wallet::execute(const std::string &cmd)
     }
 }
 
+bool wallet::execute(term query)
+{
+    return interp_.execute(query);
+}
+
+std::string wallet::get_result()
+{
+    return interp_.get_result();
+}
+
 remote_return_t wallet::execute_at(term query, term_env &query_src, const std::string &where)
 {
-    return remote_return_t();
+    uint64_t cost = 0;
+    term query_term = terminal_->env().copy(query, env(), cost);
+
+    bool old = terminal_->is_result_to_text();
+    try {
+	terminal_->set_result_to_text(false);
+	if (!terminal_->execute(query_term)) {
+	    terminal_->set_result_to_text(old);
+	    return remote_return_t();
+	}
+    } catch (...) {
+        terminal_->set_result_to_text(old);
+	throw;
+    }
+    terminal_->set_result_to_text(old);
+    term result_remote = terminal_->get_result();
+    bool more_state = terminal_->has_more();
+    bool at_end_state = terminal_->at_end();
+    term result_term = query_src.copy(result_remote, terminal_->env(), cost);
+    return remote_return_t(result_term, more_state, at_end_state, cost);
 }
 
 remote_return_t wallet::continue_at(term_env &query_src, const std::string &where)
 {
-    return remote_return_t();
+    uint64_t cost = 0;
+    bool old = terminal_->is_result_to_text();
+    terminal_->set_result_to_text(false);
+    try {
+        if (!terminal_->next()) {
+            return remote_return_t();
+	}
+    } catch (...) {
+        terminal_->set_result_to_text(old);
+	throw;
+    }
+    terminal_->set_result_to_text(old);    
+    term result_remote = terminal_->get_result();
+    bool more_state = terminal_->has_more();
+    bool at_end_state = terminal_->at_end();
+    term result_term = query_src.copy(result_remote, terminal_->env(), cost);
+    return remote_return_t(result_term, more_state, at_end_state, cost);
 }
 
 bool wallet::delete_instance_at(term_env &query_src, const std::string &where)
 {
-    return false;
+    return terminal_->delete_instance();
 }
     
     

@@ -3,6 +3,7 @@
 #ifndef _wallet_wallet_hpp
 #define _wallet_wallet_hpp
 
+#include "../common/term_env.hpp"
 #include "../terminal/terminal.hpp"
 #include "wallet_interpreter.hpp"
 
@@ -26,17 +27,21 @@ public:
     wallet(const std::string &wallet_file);
     ~wallet();
 
+    inline common::term_env & env() { return interp_; }
+  
     void load();
   
     // Start the thread that will talk to the node.
-    void start(unsigned short port = terminal::DEFAULT_PORT, const std::string &host = "127.0.0.1");
-
-    void run();
-    void stop();
-    void join();
+    void connect_node(std::shared_ptr<terminal> &node_terminal);
+    void node_pulse();
     void print();
 
     std::string execute(const std::string &cmd);
+    bool execute(common::term query);
+    std::string get_result();
+    void reset();
+    bool has_more();
+    bool next();
 
     remote_return_t execute_at(common::term query, common::term_env &query_src, const std::string &where);
     remote_return_t continue_at(common::term_env &query_src, const std::string &where);
@@ -52,7 +57,7 @@ private:
     boost::thread thread_;
 
     // This is the terminal to the node.
-    std::unique_ptr<terminal> terminal_;
+    std::shared_ptr<terminal> terminal_;
 };
     
 }}

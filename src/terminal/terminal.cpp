@@ -16,6 +16,7 @@ terminal::terminal(unsigned short port, const std::string &ip_address)
     buffer_(MAX_BUFFER_SIZE, ' '),
     buffer_len_(sizeof(cell)),
     has_more_(false),
+    at_end_(false),    
     result_to_text_(true)
 {
 }
@@ -341,14 +342,56 @@ bool terminal::connect()
     if (state_term == con_cell("more",0)) {
 	has_more_ = true;
     }
+    if (state_term == con_cell("at_end",0)) {
+        at_end_ = true;
+    }
     return true;
 }
+
+bool terminal::delete_instance()
+{
+    auto &e = env_;
+    if (!send_query(e.new_term(con_cell("command",1), {con_cell("delinst",0)}))) {
+	return false;
+    }
+    auto reply = read_reply();
+    if (reply == term()) {
+	return false;
+    }
+
+    if (e.functor(reply) != con_cell("ok",1)) {
+	add_error("Node replied with failure: " + env_.to_string(reply));
+	return false;
+    }
+    return true;
+}
+
 
 void terminal::close()
 {
     boost::system::error_code ec;
     socket_.shutdown(boost::asio::ip::tcp::socket::shutdown_both, ec);
     socket_.close(ec);
+}
+
+void terminal::node_pulse()
+{
+    static con_cell COLON(":", 2);  
+    static con_cell COMMA(",", 2);
+    static con_cell ME("me",0);
+  
+    term_env &e = env();
+    auto query_pulse = e.new_term(COMMA,
+				      { e.new_term(
+				    COLON,
+				   {ME, e.functor("heartbeat",0)}),
+		  	     e.new_term(
+				    COLON,
+				   {ME, e.functor("check_mail",0)})});
+    bool old = is_result_to_text();
+    set_result_to_text(false);
+    execute(query_pulse);
+    set_result_to_text(old);
 }
 
 bool terminal::execute_query(const term query)
