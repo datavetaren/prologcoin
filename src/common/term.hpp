@@ -773,6 +773,8 @@ class heap; // Forward
 //
 class heap_block : private boost::noncopyable {
 public:
+
+    friend class garbage_collector;
     static const size_t MAX_SIZE = 8192; // 64k
 
     inline heap_block(heap &h) : heap_block(h, 0) { }
@@ -799,6 +801,11 @@ public:
     inline size_t size() const { return size_; }
     inline bool is_full() const { return size() == MAX_SIZE; }
 
+    inline void set_index(size_t new_index) {
+      index_ = new_index;
+      offset_ = new_index * MAX_SIZE;
+    }
+
     inline cell & operator [] (size_t addr) {
         if (!changed_) { changed_ = true; modified(); }
 	return cells_[addr - offset_];
@@ -806,6 +813,14 @@ public:
 
     inline const cell & operator [] (size_t addr) const {
 	return cells_[addr - offset_];
+    }
+
+    inline cell & get(size_t index) const {
+        return cells_[index];
+    }
+
+    inline void set(size_t index, cell c) {
+        cells_[index] = c;
     }
 
     inline bool can_allocate(size_t n) const {
@@ -989,6 +1004,8 @@ public:
         }
     }
 
+    friend class garbage_collector;
+
     class disabled_coin_security;
     friend class disabled_coin_security;
 
@@ -1007,7 +1024,7 @@ public:
     inline disabled_coin_security disable_coin_security() {
         return disabled_coin_security(*this);
     }
-  
+
     inline void check_index(size_t index) const
     {
 	if (index >= size()) {
@@ -1558,6 +1575,11 @@ private:
         heap_block *block = new heap_block(h, h.blocks_.size());
 	h.set_head_block(block);
 	h.blocks_.push_back(block);
+    }
+
+    inline heap_block * find_block_from_index(size_t index) const
+    {
+        return blocks_[index];
     }
 
     inline heap_block & find_block(size_t addr)
