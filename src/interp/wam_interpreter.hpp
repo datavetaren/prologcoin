@@ -7,6 +7,7 @@
 #include <vector>
 #include <iomanip>
 #include <map>
+#include <set>
 #include "interpreter_base.hpp"
 
 namespace prologcoin { namespace interp {
@@ -766,6 +767,9 @@ private:
     bool fail_;
     wam_compiler *compiler_;
 
+    // Set with all offsets
+    std::set <size_t> label_offsets;
+
     template<wam_instruction_type I> friend class wam_instruction;
 
     static inline size_t num_y(interpreter_base *interp, bool use_previous)
@@ -819,7 +823,7 @@ private:
 
     static inline void restore_state(interpreter_base *interp)
     {
-	auto wami = reinterpret_cast<wam_interpreter *>(interp);	  
+       auto wami = reinterpret_cast<wam_interpreter *>(interp);
 	auto ef = interp->ef();
 	if (ef->num_extra == 0) {
 	     interpreter_base::restore_state(interp);
@@ -836,9 +840,136 @@ private:
 	wami->set_num_of_args(num_a);
     }
 
+    static inline size_t top_num_y(interpreter_base *interp) {
+      auto wami = reinterpret_cast<wam_interpreter *>(interp);
+      auto instr = wami->p().wam_code();
+      size_t offset = wami->to_code_addr(instr);
+      auto beginning_offset = *(--(wami->label_offsets.lower_bound(offset)));
+      int i = 0;
+      int max_y = -1;
+      for(auto current_instr = wami->to_code(beginning_offset); current_instr <= instr;) {
+        //        	std::cout << "Instr " << i << ": ";
+        //                current_instr->print(std::cout, *wami);
+        //        	std::cout << "\n";
+	current_instr = wami->next_instruction(current_instr);
+	i = i + 1;
+	switch(current_instr->type()) {
+	case PUT_VARIABLE_Y:
+	case PUT_VALUE_Y:
+	case PUT_UNSAFE_VALUE_Y:
+	case GET_VALUE_Y: {
+	  auto bin_reg = reinterpret_cast<wam_instruction_binary_reg *>(current_instr);
+	  auto yn = bin_reg->reg_1();
+	  max_y = yn > max_y ? yn : max_y;
+	  break;
+	}
+	case PUT_STRUCTURE_Y:
+	case GET_STRUCTURE_Y: {
+	  auto con_reg = reinterpret_cast<wam_instruction_con_reg *>(current_instr);
+	  auto yn = con_reg->reg();
+	  max_y = yn > max_y ? yn : max_y;
+	  break;
+	}
+	case PUT_LIST_Y:
+	case GET_LIST_Y:
+	case SET_VARIABLE_Y:
+	case SET_VALUE_Y:
+	case SET_LOCAL_VALUE_Y:
+	case UNIFY_LOCAL_VALUE_Y: {
+	  auto un_reg = reinterpret_cast<wam_instruction_unary_reg *>(current_instr);
+	  auto yn = un_reg->reg();
+	  max_y = yn > max_y ? yn : max_y;
+	  break;
+	}
+	default:
+	  break;
+	}
+      }
+      // max_y is the highest index, so total number of y registers is max_y + 1
+      auto num_y = max_y + 1;
+      return num_y;
+    }
+
+  static inline size_t num_a(wam_interpreter *wami) {
+    code_point &p = wami->p();
+    size_t wam_addr = wami->to_code_addr(p.wam_code());
+    auto qn = wami->get_wam_predicate(wam_addr);
+    return qn.second.arity();
+  }
+
+  static inline void gc_roots(std::vector<common::ptr_cell *> &roots,
+                              interpreter_base *interp) {
+    auto wami = reinterpret_cast<wam_interpreter *>(interp);
+    get_register_roots(roots, wami);
+  }
+
+  static inline void get_a_roots(std::vector<common::ptr_cell *> &roots,
+                                 wam_interpreter *wami) {
+    auto na = num_a(wami);
+    for(size_t i = 0; i < na; i++) {
+      add_root(roots, wami->a_ptr(i));
+    }
+  }
+
+  static inline void get_x_roots(std::vector<common::ptr_cell *> &roots,
+                                 wam_interpreter *wami) {
+      auto instr = wami->p().wam_code();
+      size_t offset = wami->to_code_addr(instr);
+      auto beginning_offset = *(--(wami->label_offsets.lower_bound(offset)));
+      int i = 0;
+      for(auto current_instr = wami->to_code(beginning_offset); current_instr <= instr;) {
+	//std::cout << "Instr " << i << ": ";
+	//current_instr->print(std::cout, *wami);
+	//std::cout << "\n";
+	current_instr = wami->next_instruction(current_instr);
+	i = i + 1;
+	switch(current_instr->type()) {
+	case PUT_VARIABLE_X:
+	case PUT_VALUE_X:
+	case GET_VALUE_X: {
+	  auto bin_reg = reinterpret_cast<wam_instruction_binary_reg *>(current_instr);
+	  auto xn = bin_reg->reg_1();
+	  add_root(roots, wami->x_ptr(xn));
+	  break;
+	}
+	case PUT_STRUCTURE_X:
+	case GET_STRUCTURE_X: {
+	  auto con_reg = reinterpret_cast<wam_instruction_con_reg *>(current_instr);
+	  auto xn = con_reg->reg();
+	  add_root(roots, wami->x_ptr(xn));
+	  break;
+	}
+	case PUT_LIST_X:
+	case GET_LIST_X:
+	case SET_VARIABLE_X:
+	case SET_VALUE_X:
+	case SET_LOCAL_VALUE_X:
+	case UNIFY_LOCAL_VALUE_X: {
+	  auto un_reg = reinterpret_cast<wam_instruction_unary_reg *>(current_instr);
+	  auto xn = un_reg->reg();
+	  add_root(roots, wami->x_ptr(xn));
+	  break;
+	}
+	default:
+	  break;
+	}
+      }
+    }
+
+    static inline void get_register_roots(std::vector<common::ptr_cell *> &roots,
+                                          wam_interpreter *wami) {
+      get_a_roots(roots, wami);
+      get_x_roots(roots, wami);
+    }
+
     inline term & x(size_t i)
     {
         return register_xn_[i];
+    }
+
+    inline term *x_ptr(size_t i)
+    {
+        return &register_xn_[i];
     }
 
     inline void backtrack()

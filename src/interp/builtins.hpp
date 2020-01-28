@@ -62,6 +62,7 @@ typedef std::pair<common::con_cell, common::con_cell> qname;
         static bool profile_0(interpreter_base &interp, size_t arity, common::term args []);
 
 	static bool debug_on_0(interpreter_base &interp, size_t arity, common::term args []);
+
 	static bool debug_off_0(interpreter_base &interp, size_t arity, common::term args []);	
 	static bool debug_check_0(interpreter_base &interp, size_t arity, common::term args[]);
 	static bool debug_predicate_1(interpreter_base &interp, size_t arity, common::term args[]);
@@ -218,6 +219,10 @@ typedef std::pair<common::con_cell, common::con_cell> qname;
         static bool module_1(interpreter_base &interp, size_t arity, common::term args[]);
 	static bool use_module_1(interpreter_base &interp, size_t arity, common::term args[]);
 
+        static bool dump_roots_0(interpreter_base &interp, size_t arity, common::term args[]);
+        static bool dump_stack_0(interpreter_base &interp, size_t arity, common::term args[]);
+        static bool dump_choice_points_0(interpreter_base &interp, size_t arity, common::term args[]);
+        static bool garbage_collect_0(interpreter_base &interp, size_t arity, common::term args[]);
         //
         // Program database
         //

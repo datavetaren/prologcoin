@@ -48,6 +48,10 @@ public:
 	return clause_;
     }
 
+    inline common::term *clause_ptr() {
+        return &clause_;
+    }
+
     inline bool is_erased() const {
         return clause_ == common::term();
     }
@@ -96,7 +100,7 @@ public:
   const std::vector<managed_clause> & get_clauses(interpreter_base &interp, size_t term_id) const;
   const std::vector<managed_clause> & get_clauses(interpreter_base &interp, common::term first_arg) const;
 
-  inline const std::vector<managed_clause> & get_clauses() const
+  inline std::vector<managed_clause> & get_clauses() const
       { return clauses_; }
 
   inline size_t num_clauses() const { return num_clauses_; }
@@ -273,6 +277,7 @@ public:
     inline wam_instruction_base * wam_code() const { return wam_code_; }
     inline builtin_fn bn() const { return bn_; }
     inline const common::con_cell & module() const { return module_; }
+
     inline const common::term & term_code() const { return term_code_; }
     inline const common::int_cell & label() const { return reinterpret_cast<const common::int_cell &>(term_code_); }
     inline const common::con_cell & name() const { return reinterpret_cast<const common::con_cell &>(term_code_); }
@@ -300,6 +305,7 @@ public:
     std::string to_string(const interpreter_base &interp) const;
 
 private:
+    friend class interpreter_base;
     static const common::term fail_term_;
 
     union {
@@ -1094,8 +1100,22 @@ public:
     inline bool has_meta_context() const
         { return register_m_ != nullptr; }
 
+    std::vector<common::ptr_cell *> get_gc_roots();
+    void get_meta_roots(std::vector<common::ptr_cell *> &roots);
+    void get_stack_roots(std::vector<common::ptr_cell *> &roots);
+    void get_program_db_roots(std::vector<common::ptr_cell *> &roots);
+    void get_code_db_roots(std::vector<common::ptr_cell *> &roots);
+    void get_meta_db_roots(std::vector<common::ptr_cell *> &roots);
+    void get_frozen_closure_roots(std::vector<common::ptr_cell *> &roots);
+
+    void dump_roots();
+    void dump_stack();
+    void dump_choice_points();
+    void garbage_collect();
+  
 protected:
     friend class wam_interpreter;
+    friend class gc_visitor;
   
     template<typename T> inline size_t words() const
     { return sizeof(T)/sizeof(word_t); }
@@ -1143,6 +1163,7 @@ protected:
     }
 
     typedef size_t (*num_y_fn_t)(interpreter_base *interp, bool use_previous);
+    typedef void (*gc_roots_fn_t)(std::vector<common::ptr_cell *> &roots, interpreter_base *interp);
     typedef void (*save_state_fn_t)(interpreter_base *interp);
     typedef void (*restore_state_fn_t)(interpreter_base *interp);
 
@@ -1156,6 +1177,16 @@ protected:
         num_y_fn_ = num_y_fn;
     }
 
+    inline void set_gc_roots_fn(gc_roots_fn_t gc_roots_fn)
+    {
+      gc_roots_fn_ = gc_roots_fn;
+    }
+
+    inline gc_roots_fn_t gc_roots_fn()
+    {
+      return gc_roots_fn_;
+    }
+  
     inline save_state_fn_t save_state_fn()
     {
         return save_state_fn_;
@@ -1175,6 +1206,11 @@ protected:
     inline term & a(size_t i)
     {
         return register_ai_[i];    
+    }
+
+    inline term * a_ptr(size_t i)
+    {
+        return &register_ai_[i];
     }
 
     inline term & y(size_t i)
@@ -1197,6 +1233,16 @@ protected:
         num_of_args_ = n;
     }
 
+    static inline void add_root(std::vector<common::ptr_cell *> &roots,
+                                term *t) {
+        if(t->tag() == common::tag_t::REF ||
+	   t->tag() == common::tag_t::RFW ||
+	   t->tag() == common::tag_t::BIG ||
+	   t->tag() == common::tag_t::STR) {
+	    roots.push_back(reinterpret_cast<common::ptr_cell *>(t));
+	}
+    }
+
     static inline size_t num_y(interpreter_base *interp, bool)
     {
         if (interp->e_kind() == ENV_FROZEN) {
@@ -1209,6 +1255,10 @@ protected:
 	}
     }
 
+    static inline void gc_roots(std::vector<common::ptr_cell> &roots,
+				interpreter_base *interp) {
+    }
+  
     static inline void save_state(interpreter_base *interp)
     {
         // Nothing being ordinary needs to be done in the naive interpreter as
@@ -1532,12 +1582,14 @@ protected:
 	    set_pr(ee1->pr);
 	    break;
    	    }
-	case ENV_WAM:
+	case ENV_WAM: {
+	  //	  auto frame_ptr = e0();
   	    set_cp(e0()->cp);
 	    set_e(e0()->ce);
 	    break;
 	}
-	    
+	}
+
 	// std::cout << "[after]  deallocate_environment: e=" << e() << " p=" << to_string_cp(p()) << " cp=" << to_string_cp(cp()) << "\n";
 	
     }
@@ -1798,6 +1850,7 @@ private:
     size_t num_of_args_;
 
     num_y_fn_t num_y_fn_;
+    gc_roots_fn_t gc_roots_fn_;
     save_state_fn_t save_state_fn_;
     restore_state_fn_t restore_state_fn_;
 
@@ -2335,6 +2388,13 @@ template<> inline environment_t * interpreter_base::allocate_environment<ENV_WAM
     new_e->ce = save_e();
     new_e->cp = cp();
     set_e(new_e, ENV_WAM);
+
+    //    auto ny = num_y_fn()(this, true);
+    //    std::cout << "New Env: num_y = " << ny << ", new_e: " << new_e << "\n";
+    //    for(size_t i = 0; i < ny; i++) {
+    //      y(i) = common::int_cell(0);
+    //    }
+
     return new_e;
 }
 

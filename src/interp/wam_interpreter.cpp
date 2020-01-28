@@ -202,6 +202,7 @@ void wam_interpreter::total_reset()
     fail_ = false;
     mode_ = READ;
     set_num_y_fn( &num_y );
+    set_gc_roots_fn( &gc_roots);
     set_save_restore_state_fns( &save_state, &restore_state );
     register_s_ = 0;
     memset(register_xn_, 0, sizeof(register_xn_));
@@ -403,6 +404,7 @@ void wam_interpreter::load_code(wam_interim_code &instrs)
 	    auto *lbl_instr = static_cast<wam_interim_instruction<INTERIM_LABEL> *>(instr);
 	    size_t lbl = static_cast<size_t>(lbl_instr->label().value());
 	    label_map.insert(std::make_pair(lbl, offset));
+	    label_offsets.insert(offset);
 	} else {
 	    add(*instr);
 	    size_t sz = instr->size();

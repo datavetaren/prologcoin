@@ -1,4 +1,5 @@
 #include "../common/term_env.hpp"
+#include "../common/garbage_collector.hpp"
 #include "interpreter_base.hpp"
 #include "builtins_fileio.hpp"
 #include "wam_interpreter.hpp"
@@ -1172,6 +1173,218 @@ void interpreter_base::check_delayed()
 	    }
 	}
     });
+}
+
+std::vector<common::ptr_cell *> interpreter_base::get_gc_roots() {
+  std::vector<common::ptr_cell *> roots;
+  get_stack_roots(roots);
+  get_program_db_roots(roots);
+  get_code_db_roots(roots);
+  get_frozen_closure_roots(roots);
+  get_meta_roots(roots);
+  gc_roots_fn()(roots, this);
+  return roots;
+}
+
+void interpreter_base::get_meta_roots(std::vector<common::ptr_cell *> &roots) {
+  meta_context *current_meta = get_current_meta_context();
+  while (current_meta != nullptr) {
+    add_root(roots, &current_meta->old_qr);
+    current_meta = current_meta->old_m;
+  }
+}
+
+void interpreter_base::get_stack_roots(std::vector<common::ptr_cell *> &roots) {
+  auto older_e = e0();
+  auto cur_cp = b();
+  auto kind = e_kind();
+  environment_base_t *newer_e = nullptr;
+  while(older_e != nullptr || newer_e != nullptr) {
+    if(kind == ENV_NAIVE) {
+    } else if (kind == ENV_WAM) {
+      if (newer_e != nullptr) {
+        // If we have interleaved choice point(s?) on the stack
+        // make sure those are subtracted from the current environment
+        // calculation.
+        int choice_points_size = 0;
+        while (base(cur_cp) < base(newer_e) && base(cur_cp) > base(older_e)) {
+          choice_points_size += words<choice_point_t>();
+          choice_points_size += words<term>()*cur_cp->arity;
+	  // Process choice point.
+	  // Assumption: there will always be an environment below
+	  // the last choice point.
+	  add_root(roots, &(cur_cp->qr));
+	  for (int i = 0; i < cur_cp->arity; i++) {
+	    add_root(roots, &cur_cp->ai[i]);
+	  }
+          cur_cp = cur_cp->b;
+        }
+	auto newer_e_w  = base(newer_e);
+	auto older_e_w = base(older_e);
+        auto base_size_w = words<environment_t>();
+        auto term_size_w = words<term>();
+        auto num_y = ((newer_e_w - older_e_w) - base_size_w - choice_points_size)/term_size_w;
+
+        auto wamenv = reinterpret_cast<environment_t*>(older_e);
+	for(int i = 0; i < num_y; i++) {
+	  add_root(roots, &wamenv->yn[i]);
+	}
+      }
+    } else { // FROZEN
+      auto frozen_env = reinterpret_cast<environment_frozen_t*>(older_e);
+      auto num_extra = frozen_env->num_extra;
+      for(size_t i = 0; i < num_extra; i++) {
+	add_root(roots, &frozen_env->extra[i]);
+      }
+    }
+
+    newer_e = older_e;
+    if(older_e != nullptr) {
+      kind = older_e->ce.kind();
+      older_e = older_e->ce.ce0();
+    }
+  }
+}
+
+void interpreter_base::get_program_db_roots(std::vector<common::ptr_cell *> &roots)
+{
+  for (auto &db_entry : program_db_) {
+    auto &predicate = db_entry.second;
+    auto &managed_clauses = predicate.get_clauses();
+    for (auto &managed_clause : managed_clauses) {
+      add_root(roots, managed_clause.clause_ptr());
+    }
+  }
+}
+
+void interpreter_base::get_code_db_roots(std::vector<common::ptr_cell *> &roots)
+{
+  for (auto &code_db_entry : code_db_) {
+    auto &code_point = code_db_entry.second;
+    add_root(roots, &code_point.term_code_);
+  }
+}
+
+void interpreter_base::get_meta_db_roots(std::vector<common::ptr_cell *> &roots)
+{
+  // FIXME: Add roots if needed.
+  //  for (auto &meta_db_entry : module_meta_db_) {
+  //    auto &module_meta = meta_db_entry.second;
+  //    auto &source_elements = module_meta.source_elements_;
+  //    for (auto &source_element : source_elements) {
+  //    }
+  //  }
+}
+
+void interpreter_base::get_frozen_closure_roots(std::vector<common::ptr_cell *> &roots)
+{
+  for (auto &frozen_closure_entry : frozen_closures_) {
+    add_root(roots, &frozen_closure_entry.second);
+  }
+}
+
+void interpreter_base::dump_roots()
+{
+  std::vector<common::ptr_cell *> roots = get_gc_roots();
+  std::cout << "---- Roots Start ----\n";
+  for(auto &ptr : roots) {
+    std::cout << ptr->raw_value() << ", " << ptr->index() << " value: " << to_string(*ptr)
+	      << " ptr: " << (void*)(((size_t)ptr->index())) << 3 << "\n";
+  }
+  std::cout << "---- Roots End ----\n";
+}
+
+void interpreter_base::dump_stack() {
+  auto older_e = e0();
+  auto cur_cp = b();
+  size_t stack_size = older_e == nullptr ? 0 :
+    (size_t)older_e - (size_t)stack_;
+  std::cout << "---- Stack Start(" << stack_size << ") " << stack_
+	    << " - " << older_e << " ---\n";
+  auto kind = e_kind();
+  environment_base_t *newer_e = nullptr;
+  while(older_e != nullptr || newer_e != nullptr) {
+    if(kind == ENV_NAIVE) {
+      std::cout << "Naive env: " << older_e << "\n";
+    } else if (kind == ENV_WAM) {
+      if (newer_e == nullptr) {
+        std::cout << "Top of stack - ignoring y-regs\n";
+      } else {
+        // If we have interleaved choice point(s?) on the stack
+        // make sure those are subtracted from the current environment
+        // calculation.
+        int choice_points_size = 0;
+        while (base(cur_cp) < base(newer_e) && base(cur_cp) > base(older_e)) {
+          choice_points_size += words<choice_point_t>();
+          choice_points_size += words<term>()*cur_cp->arity;
+	  std::cout << "Choice Point: " << cur_cp << "\n";
+          cur_cp = cur_cp->b;
+        }
+	auto newer_e_w  = base(newer_e);
+	auto older_e_w = base(older_e);
+        auto base_size_w = words<environment_t>();
+        auto term_size_w = words<term>();
+        auto num_y = ((newer_e_w - older_e_w) - base_size_w - choice_points_size)/term_size_w;
+
+        auto wamenv = reinterpret_cast<environment_t*>(older_e);
+	std::cout << "WAM env: " << wamenv << "\n";
+	for(int i = 0; i < num_y; i++) {
+	  common::term yi = (wamenv == nullptr) ? e()->yn[i] : wamenv->yn[i];
+	  std::cout << "y[" << i << "]: " << yi.tag().str();
+	  if(yi.tag() == common::tag_t::REF ||
+	     yi.tag() == common::tag_t::RFW) {
+	    std::cout << yi.raw_value() << ", " <<
+	      reinterpret_cast<ptr_cell&>(yi).index() << "ptr: " <<
+	      (void*)(((size_t)(reinterpret_cast<ptr_cell&>(yi).index())) << 3);
+	  } else if (yi.tag() == common::tag_t::STR) {
+	    std::cout << " " << reinterpret_cast<ptr_cell&>(yi).index() <<
+	      ", " << to_string(yi);
+	  } else if (yi.tag() == common::tag_t::CON) {
+	    std::cout << ", " << to_string(yi);
+	  }
+	  std::cout << "\n";
+	}
+      }
+    } else { // FROZEN
+      std::cout << "Frozen env: " << older_e << "\n";
+    }
+    newer_e = older_e;
+    if(older_e != nullptr) {
+      kind = older_e->ce.kind();
+      older_e = older_e->ce.ce0();
+    }
+  }
+  std::cout << "---- Stack End ---\n";
+}
+
+void interpreter_base::dump_choice_points() {
+  auto current_b = b();
+  std::cout << "---- Choicepoints Start ---\n";
+  while(current_b != nullptr) {
+    auto barity = current_b->arity;
+    std::cout << "CP(" << barity << "): ";
+    bool is_wam = current_b->bp.has_wam_code();
+    if(is_wam) {
+      std::cout << "WAM\n";
+    } else {
+      std::cout << "Naive\n";
+    }
+    if(!is_wam) {
+      std::cout << "Qr: " << to_string(current_b->qr) << "\n";
+    }
+    std::cout << "Meta: " << current_b->m << "\n";
+    for(int i = 0; i < barity; i++) {
+      std::cout << "Arg[" << i << "]: " << to_string(current_b->ai[i]) << "\n";
+    }
+    current_b = current_b->b;
+  }
+  std::cout << "---- Choicepoint End ---\n";
+}
+
+void interpreter_base::garbage_collect() {
+  std::vector<common::ptr_cell *> roots = get_gc_roots();
+  common::garbage_collector collector(get_heap());
+  collector.do_collection(roots);
 }
 
 }}
