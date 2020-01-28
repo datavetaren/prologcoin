@@ -59,15 +59,15 @@ foo4(X, Y, A, B) :- W = freeze(B, Y = bound(X,A,B)), freeze(A, W).
 
 % Meta: WAM-only
 
-foo5 :- freeze(A, B = hello(A)), frozenk(10, Xs), Xs = [_].
+foo5 :- freeze(A, B = hello(A)), frozenk(-1, 10, Xs), Xs = [_].
 ?- foo5.
 % Expect: true
 % Expect: end
 
 % Unfreeze frozen closures by accessing them explicitly
-foo6(Closure) :- foo5, frozenk(10, [Addr]), frozen(Addr, Closure).
+foo6(Closure) :- foo5, frozenk(-1, 10, [Addr]), frozen(Addr, Closure).
 foo7(T) :- foo6(Closure), arg(2, Closure, Closure0), arg(1, Closure0, V), V = 424711, arg(2, Closure0, T).
-?- foo7(T), frozenk(10, []).
+?- foo7(T), frozenk(0, 10, []).
 % Expect: T = hello(424711).
 % Expect: end
 
@@ -102,7 +102,7 @@ foo8 :-
     
 foo9 :-
     foo8, % Existing coin...
-    frozenk(10, [Addr]),
+    frozenk(0, 10, [Addr]),
     frozen(Addr, Closure),
     arg(2, Closure, Closure0),
     % Check that we got the right closure

@@ -886,6 +886,21 @@ private:
     }
 
 
+   protected:
+    inline term deref(term t) const
+    {
+        if (t.tag() == common::tag_t::REF) {
+  	    auto ref = static_cast<common::ref_cell &>(t);
+	    if (is_stack(ref)) {
+	        return deref_stack(ref);
+	    } else {
+	        return term_env::deref(t);
+	    }
+        } else {
+	    return t;
+	}
+    }
+
   private:
 
     inline void goto_next_instruction()
@@ -893,7 +908,7 @@ private:
         next_instruction(p());
     }
 
-    inline term deref_stack(common::ref_cell ref)
+    inline term deref_stack(common::ref_cell ref) const
     {
         term t1 = to_stack(ref)->term;
         while (t1.tag() == common::tag_t::REF) {
@@ -907,20 +922,6 @@ private:
 	    }
         }
 	return t1;
-    }
-
-    inline term deref(term t)
-    {
-        if (t.tag() == common::tag_t::REF) {
-  	    auto ref = static_cast<common::ref_cell &>(t);
-	    if (is_stack(ref)) {
-	        return deref_stack(ref);
-	    } else {
-	        return term_env::deref(t);
-	    }
-        } else {
-	    return t;
-	}
     }
 
     inline void bind(common::ref_cell &ref, term t)

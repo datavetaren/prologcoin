@@ -1043,10 +1043,9 @@ bool builtins::module_1(interpreter_base &interp, size_t arity, common::term arg
 	  "Module name must be an atom; was " + interp.to_string(args[0]);
 	interp.abort(interpreter_exception_wrong_arg_type(msg));
     }
-
     con_cell name = interp.functor(args[0]);
     interp.set_current_module(name);
-
+    
     return true;
 }
 
@@ -1076,37 +1075,74 @@ bool builtins::frozen_2(interpreter_base &interp, size_t arity, common::term arg
     return interp.unify(args[1], *closure);
 }
 
-bool builtins::frozenk_2(interpreter_base &interp, size_t arity, common::term args[] ) {
+bool builtins::frozenk_3(interpreter_base &interp, size_t arity, common::term args[] ) {
 
-    term k_term = args[0];
-    if (k_term.tag() != common::tag_t::INT) {
-        std::string msg = "frozenk/2: "
-	  "First argument was not an integer; was "
-	  + interp.to_string(k_term);
+    term start_term = args[0];
+    if (start_term.tag() != common::tag_t::INT) {
+        std::string msg = "frozenk/3: "
+	  "First argument, the starting heap address, was not an integer; was "
+	  + interp.to_string(start_term);
+	interp.abort(interpreter_exception_wrong_arg_type(msg));
+    }
+    int64_t start = static_cast<int_cell &>(start_term).value();
+    if (start < -1) {
+        std::string msg = "frozenk/3: "
+	  "Starting address was out of range. "
+	  "Must be positive number or -1 (for extracting from the end); "
+	  + interp.to_string(start_term);
 	interp.abort(interpreter_exception_wrong_arg_type(msg));
     }
 
+    term k_term = args[1];
+    if (k_term.tag() != common::tag_t::INT) {
+        std::string msg = "frozenk/3: "
+	  "Second argument, the number of frozen closures to extract, "
+	  "is not an integer; was " + interp.to_string(k_term);
+	interp.abort(interpreter_exception_wrong_arg_type(msg));
+    }
     auto k = static_cast<int_cell &>(k_term).value();
     if (k < 0 || k > 255) {
-        std::string msg = "frozenk/2: "
-	  "Integer was out of range. Must be within 0 and 255; was "
+        std::string msg = "frozenk/3: "
+	  "Number of frozen closures was out of range. "
+	  "Must be within 0 and 255; was "
 	  + interp.to_string(k_term);
 	interp.abort(interpreter_exception_wrong_arg_type(msg));
     }
 
-    // Extract the K last heap positions for frozen closures
+    // Extract the K heap positions frozen closures starting from address
 
     term lst = interpreter_base::EMPTY_LIST;
-	
+
     auto at_end = interp.frozen_closures.end();
-    auto it = at_end - 1;
-    while (k > 0 && it != at_end) {
-        auto heap_address = static_cast<int64_t>(it->key());
-	lst = interp.new_dotted_pair(int_cell(heap_address), lst);
-	--it;
+    if (start == -1) {
+	auto it = at_end - 1;
+	while (k > 0 && it != at_end) {
+	    auto heap_address = static_cast<int64_t>(it->key());
+	    lst = interp.new_dotted_pair(int_cell(heap_address), lst);
+	    --it;
+	    k--;
+	}
+    } else {
+        auto i_start = static_cast<uint64_t>(start);
+        auto it = interp.frozen_closures.begin(i_start);
+	auto last = lst;
+	while (k > 0 && it != at_end) {
+	    auto heap_address = static_cast<int64_t>(it->key());
+	    auto next_lst = interp.new_dotted_pair(int_cell(heap_address),
+						   interpreter_base::EMPTY_LIST);
+	    if (last == interpreter_base::EMPTY_LIST) {
+	        lst = next_lst;
+	        last = next_lst;
+	    } else {
+	        interp.set_arg(last, 1, next_lst);
+		last = next_lst;
+	    }
+	    ++it;
+	    k--;
+	}
     }
 
-    return interp.unify(args[1], lst);
+    return interp.unify(args[2], lst);
 }
 
 bool builtins::defrost_3(interpreter_base &interp, size_t arity, common::term args[] ) {
@@ -1328,7 +1364,7 @@ void builtins::load(interpreter_base &interp) {
 
     // Non-standard
     i.load_builtin(con_cell("frozen",2), builtin(&builtins::frozen_2));
-    i.load_builtin(con_cell("frozenk",2), builtin(&builtins::frozenk_2));
+    i.load_builtin(con_cell("frozenk",3), builtin(&builtins::frozenk_3));
     i.load_builtin(con_cell("defrost",3), builtin(&builtins::defrost_3));
 
     // Program database

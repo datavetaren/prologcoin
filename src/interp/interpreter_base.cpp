@@ -35,10 +35,11 @@ meta_context::meta_context(interpreter_base &i, meta_fn mfn)
     old_hb = i.get_register_hb();
 }
 
-interpreter_base::interpreter_base() : has_updated_predicates_(false), register_pr_("", 0), arith_(*this), locale_(*this), current_module_("user",0)
+interpreter_base::interpreter_base() : has_updated_predicates_(false), register_pr_("", 0), arith_(*this), locale_(*this), current_module_("system",0)
 {
     init();
 
+    // These will be loaded into the system module
     builtins::load(*this);
 
     tidy_size = 0;
@@ -99,6 +100,17 @@ interpreter_base::~interpreter_base()
     program_predicates_.clear();
 }
 
+void interpreter_base::set_current_module(con_cell mod)
+{
+    static con_cell SYSTEM("system",0);
+    bool is_new_module = !is_existing_module(mod) && mod != SYSTEM;
+    get_module(mod);
+    current_module_ = mod;
+    if (is_new_module) {
+        use_module(SYSTEM);
+    }
+}
+    
 void interpreter_base::reset()
 {
     unwind_to_top_choice_point();
@@ -368,7 +380,7 @@ void interpreter_base::load_clause(term t, interpreter_base::clause_position pos
     if (predicate == ACTION_BY) {
         return;
     }
-    
+
     auto qn = std::make_pair(module, predicate);
 
     auto found = program_db_.find(qn);

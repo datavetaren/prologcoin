@@ -22,9 +22,9 @@ public:
     ~interactive_prompt();
 
     bool connect_node(unsigned short port);
-    void connect_wallet(std::shared_ptr<wallet> &w);
+    void connect_wallet(wallet *w);
 
-    inline std::shared_ptr<terminal> & node_terminal()  { return node_terminal_; }
+    inline terminal * node_terminal()  { return node_terminal_; }
   
     void run();
 
@@ -55,8 +55,8 @@ private:
     common::utime last_pulse_;
     bool in_wallet_;
 
-    std::shared_ptr<terminal> node_terminal_;
-    std::shared_ptr<wallet> wallet_;
+    terminal *node_terminal_;
+    wallet *wallet_;
 
     std::string text_;
 };

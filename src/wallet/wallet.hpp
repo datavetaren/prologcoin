@@ -32,13 +32,17 @@ public:
     void load();
   
     // Start the thread that will talk to the node.
-    void connect_node(std::shared_ptr<terminal> &node_terminal);
+    void connect_node(terminal *node_terminal);
     void node_pulse();
     void print();
 
+    common::term parse(const std::string &cmd);
+    std::string to_string(common::term t);
     std::string execute(const std::string &cmd);
     bool execute(common::term query);
     std::string get_result();
+    common::term get_result_term();
+    common::term get_result_term(const std::string &varname);
     void reset();
     bool has_more();
     bool next();
@@ -52,12 +56,8 @@ private:
     wallet_interpreter interp_;
     bool killed_;
 
-    // The wallet is run in a specific thread and will open
-    // a terminal to the node
-    boost::thread thread_;
-
     // This is the terminal to the node.
-    std::shared_ptr<terminal> terminal_;
+    terminal *terminal_;
 };
     
 }}

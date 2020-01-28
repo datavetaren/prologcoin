@@ -768,7 +768,7 @@ std::string interpreter::get_result(bool newlines) const
 
 interpreter::term interpreter::get_result_term() const
 {
-    return qr();
+    return deref(qr());
 }
 
 interpreter::term interpreter::get_result_term(const std::string &varname) const
@@ -777,7 +777,7 @@ interpreter::term interpreter::get_result_term(const std::string &varname) const
     for (auto &v : *query_vars_) {
 	auto &name = v.name();
 	if (name == varname) {
-	    return v.value();
+	    return deref(v.value());
 	}
     }
     return t;

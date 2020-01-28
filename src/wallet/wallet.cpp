@@ -8,23 +8,25 @@ using namespace prologcoin::interp;
 
 namespace prologcoin { namespace wallet {
 
-wallet::wallet(const std::string &wallet_file) : wallet_file_(wallet_file), interp_(*this, wallet_file), killed_(false)
+wallet::wallet(const std::string &wallet_file) : wallet_file_(wallet_file), interp_(*this, wallet_file), killed_(false), terminal_(nullptr)
 {
 }
 
 wallet::~wallet()
 {
     killed_ = true;
-    thread_.join();
 }
 
 void wallet::load()
 {
     std::ifstream ifs(wallet_file_);
+    auto old_module = interp_.current_module();
+    interp_.set_current_module(con_cell("wallet",0));
     interp_.load_program(ifs);
+    interp_.set_current_module(old_module);
 }
 
-void wallet::connect_node(std::shared_ptr<terminal> &node_term)
+void wallet::connect_node(terminal *node_term)
 {
     terminal_ = node_term;
 }
@@ -54,6 +56,16 @@ bool wallet::has_more()
 bool wallet::next()
 {
     return interp_.next();
+}
+
+term wallet::parse(const std::string &cmd)
+{
+    return interp_.parse(cmd);
+}
+
+std::string wallet::to_string(term t)
+{
+    return interp_.to_string(t);
 }
     
 std::string wallet::execute(const std::string &cmd)
@@ -89,6 +101,16 @@ std::string wallet::get_result()
     return interp_.get_result();
 }
 
+term wallet::get_result_term()
+{
+    return interp_.get_result_term();
+}
+
+term wallet::get_result_term(const std::string &varname)
+{
+    return interp_.get_result_term(varname);
+}    
+    
 remote_return_t wallet::execute_at(term query, term_env &query_src, const std::string &where)
 {
     uint64_t cost = 0;

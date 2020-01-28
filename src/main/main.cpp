@@ -56,20 +56,22 @@ static void start()
 	return;
     }
 
+    wallet *w = nullptr;
+    
     if (is_wallet) {
         std::string wallet_file = dir;
         wallet_file += boost::filesystem::path::preferred_separator;
 	wallet_file += "wallet.pl";
 	std::cout << "[In wallet mode using: " << wallet_file << "]" << std::endl;
-        wallet_ptr = std::shared_ptr<wallet>(new wallet(wallet_file));
-	prompt.connect_wallet(wallet_ptr);
-	wallet_ptr->connect_node(prompt.node_terminal());
+        w = new wallet(wallet_file);
+	prompt.connect_wallet(w);
+	w->connect_node(prompt.node_terminal());
     }
     
     prompt.run();
 
     if (is_wallet) {
-	wallet_ptr.reset();
+        delete w;
     }
 
     node.stop();

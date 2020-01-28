@@ -143,7 +143,7 @@ public:
     // Heap management
     inline void heap_set(size_t index, term t)
         { T::get_heap()[index] = t; }
-    inline term heap_get(size_t index)
+    inline term heap_get(size_t index) const
         { return T::get_heap()[index]; }
     inline untagged_cell heap_get_untagged(size_t index)
         { return T::get_heap().untagged_at(index); }

@@ -30,11 +30,11 @@ interactive_prompt::~interactive_prompt()
 
 bool interactive_prompt::connect_node(unsigned short port)
 {
-    node_terminal_ = std::unique_ptr<terminal>(new terminal(port));
+    node_terminal_ = new terminal(port);
     return node_terminal_->connect();
 }
 
-void interactive_prompt::connect_wallet(std::shared_ptr<wallet> &w)
+void interactive_prompt::connect_wallet(wallet *w)
 {
     wallet_ = w;
     in_wallet_ = true;

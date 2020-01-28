@@ -479,7 +479,7 @@ public:
     static const size_t MAX_ARGS = 256;
 
     inline con_cell current_module() const { return current_module_; }
-    inline void set_current_module(con_cell m) { current_module_ = m; }
+    void set_current_module(con_cell m);
   
     inline const locale & current_locale() const { return locale_; }
     inline locale & current_locale() { return locale_; }
@@ -683,6 +683,8 @@ public:
 
     inline const std::vector<qname> & get_module(const con_cell name)
         { return module_db_[name]; }
+    inline bool is_existing_module(const con_cell name)
+        { return module_db_.find(name) != module_db_.end(); }
 
     qname gen_predicate(const con_cell module, size_t arity);
 
@@ -848,19 +850,29 @@ protected:
     template<typename T> inline word_t * base(T *t) const
     { return reinterpret_cast<word_t *>(t); }
 
-    inline bool is_stack(common::ref_cell ref)
+    inline bool is_stack(common::ref_cell ref) const
     {
         return ref.index() >= STACK_BASE;
     }
 
-    inline bool is_stack(size_t ref)
+    inline bool is_stack(size_t ref) const
     {
 	return ref >= STACK_BASE;
+    }
+
+    inline const word_t * to_stack(common::ref_cell ref) const
+    {
+        return &stack_[ref.index() - STACK_BASE];
     }
 
     inline word_t * to_stack(common::ref_cell ref)
     {
         return &stack_[ref.index() - STACK_BASE];
+    }
+  
+    inline const word_t * to_stack(size_t ref) const
+    {
+	return &stack_[ref - STACK_BASE];
     }
 
     inline word_t * to_stack(size_t ref)
