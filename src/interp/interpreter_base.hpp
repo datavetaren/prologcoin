@@ -1455,6 +1455,7 @@ public:
     static const con_cell IMPLIED_BY;
     static const con_cell ACTION_BY;
     static const con_cell USER_MODULE;
+    static const con_cell COLON;
 
 private:
 

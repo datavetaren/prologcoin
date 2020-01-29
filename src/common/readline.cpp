@@ -558,7 +558,9 @@ void readline::render_simple_del()
   std::cout << "\b \b";
 #else
   if (position_ <= 1 || ((position_ + start_column_) % column_width_ != column_width_-1)) {
-      std::cout << "\b";
+      std::cout << "\b \b";
+  } else {
+      render_all();
   }
 #endif
 }
@@ -592,27 +594,22 @@ void readline::render_all()
        WriteConsole(GetStdHandle(STD_OUTPUT_HANDLE), str.c_str(), str.size(), &written, NULL);
        return;
     }
-#endif
+#else
     size_t blank_out = (buffer_.size() < old_size_) ?
         old_size_ - buffer_.size() : 0;
 
-    std::cout << std::string(old_position_, '\b')
-	    << buffer_ << std::string(blank_out, ' ')
-	    << std::string(buffer_.size()-position_+blank_out, '\b');
+    std::string to_origin = std::string(old_position_, '\b');
+    std::string to_render = buffer_ + std::string(blank_out, ' ');
+    if ((to_render.size() + start_column_) % column_width_ == 0) to_render += " ";
+    std::string to_back = std::string(to_render.size() - position_, '\b');
+
+    std::cout << to_origin << to_render << to_back;
+#endif
 }
 
 
 void readline::render()
 {
-  /*
-    CONSOLE_SCREEN_BUFFER_INFO info;
-    GetConsoleScreenBufferInfo(GetStdHandle(STD_OUTPUT_HANDLE), &info);
-    COORD coord = {0,info.dwCursorPosition.Y - 10};
-    SetConsoleCursorPosition(GetStdHandle(STD_OUTPUT_HANDLE), coord);
-    std::cout << "STATUS: " << position_ << "    ";
-    SetConsoleCursorPosition(GetStdHandle(STD_OUTPUT_HANDLE), info.dwCursorPosition);
-  */
-  
     switch (render_) {
     case NOTHING: break;
     case SIMPLE_ADD: std::cout << buffer_.back();

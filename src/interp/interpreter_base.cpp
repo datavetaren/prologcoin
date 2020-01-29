@@ -18,6 +18,7 @@ const common::con_cell interpreter_base::EMPTY_LIST = common::con_cell("[]",0);
 const common::con_cell interpreter_base::IMPLIED_BY = common::con_cell(":-",2);
 const common::con_cell interpreter_base::ACTION_BY = common::con_cell(":-",1);
 const common::con_cell interpreter_base::USER_MODULE = common::con_cell("user",0);
+const common::con_cell interpreter_base::COLON = common::con_cell(":",2);
 
 meta_context::meta_context(interpreter_base &i, meta_fn mfn)
 {
@@ -389,6 +390,20 @@ void interpreter_base::load_clause(term t, interpreter_base::clause_position pos
         return;
     }
 
+    if (predicate == COLON) {
+	// This is a head with a module definition
+	term module_term = arg(head, 0);
+	term predicate_term = arg(head, 1);
+	module = static_cast<con_cell &>(module_term);
+	predicate = functor(predicate_term);
+	term body = clause_body(t);
+	if (body == EMPTY_LIST) {
+	    t = predicate_term;
+	} else {
+	    set_arg(t, 0, predicate_term);
+	}
+    }
+
     auto qn = std::make_pair(module, predicate);
 
     auto found = program_db_.find(qn);
@@ -558,6 +573,14 @@ void interpreter_base::syntax_check_head(const term t)
 
     if (f == def || f == semi || f == comma || f == cannot_prove) {
 	throw syntax_exception_clause_bad_head(t, "Clause has an invalid head; cannot be '->', ';', ',' or '\\+'");
+    }
+
+    if (f == COLON) {
+	// Check that operands are real constants
+	if (arg(t, 0).tag() != tag_t::CON ||
+	    !is_functor(arg(t, 1))) {
+	    throw syntax_exception_clause_bad_head(t, "Clause has an invalid head; module and predicate name are not pure constants; was " + to_string(t));
+	}
     }
 }
 
