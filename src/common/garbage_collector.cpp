@@ -3,8 +3,12 @@
 
 namespace prologcoin { namespace common {
 
-void garbage_collector::mark(std::vector<size_t> &roots, live_t &live) {
-  std::vector<size_t> worklist(roots); // Initialize worklist
+void garbage_collector::mark(std::vector<ptr_cell *> &roots, live_t &live) {
+  std::vector<size_t> worklist;
+  for(auto &root : roots) {
+    worklist.push_back(root->index());
+  }
+
   while(worklist.size() > 0) {
     auto current = worklist.back();
     worklist.pop_back();
@@ -64,6 +68,13 @@ size_t garbage_collector::calculate_deltas(std::unordered_map<size_t, size_t> &b
   return current_delta;
 }
 
+size_t garbage_collector::calculate_new_index(std::unordered_map<size_t, size_t> &block_index_to_delta,
+					      size_t index) {
+  size_t block_index = heap_.find_block_index(index);
+  size_t new_index = index - block_index_to_delta[block_index];
+  return new_index;
+}
+
 void garbage_collector::rewrite_cell(size_t i, heap_block &block,
                                      std::unordered_map<size_t, size_t> &block_index_to_delta) {
   cell c = block.get(i);
@@ -74,8 +85,7 @@ void garbage_collector::rewrite_cell(size_t i, heap_block &block,
   case tag_t::STR: {
     auto &pcell = reinterpret_cast<ptr_cell&>(c);
     size_t old_index = pcell.index();
-    size_t block_index = heap_.find_block_index(old_index);
-    size_t new_index = old_index - block_index_to_delta[block_index];
+    size_t new_index = calculate_new_index(block_index_to_delta, old_index);
     pcell.set_index(new_index);
     block.set(i, pcell);
     break;
@@ -98,6 +108,15 @@ void garbage_collector::rewrite_blocks(std::unordered_map<size_t, size_t> &block
         }
       }
     }
+  }
+}
+
+void garbage_collector::rewrite_roots(std::unordered_map<size_t, size_t> &block_index_to_delta,
+				      std::vector<ptr_cell *> &roots) {
+  for(auto &root : roots) {
+    size_t old_index = root->index();
+    size_t new_index = calculate_new_index(block_index_to_delta, old_index);
+    root->set_index(new_index);
   }
 }
 
@@ -128,7 +147,7 @@ size_t garbage_collector::collect(live_t &live) {
   return result;
 }
 
-size_t garbage_collector::do_collection(std::vector<size_t> &roots)
+size_t garbage_collector::do_collection(std::vector<ptr_cell *> &roots)
 {
   live_t live;
   mark(roots, live);
