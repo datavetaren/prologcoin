@@ -74,6 +74,12 @@ bool me_builtins::operator_at_2(interpreter_base &interp0, size_t arity, term ar
 
     std::string where = interp.atom_name(where_term);
 
+    if (where == "global") {
+        // Then this is same as query(...)
+        term local_args[1] = { query };
+        return query_1(interp, 1, local_args);
+    }
+
 #define LL(interp) reinterpret_cast<local_interpreter &>(interp)
     
     remote_execution_proxy proxy(interp,
@@ -494,7 +500,7 @@ bool me_builtins::query_1(interpreter_base &interp0, size_t arity, term args[] )
 {
     auto &interp = to_local(interp0);
 
-    interp.root_check("commit", arity);
+    interp.root_check("query", arity);
   
     global::global &g = interp.self().global();
 
@@ -564,12 +570,15 @@ void local_interpreter::ensure_initialized()
 	load_builtins_file_io();
 
 	ec::builtins::load(*this);
-	common::con_cell top(EMPTY_LIST);
-	ec::builtins::load(*this, &top);
         coin::builtins::load(*this);
 
 	setup_local_builtins();
 
+	// Make it easier by importing multiple modules
+	use_module(ME);
+	use_module(con_cell("ec",0));
+	use_module(con_cell("coin",0));	
+	
 	// Load startup file
 	startup_file();
     }

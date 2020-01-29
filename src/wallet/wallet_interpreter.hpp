@@ -31,6 +31,10 @@ private:
   
     std::string file_path_;
     wallet &wallet_;
+
+    // This is ok, because the wallet interpreter is a local only thing
+    // and not part of consensus.
+    heap::disabled_coin_security no_coin_security_;
 };
     
 }}

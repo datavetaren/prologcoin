@@ -5,7 +5,7 @@
 
 namespace prologcoin { namespace wallet {
 
-wallet_interpreter::wallet_interpreter(wallet &w, const std::string &wallet_file) : file_path_(wallet_file), wallet_(w) {
+wallet_interpreter::wallet_interpreter(wallet &w, const std::string &wallet_file) : file_path_(wallet_file), wallet_(w), no_coin_security_(this->disable_coin_security()) {
     load_builtins_file_io();
     ec::builtins::load(*this);
     coin::builtins::load(*this);

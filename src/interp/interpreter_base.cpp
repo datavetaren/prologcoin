@@ -119,11 +119,19 @@ void interpreter_base::reset()
 	m->fn(*this, meta_reason_t::META_DELETE);
 	unwind_to_top_choice_point();
     }
-    while (b() != top_b()) {
-	reset_to_choice_point(b());
-	set_b(b()->b);
-	if (b() != nullptr) set_register_hb(b()->h);
-    }
+    bool cont = false;
+    do {
+        cont = false;
+        while (b() != top_b()) {
+	    reset_to_choice_point(b());
+	    set_b(b()->b);
+	    if (b() != nullptr) set_register_hb(b()->h);
+	}
+	if (top_b() != nullptr) {
+	    set_top_b(top_b()->b);
+	    cont = true;
+	}
+    } while (cont);
 }
 
 std::string code_point::to_string(const interpreter_base &interp) const

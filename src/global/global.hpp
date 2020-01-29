@@ -62,6 +62,10 @@ public:
         current_height_++;
     }
 
+    inline void set_height(size_t h) {
+        current_height_ = h;
+    }
+
     inline global_interpreter & interp() {
         return interp_;
     }

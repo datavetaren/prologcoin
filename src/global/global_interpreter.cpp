@@ -2,6 +2,7 @@
 #include "builtins.hpp"
 #include "../ec/builtins.hpp"
 #include "../coin/builtins.hpp"
+#include "global.hpp"
 
 using namespace prologcoin::common;
 using namespace prologcoin::interp;
@@ -73,6 +74,9 @@ bool global_interpreter::execute_goal(term t, bool and_undo) {
 bool global_interpreter::execute_goal(buffer_t &serialized, bool and_undo)
 {
     term_serializer ser(*this);
+
+    size_t old_height = get_global().current_height();
+    
     try {
 	if (and_undo) {
 	    allocate_choice_point(code_point::fail());
@@ -102,6 +106,8 @@ bool global_interpreter::execute_goal(buffer_t &serialized, bool and_undo)
 	}
 
 	if (!execute(goal)) {
+	    get_global().set_height(old_height);
+	    if (and_undo) reset();
             return false;
 	}
 	serialized.clear();
@@ -109,10 +115,13 @@ bool global_interpreter::execute_goal(buffer_t &serialized, bool and_undo)
 	if (and_undo) {
 	    reset();
 	}
+	get_global().set_height(old_height);	
 	return true;
     } catch (serializer_exception &ex) {
+	get_global().set_height(old_height);
         throw ex;
     } catch (interpreter_exception &ex) {
+	get_global().set_height(old_height);      
         throw ex;
     }
 }
