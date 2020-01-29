@@ -9,8 +9,10 @@
 
 namespace prologcoin { namespace ec {
 
-using interpreter_exception = ::prologcoin::interp::interpreter_exception;
+class secp256k1_ctx;
     
+using interpreter_exception = ::prologcoin::interp::interpreter_exception;
+
 class interpreter_exception_not_public_key : public interpreter_exception {
 public:
   interpreter_exception_not_public_key(const std::string &msg) :
@@ -42,6 +44,8 @@ public:
     static const size_t RAW_SIG_SIZE = 64;
 
     static musig_env & get_musig_env(interpreter_base &interp);
+
+    static secp256k1_ctx & get_secp256k1_ctx(interpreter_base &interp);
   
     static void load(interpreter_base &interp, common::con_cell *module = nullptr);
     static void load_consensus(interpreter_base &interp);  
@@ -172,6 +176,8 @@ public:
     // If input is the term encrypt(Term), then Term is attempted for decryption.
     // If input is does not use 'encrypt' as functor, then we apply encryption is not of decryption.
     static bool encrypt_4(interpreter_base &interp, size_t arity, term args[]);
+
+    static term encrypt(interpreter_base &interp, term input, const std::string &passwd, int64_t iter);
 
 private:
     static bool decrypt(interpreter_base &interp, term input, const uint8_t *key, term result);

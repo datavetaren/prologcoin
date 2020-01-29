@@ -1,7 +1,11 @@
 #include <iostream>
 #include <fstream>
+#include <boost/filesystem.hpp>
 #include "wallet.hpp"
 #include "../common/utime.hpp"
+#include "../ec/keys.hpp"
+#include "../ec/mnemonic.hpp"
+#include "../ec/builtins.hpp"
 
 using namespace prologcoin::common;
 using namespace prologcoin::interp;
@@ -19,11 +23,19 @@ wallet::~wallet()
 
 void wallet::load()
 {
-    std::ifstream ifs(wallet_file_);
-    auto old_module = interp_.current_module();
-    interp_.set_current_module(con_cell("wallet",0));
-    interp_.load_program(ifs);
-    interp_.set_current_module(old_module);
+    if (boost::filesystem::exists(wallet_file_)) {
+        std::ifstream ifs(wallet_file_);
+	auto old_module = interp_.current_module();
+	interp_.set_current_module(con_cell("wallet",0));
+	interp_.load_program(ifs);
+	interp_.set_current_module(old_module);
+    }
+}
+
+void wallet::save()
+{
+    std::ofstream ofs(wallet_file_);
+    interp_.save_program(con_cell("wallet",0),ofs);
 }
 
 void wallet::connect_node(terminal *node_term)
@@ -160,6 +172,37 @@ bool wallet::delete_instance_at(term_env &query_src, const std::string &where)
 {
     return terminal_->delete_instance();
 }
+
+// Generate a new wallet file with some initial source code.
+// In particular create a new seed for keys. Return the sentence.
+void wallet::create(const std::string &passwd, term sentence)
+{
+    std::string template_source = R"PROG(
+
+pubkey(Count, PubKey) :- master_pubkey(Master), ec:child_pubkey(Master, Count, PubKey).
+privkey(Count, PrivKey) :- master_privkey(Master), ec:child_privkey(Master, Count, PrivKey).
+
+)PROG";
+
+    ec::hd_keys hd(ec::builtins::get_secp256k1_ctx(interp_));
+    term encrypted = ec::builtins::encrypt(interp_, sentence, passwd, 2048);
+    std::string encrypted_str = interp_.to_string(encrypted);
+
+    ec::mnemonic mn(interp_);
+    mn.from_sentence(sentence); // Already checked before this call
+    mn.compute_key(hd, "TREZOR"); // Be compatible with TREZOR
+
+    std::string master_pubkey_source = "master_pubkey(58'" + hd.master_public().to_string() + ").";
+    interp_.load_program(master_pubkey_source);
+
+    std::string master_privkey_source = "master_privkey(Master) :- wallet_memory:password(Password), ec:encrypt(WordList, Password, 1024, encrypted_str), ec:master_key(WordList, Master, _).";
+    interp_.load_program(master_privkey_source);
+    interp_.load_program(template_source);
+
+    save();
+}
+    
+
     
     
 }}

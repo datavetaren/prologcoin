@@ -146,6 +146,11 @@ static secp256k1_ctx & get_ctx(interpreter_base &interp) {
     return *c;
 }
 
+secp256k1_ctx & builtins::get_secp256k1_ctx(interpreter_base &interp)
+{
+    return get_ctx(interp);
+}
+    
 musig_session::musig_session(size_t id, secp256k1_context *ctx, size_t num_signers) :
     id_(id),
     ctx_(ctx),
@@ -2240,44 +2245,22 @@ bool builtins::decrypt(interpreter_base &interp, term input, const uint8_t *key,
     return interp.unify(result, t);
 }
 
-bool builtins::encrypt_4(interpreter_base &interp, size_t arity, term args[]) {
+term builtins::encrypt(interpreter_base &interp, term input, const std::string &passwd, int64_t iter)
+{
     static const con_cell ENCRYPT = con_cell("encrypt",1);
-
-    if (!interp.is_string(args[1])) {
-         throw interpreter_exception_wrong_arg_type(
-	    "encrypt/4: Second argument must be a string; was "
-	    + interp.to_string(args[1]));
-    }
-    if (args[2].tag() != tag_t::INT) {
-         throw interpreter_exception_wrong_arg_type(
-	    "encrypt/4: Third argument must be an integer; was "
-	    + interp.to_string(args[2]));
-    }
-    int64_t iter = static_cast<int_cell &>(args[2]).value();
-    if (iter < 1 || iter > 1000000) {
-         throw interpreter_exception_wrong_arg_type(
-	    "encrypt/4: Number of iterations must be with 1 and 1000000; was "
-	    + interp.to_string(args[2]));
-    }
-
-    std::string passwd = interp.list_to_string(args[1]);
-    
+  
     // Derive encryption key
     pbkdf2_t<hmac<sha512> > keygen("encrypted", 9, iter, 64);
     keygen.set_password(passwd.c_str(), passwd.size());
     const uint8_t *key = keygen.get_key();
     
-    if (args[0].tag() == tag_t::STR && interp.functor(args[0]) == ENCRYPT) {
-        return decrypt(interp, args[0], key, args[3]);
-    }
-
     const size_t block_size = aes256::BLOCK_SIZE;
     
     uint8_t checksum[sha256::HASH_SIZE];
 
     term_serializer ser(interp);
     term_serializer::buffer_t buf;
-    ser.write(buf, args[0]);
+    ser.write(buf, input);
     size_t pad_n = block_size - buf.size() % block_size;
     if (pad_n < 16) pad_n += 16;
     size_t num_zeros = 0;
@@ -2306,7 +2289,42 @@ bool builtins::encrypt_4(interpreter_base &interp, size_t arity, term args[]) {
     interp.set_big(big, &buf[0], buf.size());
 
     term result = interp.new_term( ENCRYPT, { big });
+    
+    return result;
+}
 
+bool builtins::encrypt_4(interpreter_base &interp, size_t arity, term args[]) {
+    static const con_cell ENCRYPT = con_cell("encrypt",1);
+
+    if (!interp.is_string(args[1])) {
+         throw interpreter_exception_wrong_arg_type(
+	    "encrypt/4: Second argument must be a string; was "
+	    + interp.to_string(args[1]));
+    }
+    if (args[2].tag() != tag_t::INT) {
+         throw interpreter_exception_wrong_arg_type(
+	    "encrypt/4: Third argument must be an integer; was "
+	    + interp.to_string(args[2]));
+    }
+    int64_t iter = static_cast<int_cell &>(args[2]).value();
+    if (iter < 1 || iter > 1000000) {
+         throw interpreter_exception_wrong_arg_type(
+	    "encrypt/4: Number of iterations must be with 1 and 1000000; was "
+	    + interp.to_string(args[2]));
+    }
+
+    std::string passwd = interp.list_to_string(args[1]);
+    
+    if (args[3].tag() == tag_t::STR && interp.functor(args[3]) == ENCRYPT) {
+        // Derive encryption key
+        pbkdf2_t<hmac<sha512> > keygen("encrypted", 9, iter, 64);
+	keygen.set_password(passwd.c_str(), passwd.size());
+	const uint8_t *key = keygen.get_key();
+
+        return decrypt(interp, args[3], key, args[0]);
+    }
+
+    auto result = encrypt(interp, args[0], passwd, iter);
     return interp.unify(args[3], result);
 }
 

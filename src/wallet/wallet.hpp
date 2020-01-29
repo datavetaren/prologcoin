@@ -30,6 +30,8 @@ public:
     inline common::term_env & env() { return interp_; }
   
     void load();
+    void save();
+    void create(const std::string &passwd, common::term sentence);
   
     // Start the thread that will talk to the node.
     void connect_node(terminal *node_terminal);

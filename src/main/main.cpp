@@ -5,6 +5,7 @@
 #include "../common/readline.hpp"
 #include "../wallet/wallet.hpp"
 
+using namespace prologcoin::common;
 using namespace prologcoin::node;
 using namespace prologcoin::wallet;
 
@@ -36,7 +37,6 @@ static void start()
     std::cout << std::endl;
 
     self_node node(port);
-    std::shared_ptr<wallet> wallet_ptr;
 
     if (!name.empty()) {
 	node.set_name(name);
@@ -64,6 +64,15 @@ static void start()
 	wallet_file += "wallet.pl";
 	std::cout << "[In wallet mode using: " << wallet_file << "]" << std::endl;
         w = new wallet(wallet_file);
+	try {
+	    w->load();
+	} catch (term_parse_exception &ex) {
+	    std::cout << term_parser::report_string(w->env(), ex);
+	} catch (token_exception &ex) {
+	    std::cout << term_parser::report_string(w->env(), ex);
+	} catch (...) {
+  	    std::cout << "Unknown error while loading wallet." << std::endl;
+	}
 	prompt.connect_wallet(w);
 	w->connect_node(prompt.node_terminal());
     }

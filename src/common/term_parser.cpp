@@ -1477,6 +1477,61 @@ void term_parser::clear_var_names()
     impl_->clear_var_names();
 }
 
+std::string term_parser::report_string(term_env &env,
+				       term_parse_exception &ex)
+{
+    return report_string(env, &ex, nullptr);
+}
+
+std::string term_parser::report_string(term_env &env,
+				       token_exception &ex)
+{
+    return report_string(env, nullptr, &ex);
+}
+
+std::string term_parser::report_string(term_env &env,
+				       term_parse_exception *parse_ex,
+				       token_exception *token_ex) {
+    std::string msg;
+
+    std::stringstream nl_ss;
+    nl_ss << std::endl;
+    std::string nl = nl_ss.str();
+  
+    std::stringstream ss;
+    auto line_no = parse_ex != nullptr ? parse_ex->line() : token_ex->line();
+    auto column_no = parse_ex != nullptr ? parse_ex->column() : token_ex->column();
+    ss << "While parsing at line " << line_no << " and column " << column_no;
+    if (parse_ex != nullptr) {
+        ss << " for state: ";
+        msg += "[ERROR]: " + ss.str() + nl;
+	auto &desc = parse_ex->state_description();
+	for (auto &line : desc) {
+	    msg += "[ERROR]: " + line + nl;
+	}
+	ss.str(std::string());
+	ss << "Expected: {";
+	bool first = true;
+	for (auto exp : env.get_expected_simplified(*parse_ex)) {
+	    if (!first) ss << ", ";
+	    if (!isalnum(exp[0])) {
+		exp = '\'' + exp + '\'';
+	    }
+	    ss << exp;
+	    first = false;
+	}
+	ss << "}";
+	msg += "[ERROR]: " + ss.str() + nl;
+    } else if (token_ex != nullptr) {
+        std::string s(token_ex->what());
+        msg += "[ERROR]: " + s + nl;
+    } else {
+        msg += "[ERROR]: Unknown" + nl;
+    }
+
+    return msg;
+}
+
 }}
 
 

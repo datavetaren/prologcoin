@@ -68,6 +68,11 @@ public:
 
     term parse();
 
+    static std::string report_string(term_env &env,
+				     term_parse_exception &parse_ex);
+    static std::string report_string(term_env &env,
+				     token_exception &token_ex);
+  
     const term_tokenizer::token & first_non_whitespace_token() const;  
     const term_tokenizer::token & last_non_whitespace_token() const;
   
@@ -98,6 +103,11 @@ public:
     void clear_var_names();
 
 private:
+
+    static std::string report_string(term_env &env,
+				     term_parse_exception *parse_ex,
+				     token_exception *token_ex);
+  
     term_parser_impl *impl_;
 };
 
