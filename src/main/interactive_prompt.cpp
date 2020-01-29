@@ -79,7 +79,7 @@ bool interactive_prompt::next()
 {
     if (in_wallet_) {
         bool r = false;
-        if (r = wallet_->next()) {
+        if ((r = wallet_->next())) {
 	    if (has_more()) {
 	        add_text_output_no_nl(wallet_->get_result());
 		add_text_output_no_nl(" ");		
