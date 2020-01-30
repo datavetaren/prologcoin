@@ -128,7 +128,9 @@ void wam_interpreter::compile(const qname &qn)
 
     auto *next_instr = to_code(first_offset);
     set_wam_predicate(qn, next_instr, xn_size, yn_size);
-    set_code(qn, code_point(next_instr));
+    code_point cp(next_instr);
+    cp.set_term_code(qn.second);
+    set_code(qn, cp);
 }
 
 void wam_interpreter::compile(common::con_cell module, common::con_cell name)

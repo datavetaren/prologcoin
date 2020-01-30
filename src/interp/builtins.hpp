@@ -207,6 +207,7 @@ namespace prologcoin { namespace interp {
         static bool retract_1(interpreter_base &interp, size_t arity, common::term args[]);
         static bool retractall_1(interpreter_base &interp, size_t arity, common::term args[]);
         static bool retract(interpreter_base &interp, const std::string &pame, common::term head, bool all);
+        static bool current_predicate_1(interpreter_base &interp, size_t arity, common::term args[]);
 
         //
         // Non-standard, Prologcoin specific

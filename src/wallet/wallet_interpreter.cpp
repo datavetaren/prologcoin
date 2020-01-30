@@ -30,12 +30,50 @@ void wallet_interpreter::setup_wallet_impl()
     con_cell M = functor("wallet_impl", 0);
 
     std::string template_source = R"PROG(
+
+%
+% Sync N heap references (to frozen closures)
+%
 sync(N) :-
     lastheap(H),
     H1 is H + 1,
     ((frozenk(H1, N, HeapAddrs), frozen(HeapAddrs, Closures)) @ global) @ node,
     forall(member(Closure, Closures), utxo_check(Closure)).
+
+%
+% Iterate through next 100 frozen closures to see if we have received
+% something we recognize.
+%
 sync :- sync(100).
+
+%
+% Compute public key addresses and store them in memory
+%
+cache_addresses :-
+    numkeys(N),
+    cache_addresses_n(0, N).
+
+cache_addresses_n(N, N).
+cache_addresses_n(I, N) :-
+    wallet:pubkey(I, PubKey),
+    ec:address(PubKey, Address),
+    .... <todo>
+    I1 is I + 1,
+    cache_addresses_n(I1, N).
+
+
+%
+% Check this frozen closure for transaction type.
+%
+utxo_check('$freeze':F) :-
+   functor(F, _, Arity),
+   Arity >= 3,
+   !,
+   arg(2, F, TxType),
+   arg(3, F, Args),
+   arg(7, F, Value),
+   utxo_check_tx(TxType, Args, Value).
+utxo_check(_). % Silently ignore it
 
 )PROG";
     

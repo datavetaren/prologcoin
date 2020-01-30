@@ -1389,6 +1389,41 @@ bool builtins::retract(interpreter_base &interp, const std::string &pname, term 
     return true;
 }
 
+bool builtins::current_predicate_1(interpreter_base &interp, size_t arity, common::term args[])
+{
+    static con_cell SLASH("/",2);
+    if (!interp.is_functor(args[0]) || interp.functor(args[0]) != SLASH) {
+        throw interpreter_exception_wrong_arg_type("current_predicate/1: Only an instantiated term like f/a is supported.");
+    }
+    if (!interp.is_atom(interp.arg(args[0], 0))) {
+        throw interpreter_exception_wrong_arg_type("current_predicate/1: Expected predicate name; was " + interp.to_string(interp.arg(args[0],0)));
+    }
+    con_cell f = interp.functor(interp.arg(args[0], 0));
+    term arity_part = interp.arg(args[0], 1);
+    if (arity_part.tag() != tag_t::INT) {
+        throw interpreter_exception_wrong_arg_type("current_predicate/1: Expected arity as an integer of predicate; was " + interp.to_string(arity_part));
+    }
+    auto a = reinterpret_cast<int_cell &>(arity_part).value();
+    if (a < 0 || a > con_cell::MAX_ARITY) {
+        std::stringstream msg;
+	msg << "current_predicate/1: Arity must be within 0 and " << con_cell::MAX_ARITY;
+        throw interpreter_exception_wrong_arg_type(msg.str());
+    }
+
+    con_cell module = interp.current_module();
+    con_cell pred = interp.to_functor(f, a);
+
+    qname qn(module, pred);
+
+    auto &cp = interp.get_code(qn);
+    bool exists = !cp.is_fail();
+    if (!exists) {
+        exists = interp.get_predicate(qn).size() > 0;
+    }
+
+    return exists;
+}
+
 void builtins::load(interpreter_base &interp) {
     auto &i = interp;
   
@@ -1474,7 +1509,8 @@ void builtins::load(interpreter_base &interp) {
     i.load_builtin(con_cell("assertz",1), builtin(&builtins::assertz_1));
     i.load_builtin(con_cell("assert",1), builtin(&builtins::assertz_1));
     i.load_builtin(con_cell("retract",1), builtin(&builtins::retract_1));
-    i.load_builtin(i.functor("retractall",1), builtin(&builtins::retractall_1));    
+    i.load_builtin(i.functor("retractall",1), builtin(&builtins::retractall_1));
+    i.load_builtin(i.functor("current_predicate",1), builtin(&builtins::current_predicate_1));
     
 }
  

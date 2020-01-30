@@ -192,6 +192,7 @@ privkey(Count, PrivKey) :-
     ec:normal_key(ExtPrivKey, PrivKey).
 
 lastheap(0).
+numkeys(0).
 
 )PROG";
 
