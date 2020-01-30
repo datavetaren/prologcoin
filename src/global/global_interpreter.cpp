@@ -107,15 +107,17 @@ bool global_interpreter::execute_goal(buffer_t &serialized, bool and_undo)
 
 	if (!execute(goal)) {
 	    get_global().set_height(old_height);
-	    if (and_undo) reset();
-            return false;
+	    if (and_undo) {
+	        reset();
+	    }
+	    return false;
 	}
 	serialized.clear();
 	ser.write(serialized, goal);
 	if (and_undo) {
+	    get_global().set_height(old_height);	
 	    reset();
 	}
-	get_global().set_height(old_height);	
 	return true;
     } catch (serializer_exception &ex) {
 	get_global().set_height(old_height);

@@ -1049,30 +1049,67 @@ bool builtins::module_1(interpreter_base &interp, size_t arity, common::term arg
     return true;
 }
 
-bool builtins::frozen_2(interpreter_base &interp, size_t arity, common::term args[] ) {
-
-    term addr_term = args[0];
-    if (addr_term.tag() != common::tag_t::INT) {
+term builtins::get_frozen(interpreter_base &interp, common::term arg)
+{
+    if (arg.tag() != common::tag_t::INT) {
         std::string msg = "frozen/2: "
-	  "First argument was not an integer representing a heap address; was "
-	  + interp.to_string(addr_term);
+	  "Argument was not an integer representing a heap address; was "
+	  + interp.to_string(arg);
 	interp.abort(interpreter_exception_wrong_arg_type(msg));
     }
 
-    auto addr = static_cast<int_cell &>(addr_term).value();
+    auto addr = static_cast<int_cell &>(arg).value();
     if (addr < 0) {
         std::string msg = "frozen/2: "
 	  "Integer must be a positive integer; was "
-	  + interp.to_string(addr_term);
+	  + interp.to_string(arg);
 	interp.abort(interpreter_exception_wrong_arg_type(msg));
     }
-	
+
     auto *closure = interp.frozen_closures.find(addr);
     if (closure == nullptr) {
-        return false;
+        std::stringstream msg;
+	msg << "frozen/2: There was no frozen closure at " << interp.to_string(arg) << std::endl;
+	interp.abort(interpreter_exception_wrong_arg_type(msg.str()));
+    }
+    return *closure;
+}
+
+bool builtins::frozen_2(interpreter_base &interp, size_t arity, common::term args[] ) {
+
+    term addr_term = args[0];
+    if (addr_term.tag() != common::tag_t::INT && !interp.is_list(addr_term)) {
+        std::string msg = "frozen/2: "
+	  "First argument was not an integer (or a list of integers) "
+	  "representing a heap address(es); was "
+	      + interp.to_string(addr_term);
+	interp.abort(interpreter_exception_wrong_arg_type(msg));
     }
 
-    return interp.unify(args[1], *closure);
+    term result = interpreter_base::EMPTY_LIST;
+
+    if (addr_term.tag() == common::tag_t::INT) {
+        result = get_frozen(interp, addr_term);
+    } else {
+        auto lst = addr_term;
+	auto tail_lst = result;
+	while (interp.is_dotted_pair(lst)) {
+            auto arg = interp.arg(lst, 0);
+	    term closure = get_frozen(interp, arg);
+	    auto next_lst = interp.new_dotted_pair(closure,
+						   interpreter_base::EMPTY_LIST);
+	    if (tail_lst == interpreter_base::EMPTY_LIST) {
+	        tail_lst = next_lst;
+		result = next_lst;
+	    } else {
+	        interp.set_arg(tail_lst, 1, next_lst);
+		tail_lst = next_lst;
+	    }
+	    lst = interp.arg(lst, 1);
+	}
+    }
+
+    return interp.unify(args[1], result);
 }
 
 bool builtins::frozenk_3(interpreter_base &interp, size_t arity, common::term args[] ) {

@@ -214,6 +214,8 @@ namespace prologcoin { namespace interp {
       
         // frozen(+X, -Closure)
         static bool frozen_2(interpreter_base &interp, size_t arity, common::term args[] );
+        static common::term get_frozen(interpreter_base &interp, common::term arg);
+
         // frozenk(+Start, +K, -Xs)
         static bool frozenk_3(interpreter_base &interp, size_t arity, common::term args[] );
         // defrost(+HeapAddress, -Closure, +Values)
