@@ -170,6 +170,9 @@ public:
     //               'm/' can be skipped; h(2)/3 means the same thing
     static bool child_pubkey_3(interpreter_base &interp, size_t arity, term args[]);
     static bool child_privkey_3(interpreter_base &interp, size_t arity, term args[]);
+    // normal_key/2(+ExtendedKey, Key)
+    // True iff Key is the normal key from the extended key.
+    static bool normal_key_2(interpreter_base &interp, size_t arity, term args[]);
 
     // Encryption
     // encrypt(+Input, +Password, +Iterations, -Output)

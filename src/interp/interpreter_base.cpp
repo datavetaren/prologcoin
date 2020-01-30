@@ -36,7 +36,7 @@ meta_context::meta_context(interpreter_base &i, meta_fn mfn)
     old_hb = i.get_register_hb();
 }
 
-interpreter_base::interpreter_base() : has_updated_predicates_(false), register_pr_("", 0), arith_(*this), locale_(*this), current_module_("system",0)
+interpreter_base::interpreter_base() : has_updated_predicates_(false), register_pr_("", 0), arith_(*this), locale_(*this), current_module_("system",0), persistent_password_(false)
 {
     init();
 
@@ -133,6 +133,10 @@ void interpreter_base::reset()
 	    cont = true;
 	}
     } while (cont);
+
+    if (!persistent_password_) {
+        clear_password();
+    }
 }
 
 std::string code_point::to_string(const interpreter_base &interp) const
@@ -802,6 +806,7 @@ common::term interpreter_base::get_first_arg()
 
 void interpreter_base::unwind_to_top_choice_point()
 {
+    if (!persistent_password_) clear_password();
     if (top_b() == nullptr) {
         return;
     }
@@ -905,6 +910,14 @@ void interpreter_base::save_predicate(const qname &qn, std::ostream &out)
 	emit.nl();
     }
     if (!empty) emit.nl();
+}
+
+void interpreter_base::clear_password()
+{
+    static con_cell SYSTEM("system",0);
+    static con_cell PASSWD("$passwd",1);
+    auto &pred = get_predicate(qname(SYSTEM, PASSWD));
+    pred.clear();
 }
 
 }}

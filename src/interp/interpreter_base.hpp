@@ -1487,8 +1487,16 @@ private:
     common::con_cell current_module_;
   
     std::unordered_map<common::con_cell, managed_data *> managed_data_;
+
+    // If password is in persistent mode
+    bool persistent_password_;
+
+    bool is_persistent_password() const { return persistent_password_; }
+    void set_persistent_password(bool p) { persistent_password_ = p; }
   
 protected:
+    void clear_password();
+
     inline void set_frozen_closure(size_t index, term closure) {
         frozen_closures.insert(index, closure);
 	heap_watch(index, true);

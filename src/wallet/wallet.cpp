@@ -181,8 +181,8 @@ void wallet::create(const std::string &passwd, term sentence)
     std::string nl2 = nl + nl;
     std::string template_source = R"PROG(
 
-pubkey(Count, PubKey) :- master_pubkey(Master), ec:child_pubkey(Master, Count, PubKey).
-privkey(Count, PrivKey) :- master_privkey(Master), ec:child_privkey(Master, Count, PrivKey).
+pubkey(Count, PubKey) :- master_pubkey(Master), ec:child_pubkey(Master, Count, ExtPubKey), ec:normal_key(ExtPubKey, PubKey).
+privkey(Count, PrivKey) :- master_privkey(Master), ec:child_privkey(Master, Count, ExtPrivKey), ec:normal_key(ExtPrivKey, PrivKey).
 
 )PROG";
 
@@ -193,7 +193,7 @@ privkey(Count, PrivKey) :- master_privkey(Master), ec:child_privkey(Master, Coun
     ec::mnemonic mn(interp_);
     mn.from_sentence(sentence); // Already checked before this call
     mn.compute_key(hd, "TREZOR"); // Be compatible with TREZOR
-    std::string master_privkey_source = "master_privkey(Master) :- wallet_memory:password(Password), ec:encrypt(WordList, Password, 2048, " + encrypted_str +"), ec:master_key(WordList, Master, _).";
+    std::string master_privkey_source = "master_privkey(Master) :- system:password(Password), ec:encrypt(WordList, Password, 2048, " + encrypted_str +"), ec:master_key(WordList, Master, _).";
 
     std::string master_pubkey_source = "master_pubkey(58'" + hd.master_public().to_string() + ").";
 

@@ -1888,6 +1888,7 @@ void builtins::load(interpreter_base &interp, con_cell *module0)
     interp.load_builtin(M, interp.functor("words", 2), &builtins::words_2);
     interp.load_builtin(M, interp.functor("child_pubkey", 3), &builtins::child_pubkey_3);
     interp.load_builtin(M, interp.functor("child_privkey", 3), &builtins::child_privkey_3);
+    interp.load_builtin(M, interp.functor("normal_key", 2), &builtins::normal_key_2);
 
     // Encryption
     
@@ -2190,6 +2191,75 @@ bool builtins::child_pubkey_3(interpreter_base &interp, size_t arity, term args[
 
 bool builtins::child_privkey_3(interpreter_base &interp, size_t arity, term args[]) {
     return derive_child("child_privkey/3", interp, args[0], args[1], args[2]);
+}
+
+bool builtins::normal_key_2(interpreter_base &interp, size_t arity, term args[]) {
+    const std::string pname = "normal_key/2";
+
+    term xkey = args[0];
+    
+    if (xkey.tag() != tag_t::BIG) {
+        std::stringstream msg;
+        msg << pname << ": First argument must be a valid extended key; was " << interp.to_string(xkey);
+        throw interpreter_exception_wrong_arg_type(msg.str());
+    }
+  
+    static const size_t XKEY_LEN = 82;
+    uint8_t xkey_bytes[XKEY_LEN];
+    size_t xkey_bytes_num = XKEY_LEN;
+    if (!get_bignum(interp, xkey, xkey_bytes, xkey_bytes_num) || xkey_bytes_num != 82) {
+        std::stringstream msg;
+        msg << pname << ": First argument must be a valid extended key; was " << interp.to_string(xkey);
+        throw interpreter_exception_wrong_arg_type(msg.str());      
+    }
+    
+    // Checksum
+    uint8_t checksum[4];
+    get_checksum(xkey_bytes, XKEY_LEN-4, checksum);
+    if (memcmp(checksum, &xkey_bytes[XKEY_LEN-4], 4) != 0) {
+        std::stringstream msg;
+        msg << pname << ": Provided extended key checksum failed; " << interp.to_string(xkey);
+        throw interpreter_exception_wrong_arg_type(msg.str());      
+    }
+
+    // Check if key is public or private
+
+    if (xkey_bytes[0] == 0x04 &&
+	xkey_bytes[1] == 0x88 &&
+	xkey_bytes[2] == 0xB2 &&
+	xkey_bytes[3] == 0x1E) {
+      
+        // Extended public key
+        extended_public_key xpub;
+	if (!xpub.read(xkey_bytes)) {
+	    std::stringstream msg;
+            msg << pname << ": Couldn't parse extended public key; " << interp.to_string(xkey);
+            throw interpreter_exception_wrong_arg_type(msg.str());      
+	}
+
+	term normal_key = create_public_key(interp, xpub);
+	return interp.unify(args[1], normal_key);
+    } else if (xkey_bytes[0] == 0x04 &&
+	       xkey_bytes[1] == 0x88 &&
+	       xkey_bytes[2] == 0xAD &&
+	       xkey_bytes[3] == 0xE4) {
+        // Extended private key
+        extended_private_key xpriv;
+	if (!xpriv.read(xkey_bytes)) {
+	    std::stringstream msg;
+            msg << pname << ": Couldn't parse extended private key; " << interp.to_string(xkey);
+            throw interpreter_exception_wrong_arg_type(msg.str());      
+	  
+	}
+
+	term normal_key = create_private_key(interp, xpriv, true);
+	return interp.unify(args[1], normal_key);
+    } else {
+	std::stringstream msg;
+	msg << pname << ": Unrecognized extended key; " << interp.to_string(xkey);
+	throw interpreter_exception_wrong_arg_type(msg.str());      
+    }
+       
 }
 
 bool builtins::decrypt(interpreter_base &interp, term input, const uint8_t *key, term result) {

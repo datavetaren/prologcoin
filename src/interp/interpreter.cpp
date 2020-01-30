@@ -183,6 +183,10 @@ bool interpreter::execute(const term query)
 	delete_instance();
     }
 
+    if (!is_persistent_password() && num_instances() == 0 && !has_more()) {
+        clear_password();
+    }
+
     return b;
 }
 
@@ -213,6 +217,10 @@ bool interpreter::cont()
 
     bool r = !is_top_fail();
 
+    if (!is_persistent_password() && num_instances() == 0 && !r) {
+        clear_password();
+    }
+    
     return r;
 }
 

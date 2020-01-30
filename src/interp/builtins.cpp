@@ -1218,6 +1218,68 @@ bool builtins::defrost_3(interpreter_base &interp, size_t arity, common::term ar
     return true;
 }
 
+bool builtins::password_2(interpreter_base &interp, size_t arity, common::term args[])
+{
+    static con_cell SYSTEM("system",0);
+    static con_cell PASSWD("$passwd",1);
+    if (args[0].tag() == tag_t::REF) {
+        auto &pred = interp.get_predicate(SYSTEM, PASSWD);
+	if (pred.size() == 0) {
+	    return false;
+	}
+	if (interp.functor(pred[0].clause()) != PASSWD) {
+	    return false;
+	}
+	auto head = interp.clause_head(pred[0].clause());
+	auto passwd = interp.arg(head,0);
+	if (!interp.is_string(passwd)) {
+	    return false;
+	}
+
+	if (arity > 1) {
+	    bool is_pers = interp.is_persistent_password();
+	    term opt = is_pers ? interp.functor("persistent",0) : interp.functor("temporary",0);
+	    if (!interp.unify(args[1], opt)) {
+	        return false;
+	    }
+	}
+	return interp.unify(args[0], passwd);
+    }
+
+    bool is_pers = false;
+    
+    if (arity == 2) {
+        term persistent_atom = interp.functor("persistent",0);
+	term temporary_atom = interp.functor("temporary",0);
+        if (args[1] == persistent_atom) {
+	    is_pers = true;
+        } else if (args[1] == temporary_atom) {
+	    is_pers = false;
+	} else {
+	    std::stringstream msg;
+	    msg << "password/" << arity << ": Second arugment must be the atom 'persistent' or 'temporary'; was " << interp.to_string(args[1]);
+	    throw interpreter_exception_wrong_arg_type(msg.str());	  
+	}
+    }
+
+    // First argument is bound; check that it is a string
+    if (!interp.is_string(args[0])) {
+        std::stringstream msg;
+        msg << "password/" << arity << ": First argument must be a proper string; was " << interp.to_string(args[0]);
+	throw interpreter_exception_wrong_arg_type(msg.str());
+    }
+
+    auto &pred = interp.get_predicate(qname(SYSTEM, PASSWD));
+    pred.clear();
+    term clause = interp.new_term(PASSWD);
+    interp.set_arg(clause, 0, args[0]);
+    pred.push_back(managed_clause(clause,0));
+
+    interp.set_persistent_password(is_pers);
+
+    return true;
+}
+
 // Modifying program database
 
 bool builtins::show_0(interpreter_base &interp, size_t arity, common::term args[]) {
@@ -1366,6 +1428,8 @@ void builtins::load(interpreter_base &interp) {
     i.load_builtin(con_cell("frozen",2), builtin(&builtins::frozen_2));
     i.load_builtin(con_cell("frozenk",3), builtin(&builtins::frozenk_3));
     i.load_builtin(con_cell("defrost",3), builtin(&builtins::defrost_3));
+    i.load_builtin(i.functor("password",1), builtin(&builtins::password_2));
+    i.load_builtin(i.functor("password",2), builtin(&builtins::password_2));
 
     // Program database
     i.load_builtin(con_cell("show",0), builtin(&builtins::show_0));

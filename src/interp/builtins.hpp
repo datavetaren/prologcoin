@@ -218,6 +218,18 @@ namespace prologcoin { namespace interp {
         static bool frozenk_3(interpreter_base &interp, size_t arity, common::term args[] );
         // defrost(+HeapAddress, -Closure, +Values)
         static bool defrost_3(interpreter_base &interp, size_t arity, common::term args[] );
+        // password(+String, [+Options])
+        // General password management. If password(String) used then
+        // it temporarily sets the password for the next query (and then
+        // immediately removes it from memory.) If password(String, persistent)
+        // is used, then it is persistent until further notice. If
+        // password(X) is used where X is a variable, then it retrieves the
+        // current password if there's one set (or it fails.) This predicate
+        // is convenient to do special things, e.g. the wallet uses the
+        // password for encrypting the master private and by not having
+        // the password constantly available it reduces the risk of possible
+        // external hacks.
+        static bool password_2(interpreter_base &interp, size_t arity, common::term args[] );
 
         // load
         static void load(interpreter_base &interp);
