@@ -25,6 +25,22 @@ void wallet_interpreter::setup_local_builtins()
     load_builtin(M, con_cell("create",2), &wallet_interpreter::create_2);
 }
 
+void wallet_interpreter::setup_wallet_impl()
+{
+    con_cell M = functor("wallet_impl", 0);
+
+    std::string template_source = R"PROG(
+sync(N) :-
+    lastheap(H),
+    H1 is H + 1,
+    ((frozenk(H1, N, HeapAddrs), frozen(HeapAddrs, Closures)) @ global) @ node,
+    forall(member(Closure, Closures), utxo_check(Closure)).
+sync :- sync(100).
+
+)PROG";
+    
+}
+
 bool wallet_interpreter::operator_at_2(interpreter_base &interp, size_t arity, term args[]) {
     static con_cell NODE("node", 0);
     auto query = args[0];

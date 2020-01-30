@@ -21,6 +21,7 @@ public:
   
 private:
     void setup_local_builtins();
+    void setup_wallet_impl();
 
     wallet & get_wallet() { return wallet_; }
 

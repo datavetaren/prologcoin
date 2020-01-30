@@ -63,6 +63,13 @@ append([], Zs, Zs).
 append([X|Xs], Ys, [X|Zs]) :-
     append(Xs, Ys, Zs).
 
+%
+% forall/2
+%
+
+forall(Cond,Action) :-
+    \+ ( Cond, \+ Action ).
+
 )PROG";
 
     set_current_module(con_cell("system",0));

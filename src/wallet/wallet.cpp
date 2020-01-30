@@ -181,8 +181,17 @@ void wallet::create(const std::string &passwd, term sentence)
     std::string nl2 = nl + nl;
     std::string template_source = R"PROG(
 
-pubkey(Count, PubKey) :- master_pubkey(Master), ec:child_pubkey(Master, Count, ExtPubKey), ec:normal_key(ExtPubKey, PubKey).
-privkey(Count, PrivKey) :- master_privkey(Master), ec:child_privkey(Master, Count, ExtPrivKey), ec:normal_key(ExtPrivKey, PrivKey).
+pubkey(Count, PubKey) :-
+    master_pubkey(Master),
+    ec:child_pubkey(Master, Count, ExtPubKey), 
+    ec:normal_key(ExtPubKey, PubKey).
+
+privkey(Count, PrivKey) :-
+    master_privkey(Master),
+    ec:child_privkey(Master, Count, ExtPrivKey),
+    ec:normal_key(ExtPrivKey, PrivKey).
+
+lastheap(0).
 
 )PROG";
 
