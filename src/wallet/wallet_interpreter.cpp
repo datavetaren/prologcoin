@@ -27,8 +27,6 @@ void wallet_interpreter::setup_local_builtins()
 
 void wallet_interpreter::setup_wallet_impl()
 {
-    con_cell M = functor("wallet_impl", 0);
-
     std::string template_source = R"PROG(
 
 %

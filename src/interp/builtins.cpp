@@ -1416,7 +1416,7 @@ bool builtins::current_predicate_1(interpreter_base &interp, size_t arity, commo
     qname qn(module, pred);
 
     auto &cp = interp.get_code(qn);
-    bool exists = !cp.is_fail();
+    bool exists = !cp.is_fail() || cp.has_wam_code();
     if (!exists) {
         exists = interp.get_predicate(qn).size() > 0;
     }

@@ -129,7 +129,6 @@ void wam_interpreter::compile(const qname &qn)
     auto *next_instr = to_code(first_offset);
     set_wam_predicate(qn, next_instr, xn_size, yn_size);
     code_point cp(next_instr);
-    cp.set_term_code(qn.second);
     set_code(qn, cp);
 }
 
