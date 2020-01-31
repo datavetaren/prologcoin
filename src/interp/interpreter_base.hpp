@@ -643,10 +643,7 @@ public:
   
     template<typename F = none> void load_program(term clauses, F f , con_cell &primary_module)
     {
-	syntax_check_stack_.push_back(
-		  std::bind(&interpreter_base::syntax_check_program, this,
-			    clauses));
-	syntax_check();
+        syntax_check_program(clauses);
 
 	con_cell current_mod = current_module();
 	primary_module = current_mod;
@@ -1381,13 +1378,11 @@ private:
 
     common::cell first_arg_index(const term first_arg);
 
-      void syntax_check();
-
-    void syntax_check_program(const term term);
-    void syntax_check_clause(const term term);
-    void syntax_check_head(const term head);
-    void syntax_check_body(const term body);
-    void syntax_check_goal(const term goal);
+    void syntax_check_program(term clauses);
+    void syntax_check_clause(term clause);
+    void syntax_check_head(term clause, term head);
+    void syntax_check_body(term clause, term body);
+    void syntax_check_goal(term clause, term goal);
 
     void preprocess_freeze(term term);
     void preprocess_freeze_body(term term);
@@ -1399,7 +1394,6 @@ private:
 
     bool debug_;
     bool track_cost_;
-    std::vector<std::function<void ()> > syntax_check_stack_;
 
     std::unordered_map<qname, code_point> code_db_;
     std::unordered_map<qname, builtin> builtins_;
@@ -1528,8 +1522,14 @@ protected:
             }
         }
     }
+
+private:
+    void trim_heap(size_t new_size) = delete;
+
   
-    inline void trim_heap(size_t new_size) {
+protected:
+  
+    inline void trim_heap_safe(size_t new_size) {
         term_env::trim_heap(new_size);
 	// And we need to remove any pending frozen closures
 	for (auto it = frozen_closures.begin(new_size);
@@ -1540,9 +1540,20 @@ protected:
 	}
     }
 
-    void check_frozen();
+    inline void trim_heap_unsafe(size_t new_size) {
+        // Only trim if we haven't meddled with the program database
+        if (!new_roots_) {
+	    trim_heap_safe(new_size);
+	}
+    }
+
+    inline void new_roots() {
+        new_roots_ = true;
+    }
   
-    size_t tidy_size;
+    void check_frozen();
+private:
+    bool new_roots_;
 };
 
 template<> inline environment_naive_t * interpreter_base::allocate_environment<ENV_NAIVE>()

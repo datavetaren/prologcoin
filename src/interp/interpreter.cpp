@@ -17,7 +17,7 @@ interpreter::interpreter()
 	   size_t n1 = to_stack_relative_addr((word_t *)e0());
 	   size_t n2 = to_stack_relative_addr((word_t *)b());
 	   size_t n = (n1 > n2) ? n1 : n2;
-	   std::cout << "STACK: " << n << " " << ((n2 > n1) ? "B" : "E") << " HEAP: " << heap_size() << " TRAIL: " << trail_size() << " TIDY: " << tidy_size << "\n";
+	   std::cout << "STACK: " << n << " " << ((n2 > n1) ? "B" : "E") << " HEAP: " << heap_size() << " TRAIL: " << trail_size() << "\n";
        });
 }
 
@@ -40,9 +40,9 @@ void interpreter::setup_standard_lib()
 % member/2
 %
 
-member(X, Xs) :- $member0(Xs, X).
-$member0([X|_], X).
-$member0([_|Xs], X) :- $member0(Xs, X).
+member(X, Xs) :- '$member0'(Xs, X).
+'$member0'([X|_], X).
+'$member0'([_|Xs], X) :- '$member0'(Xs, X).
 
 %
 % reverse/2
@@ -51,9 +51,9 @@ $member0([_|Xs], X) :- $member0(Xs, X).
 reverse(Xs, Ys) :-
     reverse0(Xs, [], Ys).
 
-$reverse0([], Ys, Ys).
-$reverse0([X|Xs], Acc, Ys) :-
-    $reverse0(Xs, [X|Acc], Ys).
+'$reverse0'([], Ys, Ys).
+'$reverse0'([X|Xs], Acc, Ys) :-
+    '$reverse0'(Xs, [X|Acc], Ys).
 
 %
 % append/3
@@ -429,7 +429,9 @@ bool interpreter::select_clause(const code_point &instruction,
 	    if (has_choices) {
 	        auto choice_point = b();
 		if (i == num_clauses - 1) {
-	  	    choice_point->bp = code_point::fail();
+		    // If we are at the last clause, then we can remove the choice point.
+		    choice_point->bp = code_point::fail();
+		    interpreter_base::cut();
 		} else {
 		    choice_point->bp = code_point(int_cell((index_id << 8) + (i+1)));
 		}
@@ -451,7 +453,7 @@ bool interpreter::select_clause(const code_point &instruction,
 	    return true;
 	} else {
     	    // Discard garbage created on heap (due to copying clause)
-	    trim_heap(current_heap);
+	    trim_heap_safe(current_heap);
 	}
     }
 

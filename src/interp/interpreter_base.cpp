@@ -43,8 +43,6 @@ interpreter_base::interpreter_base() : has_updated_predicates_(false), register_
     // These will be loaded into the system module
     builtins::load(*this);
 
-    tidy_size = 0;
-
     register_top_b_ = nullptr;
     register_top_e_ = nullptr;
     register_b_ = nullptr;
@@ -79,6 +77,7 @@ void interpreter_base::init()
     restore_state_fn_ = &restore_state;
     standard_output_ = nullptr;
     prepare_execution();
+    new_roots_ = false;
 }
 
 interpreter_base::~interpreter_base()
@@ -92,7 +91,6 @@ interpreter_base::~interpreter_base()
     close_all_files();
     register_cp_.reset();
     register_qr_ = term();
-    syntax_check_stack_.clear();
     builtins_.clear();
     program_db_.clear();
     module_db_.clear();
@@ -137,6 +135,7 @@ void interpreter_base::reset()
     if (!persistent_password_) {
         clear_password();
     }
+    new_roots_ = false;
 }
 
 std::string code_point::to_string(const interpreter_base &interp) const
@@ -225,15 +224,6 @@ void interpreter_base::told_standard_output()
 bool interpreter_base::has_told_standard_outputs()
 {
     return !standard_output_stack_.empty();
-}
-
-void interpreter_base::syntax_check()
-{
-    while (!syntax_check_stack_.empty()) {
-	auto f = syntax_check_stack_.back();
-	syntax_check_stack_.pop_back();
-	f();
-    }
 }
 
 void interpreter_base::preprocess_freeze(term t)
@@ -347,10 +337,7 @@ term interpreter_base::rewrite_freeze_body(term freezeVar, term freezeBody)
     
 void interpreter_base::load_clause(term t, interpreter_base::clause_position pos)
 {
-    syntax_check_stack_.push_back(
-		  std::bind(&interpreter_base::syntax_check_clause, this,
-			    t));
-    syntax_check();
+    syntax_check_clause(t);
 
     // We want to prerocess freeze/2 calls:
     //    foo(A,X,Y) :-
@@ -438,6 +425,8 @@ void interpreter_base::load_clause(term t, interpreter_base::clause_position pos
     }
 
     set_code(qn, code_point(module, predicate));
+
+    new_roots();
 }
 
 void interpreter_base::load_builtin(const qname &qn, builtin b)
@@ -525,105 +514,99 @@ qname interpreter_base::gen_predicate(const common::con_cell module,
     return pn;
 }
 
-void interpreter_base::syntax_check_program(const term t)
+void interpreter_base::syntax_check_program(term clauses)
 {
-    if (!is_list(t)) {
-	throw syntax_exception_program_not_a_list(t);
+    if (!is_list(clauses)) {
+	throw syntax_exception_program_not_a_list(clauses);
     }
 
-    size_t sz = syntax_check_stack_.size();
-    for (auto clause : list_iterator(*this, t)) {
-	syntax_check_stack_.push_back(
-		  std::bind(&interpreter_base::syntax_check_clause, this,
-			    clause));
+    for (auto clause : list_iterator(*this, clauses)) {
+        syntax_check_clause(clause);
     }
-    std::reverse(syntax_check_stack_.begin() + sz, syntax_check_stack_.end());
 }
 
-void interpreter_base::syntax_check_clause(const term t)
+void interpreter_base::syntax_check_clause(term clause)
 {
     static const con_cell def(":-", 2);
 
-    auto f = functor(t);
+    if (!is_functor(clause)) {
+        throw syntax_exception_clause_bad_head(clause, "Head of clause is not a functor; was " + to_string(clause));
+    }
+    
+    auto f = functor(clause);
     if (f == def) {
-	auto head = arg(t, 0);
-	auto body = arg(t, 1);
-	syntax_check_stack_.push_back(
-	      std::bind(&interpreter_base::syntax_check_head, this, head) );
-	syntax_check_stack_.push_back(
-	      std::bind(&interpreter_base::syntax_check_body, this, body) );
+	auto head = arg(clause, 0);
+	auto body = arg(clause, 1);
+	syntax_check_head(clause, head);
+	syntax_check_body(clause, body);
 	return;
     }
 
     // This is a head only clause.
 
-    syntax_check_stack_.push_back(
-		  std::bind(&interpreter_base::syntax_check_head, this, t));
+    syntax_check_head(clause, clause);
 }
 
-void interpreter_base::syntax_check_head(const term t)
+void interpreter_base::syntax_check_head(term clause, term head)
 {
     static con_cell def(":-", 2);
     static con_cell semi(";", 2);
     static con_cell comma(",", 2);
     static con_cell cannot_prove("\\+", 1);
 
-    if (!is_functor(t)) {
-	throw syntax_exception_clause_bad_head(t, "Head of clause is not a functor");
+    if (!is_functor(head)) {
+         throw syntax_exception_clause_bad_head(clause, "For '" + to_string(clause) + "': Head of clause is not a functor; was " + to_string(head));
     }
 
     // Head cannot be functor ->, ; , or \+
-    auto f = functor(t);
+    auto f = functor(head);
 
     if (f == def || f == semi || f == comma || f == cannot_prove) {
-	throw syntax_exception_clause_bad_head(t, "Clause has an invalid head; cannot be '->', ';', ',' or '\\+'");
+        throw syntax_exception_clause_bad_head(clause, "For '" + to_string(clause) + "': Clause has an invalid head; cannot be '->', ';', ',' or '\\+'; was " + to_string(f));
     }
 
     if (f == COLON) {
 	// Check that operands are real constants
-	if (arg(t, 0).tag() != tag_t::CON ||
-	    !is_functor(arg(t, 1))) {
-	    throw syntax_exception_clause_bad_head(t, "Clause has an invalid head; module and predicate name are not pure constants; was " + to_string(t));
+	if (arg(clause, 0).tag() != tag_t::CON ||
+	    !is_functor(arg(clause, 1))) {
+	    throw syntax_exception_clause_bad_head(clause, "For '" + to_string(clause)+ "': Clause has an invalid head; module and predicate name are not pure constants; was " + to_string(head));
 	}
     }
 }
 
-void interpreter_base::syntax_check_body(const term t)
+void interpreter_base::syntax_check_body(term clause, term body)
 {
     static con_cell imply("->", 2);
     static con_cell semi(";", 2);
     static con_cell comma(",", 2);
     static con_cell cannot_prove("\\+", 1);
 
-    if (is_functor(t)) {
-	auto f = functor(t);
+    if (is_functor(body)) {
+	auto f = functor(body);
 	if (f == imply || f == semi || f == comma || f == cannot_prove) {
 	    auto num_args = f.arity();
 	    for (size_t i = 0; i < num_args; i++) {
-		auto a = arg(t, i);
-		syntax_check_stack_.push_back(
-		      std::bind(&interpreter_base::syntax_check_body, this, a));
+		auto a = arg(body, i);
+		syntax_check_body(clause, a);
 	    }
-	    return;
 	}
     }
+    syntax_check_goal(clause, body);
 
-    syntax_check_stack_.push_back(
-		  std::bind(&interpreter_base::syntax_check_goal, this, t));
 }
 
-void interpreter_base::syntax_check_goal(const term t)
+void interpreter_base::syntax_check_goal(term clause, term goal)
 {
     // Each goal must be a functor (e.g. a plain integer is not allowed)
 
-    if (!is_functor(t)) {
-	auto tg = t.tag();
+    if (!is_functor(goal)) {
+	auto tg = goal.tag();
 	// We don't know what variables will be bound to, so we need
 	// to conservatively skip the syntax check.
 	if (tg.is_ref()) {
 	    return;
 	}
-	throw syntax_exception_bad_goal(t, "Goal is not callable.");
+	throw syntax_exception_bad_goal(goal, "For '" + to_string(clause) + "': Goal is not callable; was " + to_string(goal));
     }
 }
 
@@ -720,6 +703,7 @@ void interpreter_base::prepare_execution()
     register_top_e_ = register_e_;
     set_register_hb(heap_size());
     register_p_.reset();
+    new_roots_ = false;
 }
 
 
@@ -822,7 +806,7 @@ choice_point_t * interpreter_base::reset_to_choice_point(choice_point_t *b)
     set_e(ch->ce);
     set_cp(ch->cp);
     unwind(ch->tr);
-    trim_heap(ch->h);
+    trim_heap_unsafe(ch->h);
     set_b0(ch->b0);
     set_register_hb(heap_size());
     

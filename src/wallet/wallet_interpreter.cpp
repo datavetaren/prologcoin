@@ -16,6 +16,9 @@ wallet_interpreter::wallet_interpreter(wallet &w, const std::string &wallet_file
     setup_standard_lib();
     set_current_module(con_cell("wallet",0));
     setup_local_builtins();
+    setup_wallet_impl();
+    // Make wallet inherit everything from wallet_impl
+    use_module(functor("wallet_impl",0));
 }
 
 void wallet_interpreter::setup_local_builtins()
@@ -30,51 +33,97 @@ void wallet_interpreter::setup_wallet_impl()
     std::string template_source = R"PROG(
 
 %
+% New key. Increment counter.
+%
+newkey(PublicKey, Address) :-
+   wallet:numkeys(N),
+   retract(wallet:numkeys(_)),
+   N1 is N + 1,
+   assert(wallet:numkeys(N1)),
+   wallet:pubkey(N, PublicKey),
+   ec:address(PublicKey, Address).
+
+'$member2'(X, Y, [X|Xs], [Y|Ys]).
+'$member2'(X, Y, [_|Xs], [_|Ys]) :- '$member2'(X, Y, Xs, Ys).
+
+%
 % Sync N heap references (to frozen closures)
 %
 sync(N) :-
     lastheap(H),
     H1 is H + 1,
     ((frozenk(H1, N, HeapAddrs), frozen(HeapAddrs, Closures)) @ global) @ node,
-    forall(member(Closure, Closures), utxo_check(Closure)).
+    forall('$member2'(Closure, HeapAddress, Closures, HeapAddrs),
+            ('$new_utxo_closure'(HeapAddress, Closure) ; true)).
 
 %
 % Iterate through next 100 frozen closures to see if we have received
 % something we recognize.
 %
-sync :- sync(100).
+sync :- 
+    '$cache_addresses',
+    sync(100).
 
 %
-% Compute public key addresses and store them in memory
+% Compute public key addresses and store them in memory (using program database()
 %
-cache_addresses :-
-    numkeys(N),
-    cache_addresses_n(0, N).
+'$cache_addresses' :-
+    (\+ current_predicate(cache:last_address/1) -> assert(cache:last_address(0)) ; true),
+    cache:last_address(I),
+    wallet:numkeys(N),
+    '$cache_addresses_n'(I, N),
+    retract(cache:last_address(_)),
+    assert(cache:last_address(N)).
 
-cache_addresses_n(N, N).
-cache_addresses_n(I, N) :-
+'$cache_addresses_n'(N, N) :- !.
+'$cache_addresses_n'(I, N) :-
     wallet:pubkey(I, PubKey),
     ec:address(PubKey, Address),
-    .... <todo>
+    (\+ current_predicate(cache:valid_address/1) -> assert(cache:valid_address(Address)) ; true),
+    (\+ cache:valid_address(Address) -> assert(cache:valid_address(Address)) ; true),
     I1 is I + 1,
-    cache_addresses_n(I1, N).
+    '$cache_addresses_n'(I1, N).
 
 
 %
 % Check this frozen closure for transaction type.
 %
-utxo_check('$freeze':F) :-
-   functor(F, _, Arity),
-   Arity >= 3,
-   !,
-   arg(2, F, TxType),
-   arg(3, F, Args),
-   arg(7, F, Value),
-   utxo_check_tx(TxType, Args, Value).
-utxo_check(_). % Silently ignore it
+'$new_utxo_closure'(HeapAddress, '$freeze':F) :-
+    functor(F, _, Arity),
+    Arity >= 3,
+    arg(2, F, TxType),
+    arg(3, F, Args),
+    arg(7, F, Value),
+    ((current_predicate(wallet:new_utxo/4), wallet:new_utxo(TxType, HeapAddress, Value, Args)) -> true
+ ; '$new_utxo'(TxType, HeapAddress, Value, Args)
+    ).
+
+%
+% Check for each transaction type, currently only for 'tx1'
+%
+'$new_utxo'(tx1, HeapAddress, Value, args(_, _, Address)) :-
+    current_predicate(cache:valid_address/1),
+    cache:valid_address(Address),
+    ((current_predicate(wallet:utxo/4), wallet:utxo(HeapAddress, _,_,_)) -> true
+  ; assert(wallet:utxo(HeapAddress, tx1, Value, Address))).
 
 )PROG";
-    
+
+    con_cell old_module = current_module();
+    set_current_module(functor("wallet_impl",0));
+    try {
+        load_program(template_source);
+    } catch (interpreter_exception &ex) {
+        std::cout << "Error while loading internal wallet_impl source:" << std::endl;
+        std::cout << ex.what() << std::endl;
+    } catch (term_parse_exception &ex) {
+        std::cout << "Error while loading internal wallet_impl source:" << std::endl;      
+        std::cout << term_parser::report_string(*this, ex) << std::endl;
+    } catch (token_exception &ex) {
+        std::cout << "Error while loading internal wallet_impl source:" << std::endl;      
+        std::cout << term_parser::report_string(*this, ex) << std::endl;
+    }
+    set_current_module(old_module);
 }
 
 bool wallet_interpreter::operator_at_2(interpreter_base &interp, size_t arity, term args[]) {

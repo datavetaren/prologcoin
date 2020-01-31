@@ -172,6 +172,11 @@ public:
 					 static_cast<big_cell &>(t2),
 					 cost);
 	}
+    inline int big_compare(term t1, term t2, uint64_t &cost) const
+        { return T::get_heap().big_compare(reinterpret_cast<big_cell &>(t1),
+					   reinterpret_cast<big_cell &>(t2),
+					   cost);
+        }
     inline void get_big(term t, boost::multiprecision::cpp_int &i,
 			size_t &nbits) const
         { T::get_heap().get_big(t, i, nbits); }

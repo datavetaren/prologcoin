@@ -463,6 +463,7 @@ std::string heap::big_to_string(const boost::multiprecision::cpp_int &i, size_t 
 	s += ch;
     }
     std::reverse(s.begin(), s.end());
+    // s += " (" + boost::lexical_cast<std::string>(nbits) + " bits)";
     return s;
 }
 
@@ -552,6 +553,40 @@ bool heap::big_equal(big_cell big1, big_cell big2, uint64_t &cost) const
     }
     cost = cost_tmp;
     return true;
+}
+
+int heap::big_compare(big_cell big1, big_cell big2, uint64_t &cost) const
+{
+    uint64_t cost_tmp = 1;
+    int cmp = num_bits(big1) - num_bits(big2);
+    if (cmp != 0) {
+        cost = cost_tmp;
+        return (cmp < 0) ? -1 : 1;
+    }
+    auto it1 = begin(big1);
+    auto it2 = begin(big2);
+    auto it1_end = end(big1);
+    auto it2_end = end(big2);
+    while (it1 != it1_end) {
+	cost_tmp++;
+        if (it2 == it2_end) {
+	    cost = cost_tmp;
+	    return 1;
+	}
+	auto byte1 = *it1;
+	auto byte2 = *it2;
+	if (byte1 < byte2) {
+	    cost = cost_tmp;
+	    return -1;
+	} else if (byte1 > byte2) {
+	    cost = cost_tmp;
+	    return 1;
+        }
+	++it1;
+	++it2;
+    }
+    cost = cost_tmp;
+    return 0;
 }
 
 void heap::print(std::ostream &out) const

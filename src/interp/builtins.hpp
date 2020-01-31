@@ -157,6 +157,7 @@ namespace prologcoin { namespace interp {
 	//
 
 	static bool is_2(interpreter_base &interp, size_t arity, common::term args[]);
+        static bool greater_than_equals_2(interpreter_base &interp, size_t arity, common::term args[]);
 
 	//
 	// Analyzing & constructing terms

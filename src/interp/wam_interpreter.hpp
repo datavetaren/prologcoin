@@ -1538,7 +1538,7 @@ private:
 	b()->bp = p_else;
 	unwind_trail(b()->tr, trail_size());
 	trim_trail(b()->tr);
-	trim_heap(b()->h);
+	trim_heap_unsafe(b()->h);
 	set_register_hb(heap_size());
     }
 
@@ -1552,7 +1552,7 @@ private:
 	set_cp(b()->cp);
 	unwind_trail(b()->tr, trail_size());
 	trim_trail(b()->tr);
-	trim_heap(b()->h);
+	trim_heap_unsafe(b()->h);
         set_b(b()->b);
 	if (b() != nullptr) {
 	    set_register_hb(b()->h);

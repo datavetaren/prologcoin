@@ -418,13 +418,12 @@ int term_utils::standard_order(term a, term b, uint64_t &cost)
 
 	if (a.tag() != b.tag()) {
 	    trim_stack(d);
+	    cost = cost_tmp;
 	    if (a.tag() < b.tag()) {
 	        return -1;
 	    } else {
 	        return 1;
 	    }
-	    cost = cost_tmp;
-	    return false;
 	}
 
 	switch (a.tag()) {
@@ -452,7 +451,19 @@ int term_utils::standard_order(term a, term b, uint64_t &cost)
 	    }
 	  }
 	  break;
-	default:
+	case tag_t::BIG:
+	  {
+	    trim_stack(d);
+	    auto &big_a = reinterpret_cast<big_cell &>(a);
+	    auto &big_b = reinterpret_cast<big_cell &>(b);
+	    int v = big_compare(big_a, big_b, cost_tmp);
+	    if (v != 0) {
+	        cost = cost_tmp;
+		return v;
+	    }
+	  }
+	  break;
+	case tag_t::STR:
 	  assert(a.tag() == tag_t::STR);
 	  break;
 	}

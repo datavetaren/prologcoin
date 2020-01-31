@@ -194,7 +194,7 @@ void interactive_prompt::execute(term t)
         node_terminal_->execute(t);
     }
 }
-    
+
 void interactive_prompt::run()
 {
     while (!stopped_) {
@@ -252,8 +252,10 @@ void interactive_prompt::run()
 	    execute(t);
 	} catch (std::runtime_error &ex) {
 	    add_error(ex.what());
+	    reset();
 	} catch (...) {
 	    add_error("Unknown error");
+	    reset();
  	}
     }
 }

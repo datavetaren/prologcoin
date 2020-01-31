@@ -881,14 +881,22 @@ protected:
   }
 
   static inline void to_cpp_int(const std::string &num, int base,
-				boost::multiprecision::cpp_int &out)
+				boost::multiprecision::cpp_int &out,
+				size_t &out_nbits)
   {
       out = 0;
+      boost::multiprecision::cpp_int track_nbits = 1;
+      bool leading_zeros = false;
+      bool first = true;
       for (auto ch : num) {
 	  int d = get_base_digit(ch, base);
+	  if (first && d == 0) leading_zeros = true;
 	  out *= base;
+	  track_nbits *= base;
 	  out += d;
+	  first = false;
       }
+      out_nbits = leading_zeros ? msb(track_nbits) : msb(out);
   }
 
   sym reduce_unsigned_number__natural_number(args_t &args)
@@ -915,12 +923,12 @@ protected:
     } else {
 	// Construct a bignum
 	cpp_int val;
-	to_cpp_int(number, base, val);
+	size_t nbits;
+	to_cpp_int(number, base, val, nbits);
 
 	// Round up to nearest byte
-	size_t nbits = 8;
 	if (val != 0) {
-	    nbits = ((msb(val) + 7) / 8) * 8;
+	    nbits = ((nbits + 7) / 8) * 8;
 	}
 
 	big_cell big = heap_.new_big(val, nbits);

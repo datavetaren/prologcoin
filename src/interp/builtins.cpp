@@ -498,7 +498,16 @@ bool builtins::is_2(interpreter_base &interp, size_t arity, common::term args[])
     term result = interp.arith().eval(rhs, "is/2");
     bool ok = interp.unify(lhs, result);
     return ok;
-}	
+}
+
+bool builtins::greater_than_equals_2(interpreter_base &interp, size_t, common::term args[])
+{
+    term lhs = args[0];
+    term rhs = args[1];
+    term result_lhs = interp.arith().eval(lhs, ">=/2");
+    term result_rhs = interp.arith().eval(rhs, ">=/2");
+    return interp.standard_order(result_lhs, result_rhs) >= 0;
+}
 
 //
 // Analyzing & constructing terms
@@ -1314,6 +1323,8 @@ bool builtins::password_2(interpreter_base &interp, size_t arity, common::term a
 
     interp.set_persistent_password(is_pers);
 
+    interp.new_roots();
+
     return true;
 }
 
@@ -1326,14 +1337,14 @@ bool builtins::show_0(interpreter_base &interp, size_t arity, common::term args[
 
 bool builtins::asserta_1(interpreter_base &interp, size_t arity, common::term args[] ) {
 
-    term clause = args[0];
+    term clause = interp.copy(args[0]);
     interp.load_clause(clause, interpreter_base::FIRST_CLAUSE);
     return true;
 }
 
 bool builtins::assertz_1(interpreter_base &interp, size_t arity, common::term args[] ) {
 
-    term clause = args[0];
+    term clause = interp.copy(args[0]);
     interp.load_clause(clause, interpreter_base::LAST_CLAUSE);
     return true;
 }
@@ -1392,14 +1403,30 @@ bool builtins::retract(interpreter_base &interp, const std::string &pname, term 
 bool builtins::current_predicate_1(interpreter_base &interp, size_t arity, common::term args[])
 {
     static con_cell SLASH("/",2);
-    if (!interp.is_functor(args[0]) || interp.functor(args[0]) != SLASH) {
+
+    con_cell module = interp.current_module();
+
+    term arg = args[0];
+    
+    if (interp.is_functor(arg) &&
+	interp.functor(arg) == interpreter_base::COLON) {
+        // Extract module
+        term module_term = interp.arg(arg, 0);
+	if (!interp.is_atom(module_term)) {
+	    throw interpreter_exception_wrong_arg_type("current_predicate/1: Module name must be an atom; was " + interp.to_string(module_term));
+	}
+	module = reinterpret_cast<con_cell &>(module_term);
+	arg = interp.arg(arg, 1);
+    }
+    
+    if (!interp.is_functor(arg) || interp.functor(arg) != SLASH) {
         throw interpreter_exception_wrong_arg_type("current_predicate/1: Only an instantiated term like f/a is supported.");
     }
-    if (!interp.is_atom(interp.arg(args[0], 0))) {
-        throw interpreter_exception_wrong_arg_type("current_predicate/1: Expected predicate name; was " + interp.to_string(interp.arg(args[0],0)));
+    if (!interp.is_atom(interp.arg(arg, 0))) {
+        throw interpreter_exception_wrong_arg_type("current_predicate/1: Expected predicate name; was " + interp.to_string(interp.arg(arg,0)));
     }
-    con_cell f = interp.functor(interp.arg(args[0], 0));
-    term arity_part = interp.arg(args[0], 1);
+    con_cell f = interp.functor(interp.arg(arg, 0));
+    term arity_part = interp.arg(arg, 1);
     if (arity_part.tag() != tag_t::INT) {
         throw interpreter_exception_wrong_arg_type("current_predicate/1: Expected arity as an integer of predicate; was " + interp.to_string(arity_part));
     }
@@ -1410,7 +1437,6 @@ bool builtins::current_predicate_1(interpreter_base &interp, size_t arity, commo
         throw interpreter_exception_wrong_arg_type(msg.str());
     }
 
-    con_cell module = interp.current_module();
     con_cell pred = interp.to_functor(f, a);
 
     qname qn(module, pred);
@@ -1473,6 +1499,7 @@ void builtins::load(interpreter_base &interp) {
 
     // Arithmetics
     i.load_builtin(con_cell("is",2), &builtins::is_2);
+    i.load_builtin(con_cell(">=",2), &builtins::greater_than_equals_2);
 
     // Analyzing & constructing terms
     i.load_builtin(con_cell("arg",3), &builtins::arg_3);
