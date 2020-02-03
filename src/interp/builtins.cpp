@@ -1270,13 +1270,14 @@ bool builtins::password_2(interpreter_base &interp, size_t arity, common::term a
     static con_cell PASSWD("$passwd",1);
     if (args[0].tag() == tag_t::REF) {
         auto &pred = interp.get_predicate(SYSTEM, PASSWD);
-	if (pred.size() == 0) {
+	if (pred.empty()) {
 	    return false;
 	}
-	if (interp.functor(pred[0].clause()) != PASSWD) {
+	auto &clauses = pred.clauses();
+	if (interp.functor(clauses[0].clause()) != PASSWD) {
 	    return false;
 	}
-	auto head = interp.clause_head(pred[0].clause());
+	auto head = interp.clause_head(clauses[0].clause());
 	auto passwd = interp.arg(head,0);
 	if (!interp.is_string(passwd)) {
 	    return false;
@@ -1315,11 +1316,11 @@ bool builtins::password_2(interpreter_base &interp, size_t arity, common::term a
 	throw interpreter_exception_wrong_arg_type(msg.str());
     }
 
-    auto &pred = interp.get_predicate(qname(SYSTEM, PASSWD));
-    pred.clear();
+    auto &pred = interp.get_predicate(interp, qname(SYSTEM, PASSWD));
     term clause = interp.new_term(PASSWD);
     interp.set_arg(clause, 0, args[0]);
-    pred.push_back(managed_clause(clause,0));
+    pred.clear();
+    pred.add_clause(interp, clause);
 
     interp.set_persistent_password(is_pers);
 
@@ -1338,14 +1339,14 @@ bool builtins::show_0(interpreter_base &interp, size_t arity, common::term args[
 bool builtins::asserta_1(interpreter_base &interp, size_t arity, common::term args[] ) {
 
     term clause = interp.copy(args[0]);
-    interp.load_clause(clause, interpreter_base::FIRST_CLAUSE);
+    interp.load_clause(clause, FIRST_CLAUSE);
     return true;
 }
 
 bool builtins::assertz_1(interpreter_base &interp, size_t arity, common::term args[] ) {
 
     term clause = interp.copy(args[0]);
-    interp.load_clause(clause, interpreter_base::LAST_CLAUSE);
+    interp.load_clause(clause, LAST_CLAUSE);
     return true;
 }
 
@@ -1377,27 +1378,10 @@ bool builtins::retract(interpreter_base &interp, const std::string &pname, term 
     }
     con_cell p = interp.functor(head);
     auto qn = qname{module,p};
-    auto &clauses = interp.get_predicate(qn);
-    if (clauses.empty() && !all) {
-        return false;
-    }
-    size_t found = false;
-    for (auto it = clauses.begin(); it != clauses.end();) {
-        auto clause = (*it).clause();
-	auto clause_head = interp.clause_head(clause);
-	if (interp.can_unify(clause_head, head)) {
-	    found = true;
-	    it = clauses.erase(it);
-	    if (!all) break;
-	} else {
-	    ++it;
-	}
-    }
-    if (!found && !all) {
-        return false;
-    }
-    interp.add_updated_predicate(qn);
-    return true;
+    auto &pred = interp.get_predicate(interp, qn);
+    bool r = pred.remove_clauses(interp, head, all);
+    if (r) interp.add_updated_predicate(qn);
+    return r;
 }
 
 bool builtins::current_predicate_1(interpreter_base &interp, size_t arity, common::term args[])
@@ -1444,7 +1428,7 @@ bool builtins::current_predicate_1(interpreter_base &interp, size_t arity, commo
     auto &cp = interp.get_code(qn);
     bool exists = !cp.is_fail() || cp.has_wam_code();
     if (!exists) {
-        exists = interp.get_predicate(qn).size() > 0;
+        exists = !interp.get_predicate(qn).empty();
     }
 
     return exists;

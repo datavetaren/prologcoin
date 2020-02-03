@@ -1736,11 +1736,14 @@ void wam_compiler::compute_varsets(const term t0)
     }
 }
 
+/*
 void wam_compiler::compile_clause(const term clause,
 				  wam_interim_code &seq)
 {
-    compile_clause(managed_clause(clause, env_.cost(clause)), seq);
+    managed_clause mclause(clause, env_.cost(clause));
+    compile_clause(clause, env_.cost(clause)), seq);
 }
+*/
 
 void wam_compiler::compile_clause(const managed_clause &m_clause,
 				  wam_interim_code &seq)
@@ -1979,7 +1982,7 @@ void wam_compiler::compile_subsection(const managed_clauses &subsection,
 
 bool wam_compiler::compile_predicate(const qname &qn, wam_interim_code &instrs)
 {
-    auto &clauses = interp_.get_predicate(qn);
+    auto &clauses = interp_.get_predicate(qn).get_clauses();
 
     if (clauses.empty()) {
 	return false;

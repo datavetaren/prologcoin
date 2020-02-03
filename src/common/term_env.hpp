@@ -182,6 +182,8 @@ public:
         { T::get_heap().get_big(t, i, nbits); }
     inline void get_big(term t, uint8_t *bytes, size_t n) const
         { T::get_heap().get_big(t, bytes, n); }
+    inline big_header get_big_header(term t) const
+        { return T::get_heap().get_big_header(t); }
     inline void set_big(term t, size_t index, const untagged_cell cell)
         {  T::get_heap().set_big(t, index, cell); }
     inline void set_big(term t, const boost::multiprecision::cpp_int &i)

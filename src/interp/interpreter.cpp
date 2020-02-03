@@ -6,7 +6,6 @@ namespace prologcoin { namespace interp {
 
 interpreter::interpreter() 
 {
-    id_to_predicate_.push_back(predicate()); // Reserve index 0
     wam_enabled_ = true;
     query_vars_ = nullptr;
     num_instances_ = 0;
@@ -24,8 +23,6 @@ interpreter::interpreter()
 interpreter::~interpreter()
 {
     delete query_vars_;
-    predicate_id_.clear();
-    id_to_predicate_.clear();
 }
 
 void interpreter::setup_standard_lib()
@@ -323,16 +320,17 @@ void interpreter::fail()
 		size_t bpval = static_cast<const int_cell &>(bpterm).value();
 		// Is there another clause to backtrack to?
 		if (bpval != 0) {
-		    size_t index_id = bpval >> 8;
+		    size_t pred_id = bpval >> 32;
 		    
 		    if (is_debug()) {
 			std::string redo_str = to_string(qr());
 			std::cout << "interpreter::fail(): redo " << redo_str << std::endl;
 		    }
-		    auto &clauses = get_predicate_by_id(index_id);
-		    size_t from_clause = bpval & 0xff;
-		    
-		    ok = select_clause(qr(), index_id, clauses, from_clause);
+		    auto &pred = get_predicate(pred_id);
+		    auto first_arg = get_first_arg(qr());
+		    auto &clauses = pred.get_clauses(*this, first_arg);
+		    size_t from_clause = bpval & 0xffffffff;
+		    ok = select_clause(qr(), pred_id, clauses, from_clause);
 		}
 	    }
 	    if (!ok) {
@@ -390,15 +388,45 @@ bool interpreter::unify_args(term head, const code_point &p)
     }
 }
 
+bool interpreter::can_unify_args(term head, const code_point &p)
+{
+    static const common::con_cell colon(":",2);
+    
+    if (p.term_code().tag() == common::tag_t::STR) {
+        term goal = p.term_code();
+	if (functor(goal) == colon) {
+	    goal = arg(goal, 1);
+	}
+	return can_unify(head, goal);
+    } else {
+	// Otherwise this is an already disected call with
+	// args. So unify with arguments.
+	size_t n = num_of_args();
+	bool fail = false;
+	if (head == colon) {
+	    head = arg(head, 1);
+	}
+	for (size_t i = 0; i < n; i++) {
+	    auto arg_i = arg(head, i);
+	    if (!can_unify(arg_i, a(i))) {
+		fail = true;
+		break;
+	    }
+	}
+	return !fail;
+    }
+}
+
+
 bool interpreter::select_clause(const code_point &instruction,
-				size_t index_id,
-				managed_clauses &clauses,
+				size_t predicate_id,
+				const managed_clauses &clauses,
 				size_t from_clause)
 {
     if (is_debug()) {
-        std::cout << "select clause\n";
+      std::cout << "select clause predicate_id=" << predicate_id << " from=" << from_clause << "\n";
     }
-    if (index_id == 0) {
+    if (predicate_id == 0) {
 	set_b(b()->b);
         if (from_clause > 1) {
 	    return false;
@@ -411,13 +439,22 @@ bool interpreter::select_clause(const code_point &instruction,
     bool has_choices = num_clauses > 1;
 
     if (is_debug()) {
-        std::cout << "select clause: num_clauses=" << num_clauses << "\n";
+        std::cout << "select clause: num_clauses=" << num_clauses << ": match with=" << to_string(instruction.term_code()) << "\n";
+	for (size_t i = 0; i < num_clauses; i++) {
+	    std::cout << "  [" << i << "]: " << to_string(clauses[i].clause()) << std::endl;
+	}
     }
     
     // Let's go through clause by clause and see if we can find a match.
     for (size_t i = from_clause; i < num_clauses; i++) {
         auto &m_clause = clauses[i];
 
+	// Avoid copying if it does not match
+	if (!can_unify_args(clause_head(m_clause.clause()),
+			    instruction.term_code())) {
+	    continue;
+	}
+	
 	size_t current_heap = heap_size();
 	auto copy_clause = copy(m_clause.clause()); // Instantiate it
 
@@ -433,7 +470,7 @@ bool interpreter::select_clause(const code_point &instruction,
 		    choice_point->bp = code_point::fail();
 		    interpreter_base::cut();
 		} else {
-		    choice_point->bp = code_point(int_cell((index_id << 8) + (i+1)));
+		    choice_point->bp = code_point(int_cell((predicate_id << 32) + (i+1)));
 		}
 	    }
 
@@ -579,9 +616,6 @@ void interpreter::dispatch()
     }
 
     bool is_updated = has_updated_predicates() && is_updated_predicate(qn);
-    if (is_updated) {
-        clear_matched_predicate(module, f);
-    }
     
     if (is_wam_enabled() && code.has_wam_code()) {
         // If the predicate has been updated, then may need to recompile it
@@ -594,29 +628,22 @@ void interpreter::dispatch()
     }
 
     auto first_arg = get_first_arg();
-    size_t predicate_id = matched_predicate_id(module, f, first_arg);
-    predicate  &pred = get_predicate_by_id(predicate_id);
+    const predicate &pred = get_predicate(module, f);
 
     set_pr(f);
 
     // Otherwise a vector of clauses
-    auto &clauses = pred;
+    auto &clauses = pred.get_clauses(*this, first_arg);
 
     if (clauses.empty()) {
-        clauses = get_predicate(module, f);
-	if (clauses.empty()) {
-	    std::stringstream msg;
-	    msg << "Undefined predicate ";
-	    if (module != USER_MODULE) {
-		msg << atom_name(module) << ":";
-	    }
-
-	    msg << atom_name(f) << "/" << f.arity();
-	    abort(interpreter_exception_undefined_predicate(msg.str()));
-	    return;
+        std::stringstream msg;
+	msg << "Undefined predicate ";
+	if (module != USER_MODULE) {
+	    msg << atom_name(module) << ":";
 	}
-	set_p(interpreter_base::EMPTY_LIST);
-	fail();
+
+	msg << atom_name(f) << "/" << f.arity();
+	abort(interpreter_exception_undefined_predicate(msg.str()));
 	return;
     }
 
@@ -624,16 +651,16 @@ void interpreter::dispatch()
 
     size_t num_clauses = clauses.size();
     bool has_choices = num_clauses > 1;
-    size_t index_id = predicate_id;
+    size_t pred_id = pred.id();
 
     // More than one clause that matches? We need a choice point.
     if (has_choices) {
-	int_cell index_id_int(index_id << 8);
+        int_cell index_id_int(static_cast<int64_t>(pred_id) << 32);
 	code_point ch(index_id_int);
 	allocate_choice_point(ch);
     }
 
-    if (!select_clause(p().term_code(), index_id, clauses, 0)) {
+    if (!select_clause(p().term_code(), pred_id, clauses, 0)) {
 	fail();
     }
 }
@@ -643,73 +670,6 @@ void interpreter::dispatch_wam(wam_instruction_base *instruction)
     allocate_environment<ENV_WAM>();
     set_p(instruction);
     set_cp(interpreter_base::EMPTY_LIST);
-}
-
-void interpreter::compute_matched_predicate(con_cell module,
-					    con_cell func,
-					    const term first_arg,
-					    predicate &matched)
-{
-    auto &m_clauses = get_predicate(module, func);
-    for (auto &m_clause : m_clauses) {
-	// Extract head
-	auto head = clause_head(m_clause.clause());
-	auto head_functor = functor(head);
-	if (head_functor.arity() > 0) {
-	    auto head_first_arg = arg(head, 0);
-	    if (definitely_inequal(head_first_arg, first_arg)) {
-		continue;
-	    }
-	}
-	matched.push_back(m_clause);
-    }
-}
-
-void interpreter::clear_matched_predicate(con_cell module, con_cell func)
-{
-    auto search_qn = qname{module, func};
-    for (auto it = predicate_id_.begin(); it != predicate_id_.end();) {
-        auto &findex = (*it).first;
-	auto &qn = findex.first;
-	if (qn == search_qn) {
-	    it = predicate_id_.erase(it);
-	} else {
-	    ++it;
-	}
-    }
-}
-
-size_t interpreter::matched_predicate_id(con_cell module,
-					 con_cell func, const term first_arg)
-{
-    using namespace prologcoin::common;
-
-    term index_arg = first_arg;
-    switch (first_arg.tag()) {
-    case tag_t::STR:
-	index_arg = functor(first_arg); break;
-    case tag_t::CON:
-    case tag_t::INT:
-	break;
-    case tag_t::REF:
-    case tag_t::RFW:
-	index_arg = term();
-	break;
-    }
-
-    functor_index findex(std::make_pair(module,func), index_arg);
-    auto it = predicate_id_.find(findex);
-    size_t id;
-    if (it == predicate_id_.end()) {
-	id = id_to_predicate_.size();
-	id_to_predicate_.push_back( predicate() );
-	predicate_id_[findex] = id;
-	auto &pred = id_to_predicate_[id];
-	compute_matched_predicate(module, func, first_arg, pred);
-    } else {
-	id = it->second;
-    }
-    return id;
 }
 
 std::string interpreter::get_result(bool newlines) const

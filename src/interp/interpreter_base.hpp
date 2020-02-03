@@ -19,6 +19,8 @@
 #include "source_element.hpp"
 
 namespace prologcoin { namespace interp {
+class interpreter_base;
+
 // This pair represents functor with first argument. If first argument
 // is a STR tag, then we dereference it to a CON cell.
 //
@@ -28,18 +30,30 @@ namespace prologcoin { namespace interp {
 typedef std::pair<common::con_cell, common::con_cell> qname;
 typedef std::pair<qname, common::cell> functor_index;
 
+class predicate;
+    
 class managed_clause {
 public:
     inline managed_clause()
-	: clause_(), cost_(0) { }
-    inline managed_clause(common::term cl, uint64_t cost)
-        : clause_(cl), cost_(cost) { }
-
-    inline managed_clause(const managed_clause &other)
-	: clause_(other.clause_), cost_(other.cost_) { }
+        : clause_(), cost_(0), ordinal_(0) { }
+    inline managed_clause(common::term cl, uint64_t cost, size_t ord)
+        : clause_(cl), cost_(cost), ordinal_(ord) { }
+    inline managed_clause(const managed_clause &other) = default;
 
     inline common::term clause() const {
 	return clause_;
+    }
+
+    inline bool is_erased() const {
+        return clause_ == common::term();
+    }
+
+    inline void erase() {
+        clause_ = common::term();
+    }
+  
+    inline size_t ordinal() const {
+        return ordinal_;
     }
 
     inline uint64_t cost() const {
@@ -47,13 +61,67 @@ public:
     }
 
 private:
+    friend class predicate;
+    void set_ordinal(size_t ord) { ordinal_ = ord; }
+
     common::term clause_;
     size_t cost_;
+    size_t ordinal_;
 };
 
 typedef std::vector<managed_clause> managed_clauses;
-typedef managed_clauses predicate;
-typedef std::pair<predicate, size_t> indexed_predicate;
+
+enum clause_position { FIRST_CLAUSE, LAST_CLAUSE };
+    
+class predicate {
+public:
+  inline predicate() = default;
+  inline predicate(const predicate &other) = default;
+  inline predicate(const qname &qn) : qname_(qn), with_vars_(false) { }
+  inline const qname & qualified_name() const { return qname_; }
+
+  inline const std::vector<managed_clause> & clauses() const { return clauses_; }
+
+  inline bool empty() const { return clauses_.empty(); }
+  
+  void add_clause(interpreter_base &interp,
+		  common::term clause,
+		  clause_position pos = LAST_CLAUSE);
+
+  size_t get_term_id(interpreter_base &interp, common::term first_arg) const;
+  const std::vector<managed_clause> & get_clauses(interpreter_base &interp, size_t term_id) const;
+  const std::vector<managed_clause> & get_clauses(interpreter_base &interp, common::term first_arg) const;
+
+  inline const std::vector<managed_clause> & get_clauses() const
+      { return clauses_; }
+
+  inline void clear()
+  {
+      clauses_.clear();
+      indexed_.clear();
+      filtered_.clear();
+      term_id_.clear();
+      with_vars_ = false;
+  }
+
+  bool remove_clauses(interpreter_base &interp, common::term head, bool all);
+
+  size_t id() const { return id_; }
+
+private:
+    friend class interpreter_base;
+  
+    void set_id(size_t identifier) { id_ = identifier; }
+  
+    qname qname_;
+    size_t id_;
+    mutable std::vector<managed_clause> clauses_;
+    mutable std::unordered_map<common::term, std::vector<managed_clause> > indexed_;
+    mutable std::vector<std::vector<managed_clause> > filtered_;
+    mutable std::unordered_map<common::term, size_t> term_id_;
+    bool with_vars_;
+};
+
 }}
 
 namespace std {
@@ -466,6 +534,7 @@ class interpreter_base : public common::term_env {
     friend class interpreter;
     friend struct new_instance_context;
     friend class remote_execution_proxy;
+    friend class predicate;
 
 public:
     typedef common::term term;
@@ -544,15 +613,102 @@ public:
 	  load_builtin(qn, b);
 	}
 
-    enum clause_position { FIRST_CLAUSE, LAST_CLAUSE, LAST_CLAUSE_OVERRIDE_OLD };
-  
     void load_clause(const std::string &str);
     void load_clause(std::istream &is);
     void load_clause(term t, clause_position pos);
 
-    term clause_head(const term clause);
-    term clause_body(const term clause);
-    common::con_cell clause_predicate(const term clause);
+    con_cell clause_module(term clause)
+    {
+        auto head = clause_head(clause);
+	if (is_functor(head) && functor(head) == COLON) {
+	    term mod = arg(head, 0);
+	    if (mod.tag() != common::tag_t::CON) {
+	        return current_module();
+	    } else {
+	        return static_cast<con_cell &>(mod);
+	    }
+	} else {
+	    return current_module();
+	}
+    }
+
+    con_cell clause_predicate(term clause)
+    {
+        auto head = clause_head(clause);
+	if (is_functor(head)) {
+	    auto fun = functor(head);
+	    if (fun == COLON) {
+	        term fun1 = arg(head, 1);
+	        if (is_functor(fun1)) {
+	            return functor(fun1);
+	        } else {
+	            return EMPTY_LIST;
+	        }
+	    }
+	    return fun;
+	} else {
+	    return EMPTY_LIST;
+	}
+    }
+
+    term clause_head(term clause)
+    {
+        auto f = functor(clause);
+	if (f == IMPLIED_BY) {
+	    return arg(clause, 0);
+	} else {
+	    return clause;
+	}
+    }
+  
+    term clause_body(term clause)
+    {
+        auto f = functor(clause);
+        if (f == IMPLIED_BY) {
+	    return arg(clause, 1);
+	} else {
+            return EMPTY_LIST;
+	}
+    }
+  
+    term clause_first_arg(term clause)
+    {
+        term head = clause_head(clause);
+	if (!is_functor(head)) {
+	    return EMPTY_LIST;
+	}
+	auto f = functor(head);
+	if (f == COLON) {
+	     head = arg(head, 1);
+	     if (!is_functor(head)) {
+	         return EMPTY_LIST;
+	     }
+	     f = functor(head);
+	}
+	if (f.arity() <= 0) {
+	    return EMPTY_LIST;      
+	}
+	return arg(head, 0);
+    }
+
+    term arg_index(term arg)
+    {
+        switch (arg.tag()) {
+	case common::tag_t::CON:
+	case common::tag_t::INT:
+  	    return arg;
+	case common::tag_t::REF:
+	case common::tag_t::RFW:
+	    return term();
+	case common::tag_t::STR:
+	    return functor(arg);
+	case common::tag_t::BIG:
+	    return get_big_header(arg);
+	default:
+	    assert(false);
+	    return term();
+        }
+    }
 
     struct none {
         void operator () (term t)  { }
@@ -649,8 +805,19 @@ public:
 	primary_module = current_mod;
 
 	bool first_mod = true;
+
+	std::unordered_set<qname> seen;
+	
 	for (auto clause : list_iterator(*this, clauses)) {
-	    load_clause(clause, LAST_CLAUSE_OVERRIDE_OLD);
+	    auto mod = clause_module(clause);
+	    auto pn = clause_predicate(clause);
+	    qname qn{mod, pn};
+	    auto &pred = get_predicate(*this, qn);
+	    if (!seen.count(qn)) {
+	        pred.clear();
+		seen.insert(qn);
+	    }
+	    load_clause(clause, LAST_CLAUSE);
 	    f(clause);
 	    if (current_mod != current_module() && first_mod) {
 	        // First module change!
@@ -668,16 +835,48 @@ public:
     void save_clause(term t, std::ostream &out);
     void save_comment(const common::term_tokenizer::token &comment, std::ostream &out);
 
-    inline const predicate & get_predicate(con_cell f)
+
+    inline const predicate & get_predicate(size_t id) const
+        {
+	  static const predicate NOT_FOUND;
+	  if (id == 0) return NOT_FOUND;
+	  return get_predicate(program_predicates_[id-1]);
+	}
+  
+    inline const predicate & get_predicate(con_cell f) const
         { return get_predicate(std::make_pair(current_module_, f)); }
 
   
-    inline const predicate & get_predicate(con_cell module, con_cell f)
+    inline const predicate & get_predicate(con_cell module, con_cell f) const
         { return get_predicate(std::make_pair(module, f)); }
 
-    inline predicate & get_predicate(const qname &pn)
-        { return program_db_[pn]; }
+    inline const predicate & get_predicate(const qname &pn) const
+        {
+	    static const predicate NOT_FOUND;
+	  
+	    auto it = program_db_.find(pn);
+	    if (it == program_db_.end()) {
+	        return NOT_FOUND;
+	    } else {
+	        return it->second;
+	    }
+	}
 
+    inline predicate & get_predicate(interpreter_base &interp, const qname &qn)
+        {
+	    auto it = program_db_.find(qn);
+	    if (it == program_db_.end()) {
+	         size_t id = program_predicates_.size() + 1;
+	         program_predicates_.push_back(qn);
+		 predicate &pred = program_db_[qn];
+		 pred = predicate(qn);
+		 pred.set_id(id);
+		 return pred;
+	    }
+	    assert(it != program_db_.end());
+	    return it->second;
+	}
+  
     inline const std::vector<qname> & get_module(const con_cell name)
         { return module_db_[name]; }
     inline bool is_existing_module(const con_cell name)
@@ -1298,7 +1497,32 @@ protected:
 
     void unwind(size_t current_tr);
 
-    term get_first_arg();
+    term get_first_arg()
+    {
+        if (num_of_args_ == 0) {
+	    return EMPTY_LIST;
+	}
+	return deref(a(0));
+    }
+
+    term get_first_arg(term goal)
+    {
+        if (!is_functor(goal)) {
+	    return EMPTY_LIST;
+        }
+	auto f = functor(goal);
+	if (f == COLON) {
+	    goal = arg(goal, 1);
+	    if (!is_functor(goal)) {
+	        return EMPTY_LIST;
+	    }
+	    f = functor(goal);
+	}
+	if (f.arity() <= 0) {
+	    return EMPTY_LIST;
+	}
+	return arg(goal, 0);
+    }
 
     void abort(const interpreter_exception &ex);
     bool definitely_inequal(const term a, const term b);
@@ -1375,8 +1599,6 @@ private:
     {
         set_b0(b());
     }
-
-    common::cell first_arg_index(const term first_arg);
 
     void syntax_check_program(term clauses);
     void syntax_check_clause(term clause);
@@ -1555,6 +1777,106 @@ protected:
 private:
     bool new_roots_;
 };
+
+inline void predicate::add_clause(interpreter_base &interp, common::term clause0, clause_position pos)  {
+    managed_clause clause(clause0, interp.cost(clause0), clauses_.size());
+    switch (pos) {
+    case FIRST_CLAUSE: clauses_.insert(clauses_.begin(), clause); break;
+    case LAST_CLAUSE: clauses_.push_back(clause); break;
+    }
+    auto first_arg_index = interp.arg_index(interp.clause_first_arg(clause0));
+
+    if (first_arg_index.tag().is_ref()) {
+        with_vars_ = true;
+	indexed_.clear();
+        filtered_.clear();
+	term_id_.clear();
+    }
+    if (!with_vars_) {
+        auto &idx = indexed_[first_arg_index];
+	if (pos == FIRST_CLAUSE) {
+	    idx.insert(idx.begin(), clause);
+	} else {
+	    idx.push_back(clause);
+	}
+    }
+}
+
+inline bool predicate::remove_clauses(interpreter_base &interp, common::term head, bool all)
+{
+    auto arg = interp.clause_first_arg(head);
+    bool found = false;
+    if (with_vars_ || arg.tag().is_ref()) {
+        size_t found = false;
+	for (auto it = clauses_.begin(); it != clauses_.end();) {
+	    auto clause = (*it).clause();
+	    auto clause_head = interp.clause_head(clause);
+	    if (interp.can_unify(clause_head, head)) {
+	        if (!found) {
+	            found = true;
+		    filtered_.clear();
+		    term_id_.clear();
+		}
+		it->erase();
+		if (!all) break;
+	    } else {
+	        ++it;
+	    }
+	}
+    } else {
+        // Update index and remove clause
+        auto first_arg_index = interp.arg_index(interp.clause_first_arg(head));
+        auto &idx = indexed_[first_arg_index];
+	for (auto it = idx.begin(); it != idx.end();) {
+  	    auto &clause = (*it).clause();
+	    auto clause_head = interp.clause_head(clause);
+	    if (interp.can_unify(clause_head, head)) {
+	        found = true;
+	        clauses_[it->ordinal()].erase();
+		it = idx.erase(it);
+		if (!all) break;
+	    } else {
+	        ++it;
+	    }
+	}
+    }
+    if (!found && !all) {
+        return false;
+    }
+    return true;
+}
+
+inline size_t predicate::get_term_id(interpreter_base &interp, common::term arg_index) const
+{
+    auto it = term_id_.find(arg_index);
+    if (it == term_id_.end()) {
+        size_t new_id = filtered_.size();
+	term_id_[arg_index] = new_id;
+	filtered_.resize(filtered_.size()+1);
+	auto &v = filtered_[new_id];
+	bool is_unknown = with_vars_ || arg_index.tag().is_ref();
+	auto &src_clauses = is_unknown ? clauses_ : indexed_[arg_index];
+	for (auto &mclause : src_clauses) {
+	    auto farg_index = interp.arg_index(interp.clause_first_arg(mclause.clause()));
+	    if (!interp.definitely_inequal(farg_index, arg_index)) {
+	        v.push_back(mclause);
+	    }
+	}
+	return new_id;
+    }
+    return it->second;
+}
+
+inline const std::vector<managed_clause> & predicate::get_clauses(interpreter_base &interp, size_t term_id) const {
+    return filtered_[term_id];
+}
+
+inline const std::vector<managed_clause> & predicate::get_clauses(interpreter_base &interp, common::term first_arg) const {
+    static const std::vector<managed_clause> NOT_FOUND;
+    size_t arg_index = interp.arg_index(first_arg);
+    size_t term_id = get_term_id(interp, arg_index);
+    return filtered_[term_id];
+}
 
 template<> inline environment_naive_t * interpreter_base::allocate_environment<ENV_NAIVE>()
 {

@@ -288,7 +288,7 @@ static inline bool test_interpreter_file(const std::string &filepath,
 		    predicates.push_back(p);
 		}
   	        try {
-  		    interp.load_clause(t, interpreter_base::LAST_CLAUSE);
+  		    interp.load_clause(t, LAST_CLAUSE);
 		} catch (syntax_exception &ex) {
   		    std::cout << "Syntax error: " << ex.what()
 			      << ": "

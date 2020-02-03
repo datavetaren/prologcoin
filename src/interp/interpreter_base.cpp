@@ -321,7 +321,7 @@ term interpreter_base::rewrite_freeze_body(term freezeVar, term freezeBody)
     set_arg(freeze_clause, 0, head);
     set_arg(freeze_clause, 1, freezeBody);
 
-    get_predicate(qname).push_back(managed_clause(freeze_clause,0));
+    get_predicate(*this, qname).add_clause(*this, freeze_clause);
 
     auto closure_head = new_str(qname.second);
     for (size_t i = 0; i < vars_list.size(); i++) {
@@ -335,7 +335,7 @@ term interpreter_base::rewrite_freeze_body(term freezeVar, term freezeBody)
     return closure_mod;
 }
     
-void interpreter_base::load_clause(term t, interpreter_base::clause_position pos)
+void interpreter_base::load_clause(term t, clause_position pos)
 {
     syntax_check_clause(t);
 
@@ -375,18 +375,18 @@ void interpreter_base::load_clause(term t, interpreter_base::clause_position pos
 	return;
     }
 
-    con_cell predicate = functor(head);
+    con_cell pn = functor(head);
 
-    if (predicate == ACTION_BY) {
+    if (pn == ACTION_BY) {
         return;
     }
 
-    if (predicate == COLON) {
+    if (pn == COLON) {
 	// This is a head with a module definition
 	term module_term = arg(head, 0);
 	term predicate_term = arg(head, 1);
 	module = static_cast<con_cell &>(module_term);
-	predicate = functor(predicate_term);
+	pn = functor(predicate_term);
 	term body = clause_body(t);
 	if (body == EMPTY_LIST) {
 	    t = predicate_term;
@@ -395,37 +395,27 @@ void interpreter_base::load_clause(term t, interpreter_base::clause_position pos
 	}
     }
 
-    auto qn = std::make_pair(module, predicate);
+    auto qn = std::make_pair(module, pn);
 
     auto found = program_db_.find(qn);
     if (found == program_db_.end()) {
-        program_db_[qn] = managed_clauses();
+        program_db_[qn] = predicate(qn);
+	program_db_[qn].set_id(program_predicates_.size()+1);
 	program_predicates_.push_back(qn);
-    } else {
-        if (pos == LAST_CLAUSE_OVERRIDE_OLD) {
-	    if (!is_updated_predicate(qn)) {
-		// This is the first time. So we'll retract whatever
-		// we currently have in our database.
-		program_db_[qn].clear();
-	    }
-	}
-    }
-    add_updated_predicate(qn);
-
-    auto &lst = program_db_[qn];
-    if (pos == FIRST_CLAUSE) {
-        lst.insert(lst.begin(), managed_clause(t, cost(t)));
-    } else {
-        lst.push_back(managed_clause(t, cost(t)));
     }
 
+    auto &pred = program_db_[qn];
+    pred.add_clause(*this, t, pos);
+    
     if (module_db_set_[module].count(qn) == 0) {
         module_db_set_[module].insert(qn);
 	module_db_[module].push_back(qn);
     }
 
-    set_code(qn, code_point(module, predicate));
+    add_updated_predicate(qn);
 
+    set_code(qn, code_point(module, pn));
+    
     new_roots();
 }
 
@@ -623,14 +613,14 @@ void interpreter_base::print_db(std::ostream &out) const
 	if (it == program_db_.end()) {
 	    continue;
 	}
-	const predicate &m_clauses = it->second;
+	const predicate &pred = it->second;
 	if (do_nl_p) {
 	    out << "\n";
 	}
 	emitter_options opt;
 	opt.set(emitter_option::EMIT_PROGRAM);
 	bool do_nl = false;
-	for (auto &m_clause : m_clauses) {
+	for (auto &m_clause : pred.get_clauses()) {
 	    if (do_nl) out << "\n";
 	    std::string mod = "";
 	    if (qn.first != USER_MODULE) {
@@ -733,60 +723,16 @@ bool interpreter_base::definitely_inequal(const term a, const term b)
         return fa != fb;
     }
     case tag_t::INT: return a != b;
-    case tag_t::BIG: return false;
+    case tag_t::BIG: {
+        // Check big headers
+        big_header ha = get_big_header(a);
+        big_header hb = get_big_header(b);
+	return ha != hb;
+    }
     }
 
     return false;
 }
-
-common::cell interpreter_base::first_arg_index(const term t)
-{
-    switch (t.tag()) {
-    case tag_t::REF: case tag_t::RFW: return t;
-    case tag_t::CON: return t;
-    case tag_t::STR: {
-	con_cell f = functor(t);
-	return f;
-    }
-    case tag_t::INT: return t;
-    case tag_t::BIG: return t;
-    }
-    return t;
-}
-
-term interpreter_base::clause_head(const term clause)
-{
-    auto f = functor(clause);
-    if (f == IMPLIED_BY) {
-	return arg(clause, 0);
-    } else {
-	return clause;
-    }
-}
-
-term interpreter_base::clause_body(const term clause)
-{
-    auto f = functor(clause);
-    if (f == IMPLIED_BY) {
-        return arg(clause, 1);
-    } else {
-        return EMPTY_LIST;
-    }
-}
-
-common::con_cell interpreter_base::clause_predicate(const term clause)
-{
-    return functor(clause_head(clause));
-}
-
-common::term interpreter_base::get_first_arg()
-{
-    if (num_of_args_ == 0) {
-        return EMPTY_LIST;
-    }
-    return deref(a(0));
-}
-
 
 void interpreter_base::unwind_to_top_choice_point()
 {
@@ -888,7 +834,7 @@ void interpreter_base::save_predicate(const qname &qn, std::ostream &out)
     emit.set_var_naming(var_naming());    
     emit.options().set(emitter_option::EMIT_PROGRAM);
     bool empty = true;
-    for (auto &managed : get_predicate(qn)) {
+    for (auto &managed : get_predicate(qn).get_clauses()) {
         empty = false;
 	emit.print(managed.clause());
 	emit.nl();
@@ -900,7 +846,7 @@ void interpreter_base::clear_password()
 {
     static con_cell SYSTEM("system",0);
     static con_cell PASSWD("$passwd",1);
-    auto &pred = get_predicate(qname(SYSTEM, PASSWD));
+    auto &pred = get_predicate(*this, qname(SYSTEM, PASSWD));
     pred.clear();
 }
 

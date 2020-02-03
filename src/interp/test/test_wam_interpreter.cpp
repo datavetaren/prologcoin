@@ -112,7 +112,7 @@ void test_wam_compiler::test_compile()
 	    throw;
 	}
 
-	auto &clauses = interp_.get_predicate(con_cell("nrev",2));
+	auto &clauses = interp_.get_predicate(con_cell("nrev",2)).get_clauses();
 
 	wam_interim_code seq(interp_);
 	comp_.compile_clause(clauses[0], seq);
@@ -226,7 +226,7 @@ Section 2:
 	throw ex;
     }
 
-    auto &clauses = interp_.get_predicate(con_cell("call",1));
+    auto &clauses = interp_.get_predicate(con_cell("call",1)).get_clauses();
     
     auto p = comp_.partition_clauses_nonvar(clauses);
 
@@ -439,7 +439,8 @@ void test_wam_compiler::test_unsafe_set_unify()
 {
     term t = interp_.parse("a(X) :- b(f(X)).");
     wam_interim_code seq(interp_);
-    comp_.compile_clause(t, seq);
+    managed_clause m(t, 0, 0);
+    comp_.compile_clause(m, seq);
 
     seq.print(std::cout);
 }

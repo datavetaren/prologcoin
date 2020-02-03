@@ -497,7 +497,7 @@ private:
     void compute_varsets(const term t);
     void find_vars(const term t, varset_t &varset);
     size_t new_level();
-    void compile_clause(const term clause, wam_interim_code &seq);
+  // void compile_clause(const term clause, wam_interim_code &seq);
     void compile_clause(const managed_clause &m_clause, wam_interim_code &seq);
     std::vector<common::int_cell> new_labels(size_t n);
     std::vector<common::int_cell> new_labels_dup(size_t n);

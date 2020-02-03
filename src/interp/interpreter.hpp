@@ -295,36 +295,12 @@ private:
     void dispatch();
     void dispatch_wam(wam_instruction_base *instruction);
     bool unify_args(term clause_head, const code_point &p);
+    bool can_unify_args(term clause_head, const code_point &p);  
     bool select_clause(const code_point &instruction,
 		       size_t index_id,
-		       managed_clauses &clauses,
+		       const managed_clauses &clauses,
 		       size_t from_clause);
-
-    inline const predicate & get_predicate(con_cell f)
-    {
-        return interpreter_base::get_predicate(f);
-    }
   
-    inline const predicate & get_predicate(con_cell module, con_cell f)
-    {
-        return interpreter_base::get_predicate(module, f);
-    }
-
-    inline predicate & get_predicate_by_id(size_t id)
-    {
-	return id_to_predicate_[id];
-    }
-
-    void compute_matched_predicate(con_cell module, con_cell functor,
-				   const term first_arg,
-				   predicate &matched);
-    size_t matched_predicate_id(con_cell module,
-				con_cell functor, const term first_arg);
-    void clear_matched_predicate(con_cell module, con_cell functor);
-
-    std::unordered_map<functor_index, size_t> predicate_id_;
-    std::vector<predicate> id_to_predicate_;
-
     inline std::vector<binding> & query_vars()
         { return *query_vars_; }
 
