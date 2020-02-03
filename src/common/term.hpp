@@ -366,6 +366,14 @@ public:
     inline std::string inner_str() const {
 	return boost::lexical_cast<std::string>(index());
     }
+
+    inline bool is_ptr_cell(cell c) {
+      auto tag = c.tag();
+      return tag == tag_t::REF ||
+             tag == tag_t::RFW ||
+             tag == tag_t::STR ||
+             tag == tag_t::BIG;
+    }
 };
 
 //

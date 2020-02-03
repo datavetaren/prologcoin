@@ -1063,4 +1063,72 @@ void interpreter_base::clear_secret()
     }
 }
 
+void interpreter_base::dump_stack() {
+  auto cur_ce = e()->ce;
+  bool go = true;
+  while(go) {
+    
+    if(cur_ce.kind() == ENV_NAIVE) {
+      printf("Naive emv\n");
+      //      auto naive_e = reinterpret_cast<environment_naive_t>(cur_e);
+    } else if (cur_ce.kind() == ENV_WAM) {
+      printf("Naive emv\n");
+      //      auto wam_e = reinterpret_cast<environment_t(cur_e);
+      // How many y registers are there?
+    } else { // FROZEN
+      printf("Naive emv\n");
+      //      auto frozen_e = reinterpret_cast<environment_frozen_t>(cur_e);
+    }
+    go = cur_ce.ce0() != nullptr;
+  }
+}
+/*
+void interpreter_base::get_e_roots(std::vector<ptr_cell *> &roots) {
+  auto cur_e = e();
+  while(cur_e != nullptr) {
+    if(cur_e.kind() == ENV_NAIVE) {
+      auto naive_e = reinterpret_cast<environment_naive_t>(cur_e);
+    } else if (cur_e.kind() == ENV_WAM) {
+      auto wam_e = reinterpret_cast<environment_t(cur_e);
+      // How many y registers are there?
+    } else { // FROZEN
+      auto frozen_e = reinterpret_cast<environment_frozen_t>(cur_e);
+    }
+  }
+  
+}
+
+void interpreter_base::get_b_roots(std::vector<ptr_cell *> &roots) {
+  auto cur_b = b();
+  while(cur_b != nullptr) {
+    // Push qr
+    if(cur_b->qr.is_ptr_cell()) {
+      roots.push_back(static_cast<common::ptr_cell*>(&(cur_b->qr)));
+    }
+    // Push args
+
+    for(size_t i = 0; i < arity; i++) {
+      if(cur_b->ai[i].is_ptr_cell()) {
+        roots.push_back(static_cast<common::ptr_cell*>(&(cur_b->ai[i])));
+      }
+    }
+    cur_b = b;
+  }
+}
+
+void interpreter_base::get_code_roots(std::vector<ptr_cell *> &roots) {
+  for(auto &code : code_db_) {
+    auto cp = code.second;
+    auto term_code_p = get_term_code_ptr();
+    if(term_code_p->is_ptr_cell()) {
+      roots.push_back(static_cast<common::ptr_cell*>(term_code_p));
+    }
+  }
+}
+
+*/
+
+
+// May have to check frozen closueres
+
 }}

@@ -263,6 +263,7 @@ public:
     inline wam_instruction_base * wam_code() const { return wam_code_; }
     inline builtin_fn bn() const { return bn_; }
     inline const common::con_cell & module() const { return module_; }
+
     inline const common::term & term_code() const { return term_code_; }
     inline const common::int_cell & label() const { return reinterpret_cast<const common::int_cell &>(term_code_); }
     inline const common::con_cell & name() const { return reinterpret_cast<const common::con_cell &>(term_code_); }
@@ -1056,6 +1057,10 @@ public:
     inline bool has_meta_context() const
         { return register_m_ != nullptr; }
 
+    void dump_stack();
+
+
+  
 protected:
     friend class wam_interpreter;
   
