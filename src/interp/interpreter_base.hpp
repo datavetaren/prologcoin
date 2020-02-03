@@ -838,7 +838,7 @@ public:
 
     inline const predicate & get_predicate(size_t id) const
         {
-	  static const predicate NOT_FOUND;
+          static const predicate NOT_FOUND = predicate();
 	  if (id == 0) return NOT_FOUND;
 	  return get_predicate(program_predicates_[id-1]);
 	}
@@ -852,7 +852,7 @@ public:
 
     inline const predicate & get_predicate(const qname &pn) const
         {
-	    static const predicate NOT_FOUND;
+	    static const predicate NOT_FOUND = predicate();
 	  
 	    auto it = program_db_.find(pn);
 	    if (it == program_db_.end()) {
@@ -1828,7 +1828,7 @@ inline bool predicate::remove_clauses(interpreter_base &interp, common::term hea
         auto first_arg_index = interp.arg_index(interp.clause_first_arg(head));
         auto &idx = indexed_[first_arg_index];
 	for (auto it = idx.begin(); it != idx.end();) {
-  	    auto &clause = (*it).clause();
+  	    auto clause = (*it).clause();
 	    auto clause_head = interp.clause_head(clause);
 	    if (interp.can_unify(clause_head, head)) {
 	        found = true;
