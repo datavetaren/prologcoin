@@ -526,6 +526,9 @@ void interpreter::dispatch()
 
     con_cell module = current_module_;
 
+    // Refine module if we have one in the code point.
+    if (p().module() != EMPTY_LIST) module = p().module();
+
     if (f == functor_colon) {
 	// This is module referred
 	module = functor(arg(qr(), 0));
@@ -554,7 +557,7 @@ void interpreter::dispatch()
 
     // If this a call from WAM (fast code to slow code) then its call
     // instruction has already initialized the arguments and arity and
-    // the term_code() is just a constant (not a compound STR.)
+    // the term_code() is the call instruction encoded as a term.
 
     common::tag_t ptag = p().term_code().tag();
     switch (ptag) {
@@ -630,12 +633,7 @@ void interpreter::dispatch()
     auto first_arg = get_first_arg();
     const predicate &pred = get_predicate(module, f);
 
-    set_pr(f);
-
-    // Otherwise a vector of clauses
-    auto &clauses = pred.get_clauses(*this, first_arg);
-
-    if (clauses.empty()) {
+    if (pred.empty()) {
         std::stringstream msg;
 	msg << "Undefined predicate ";
 	if (module != USER_MODULE) {
@@ -646,6 +644,11 @@ void interpreter::dispatch()
 	abort(interpreter_exception_undefined_predicate(msg.str()));
 	return;
     }
+
+    set_pr(f);
+
+    // Otherwise a vector of clauses
+    auto &clauses = pred.get_clauses(*this, first_arg);
 
     set_b0(b());
 

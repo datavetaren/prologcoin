@@ -1384,46 +1384,51 @@ bool builtins::retract(interpreter_base &interp, const std::string &pname, term 
     return r;
 }
 
-bool builtins::current_predicate_1(interpreter_base &interp, size_t arity, common::term args[])
+
+qname builtins::check_predicate(interpreter_base &interp, const std::string &pname, term arg)
 {
     static con_cell SLASH("/",2);
 
     con_cell module = interp.current_module();
 
-    term arg = args[0];
-    
     if (interp.is_functor(arg) &&
 	interp.functor(arg) == interpreter_base::COLON) {
         // Extract module
         term module_term = interp.arg(arg, 0);
 	if (!interp.is_atom(module_term)) {
-	    throw interpreter_exception_wrong_arg_type("current_predicate/1: Module name must be an atom; was " + interp.to_string(module_term));
+	    throw interpreter_exception_wrong_arg_type(pname + ": Module name must be an atom; was " + interp.to_string(module_term));
 	}
 	module = reinterpret_cast<con_cell &>(module_term);
 	arg = interp.arg(arg, 1);
     }
     
     if (!interp.is_functor(arg) || interp.functor(arg) != SLASH) {
-        throw interpreter_exception_wrong_arg_type("current_predicate/1: Only an instantiated term like f/a is supported.");
+        throw interpreter_exception_wrong_arg_type(pname + ": Only an instantiated term like f/a is supported.");
     }
     if (!interp.is_atom(interp.arg(arg, 0))) {
-        throw interpreter_exception_wrong_arg_type("current_predicate/1: Expected predicate name; was " + interp.to_string(interp.arg(arg,0)));
+        throw interpreter_exception_wrong_arg_type(pname + ": Expected predicate name; was " + interp.to_string(interp.arg(arg,0)));
     }
     con_cell f = interp.functor(interp.arg(arg, 0));
     term arity_part = interp.arg(arg, 1);
     if (arity_part.tag() != tag_t::INT) {
-        throw interpreter_exception_wrong_arg_type("current_predicate/1: Expected arity as an integer of predicate; was " + interp.to_string(arity_part));
+        throw interpreter_exception_wrong_arg_type(pname + ": Expected arity as an integer of predicate; was " + interp.to_string(arity_part));
     }
     auto a = reinterpret_cast<int_cell &>(arity_part).value();
     if (a < 0 || a > con_cell::MAX_ARITY) {
         std::stringstream msg;
-	msg << "current_predicate/1: Arity must be within 0 and " << con_cell::MAX_ARITY;
+	msg << pname << ": Arity must be within 0 and " << con_cell::MAX_ARITY;
         throw interpreter_exception_wrong_arg_type(msg.str());
     }
 
     con_cell pred = interp.to_functor(f, a);
 
     qname qn(module, pred);
+    return qn;
+}
+
+bool builtins::current_predicate_1(interpreter_base &interp, size_t arity, common::term args[])
+{
+    qname qn = check_predicate(interp, "current_predicate/1", args[0]);
 
     auto &cp = interp.get_code(qn);
     bool exists = !cp.is_fail() || cp.has_wam_code();
@@ -1432,6 +1437,24 @@ bool builtins::current_predicate_1(interpreter_base &interp, size_t arity, commo
     }
 
     return exists;
+}
+
+bool builtins::status_predicate_2(interpreter_base &interp, size_t arity, common::term args[])
+{
+    qname qn = check_predicate(interp, "status_predicate/2", args[0]);
+
+    auto &cp = interp.get_code(qn);
+    bool exists = !cp.is_fail() || cp.has_wam_code();
+    if (!exists) {
+        exists = !interp.get_predicate(qn).empty();
+    }
+    if (exists) {
+        const predicate &p = interp.get_predicate(qn);
+	if (p.empty()) return false;
+	return interp.unify(args[1],int_cell(static_cast<int64_t>(p.performance_count())));
+    }
+
+    return false;
 }
 
 void builtins::load(interpreter_base &interp) {
@@ -1522,6 +1545,7 @@ void builtins::load(interpreter_base &interp) {
     i.load_builtin(con_cell("retract",1), builtin(&builtins::retract_1));
     i.load_builtin(i.functor("retractall",1), builtin(&builtins::retractall_1));
     i.load_builtin(i.functor("current_predicate",1), builtin(&builtins::current_predicate_1));
+    i.load_builtin(i.functor("status_predicate",2), builtin(&builtins::status_predicate_2));    
     
 }
  

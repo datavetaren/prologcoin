@@ -557,8 +557,8 @@ void interpreter_base::syntax_check_head(term clause, term head)
 
     if (f == COLON) {
 	// Check that operands are real constants
-	if (arg(clause, 0).tag() != tag_t::CON ||
-	    !is_functor(arg(clause, 1))) {
+	if (arg(head, 0).tag() != tag_t::CON ||
+	    !is_functor(arg(head, 1))) {
 	    throw syntax_exception_clause_bad_head(clause, "For '" + to_string(clause)+ "': Clause has an invalid head; module and predicate name are not pure constants; was " + to_string(head));
 	}
     }

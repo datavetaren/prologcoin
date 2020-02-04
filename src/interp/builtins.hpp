@@ -7,6 +7,14 @@
 
 namespace prologcoin { namespace interp {
 
+// This pair represents functor with first argument. If first argument
+// is a STR tag, then we dereference it to a CON cell.
+//
+// FUNCTOR_INDEX = pair( QNAME, ARG_TYPE)
+// QNAME = pair( MODULE, FUNCTOR )
+//
+typedef std::pair<common::con_cell, common::con_cell> qname;
+    
     class wam_interpreter;
     class interpreter_base;
     class meta_reason_t;
@@ -208,7 +216,9 @@ namespace prologcoin { namespace interp {
         static bool retract_1(interpreter_base &interp, size_t arity, common::term args[]);
         static bool retractall_1(interpreter_base &interp, size_t arity, common::term args[]);
         static bool retract(interpreter_base &interp, const std::string &pame, common::term head, bool all);
+        static qname check_predicate(interpreter_base &interp, const std::string &pname, common::term arg);
         static bool current_predicate_1(interpreter_base &interp, size_t arity, common::term args[]);
+        static bool status_predicate_2(interpreter_base &interp, size_t arity, common::term args[]);
 
         //
         // Non-standard, Prologcoin specific

@@ -21,13 +21,6 @@
 namespace prologcoin { namespace interp {
 class interpreter_base;
 
-// This pair represents functor with first argument. If first argument
-// is a STR tag, then we dereference it to a CON cell.
-//
-// FUNCTOR_INDEX = pair( QNAME, ARG_TYPE)
-// QNAME = pair( MODULE, FUNCTOR )
-//
-typedef std::pair<common::con_cell, common::con_cell> qname;
 typedef std::pair<qname, common::cell> functor_index;
 
 class predicate;
@@ -99,16 +92,24 @@ public:
   {
       clauses_.clear();
       indexed_.clear();
+      with_vars_ = false;
+      clear_cache();
+  }
+
+  inline void clear_cache()
+  {
       filtered_.clear();
       term_id_.clear();
-      with_vars_ = false;
   }
 
   bool remove_clauses(interpreter_base &interp, common::term head, bool all);
 
   size_t id() const { return id_; }
 
+  size_t performance_count() const { return performance_count_; }
+
 private:
+    managed_clause remove_indexed_clause(interpreter_base &interp, common::term head);
     friend class interpreter_base;
   
     void set_id(size_t identifier) { id_ = identifier; }
@@ -120,6 +121,8 @@ private:
     mutable std::vector<std::vector<managed_clause> > filtered_;
     mutable std::unordered_map<common::term, size_t> term_id_;
     bool with_vars_;
+
+    mutable size_t performance_count_;
 };
 
 }}
@@ -1779,6 +1782,7 @@ private:
 };
 
 inline void predicate::add_clause(interpreter_base &interp, common::term clause0, clause_position pos)  {
+    performance_count_++;
     managed_clause clause(clause0, interp.cost(clause0), clauses_.size());
     switch (pos) {
     case FIRST_CLAUSE: clauses_.insert(clauses_.begin(), clause); break;
@@ -1800,6 +1804,26 @@ inline void predicate::add_clause(interpreter_base &interp, common::term clause0
 	    idx.push_back(clause);
 	}
     }
+    clear_cache();
+}
+
+inline managed_clause predicate::remove_indexed_clause(interpreter_base &interp, common::term head)
+{
+    auto arg_index = interp.arg_index(interp.clause_first_arg(head));
+    auto &idx = indexed_[arg_index];
+    for (auto it = idx.begin(); it != idx.end();) {
+        performance_count_++;
+        auto managed_clause (*it);
+        auto idx_clause = (*it).clause();
+        auto idx_clause_head = interp.clause_head(idx_clause);
+        if (interp.can_unify(idx_clause_head, head)) {
+            it = idx.erase(it);
+	    return managed_clause;
+        } else {
+            ++it;
+        }
+    }
+    return managed_clause(common::term(), 0, 0);
 }
 
 inline bool predicate::remove_clauses(interpreter_base &interp, common::term head, bool all)
@@ -1807,8 +1831,8 @@ inline bool predicate::remove_clauses(interpreter_base &interp, common::term hea
     auto arg = interp.clause_first_arg(head);
     bool found = false;
     if (with_vars_ || arg.tag().is_ref()) {
-        size_t found = false;
 	for (auto it = clauses_.begin(); it != clauses_.end();) {
+            performance_count_++;
 	    auto clause = (*it).clause();
 	    auto clause_head = interp.clause_head(clause);
 	    if (interp.can_unify(clause_head, head)) {
@@ -1817,7 +1841,8 @@ inline bool predicate::remove_clauses(interpreter_base &interp, common::term hea
 		    filtered_.clear();
 		    term_id_.clear();
 		}
-		it->erase();
+		it = clauses_.erase(it);
+		remove_indexed_clause(interp, clause_head);
 		if (!all) break;
 	    } else {
 	        ++it;
@@ -1825,30 +1850,29 @@ inline bool predicate::remove_clauses(interpreter_base &interp, common::term hea
 	}
     } else {
         // Update index and remove clause
-        auto first_arg_index = interp.arg_index(interp.clause_first_arg(head));
-        auto &idx = indexed_[first_arg_index];
-	for (auto it = idx.begin(); it != idx.end();) {
-  	    auto clause = (*it).clause();
-	    auto clause_head = interp.clause_head(clause);
-	    if (interp.can_unify(clause_head, head)) {
+        bool cont = false;
+        do {
+    	    auto mclause = remove_indexed_clause(interp, head);
+	    cont = all;
+	    if (mclause.clause() != common::term()) {
 	        found = true;
-	        clauses_[it->ordinal()].erase();
-		it = idx.erase(it);
-		if (!all) break;
+	        clauses_[mclause.ordinal()].erase();
 	    } else {
-	        ++it;
+	        cont = false;
 	    }
-	}
+	} while (cont);
     }
     if (!found && !all) {
         return false;
     }
+    clear_cache();
     return true;
 }
 
 inline size_t predicate::get_term_id(interpreter_base &interp, common::term arg_index) const
 {
     auto it = term_id_.find(arg_index);
+    performance_count_++;
     if (it == term_id_.end()) {
         size_t new_id = filtered_.size();
 	term_id_[arg_index] = new_id;
@@ -1857,6 +1881,10 @@ inline size_t predicate::get_term_id(interpreter_base &interp, common::term arg_
 	bool is_unknown = with_vars_ || arg_index.tag().is_ref();
 	auto &src_clauses = is_unknown ? clauses_ : indexed_[arg_index];
 	for (auto &mclause : src_clauses) {
+            performance_count_++;
+	    if (mclause.is_erased()) {
+	        continue;
+	    }
 	    auto farg_index = interp.arg_index(interp.clause_first_arg(mclause.clause()));
 	    if (!interp.definitely_inequal(farg_index, arg_index)) {
 	        v.push_back(mclause);
@@ -1873,7 +1901,8 @@ inline const std::vector<managed_clause> & predicate::get_clauses(interpreter_ba
 
 inline const std::vector<managed_clause> & predicate::get_clauses(interpreter_base &interp, common::term first_arg) const {
     static const std::vector<managed_clause> NOT_FOUND;
-    size_t arg_index = interp.arg_index(first_arg);
+    performance_count_++;
+    auto arg_index = interp.arg_index(first_arg);
     size_t term_id = get_term_id(interp, arg_index);
     return filtered_[term_id];
 }
