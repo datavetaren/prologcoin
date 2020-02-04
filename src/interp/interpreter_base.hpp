@@ -125,6 +125,31 @@ private:
     mutable size_t performance_count_;
 };
 
+class module_meta {
+public:
+    inline module_meta() : changed_(false) { }
+
+    module_meta(const module_meta &other) = delete;
+
+    inline common::con_cell get_name() const { return name_; }
+    inline void set_name(common::con_cell name) { name_ = name; }
+  
+    inline void set_source_elements(const std::vector<source_element> &elems)
+    { source_elements_ = elems; }
+
+    inline const std::vector<source_element> & get_source_elements() const
+    { return source_elements_; }
+
+    inline void changed() { changed_ = true; }
+    inline bool has_changed() const { return changed_; }
+    inline void clear_changed() { changed_ = false; }
+  
+private:
+    common::con_cell name_;
+    std::vector<source_element> source_elements_;
+    bool changed_;
+};
+    
 }}
 
 namespace std {
@@ -792,7 +817,9 @@ public:
 	con_cell primary_module = current_module();
 	load_program<F>(clause_list, f, primary_module);
 
-        module_meta_db_[primary_module] = source_list;
+	module_meta &mm = module_meta_db_[primary_module];
+        mm.set_source_elements(source_list);
+	mm.clear_changed();
     }
 
     template<typename F = none> void load_program(term clauses, F f = F()) {
@@ -879,9 +906,20 @@ public:
 	    assert(it != program_db_.end());
 	    return it->second;
 	}
+
+    inline const module_meta & get_module_meta(con_cell name)
+    {
+        return module_meta_db_[name];
+    }
   
     inline const std::vector<qname> & get_module(const con_cell name)
-        { return module_db_[name]; }
+        { auto it = module_db_.find(name);
+	  if (it == module_db_.end()) {
+	      module_meta_db_[name].set_name(name);
+	      return module_db_[name];
+	  }
+	  return it->second;
+	}
     inline bool is_existing_module(const con_cell name)
         { return module_db_.find(name) != module_db_.end(); }
 
@@ -896,6 +934,7 @@ public:
     inline void add_updated_predicate(const qname &qn) {
         updated_predicates_.insert(qn);
 	has_updated_predicates_ = true;
+	module_meta_db_[qn.first].changed();
     }
   
     inline const std::unordered_set<qname> & get_updated_predicates() const
@@ -1628,7 +1667,7 @@ private:
     std::vector<qname> program_predicates_;
     bool has_updated_predicates_;
     std::unordered_set<qname> updated_predicates_;
-    std::unordered_map<con_cell, std::vector<source_element> > module_meta_db_;
+    std::unordered_map<con_cell, module_meta>  module_meta_db_;
 
     // Stack is emulated at heap offset >= 2^59 (3 bits for tag, remember!)
     // (This conforms to the WAM standard where addr(stack) > addr(heap))

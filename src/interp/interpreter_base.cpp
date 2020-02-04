@@ -792,7 +792,7 @@ void interpreter_base::save_program(con_cell module, std::ostream &out)
 {
     std::unordered_set<qname> seen_predicates;
 
-    for (auto &se : module_meta_db_[module]) {
+    for (auto &se : module_meta_db_[module].get_source_elements()) {
 	switch (se.type()) {
 	case source_element::SOURCE_NONE: break;
 	case source_element::SOURCE_COMMENT: save_comment(se.comment(), out); break;
@@ -809,6 +809,8 @@ void interpreter_base::save_program(con_cell module, std::ostream &out)
 	    save_predicate(qn, out);
 	}
     }
+
+    module_meta_db_[module].clear_changed();
 }
 
 void interpreter_base::save_comment(const term_tokenizer::token &comment, std::ostream &out)

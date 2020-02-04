@@ -53,8 +53,11 @@ sync(N) :-
     lastheap(H),
     H1 is H + 1,
     ((frozenk(H1, N, HeapAddrs), frozen(HeapAddrs, Closures)) @ global) @ node,
+    (last(HeapAddrs, LastH) ->
+        retract(wallet:lastheap(_)), assert(wallet:lastheap(LastH)) ; true),
     forall('$member2'(Closure, HeapAddress, Closures, HeapAddrs),
             ('$new_utxo_closure'(HeapAddress, Closure) ; true)).
+    
 
 %
 % Iterate through next 100 frozen closures to see if we have received
@@ -106,6 +109,7 @@ sync :-
     cache:valid_address(Address),
     ((current_predicate(wallet:utxo/4), wallet:utxo(HeapAddress, _,_,_)) -> true
   ; assert(wallet:utxo(HeapAddress, tx1, Value, Address))).
+
 
 )PROG";
 

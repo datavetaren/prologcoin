@@ -32,6 +32,14 @@ void wallet::load()
     }
 }
 
+void wallet::check_dirty()
+{
+    auto &meta = interp_.get_module_meta(con_cell("wallet",0));
+    if (meta.has_changed()) {
+        save();
+    }
+}
+
 void wallet::save()
 {
     std::ofstream ofs(wallet_file_);
@@ -67,7 +75,14 @@ bool wallet::has_more()
 
 bool wallet::next()
 {
-    return interp_.next();
+    try {
+        bool r = interp_.next();
+	check_dirty();
+        return r;
+    } catch (std::runtime_error &ex) {
+        check_dirty();
+	throw ex;
+    }
 }
 
 term wallet::parse(const std::string &cmd)
@@ -79,13 +94,13 @@ std::string wallet::to_string(term t)
 {
     return interp_.to_string(t);
 }
-    
+
 std::string wallet::execute(const std::string &cmd)
 {
     // Execute arbitrary Prolog command
     try {
         term t = interp_.parse(cmd);
-	if (interp_.execute(t)) {
+	if (execute(t)) {
 	    return interp_.get_result();
 	} else {
 	    return "fail.";
@@ -105,7 +120,14 @@ std::string wallet::execute(const std::string &cmd)
 
 bool wallet::execute(term query)
 {
-    return interp_.execute(query);
+    try {
+        bool r = interp_.execute(query);
+	check_dirty();
+        return r;
+    } catch (std::runtime_error &ex) {
+        check_dirty();
+	throw ex;
+    }
 }
 
 std::string wallet::get_result()
