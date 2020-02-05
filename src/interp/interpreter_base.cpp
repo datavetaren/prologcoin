@@ -82,6 +82,7 @@ void interpreter_base::init()
     memset(register_ai_, 0, sizeof(register_ai_));
     stack_ = reinterpret_cast<word_t *>(new char[MAX_STACK_SIZE]);
     num_y_fn_ = &num_y;
+    env_num_y_fn_ = &env_num_y;
     save_state_fn_ = &save_state;
     restore_state_fn_ = &restore_state;
     standard_output_ = nullptr;
@@ -1067,7 +1068,6 @@ void interpreter_base::dump_stack() {
   auto cur_ce = e()->ce;
   bool go = true;
   while(go) {
-    
     if(cur_ce.kind() == ENV_NAIVE) {
       printf("Naive emv\n");
       //      auto naive_e = reinterpret_cast<environment_naive_t>(cur_e);

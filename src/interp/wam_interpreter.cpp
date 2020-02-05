@@ -202,6 +202,7 @@ void wam_interpreter::total_reset()
     fail_ = false;
     mode_ = READ;
     set_num_y_fn( &num_y );
+    set_env_num_y_fn( &env_num_y);
     set_save_restore_state_fns( &save_state, &restore_state );
     register_s_ = 0;
     memset(register_xn_, 0, sizeof(register_xn_));

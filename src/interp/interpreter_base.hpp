@@ -1110,6 +1110,7 @@ protected:
     }
 
     typedef size_t (*num_y_fn_t)(interpreter_base *interp, bool use_previous);
+    typedef size_t (*env_num_y_fn_t)(interpreter_base *interp, environment_base_t *env);
     typedef void (*save_state_fn_t)(interpreter_base *interp);
     typedef void (*restore_state_fn_t)(interpreter_base *interp);
 
@@ -1121,6 +1122,16 @@ protected:
     inline void set_num_y_fn(num_y_fn_t num_y_fn)
     {
         num_y_fn_ = num_y_fn;
+    }
+
+    inline env_num_y_fn_t env_num_y_fn()
+    {
+        return env_num_y_fn_;
+    }
+  
+    inline void set_env_num_y_fn(env_num_y_fn_t env_num_y_fn)
+    {
+      env_num_y_fn_ = env_num_y_fn;
     }
 
     inline save_state_fn_t save_state_fn()
@@ -1176,6 +1187,11 @@ protected:
 	}
     }
 
+    static inline size_t env_num_y(interpreter_base *interp, environment_base_t *env)
+    {
+      return 0;
+    }
+  
     static inline void save_state(interpreter_base *interp)
     {
         // Nothing being ordinary needs to be done in the naive interpreter as
@@ -1756,6 +1772,7 @@ private:
     size_t num_of_args_;
 
     num_y_fn_t num_y_fn_;
+    env_num_y_fn_t env_num_y_fn_;
     save_state_fn_t save_state_fn_;
     restore_state_fn_t restore_state_fn_;
 

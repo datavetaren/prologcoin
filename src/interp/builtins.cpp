@@ -1519,6 +1519,11 @@ bool builtins::show_0(interpreter_base &interp, size_t arity, common::term args[
     return true;
 }
 
+bool builtins::dump_stack_0(interpreter_base &interp, size_t arity, common::term args[]) {
+    interp.dump_stack();
+    return true;
+}
+
 bool builtins::asserta_1(interpreter_base &interp, size_t arity, common::term args[] ) {
 
     term clause = interp.copy(args[0]);
@@ -1747,6 +1752,8 @@ void builtins::load(interpreter_base &interp) {
     i.load_builtin(con_cell("toc",1), builtin(&builtins::toc_1));
     i.load_builtin(interp.functor("term_size", 1), &builtins::term_size_2);
     i.load_builtin(interp.functor("term_size", 2), &builtins::term_size_2);
+
+    i.load_builtin(con_cell("dump_stack",0), builtin(&builtins::dump_stack_0));
 
     // Program database
     i.load_builtin(con_cell("show",0), builtin(&builtins::show_0));
