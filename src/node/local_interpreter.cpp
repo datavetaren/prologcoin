@@ -577,8 +577,8 @@ void local_interpreter::ensure_initialized()
 	// Make it easier by importing multiple modules
 	use_module(ME);
 	use_module(con_cell("ec",0));
-	use_module(con_cell("coin",0));	
-	
+	use_module(con_cell("coin",0));
+
 	// Load startup file
 	startup_file();
     }

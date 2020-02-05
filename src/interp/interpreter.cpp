@@ -78,9 +78,9 @@ last([X|Xs],Last) :- last(Xs,Last).
 
     set_current_module(con_cell("system",0));
     load_program(lib);
+    compile();
     set_current_module(con_cell("user",0));
     use_module(con_cell("system",0));
-    compile();
 }
 
 // Save everything so interpreter state can be restored.
@@ -329,12 +329,12 @@ void interpreter::fail()
 		if (bpval != 0) {
 		    size_t pred_id = bpval >> 32;
 		    
-		    if (is_debug()) {
-			std::string redo_str = to_string(qr());
-			std::cout << "interpreter::fail(): redo " << redo_str << std::endl;
-		    }
 		    auto &pred = get_predicate(pred_id);
 		    auto first_arg = get_first_arg(qr());
+		    if (is_debug()) {
+			std::string redo_str = to_string(qr());
+			std::cout << "interpreter::fail(): redo " << redo_str << " (first_arg=" << to_string(first_arg) << ")" << std::endl;
+		    }
 		    auto &clauses = pred.get_clauses(*this, first_arg);
 		    size_t from_clause = bpval & 0xffffffff;
 		    ok = select_clause(qr(), pred_id, clauses, from_clause);
@@ -431,7 +431,8 @@ bool interpreter::select_clause(const code_point &instruction,
 				size_t from_clause)
 {
     if (is_debug()) {
-      std::cout << "select clause predicate_id=" << predicate_id << " from=" << from_clause << "\n";
+	std::cout << "select clause predicate_id=" << predicate_id << " predicate=" << to_string(get_predicate(predicate_id).qualified_name()) << " from=" << from_clause << "\n";
+      
     }
     if (predicate_id == 0) {
 	set_b(b()->b);

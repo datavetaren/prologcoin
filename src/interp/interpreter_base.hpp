@@ -18,6 +18,8 @@
 #include "locale.hpp"
 #include "source_element.hpp"
 
+extern "C" void frotz();
+
 namespace prologcoin { namespace interp {
 class interpreter_base;
 
@@ -323,7 +325,7 @@ public:
     { static const common::con_cell el = common::con_cell("[]",0); module_ = el; }
     inline code_point(const code_point &other) = default;
     inline code_point(wam_instruction_base *i)
-        : wam_code_(i), term_code_(common::ref_cell(0)) 
+        : wam_code_(i), term_code_(common::ref_cell(0))
     { 
 	static const common::con_cell WAM = common::con_cell("$WAM",0);
 	module_ = WAM;
@@ -382,6 +384,7 @@ public:
 	static const common::con_cell el = common::con_cell("[]",0);
 	if (p == nullptr) {
 	    module_ = el;
+	    term_code_ = fail_term_;
 	} else {
 	    module_ = WAM;
 	}
@@ -987,6 +990,12 @@ public:
     {
         code_db_[qn] = cp;
     }
+    
+protected:
+    inline std::unordered_map<qname, code_point> & code_db() {
+	return code_db_;
+    }
+public:
 			       
     inline builtin & get_builtin(const qname &qn)
     {

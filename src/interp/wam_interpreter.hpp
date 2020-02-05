@@ -111,6 +111,14 @@ typedef std::unordered_map<common::term, code_point> wam_hash_map;
 
 template<wam_instruction_type I> class wam_instruction;
 
+static inline void update_ptr(code_point &p, code_t *old_base, code_t *new_base)
+{
+    if (!p.has_wam_code()) {
+	return;
+    }
+    p.set_wam_code(reinterpret_cast<wam_instruction_base *>(reinterpret_cast<code_t *>(p.wam_code()) - old_base + new_base));
+}
+
 class wam_instruction_base
 {
 protected:
@@ -133,14 +141,6 @@ public:
     template<wam_instruction_type I> inline void set_type();
 
 protected:
-    inline void update_ptr(code_point &p, code_t *old_base, code_t *new_base)
-    {
-	if (!p.has_wam_code()) {
-	    return;
-	}
-	p.set_wam_code(reinterpret_cast<wam_instruction_base *>(reinterpret_cast<code_t *>(p.wam_code()) - old_base + new_base));
-    }
-
     inline void update(code_t *old_base, code_t *new_base)
     {
 	auto it = updater_fns_.find(fn());
@@ -404,12 +404,14 @@ public:
     
     inline size_t to_code_addr(code_t *p) const
     {
-	return static_cast<size_t>(p - instrs_);
+	size_t addr = static_cast<size_t>(p - instrs_);
+	return addr;
     }
 
     inline size_t to_code_addr(wam_instruction_base *p) const
     {
-	return static_cast<size_t>(reinterpret_cast<code_t *>(p) - instrs_);
+	size_t addr = static_cast<size_t>(reinterpret_cast<code_t *>(p) - instrs_);
+	return addr;
     }
 
     inline wam_instruction_base * to_code(size_t addr) const
@@ -419,6 +421,7 @@ public:
 
     size_t add(const wam_instruction_base &i);
 
+    void check_code();
     void print_code(std::ostream &out);
 
     inline bool is_compiled(const qname &qn) const
@@ -520,24 +523,25 @@ private:
 	return data;
     }
 
-    void ensure_capacity(size_t cap)
+     void ensure_capacity(size_t cap)
     {
         if (cap > instrs_capacity_) {
    	    size_t new_cap = 2*std::max(cap, instrs_size_);
 	    code_t *new_instrs = new code_t[new_cap];
 	    memcpy(new_instrs, instrs_, sizeof(code_t)*instrs_size_);
 	    instrs_capacity_ = new_cap;
-
-	    update(instrs_, new_instrs);
-
-	    delete instrs_;
+	    code_t *old_instrs = instrs_;
 	    instrs_ = new_instrs;
+
+	    update(old_instrs, new_instrs);
+
+	    delete old_instrs;
 
 	    reallocation_count_++;
         }
     }
 
-    inline void update(code_t *old_base, code_t *new_base);
+    void update(code_t *old_base, code_t *new_base);
 
     wam_interpreter &interp_;
     size_t instrs_size_;
@@ -722,6 +726,10 @@ protected:
     int cnt = 0;
 
     bool cont_wam();
+
+    inline std::unordered_map<qname, code_point> & code_db() {
+	return interpreter_base::code_db();
+    }
 
 private:
     bool fail_;
@@ -1712,6 +1720,8 @@ private:
 	goto_next_instruction();
     }
 
+    friend class wam_code;
+
     friend class test_wam_interpreter;
 };
 
@@ -1723,6 +1733,13 @@ inline void wam_code::update(code_t *old_base, code_t *new_base)
 	instr = interp_.next_instruction(instr);
 	i = static_cast<size_t>(reinterpret_cast<code_t *>(instr) - new_base);
     }
+
+    for (auto &p : interp_.code_db())
+    {
+	code_point &code_p = p.second;
+	update_ptr(code_p, old_base, new_base);
+    }
+
 }
 
 template<> class wam_instruction<PUT_VARIABLE_X> : public wam_instruction_binary_reg {

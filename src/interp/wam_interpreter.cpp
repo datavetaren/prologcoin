@@ -113,18 +113,8 @@ void wam_interpreter::compile(const qname &qn)
     size_t xn_size = compiler_->get_num_x_registers(instrs);
     size_t yn_size = compiler_->get_environment_size_of(instrs);    
     size_t first_offset = next_offset();
-    load_code(instrs);
 
-    // Update WAM code points if there was reallocation.
-    if (reallocation_occurred()) {
-	for (auto &entry : code_db_) {
-	    auto &qn = entry.first;
-	    auto &cp = entry.second;
-	    if (cp.has_wam_code()) {
-		cp.set_wam_code(resolve_wam_predicate(qn.first, qn.second));
-	    }
-	}
-    }
+    load_code(instrs);
 
     auto *next_instr = to_code(first_offset);
     set_wam_predicate(qn, next_instr, xn_size, yn_size);
@@ -196,7 +186,12 @@ void wam_interpreter::bind_code_point(std::unordered_map<size_t, size_t> &label_
 	    }
 	} else if (term.tag() == common::tag_t::CON) {
 	    auto lbl_con = static_cast<const con_cell &>(term);
-	    if (auto instr = resolve_wam_predicate(current_module(), lbl_con)) {
+
+	    qname qn{current_module(), lbl_con};
+	    auto &code = get_code(qn);
+	    if (code.has_wam_code()) {
+		cp.set_wam_code(code.wam_code()); // Could be imported
+	    } else if (auto instr = resolve_wam_predicate(current_module(), lbl_con)) {
 		cp.set_wam_code(instr);
 	    }
 	} else if (term.tag() == common::tag_t::STR) {
@@ -204,7 +199,11 @@ void wam_interpreter::bind_code_point(std::unordered_map<size_t, size_t> &label_
 	    if (functor(term) == functor_colon) {
 		auto module = functor(arg(term, 0));
 		auto f = functor(arg(term, 1));
-		if (auto instr = resolve_wam_predicate(module, f)) {
+		qname qn{module, f};
+		auto &code = get_code(qn);
+		if (code.has_wam_code()) {
+		    cp.set_wam_code(code.wam_code()); // Could be imported
+		} else if (auto instr = resolve_wam_predicate(module, f)) {
 		    cp.set_wam_code(instr);
 		}
 	    }
@@ -214,8 +213,6 @@ void wam_interpreter::bind_code_point(std::unordered_map<size_t, size_t> &label_
 
 void wam_interpreter::load_code(wam_interim_code &instrs)
 {
-    // instrs.print(std::cout);
-
     std::unordered_map<size_t, size_t> label_map;
     size_t first_offset = next_offset();
     size_t offset = first_offset;
