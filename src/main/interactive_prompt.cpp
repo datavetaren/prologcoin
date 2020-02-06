@@ -77,8 +77,8 @@ bool interactive_prompt::has_more()
 
 bool interactive_prompt::next()
 {
+    bool r = false;
     if (in_wallet_) {
-        bool r = false;
         if ((r = wallet_->next())) {
 	    if (has_more()) {
 	        add_text_output_no_nl(wallet_->get_result());
@@ -89,10 +89,13 @@ bool interactive_prompt::next()
 	} else {
 	    add_text_output("false.");
 	}
-	return r;
     } else {
-        return node_terminal_->next();
+        r = node_terminal_->next();
     }
+    if (!r) {
+        reset();
+    }
+    return r;
 }
 
 void interactive_prompt::add_error(const std::string &msg)
@@ -237,6 +240,7 @@ void interactive_prompt::run()
 	    }
 
 	    if (cmd.empty()) {
+	        reset();
 		continue;
 	    }
 

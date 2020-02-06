@@ -127,10 +127,14 @@ void interpreter_base::reset()
 	    if (b() != nullptr) set_register_hb(b()->h);
 	}
 	if (top_b() != nullptr) {
+	    reset_to_choice_point(top_b());	  
 	    set_top_b(top_b()->b);
 	    cont = true;
 	}
     } while (cont);
+
+    register_e_ = nullptr;
+    register_e_kind_ = ENV_NAIVE;
 
     if (!persistent_password_) {
         clear_password();
