@@ -82,8 +82,8 @@ sync :-
 '$cache_addresses_n'(I, N) :-
     wallet:pubkey(I, PubKey),
     ec:address(PubKey, Address),
-    (\+ current_predicate(cache:valid_address/1) -> assert(cache:valid_address(Address)) ; true),
-    (\+ cache:valid_address(Address) -> assert(cache:valid_address(Address)) ; true),
+    (\+ current_predicate(cache:valid_address/2) -> assert(cache:valid_address(Address,I)) ; true),
+    (\+ cache:valid_address(Address,_) -> assert(cache:valid_address(Address,I)) ; true),
     I1 is I + 1,
     '$cache_addresses_n'(I1, N).
 
@@ -105,11 +105,89 @@ sync :-
 % Check for each transaction type, currently only for 'tx1'
 %
 '$new_utxo'(tx1, HeapAddress, Value, args(_, _, Address)) :-
-    current_predicate(cache:valid_address/1),
-    cache:valid_address(Address),
+    current_predicate(cache:valid_address/2),
+    cache:valid_address(Address,_),
     ((current_predicate(wallet:utxo/4), wallet:utxo(HeapAddress, _,_,_)) -> true
   ; assert(wallet:utxo(HeapAddress, tx1, Value, Address))).
 
+
+%
+% Spending logic
+%
+send(Address, Funds, Fee, FinalCommand) :-
+    '$cache_addresses',
+    findall(utxo(Value,HeapAddress), wallet:utxo(HeapAddress,_,Value,_),
+            Utxos),
+    sort(Utxos, SortedUtxos), % Sorted on value
+    Sum is Funds + Fee,
+    '$choose'(SortedUtxos, Sum, ChosenUtxos),
+    '$sum'(ChosenUtxos, 0, ChosenSum),
+    Rest is ChosenSum - Sum,
+    '$open_utxos'(ChosenUtxos, Hash, Coins, Signs, Commands),
+    (Coins = [SumCoin] ->
+       Commands1 = Commands 
+     ; append(Commands, [cjoin(Coins, SumCoin)], Commands1)),
+    (Rest > 0 ->
+         newkey(_, ChangeAddr),
+         append(Commands1, [csplit(SumCoin, [Funds,Fee,Rest],
+                                   [FundsCoin,_,RestCoin]),
+                            tx(FundsCoin, Hash, tx1, args(_,_,Address)),
+                            tx(RestCoin, Hash, tx1, args(_,_,ChangeAddr))],
+                Commands2)
+    ; append(Commands1, [csplit(SumCoin, [Funds,Fee],[FundsCoin,_]),
+                         tx(FundsCoin, Hash, tx1, args(_,_,Address))],
+             Commands2)
+    ),
+    '$list_to_commas'(Commands2, Command),
+    Script = (p(Hash) :- Command),
+    ec:hash(Script, HashValue),
+    '$signatures'(Signs, HashValue, SignAssigns),
+    append(SignAssigns, [Script], Commands3),
+    '$list_to_commas'(Commands3, FinalCommand).
+
+'$list_to_commas'([X], C) :- !, C = X.
+'$list_to_commas'([X|Xs], C) :-
+    C = (X, Y), '$list_to_commas'(Xs, Y).
+
+'$signatures'([], _, []).
+'$signatures'([sign(tx1, SignVar, PubKeyAddress)|Signs], HashValue,
+             [(SignVar = Signature)|Commands]) :-
+    cache:valid_address(PubKeyAddress, Count),
+    wallet:privkey(Count, PrivKey),
+    ec:sign(PrivKey, HashValue, Signature),
+    '$signatures'(Signs, HashValue, Commands).
+
+'$open_utxos'([], _, [], [], []).
+'$open_utxos'([utxo(_,HeapAddress)|Utxos], Hash,
+              [Coin|Coins], [Sign|Signs], Commands) :-
+   '$open_utxo'(HeapAddress, Hash, Coin, Sign, Commands0),
+   '$open_utxos'(Utxos, Hash, Coins, Signs, Commands1),
+   append(Commands0, Commands1, Commands).
+    
+'$open_utxo'(HeapAddress, Hash, Coin, Sign, Commands) :-
+    wallet:utxo(HeapAddress, TxType, _, Data),
+    '$open_utxo_tx'(TxType, HeapAddress, Data, Hash, Coin, Sign, Commands).
+
+'$open_utxo_tx'(tx1, HeapAddress, PubKeyAddress, Hash, Coin, sign(tx1,Signature,PubKeyAddress), Commands) :-
+    cache:valid_address(PubKeyAddress, Count),
+    wallet:pubkey(Count, PubKey),
+    Commands = [defrost(HeapAddress, Closure,
+                       [Hash, args(Signature,PubKey,PubKeyAddress)]),
+                arg(4, Closure, Coin)].
+
+'$choose'(_, 0, []) :- !.
+'$choose'([utxo(Value,HeapAddress)|Utxos], Funds, Chosen) :-
+    Value =< Funds, !, Chosen = [utxo(Value,HeapAddress)|ChosenUtxos],
+   Funds1 is Funds - Value,
+   '$choose'(Utxos, Funds1, ChosenUtxos).
+'$choose'([Utxo], _, [Utxo]) :- !.
+'$choose'([Utxo|Utxos], Funds, ChosenUtxos) :-
+   '$choose'(Utxos, Funds, ChosenUtxos).
+
+'$sum'([], Sum, Sum).
+'$sum'([utxo(Value,_)|Rest], In, Out) :-
+    '$sum'(Rest, In, Out0),
+    Out is Out0 + Value.
 
 )PROG";
 

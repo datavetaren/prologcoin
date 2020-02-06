@@ -509,6 +509,34 @@ bool builtins::greater_than_equals_2(interpreter_base &interp, size_t, common::t
     return interp.standard_order(result_lhs, result_rhs) >= 0;
 }
 
+bool builtins::less_than_equals_2(interpreter_base &interp, size_t, common::term args[])
+{
+    term lhs = args[0];
+    term rhs = args[1];
+    term result_lhs = interp.arith().eval(lhs, "=</2");
+    term result_rhs = interp.arith().eval(rhs, "=</2");
+    return interp.standard_order(result_lhs, result_rhs) <= 0;
+}
+
+
+bool builtins::greater_than_2(interpreter_base &interp, size_t, common::term args[])
+{
+    term lhs = args[0];
+    term rhs = args[1];
+    term result_lhs = interp.arith().eval(lhs, ">/2");
+    term result_rhs = interp.arith().eval(rhs, ">/2");
+    return interp.standard_order(result_lhs, result_rhs) > 0;
+}
+
+bool builtins::less_than_2(interpreter_base &interp, size_t, common::term args[])
+{
+    term lhs = args[0];
+    term rhs = args[1];
+    term result_lhs = interp.arith().eval(lhs, "</2");
+    term result_rhs = interp.arith().eval(rhs, "</2");
+    return interp.standard_order(result_lhs, result_rhs) < 0;
+}
+
 //
 // Analyzing & constructing terms
 //
@@ -1282,7 +1310,6 @@ bool builtins::password_2(interpreter_base &interp, size_t arity, common::term a
 	if (!interp.is_string(passwd)) {
 	    return false;
 	}
-
 	if (arity > 1) {
 	    bool is_pers = interp.is_persistent_password();
 	    term opt = is_pers ? interp.functor("persistent",0) : interp.functor("temporary",0);
@@ -1507,6 +1534,9 @@ void builtins::load(interpreter_base &interp) {
     // Arithmetics
     i.load_builtin(con_cell("is",2), &builtins::is_2);
     i.load_builtin(con_cell(">=",2), &builtins::greater_than_equals_2);
+    i.load_builtin(con_cell("=<",2), &builtins::less_than_equals_2);
+    i.load_builtin(con_cell(">",2), &builtins::greater_than_2);
+    i.load_builtin(con_cell("<",2), &builtins::less_than_2);    
 
     // Analyzing & constructing terms
     i.load_builtin(con_cell("arg",3), &builtins::arg_3);

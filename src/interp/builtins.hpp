@@ -166,6 +166,9 @@ typedef std::pair<common::con_cell, common::con_cell> qname;
 
 	static bool is_2(interpreter_base &interp, size_t arity, common::term args[]);
         static bool greater_than_equals_2(interpreter_base &interp, size_t arity, common::term args[]);
+        static bool less_than_equals_2(interpreter_base &interp, size_t arity, common::term args[]);
+        static bool greater_than_2(interpreter_base &interp, size_t arity, common::term args[]);
+        static bool less_than_2(interpreter_base &interp, size_t arity, common::term args[]);
 
 	//
 	// Analyzing & constructing terms

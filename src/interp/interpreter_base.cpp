@@ -736,8 +736,8 @@ bool interpreter_base::definitely_inequal(const term a, const term b)
 
 void interpreter_base::unwind_to_top_choice_point()
 {
-    if (!persistent_password_) clear_password();
     if (top_b() == nullptr) {
+        if (!persistent_password_) clear_password();
         return;
     }
     reset_to_choice_point(top_b());
@@ -850,6 +850,7 @@ void interpreter_base::clear_password()
     static con_cell PASSWD("$passwd",1);
     auto &pred = get_predicate(*this, qname(SYSTEM, PASSWD));
     pred.clear();
+    // std::cout << "clear_password(): current_module=" << to_string(current_module()) << std::endl;
 }
 
 }}
