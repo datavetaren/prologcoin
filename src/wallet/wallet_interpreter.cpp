@@ -112,6 +112,16 @@ sync :-
 
 
 %
+% Quickly get total balance
+%
+balance(Balance) :-
+    (current_predicate(wallet:utxo/4) ->
+       findall(utxo(Value,HeapAddr), wallet:utxo(HeapAddr,_,Value,_), Values),
+       '$sum'(Values, 0, Balance)
+     ; Balance = 0
+    ).
+
+%
 % Spending logic
 %
 send(Address, Funds, Fee, FinalCommand) :-

@@ -74,6 +74,14 @@ forall(Cond,Action) :-
 last([Last],Last).
 last([X|Xs],Last) :- last(Xs,Last).
 
+%
+% length/2
+%
+
+length(Xs, N) :- '$length'(Xs,N,0).
+'$length'([], N, N).
+'$length'([_|Xs], N, I) :- I1 is I + 1, '$length'(Xs, N, I1).
+
 )PROG";
 
     set_current_module(con_cell("system",0));

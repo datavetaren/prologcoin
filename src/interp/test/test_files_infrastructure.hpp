@@ -304,7 +304,8 @@ static inline bool test_interpreter_file(const std::string &filepath,
 		// Check if this is a consult operation
 		term a = interp.arg(t, 0);
 		if (!interp.is_list(a)) {
-		    std::cout << "Unrecognized action. Only [...] is supported (to include other files)" << std::endl;
+		    standard_clause_processing<> scp(interp);
+		    scp(t);
 		    continue;
 		}
 		for (auto fileatom : interp.iterate_over(a)) {

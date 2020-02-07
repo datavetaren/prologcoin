@@ -24,10 +24,11 @@ public:
     using remote_return_t = interp::remote_return_t;
   
     // Wallet file is some Prolog source code (.pl) representing a wallet.
-    wallet(const std::string &wallet_file);
+    wallet(const std::string &wallet_file = "");
     ~wallet();
 
     inline common::term_env & env() { return interp_; }
+    inline interp::interpreter & interp() { return interp_; }
   
     void load();
     void save();

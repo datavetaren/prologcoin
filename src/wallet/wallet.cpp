@@ -23,7 +23,7 @@ wallet::~wallet()
 
 void wallet::load()
 {
-    if (boost::filesystem::exists(wallet_file_)) {
+    if (!wallet_file_.empty() && boost::filesystem::exists(wallet_file_)) {
         std::ifstream ifs(wallet_file_);
 	auto old_module = interp_.current_module();
 	interp_.set_current_module(con_cell("wallet",0));
@@ -42,6 +42,9 @@ void wallet::check_dirty()
 
 void wallet::save()
 {
+    if (wallet_file_.empty()) {
+        return;
+    }
     std::ofstream ofs(wallet_file_);
     interp_.save_program(con_cell("wallet",0),ofs);
 }
