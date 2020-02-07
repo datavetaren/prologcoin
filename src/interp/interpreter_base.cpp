@@ -1065,22 +1065,22 @@ void interpreter_base::clear_secret()
 }
 
 void interpreter_base::dump_stack() {
-  auto cur_ce = e()->ce;
-  bool go = true;
-  while(go) {
-    if(cur_ce.kind() == ENV_NAIVE) {
-      printf("Naive emv\n");
-      //      auto naive_e = reinterpret_cast<environment_naive_t>(cur_e);
-    } else if (cur_ce.kind() == ENV_WAM) {
-      printf("Naive emv\n");
-      //      auto wam_e = reinterpret_cast<environment_t(cur_e);
-      // How many y registers are there?
-    } else { // FROZEN
-      printf("Naive emv\n");
-      //      auto frozen_e = reinterpret_cast<environment_frozen_t>(cur_e);
-    }
-    go = cur_ce.ce0() != nullptr;
+  auto frame_ptr = e0();
+  size_t stack_size = frame_ptr == nullptr ? 0 :
+    (size_t)frame_ptr - (size_t)stack_;
+  printf("---- Stack Start(%llu) ---\n", frame_ptr);
+  while(frame_ptr != nullptr) {
+    auto cur_ce = frame_ptr->ce;
+      if(cur_ce.kind() == ENV_NAIVE) {
+	printf("Naive env\n");
+      } else if (cur_ce.kind() == ENV_WAM) {
+	printf("Wam env\n");
+      } else { // FROZEN
+	printf("Frozen env\n");
+      }
+      frame_ptr = cur_ce.ce0();
   }
+  printf("---- Stack End ---\n");
 }
 /*
 void interpreter_base::get_e_roots(std::vector<ptr_cell *> &roots) {
