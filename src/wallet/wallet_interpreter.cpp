@@ -124,7 +124,7 @@ balance(Balance) :-
 %
 % Spending logic
 %
-send(Address, Funds, Fee, FinalCommand) :-
+spend_tx(Address, Funds, Fee, FinalTx) :-
     '$cache_addresses',
     findall(utxo(Value,HeapAddress), wallet:utxo(HeapAddress,_,Value,_),
             Utxos),
@@ -153,7 +153,7 @@ send(Address, Funds, Fee, FinalCommand) :-
     ec:hash(Script, HashValue),
     '$signatures'(Signs, HashValue, SignAssigns),
     append(SignAssigns, [Script], Commands3),
-    '$list_to_commas'(Commands3, FinalCommand).
+    '$list_to_commas'(Commands3, FinalTx).
 
 '$list_to_commas'([X], C) :- !, C = X.
 '$list_to_commas'([X|Xs], C) :-

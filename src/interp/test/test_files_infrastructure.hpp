@@ -106,6 +106,7 @@ static inline bool match_strings(const std::string &actual,
     term_token_diff diff(in_actual, in_expect);
     if (!diff.check()) {
 	std::cout << "Error. Difference spotted." << std::endl;
+	diff.report();
 	return false;
     }
     return true;

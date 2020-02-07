@@ -465,6 +465,26 @@ size_t term_tokenizer::next_digits()
     return next_xs( is_digit );
 }
 
+size_t term_tokenizer::next_integer_digits()
+{
+    size_t cnt = 0;
+    bool last_underscore = false;
+    int c;
+    while (!is_eof() && (isdigit(c = peek_char()) || c == '_')) {
+        bool was_underscore = c == '_';
+	if (cnt == 0 && was_underscore) {
+	    return cnt;
+	}
+        if (last_underscore && was_underscore) {// Double underscore __ not allowed
+	    return cnt;
+	}
+	last_underscore = was_underscore;
+	consume_next_char();
+	cnt++;
+    }
+    return cnt;
+}
+
 size_t term_tokenizer::next_alphas()
 {
     return next_xs( is_alpha );
@@ -497,7 +517,7 @@ void term_tokenizer::next_number()
         consume_next_char();
     }
   
-    next_digits();
+    next_integer_digits();
 
     if (is_eof()) {
         return;

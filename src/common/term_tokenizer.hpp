@@ -293,6 +293,7 @@ private:
     bool is_full_stop() const;
     bool is_full_stop(int ch) const;
     size_t next_xs( const std::function<bool(int)> &predicate );
+    size_t next_integer_digits();
     size_t next_digits();
     size_t next_alphas();
     void next_char_code();

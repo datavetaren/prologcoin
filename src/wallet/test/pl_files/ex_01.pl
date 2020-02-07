@@ -20,6 +20,13 @@
 % Expect: PubKey2 = 58'1hmJAajYJPuamGbNaT97dPY2D4rGjMDYXidmANNNBwVWj, PubKeyAddress2 = 58'151uwoSrYcQu7xrf8b5ot4XUR9kVGtUT1X
 
 %
+% Create third key
+%
+?- newkey(PubKey3, PubKeyAddress3).
+% Expect: PubKey3 = 58'1t3kcH1TsQKstb5wQi9Qc2vPFUfavuFTXMmtaJWy6R8EW, PubKeyAddress3 = 58'1454TkdyBBsrT2udu86h4WwZnBCc8FHbBy
+
+
+%
 % Create some rewards at the node using first key
 %
 ?- commit(reward(founders_reward)) @ node.
@@ -56,3 +63,25 @@ check_closures(N) :- ((frozenk(0, 100, HeapAddrs) @ global) @ node), length(Heap
 %
 ?- balance(B).
 % Expect: B = 84000000000
+
+%
+% Compute a spending transaction (later to be broadcasted)
+% This is actually spending to myself (key number 3.)
+% Sending 31_000_000_000 (31 billion units) 
+%
+?- password("foobar"), spend_tx(58'1454TkdyBBsrT2udu86h4WwZnBCc8FHbBy, 31_000_000_000, 32_000, FinalTx).
+% Expect: true/*
+
+%
+% There's a bug here. Private key is different every time, but public key is not.
+%
+
+:- password("foobar"), wallet:privkey(0, X), wallet:pubkey(0, Y), write(X), nl, write(Y), nl.
+% Expect: true/*
+
+:- password("foobar"), wallet:privkey(0, X), wallet:pubkey(0, Y), write(X), nl, write(Y), nl.
+% Expect: true/*
+
+
+% xxxx: FinalTx = (Signature = 58'4tfgozsLwVi425jQnjZNgWP4GBY7Uw87mwXFoWLK4NVRxQZ1LjEtaKE7btnys4HXttjWd95WiwJA4wZA75aaTMNM, Signature1 = 58'4cEHnkJrvJYRbjxCgYqPkPNCNVMJYwhi1wcJ5aQFX7pZXd4KDQcyiHRfXSdMmcRKfBUDMWt8xJbeJKiHFfpJEcNX, (p(Hash) :- defrost(1591, Closure, [Hash, args(Signature, 58'25R88LyidJyM4ePTouuWsXBBV5BgXZibY34jwQ15Mow8j, 58'1HsxgzLx5WSQLMC5awUNuGPaSo2csEEYFq)]), arg(4, Closure, Coin), defrost(1693, Closure1, [Hash, args(Signature1, 58'1hmJAajYJPuamGbNaT97dPY2D4rGjMDYXidmANNNBwVWj, 58'151uwoSrYcQu7xrf8b5ot4XUR9kVGtUT1X)]), arg(4, Closure1, Coin1), cjoin([Coin,Coin1], SumCoin), csplit(SumCoin, [31000000000,32000,10999968000], [FundsCoin,_,RestCoin]), tx(FundsCoin, Hash, tx1, args(_, _, 58'1454TkdyBBsrT2udu86h4WwZnBCc8FHbBy)), tx(RestCoin, Hash, tx1, args(_, _, 58'1EfXJQ3vnfJMwBzjaygQq1epFGkxvJbweH))))
+

@@ -820,6 +820,16 @@ protected:
 
   // unsigned_number :- ...
 
+  void skip_underscores(const std::string &in, size_t pos, std::string &out)
+  {
+      out.clear();
+      size_t n = in.size();
+      for (size_t i = pos; i < n; i++) {
+	  char c = in[i];
+	  if (c != '_') out += in[i];
+      }
+  }
+  
   void get_number_and_base(const std::string &str, std::string &num, int &base)
   {
       base = 10;
@@ -834,12 +844,11 @@ protected:
 		  num = str.substr(0,i);
 		  return;
 	      }
-	      num = str.substr(i+1);
+	      skip_underscores(str, i+1, num);
 	      return;
 	  }
       }
-      // No quote, so it's an ordinary base 10 number
-      num = str;
+      skip_underscores(str, 0, num);      
   }
 
   static inline int get_base_digit(const char ch, int base)

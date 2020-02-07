@@ -70,6 +70,8 @@ bool term_token_diff::check_impl()
 	line2_ += token2.lexeme();
 
 	if (token1.type() != token2.type() || token1.lexeme() != token2.lexeme()) {
+    	    token1_ = token1;
+	    token2_ = token2;
 	    return false;
 	}
 
@@ -107,6 +109,12 @@ void term_token_diff::report()
 
     std::cout << "Source  : " << line1_ << std::endl;
     std::cout << "Compare : " << line2_ << std::endl;
+
+    std::cout << "Source  token : " << token1_.lexeme() << std::endl;
+    std::cout << "Compare token : " << token2_.lexeme() << std::endl;
+
+    std::cout << "Source  column : " << token1_.pos().column() << std::endl;
+    std::cout << "Compare column : " << token2_.pos().column() << std::endl;    
 }
 
 void term_token_diff::assert_equal(const std::string &s1,const std::string &s2,

@@ -39,6 +39,9 @@ private:
     term_tokenizer tokens1_;
     term_tokenizer tokens2_;
 
+    term_tokenizer::token token1_;
+    term_tokenizer::token token2_;
+
     bool done_;
     bool failed_;
 };

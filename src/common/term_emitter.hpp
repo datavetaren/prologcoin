@@ -170,6 +170,7 @@ private:
     size_t get_emit_length(cell c);
 
     void print_from_stack(size_t top = 0);
+    void clear_printed_names();
 
     std::ostream &out_;
     const heap &heap_;
@@ -191,6 +192,9 @@ private:
     con_cell empty_list_;
 
     std::unordered_map<term, std::string> *var_naming_;
+    std::unordered_map<term, std::string> *printed_naming_;
+    std::unordered_map<std::string, size_t> *disambiguation_count_;
+    std::unordered_set<std::string> *var_names_;
     bool var_naming_owned_;
 
     emitter_options options_;
