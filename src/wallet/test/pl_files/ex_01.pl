@@ -29,7 +29,7 @@
 %
 % Create some rewards at the node using first key
 %
-?- commit(reward(founders_reward)) @ node.
+?- commit(reward(58'1KjJ9E9TekYgSmPUFiFYre6BhKrBqciY81)) @ node.
 % Expect: true
 ?- commit(reward(58'1HsxgzLx5WSQLMC5awUNuGPaSo2csEEYFq)) @ node.
 % Expect: true
