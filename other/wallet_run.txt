@@ -1,0 +1,80 @@
+[prologcoind.exe v0.10]
+Data directory: bin\prologcoin-data
+
+[In wallet mode using: bin\prologcoin-data\wallet.pl]
+Loading bin\prologcoin-data\startup.pl
+this is startup.pl
+stockholm --> copenhagen --> boston
+stockholm --> reykjavik --> boston
+stockholm --> reykjavik --> newyork --> boston
+stockholm --> newyork --> boston
+stockholm --> amsterdam --> boston
+stockholm --> amsterdam --> newyork --> boston
+?- create("foobar", [hurdle,review,jump,cash,fork,history,spider,bracket,collect,inherit,tape,keep,advice,exist,suspect,deny,judge,fog,fold,violin,hub,agent,elegant,fringe]).
+true
+?- newkey(PubKey, PubKeyAddress).
+PubKey = 58'1gkobm5Lkp7D6wLKuUsPrA9t46eGswjieMSZtdJsvJH1J,
+PubKeyAddress = 58'1NHqbNvC6GahrKKpcvomhr3YLgwnwqdfDA
+?- newkey(PubKey2, PubKeyAddress2).
+PubKey2 = 58'28fytjeHRDG3WqiLRVWmu6tp4Y1cAQ76WTxnx6JXoERnV,
+PubKeyAddress2 = 58'1F1krUUBG9dQbLahcGbEEPsiiCffMTRs8v
+?- newkey(PubKey3, PubKeyAddress3).
+PubKey3 = 58'1sJWiEpLVeYiZBxgnsXyoRtfAJ3a6YXTftqCoWPrE11Ht,
+PubKeyAddress3 = 58'1DgKvJZtrs8KEqWEcrPXW2a7A5TYDoYwKm
+?- commit(reward(58'1KjJ9E9TekYgSmPUFiFYre6BhKrBqciY81)) @ node.
+true
+?- commit(reward(58'1F1krUUBG9dQbLahcGbEEPsiiCffMTRs8v)) @ node.
+true
+?- commit(reward(58'1F1krUUBG9dQbLahcGbEEPsiiCffMTRs8v)) @ node.
+true
+?-  commit(reward(58'1F1krUUBG9dQbLahcGbEEPsiiCffMTRs8v)) @ node.
+true
+?- commit(reward(58'1F1krUUBG9dQbLahcGbEEPsiiCffMTRs8v)) @ node.
+true
+?- ((frozenk(0, 100, HeapAddrs) @ global) @ node), length(HeapAddrs,N).
+HeapAddrs = [1489,1527,1565,1603,1641],
+N = 5
+?- sync.
+true
+?- balance(B).
+B = 84000000000
+?- password("foobar"), spend_tx(58'1DgKvJZtrs8KEqWEcrPXW2a7A5TYDoYwKm, 31_000_000_000, 32_000, FinalTx, ConsumedUtxos), commit(FinalTx) @ node, retract_utxos(ConsumedUtxos), sync.
+$coin(31000000000, BTS)
+$coin(10999968000, BT9)
+RestCoin done
+FinalTx = (Signature =
+ 58'5qbNca3tw8jhQEXStCyK4MnoBCoQ7Mvr2TsL1vjKW3mrp2U4yc45x9ruQf4JgRjDPGwJxVhBAa1oijFSZxLwCSPb
+ ,
+ Signature1 =
+ 58'5qbNca3tw8jhQEXStCyK4MnoBCoQ7Mvr2TsL1vjKW3mrp2U4yc45x9ruQf4JgRjDPGwJxVhBAa1oijFSZxLwCSPb
+ , (p(58'GkKbHJZBzHn3fhUJRVUWWyDMkxCm9xAhXqMnzkktpPas) :-
+    defrost(1527, Closure,
+            [58'GkKbHJZBzHn3fhUJRVUWWyDMkxCm9xAhXqMnzkktpPas,
+             args(Signature, 58'28fytjeHRDG3WqiLRVWmu6tp4Y1cAQ76WTxnx6JXoERnV
+                  , 58'1F1krUUBG9dQbLahcGbEEPsiiCffMTRs8v)]),
+    arg(4, Closure, Coin),
+    defrost(1641, Closure1,
+            [58'GkKbHJZBzHn3fhUJRVUWWyDMkxCm9xAhXqMnzkktpPas,
+             args(Signature1,
+                  58'28fytjeHRDG3WqiLRVWmu6tp4Y1cAQ76WTxnx6JXoERnV,
+                  58'1F1krUUBG9dQbLahcGbEEPsiiCffMTRs8v)]),
+    arg(4, Closure1, Coin1),
+    cjoin([Coin,Coin1], SumCoin),
+    csplit(SumCoin, [31000000000,32000,10999968000], [FundsCoin,_,RestCoin]),
+
+    write(FundsCoin),
+    nl,
+    tx(FundsCoin, _, tx1, args(_, _, 58'1DgKvJZtrs8KEqWEcrPXW2a7A5TYDoYwKm),
+       _),
+    write(RestCoin),
+    nl,
+    tx(RestCoin, _, tx1, args(_, _, 58'1FnTXpFbJfsoGLLt5gvzXzT3Jy2xf35qnz), _
+       ), write('RestCoin done'), nl)),
+ConsumedUtxos = [1527,1641]
+?- balance(B2).
+B2 = 83999968000
+?- balance(B3).
+B3 = 83999968000
+?- resync, balance(B3).
+B3 = 83999968000
+?- halt.
