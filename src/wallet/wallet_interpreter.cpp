@@ -152,11 +152,8 @@ spend_tx(Address, Funds, Fee, FinalTx, ConsumedUtxos) :-
          newkey(_, ChangeAddr),
          append(Commands1, [csplit(SumCoin, [Funds,Fee,Rest],
                                    [FundsCoin,_,RestCoin]),
-                            write(FundsCoin), nl,
                             tx(FundsCoin, _, tx1, args(_,_,Address), _),
-                            write(RestCoin), nl,
-                            tx(RestCoin, _, tx1, args(_,_,ChangeAddr),_),
-                            write('RestCoin done'), nl],
+                            tx(RestCoin, _, tx1, args(_,_,ChangeAddr),_)],
                 Commands2)
     ; append(Commands1, [csplit(SumCoin, [Funds,Fee],[FundsCoin,_]),
                          tx(FundsCoin, _, tx1, args(_,_,Address),_)],

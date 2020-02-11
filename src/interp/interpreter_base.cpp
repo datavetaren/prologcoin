@@ -841,6 +841,7 @@ void interpreter_base::save_predicate(const qname &qn, std::ostream &out)
     emit.options().set(emitter_option::EMIT_PROGRAM);
     bool empty = true;
     for (auto &managed : get_predicate(qn).get_clauses()) {
+        if (managed.is_erased()) continue;
         empty = false;
 	emit.print(managed.clause());
 	emit.nl();
