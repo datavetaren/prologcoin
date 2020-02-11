@@ -1,6 +1,7 @@
 %
-% Startup
+% Testing wallet. Create a new wallet and then make some transactions.
 %
+
 % Meta: WAM-only
 % Meta: fileio on
 
