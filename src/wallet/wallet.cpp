@@ -52,6 +52,7 @@ void wallet::save()
 void wallet::connect_node(terminal *node_term)
 {
     terminal_ = node_term;
+    terminal_->set_propagate_exceptions(true);
 }
 
 void wallet::node_pulse()

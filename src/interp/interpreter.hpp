@@ -178,6 +178,7 @@ public:
 			 
     bool start(common::term query, const std::string where) {
         auto result = remote_execute_(interp_, query, where);
+
 	if (result.failed()) {
 	    return false;
 	}

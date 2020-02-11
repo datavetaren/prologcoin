@@ -17,7 +17,8 @@ terminal::terminal(unsigned short port, const std::string &ip_address)
     buffer_len_(sizeof(cell)),
     has_more_(false),
     at_end_(false),    
-    result_to_text_(true)
+    result_to_text_(true),
+    propagate_exceptions_(false)
 {
 }
 
@@ -411,6 +412,10 @@ bool terminal::execute_query(const term query)
 
 void terminal::handle_error(const std::string &msg)
 {
+    if (propagate_exceptions()) {
+        throw interpreter_remote_exception(msg);
+    }
+  
     auto from = static_cast<size_t>(0);
     while (from != std::string::npos) {
 	auto end = msg.find("\n", from);

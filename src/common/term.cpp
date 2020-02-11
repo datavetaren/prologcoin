@@ -14,7 +14,7 @@ size_t heap::id_counter_ = 0;
     
 coin_security_exception::coin_security_exception() 
     : term_exception( std::string("'$coin' is not allowed to be created in this context.")) {
-    // DebugBreak();
+//  DebugBreak();
 }
     
 std::string cell::str() const

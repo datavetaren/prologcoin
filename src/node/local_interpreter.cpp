@@ -57,6 +57,7 @@ bool me_builtins::list_load_2(interpreter_base &interp0, size_t arity, term args
     return true;
 }
 
+    
 bool me_builtins::operator_at_2(interpreter_base &interp0, size_t arity, term args[] )
 {
     auto &interp = to_local(interp0);
@@ -386,7 +387,7 @@ bool me_builtins::funds_1(interpreter_base &interp0, size_t arity, term args[] )
     return interp.unify(arg, int_cell(funds));
 }
 
-term me_builtins::preprocess_hashes(local_interpreter &interp, term t) {
+void me_builtins::preprocess_hashes(local_interpreter &interp, term t) {
     static const con_cell P("p", 1);
 
     static const common::con_cell op_comma(",", 2);
@@ -395,7 +396,7 @@ term me_builtins::preprocess_hashes(local_interpreter &interp, term t) {
     static const common::con_cell op_clause(":-", 2);    
 
     if (t.tag() != common::tag_t::STR) {
-        return t;
+        return;
     }
     
     auto f = interp.functor(t);
@@ -409,24 +410,21 @@ term me_builtins::preprocess_hashes(local_interpreter &interp, term t) {
 	    if (hash_var.tag().is_ref()) {
 	        uint8_t hash[ec::builtins::RAW_HASH_SIZE];
 	        if (!ec::builtins::get_hashed_2_term(interp, t, hash)) {
-		    return t;
+		    return;
 	        }
 		term hash_term = interp.new_big(ec::builtins::RAW_HASH_SIZE*8);
 		interp.set_big(hash_term, hash, ec::builtins::RAW_HASH_SIZE);
 		if (!interp.unify(hash_var, hash_term)) {
-		    return t;
+		    return;
 		}
-		return body;
 	    }
 	}
     }
 
-    if (f == op_comma || f == op_semi || f == op_imply) {
-        interp.set_arg(t, 0, preprocess_hashes(interp, interp.arg(t, 0)));
-        interp.set_arg(t, 1, preprocess_hashes(interp, interp.arg(t, 1)));
+    if (f == op_comma || f == op_semi || f == op_imply || f == op_clause) {
+        preprocess_hashes(interp, interp.arg(t, 0));
+	preprocess_hashes(interp, interp.arg(t, 1));
     }
-
-    return t;
 }
 
 bool me_builtins::commit(local_interpreter &interp, term_serializer::buffer_t &buf, term t, bool naming)
@@ -440,7 +438,7 @@ bool me_builtins::commit(local_interpreter &interp, term_serializer::buffer_t &b
     // Then we compute the hash of Body (with X unbound) and bind X to the
     // hashed value. Then we apply commit on Body.
     //
-    t = preprocess_hashes(interp, t);
+    preprocess_hashes(interp, t);
 
     // First serialize
     term_serializer ser(interp);
@@ -464,8 +462,7 @@ bool me_builtins::commit(local_interpreter &interp, term_serializer::buffer_t &b
 
     assert(g.is_clean());
 
-    term t1 = ser.read(buf);
-    return interp.unify(t, t1);
+    return true;
 }
 
 bool me_builtins::commit_2(interpreter_base &interp0, size_t arity, term args[])

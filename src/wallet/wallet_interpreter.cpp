@@ -68,6 +68,16 @@ sync :-
     sync(100).
 
 %
+% Restart wallet sweep. Clean UTXO database and start from heap address 0.
+% Call one sync step (which syncs 100 UTXOs)
+%
+resync :-
+    retractall(wallet:utxo(_,_,_,_)),
+    retractall(lastheap(_)),
+    assert(lastheap(0)),
+    sync.
+
+%
 % Compute public key addresses and store them in memory (using program database()
 %
 '$cache_addresses' :-
@@ -96,7 +106,8 @@ sync :-
     Arity >= 3,
     arg(2, F, TxType),
     arg(3, F, Args),
-    arg(7, F, Value),
+    arg(5, F, Coin),
+    arg(1, Coin, Value),
     ((current_predicate(wallet:new_utxo/4), wallet:new_utxo(TxType, HeapAddress, Value, Args)) -> true
  ; '$new_utxo'(TxType, HeapAddress, Value, Args)
     ).
@@ -124,7 +135,7 @@ balance(Balance) :-
 %
 % Spending logic
 %
-spend_tx(Address, Funds, Fee, FinalTx) :-
+spend_tx(Address, Funds, Fee, FinalTx, ConsumedUtxos) :-
     '$cache_addresses',
     findall(utxo(Value,HeapAddress), wallet:utxo(HeapAddress,_,Value,_),
             Utxos),
@@ -141,11 +152,14 @@ spend_tx(Address, Funds, Fee, FinalTx) :-
          newkey(_, ChangeAddr),
          append(Commands1, [csplit(SumCoin, [Funds,Fee,Rest],
                                    [FundsCoin,_,RestCoin]),
-                            tx(FundsCoin, Hash, tx1, args(_,_,Address)),
-                            tx(RestCoin, Hash, tx1, args(_,_,ChangeAddr))],
+                            write(FundsCoin), nl,
+                            tx(FundsCoin, _, tx1, args(_,_,Address), _),
+                            write(RestCoin), nl,
+                            tx(RestCoin, _, tx1, args(_,_,ChangeAddr),_),
+                            write('RestCoin done'), nl],
                 Commands2)
     ; append(Commands1, [csplit(SumCoin, [Funds,Fee],[FundsCoin,_]),
-                         tx(FundsCoin, Hash, tx1, args(_,_,Address))],
+                         tx(FundsCoin, _, tx1, args(_,_,Address),_)],
              Commands2)
     ),
     '$list_to_commas'(Commands2, Command),
@@ -153,7 +167,13 @@ spend_tx(Address, Funds, Fee, FinalTx) :-
     ec:hash(Script, HashValue),
     '$signatures'(Signs, HashValue, SignAssigns),
     append(SignAssigns, [Script], Commands3),
-    '$list_to_commas'(Commands3, FinalTx).
+    '$list_to_commas'(Commands3, FinalTx),
+    findall(H, member(utxo(_,H), ChosenUtxos), ConsumedUtxos).
+
+retract_utxos([]).
+retract_utxos([HeapAddr|HeapAddrs]) :-
+    retract(wallet:utxo(HeapAddr, _, _, _)),
+    retract_utxos(HeapAddrs).
 
 '$list_to_commas'([X], C) :- !, C = X.
 '$list_to_commas'([X|Xs], C) :-
@@ -264,6 +284,7 @@ bool wallet_interpreter::create_2(interpreter_base &interp, size_t arity, term a
 	       "create/2: Invalid BIP39 sentence; was "
 	    + interp.to_string(args[1]));
         }
+	sentence = args[1];
     }
 
     std::string passwd = interp.list_to_string(args[0]);

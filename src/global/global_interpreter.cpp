@@ -19,6 +19,8 @@ global_interpreter::global_interpreter(global &g) : global_(g) {
     load_builtins_file_io();
 
     setup_consensus_lib(*this);
+
+    setup_builtins();
 }
 
 void global_interpreter::setup_consensus_lib(interpreter &interp) {
@@ -42,11 +44,10 @@ tx(CoinIn, Hash, Script, Args, CoinOut) :-
     ground(V),
     arg(2, CoinIn, X),
     var(X),
-    X = [],
+    cmove(CoinIn, CoinX),
     freeze(Hash,
            (call(Script, Hash, Args),
-            functor(CoinOut, Functor, Arity),
-            arg(1, CoinOut, V))).
+            CoinOut = CoinX)).
 
 tx1(Hash,args(Signature,PubKey,PubKeyAddr)) :-
     ec:address(PubKey,PubKeyAddr),
@@ -134,5 +135,29 @@ void global_interpreter::execute_cut() {
     interpreter_base::clear_trail();
 }
     
+bool global_builtins::operator_clause_2(interpreter_base &interp0, size_t arity, term args[] )
+{
+    auto &interp = to_global(interp0);
 
+    term head = args[0];
+    term body = args[1];
+
+    if (head.tag() != tag_t::STR || interp.functor(head) != con_cell("p",1)) {
+        throw interpreter_exception_wrong_arg_type(":-/2: Head of clause must be 'p(Hash)'; was " + interp.to_string(head));
+    }
+
+    // Setup new environment and where to continue
+    interp.allocate_environment<ENV_NAIVE>();
+	
+    interp.set_p(body);
+    interp.set_cp(interpreter_base::EMPTY_LIST);
+
+    return true;
+}
+
+void global_interpreter::setup_builtins()
+{
+    load_builtin(con_cell(":-",2), &global_builtins::operator_clause_2);
+}
+    
 }}

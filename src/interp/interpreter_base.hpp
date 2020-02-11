@@ -1881,7 +1881,12 @@ inline bool predicate::remove_clauses(interpreter_base &interp, common::term hea
     if (with_vars_ || arg.tag().is_ref()) {
 	for (auto it = clauses_.begin(); it != clauses_.end();) {
             performance_count_++;
-	    auto clause = (*it).clause();
+	    auto mclause = *it;
+	    if (mclause.is_erased()) {
+	        ++it;
+	        continue;
+	    }
+	    auto clause = mclause.clause();
 	    auto clause_head = interp.clause_head(clause);
 	    if (interp.can_unify(clause_head, head)) {
 	        if (!found) {

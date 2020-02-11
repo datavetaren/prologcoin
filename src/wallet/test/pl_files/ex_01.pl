@@ -11,19 +11,19 @@
 % Create a new key.
 %
 ?- newkey(PubKey, PubKeyAddress).
-% Expect: PubKey = 58'25R88LyidJyM4ePTouuWsXBBV5BgXZibY34jwQ15Mow8j, PubKeyAddress = 58'1HsxgzLx5WSQLMC5awUNuGPaSo2csEEYFq
+% Expect: PubKey = 58'1gkobm5Lkp7D6wLKuUsPrA9t46eGswjieMSZtdJsvJH1J, PubKeyAddress = 58'1NHqbNvC6GahrKKpcvomhr3YLgwnwqdfDA
 
 %
 % Create another key
 %
 ?- newkey(PubKey2, PubKeyAddress2).
-% Expect: PubKey2 = 58'1hmJAajYJPuamGbNaT97dPY2D4rGjMDYXidmANNNBwVWj, PubKeyAddress2 = 58'151uwoSrYcQu7xrf8b5ot4XUR9kVGtUT1X
+% Expect: PubKey2 = 58'28fytjeHRDG3WqiLRVWmu6tp4Y1cAQ76WTxnx6JXoERnV, PubKeyAddress2 = 58'1F1krUUBG9dQbLahcGbEEPsiiCffMTRs8v
 
 %
 % Create third key
 %
 ?- newkey(PubKey3, PubKeyAddress3).
-% Expect: PubKey3 = 58'1t3kcH1TsQKstb5wQi9Qc2vPFUfavuFTXMmtaJWy6R8EW, PubKeyAddress3 = 58'1454TkdyBBsrT2udu86h4WwZnBCc8FHbBy
+% Expect: PubKey3 = 58'1sJWiEpLVeYiZBxgnsXyoRtfAJ3a6YXTftqCoWPrE11Ht, PubKeyAddress3 = 58'1DgKvJZtrs8KEqWEcrPXW2a7A5TYDoYwKm
 
 
 %
@@ -31,17 +31,17 @@
 %
 ?- commit(reward(58'1KjJ9E9TekYgSmPUFiFYre6BhKrBqciY81)) @ node.
 % Expect: true
-?- commit(reward(58'1HsxgzLx5WSQLMC5awUNuGPaSo2csEEYFq)) @ node.
+?- commit(reward(58'1F1krUUBG9dQbLahcGbEEPsiiCffMTRs8v)) @ node.
 % Expect: true
-?- commit(reward(58'1HsxgzLx5WSQLMC5awUNuGPaSo2csEEYFq)) @ node.
+?- commit(reward(58'1F1krUUBG9dQbLahcGbEEPsiiCffMTRs8v)) @ node.
 % Expect: true
 
 %
 % Create some rewards at the node with second key
 %
-?- commit(reward(58'151uwoSrYcQu7xrf8b5ot4XUR9kVGtUT1X)) @ node.
+?- commit(reward(58'1NHqbNvC6GahrKKpcvomhr3YLgwnwqdfDA)) @ node.
 % Expect: true
-?- commit(reward(58'151uwoSrYcQu7xrf8b5ot4XUR9kVGtUT1X)) @ node.
+?- commit(reward(58'1NHqbNvC6GahrKKpcvomhr3YLgwnwqdfDA)) @ node.
 % Expect: true
 
 %
@@ -69,19 +69,17 @@ check_closures(N) :- ((frozenk(0, 100, HeapAddrs) @ global) @ node), length(Heap
 % This is actually spending to myself (key number 3.)
 % Sending 31_000_000_000 (31 billion units) 
 %
-?- password("foobar"), spend_tx(58'1454TkdyBBsrT2udu86h4WwZnBCc8FHbBy, 31_000_000_000, 32_000, FinalTx).
+?- password("foobar"), spend_tx(58'1DgKvJZtrs8KEqWEcrPXW2a7A5TYDoYwKm, 31_000_000_000, 32_000, FinalTx, ConsumedUtxos), commit(FinalTx) @ node, retract_utxos(ConsumedUtxos), sync.
 % Expect: true/*
 
 %
-% There's a bug here. Private key is different every time, but public key is not.
+% Check the new balance. Since we spent to ourselves it's only the fee that is lost.
 %
+?- balance(B2).
+% Expect: B2 = 83999968000
 
-:- password("foobar"), wallet:privkey(0, X), wallet:pubkey(0, Y), write(X), nl, write(Y), nl.
-% Expect: true/*
-
-:- password("foobar"), wallet:privkey(0, X), wallet:pubkey(0, Y), write(X), nl, write(Y), nl.
-% Expect: true/*
-
-
-% xxxx: FinalTx = (Signature = 58'4tfgozsLwVi425jQnjZNgWP4GBY7Uw87mwXFoWLK4NVRxQZ1LjEtaKE7btnys4HXttjWd95WiwJA4wZA75aaTMNM, Signature1 = 58'4cEHnkJrvJYRbjxCgYqPkPNCNVMJYwhi1wcJ5aQFX7pZXd4KDQcyiHRfXSdMmcRKfBUDMWt8xJbeJKiHFfpJEcNX, (p(Hash) :- defrost(1591, Closure, [Hash, args(Signature, 58'25R88LyidJyM4ePTouuWsXBBV5BgXZibY34jwQ15Mow8j, 58'1HsxgzLx5WSQLMC5awUNuGPaSo2csEEYFq)]), arg(4, Closure, Coin), defrost(1693, Closure1, [Hash, args(Signature1, 58'1hmJAajYJPuamGbNaT97dPY2D4rGjMDYXidmANNNBwVWj, 58'151uwoSrYcQu7xrf8b5ot4XUR9kVGtUT1X)]), arg(4, Closure1, Coin1), cjoin([Coin,Coin1], SumCoin), csplit(SumCoin, [31000000000,32000,10999968000], [FundsCoin,_,RestCoin]), tx(FundsCoin, Hash, tx1, args(_, _, 58'1454TkdyBBsrT2udu86h4WwZnBCc8FHbBy)), tx(RestCoin, Hash, tx1, args(_, _, 58'1EfXJQ3vnfJMwBzjaygQq1epFGkxvJbweH))))
-
+%
+% Resync and see we get the same result.
+%
+?- resync, balance(B3).
+% Expect: B3 = 83999968000

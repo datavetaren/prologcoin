@@ -21,6 +21,8 @@ public:
 
     static global_interpreter & to_global(interpreter_base &interp)
     { return reinterpret_cast<global_interpreter &>(interp); }
+
+    static bool operator_clause_2(interpreter_base &interp, size_t arity, term args[]);
 };
 
 class global_interpreter_exception : public interp::interpreter_exception {
@@ -65,7 +67,12 @@ public:
     inline bool is_empty_trail() const {
         return trail_size() == 0;
     }
+
+    friend class global_builtins;
+  
 private:
+    void setup_builtins();
+
     global &global_;
     bool naming_;
     std::unordered_map<std::string, term> name_to_term_;

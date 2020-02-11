@@ -2062,7 +2062,7 @@ bool builtins::master_key_3(interpreter_base &interp, size_t arity, term args[])
 	        throw interpreter_exception_wrong_arg_type(pname + ": Checksum computation failed on word sentence.");
 	    }
 	    
-	    std::string passphrase = "";
+	    std::string passphrase = "TREZOR";
 	    if (arity == 4) {
 	      if (!interp.is_string(args[1])) {
 		throw interpreter_exception_wrong_arg_type(pname + ": Second argument must be a proper string; was " + interp.to_string(args[1]));

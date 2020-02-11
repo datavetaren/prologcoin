@@ -19,9 +19,16 @@
 #include "../common/term_tokenizer.hpp"
 #include "../common/term_parser.hpp"
 #include "../common/term_serializer.hpp"
+#include "../interp/interpreter_base.hpp"
 
 namespace prologcoin { namespace terminal {
 
+class interpreter_remote_exception : public interp::interpreter_exception {
+public:
+    interpreter_remote_exception(const std::string &msg)
+	: interpreter_exception(msg) { }
+};
+    
 //
 // This class provides terminal access to a node programmatically (non-interactive.)
 //
@@ -92,6 +99,9 @@ public:
     inline void set_has_more() { has_more_ = true; }
     inline void set_at_end() { at_end_ = true; }
 
+    inline bool propagate_exceptions() const { return propagate_exceptions_; }
+    inline void set_propagate_exceptions(bool ex) { propagate_exceptions_ = ex;}
+
 private:
     void run();
 
@@ -135,6 +145,8 @@ private:
     std::queue<std::string> text_output_queue_;
 
     bool result_to_text_;
+
+    bool propagate_exceptions_;
 };
 
 }}

@@ -241,6 +241,8 @@ public:
         { return T::get_heap().list_length(lst); }
     inline std::string atom_name(con_cell f) const
         { return T::get_heap().atom_name(f); }
+    inline bool is_dollar_atom_name(con_cell f) const
+        { return T::get_heap().is_dollar_atom_name(f); }
 
     // Term predicates
     inline bool is_dotted_pair(term t) const

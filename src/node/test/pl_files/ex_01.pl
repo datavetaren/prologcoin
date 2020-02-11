@@ -13,7 +13,7 @@ pkey2(58'L15fZcjA6ABYayBAQRPvTEZMYQ4WZ19y2fCzdZ3FNjny9aCNB7SZ).
 %
 
 ?- pkey(S), ec:pubkey(S, P), ec:address(P, Address),
-   me:commit(tx(mycoin(10,_), Hash, tx1, args(Sign,PubKey,Address), _)).
+   me:commit(tx('$mycoin'(10,_), Hash, tx1, args(Sign,PubKey,Address), _)).
 % Expect: true/*
 
 %

@@ -966,6 +966,16 @@ public:
 	}
     }
 
+    inline bool is_dollar_atom_name(con_cell cell) const
+    {
+        if (cell.is_direct()) {
+	    return cell.name_length() >= 1 && ((cell.get_name_byte(0) & 0x7f) == '$');
+        } else {
+  	    const std::string &name = atom_index_to_name_table_[cell.atom_index()];
+	    return !name.empty() && name[0] == '$';
+	}
+    }
+  
     inline bool is_string(term lst) const
     {
 	if (is_empty_list(lst)) {

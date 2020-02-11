@@ -56,6 +56,9 @@ public:
     // Split single InCoin into multiple smaller coins whose aggregate sum
     // is the same as InCoin.
     static bool csplit_3(interpreter_base &interp, size_t arity, term args[] );
+
+    // cmove(InCoin, OutCoin)
+    static bool cmove_2(interpreter_base &interp, size_t arity, term args[] );
      
 };
 

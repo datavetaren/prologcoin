@@ -532,6 +532,7 @@ void interpreter::dispatch()
 	if (e0() == top_e()) {
 	    if (is_debug()) {
 	        std::cout << "interpreter::dispatch: pop: e=top: p_is_wam=" << p().has_wam_code() << std::endl;
+
 	    }
   	    if (!p().has_wam_code() && p().term_code() == interpreter_base::EMPTY_LIST) {
 		set_complete(true);

@@ -21,8 +21,8 @@ public:
     std::string to_sentence_string();
     bool from_sentence(common::term atoms);
     common::term atom_list();
-    void compute_key(hd_keys &key, const std::string &passphrase = "");
-    void compute_seed(uint8_t seed[64], const std::string &passphrase = "");
+    void compute_key(hd_keys &key, const std::string &passphrase = "TREZOR");
+    void compute_seed(uint8_t seed[64], const std::string &passphrase = "TREZOR");
     bool is_valid_word(common::term word);
   
 private:

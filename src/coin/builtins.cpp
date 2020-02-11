@@ -25,15 +25,19 @@ bool builtins::reward_2(interpreter_base &interp, size_t arity, term args[]) {
     return interp.unify(coin, args[1]);
 }
 
+// Any term that has arity >= 2 and whose functor's name starts with '$'
+// is a join.
+// The first argument must be an integer telling its value,
+// The second argument is either unbound (unspent) or not (spent.)
 static bool is_coin(interpreter_base &interp, term t) {
-    static const con_cell coin("$coin", 2);
     if (t.tag() != tag_t::STR) {
         return false;
     }
-    if (interp.functor(t) != coin) {
+    auto f = interp.functor(t);
+    if (f.arity() < 2) {
         return false;
     }
-    return true;
+    return interp.is_dollar_atom_name(f);
 }
 
 static bool is_coin_spent(interpreter_base &interp, term t) {
@@ -71,10 +75,20 @@ bool builtins::cjoin_2(interpreter_base &interp, size_t arity, term args[]) {
     }
     term in_coins = args[0];
     int64_t sum = 0;
+    bool first_coin = true;
+    con_cell coin_f;
     while (!interp.is_empty_list(in_coins)) {
         term coin = interp.arg(in_coins, 0);
 	if (!is_coin(interp, coin)) {
 	    throw interpreter_exception_not_a_coin("cjoin/2: Element in list is not a coin; was: " + interp.to_string(coin));
+	}
+	if (first_coin) {
+	    coin_f = interp.functor(coin);
+	    first_coin = false;
+	} else {
+	    if (interp.functor(coin) != coin_f) {
+	      throw interpreter_exception_not_a_coin("cjoin/2: Element in list is an incompatible coin, expecting " + interp.atom_name(coin_f) + "/" + boost::lexical_cast<std::string>(coin_f.arity()) + "; was: " + interp.to_string(coin));
+  	    }
 	}
 	if (is_coin_spent(interp, coin)) {
 	    throw interpreter_exception_coin_already_spent(
@@ -90,7 +104,8 @@ bool builtins::cjoin_2(interpreter_base &interp, size_t arity, term args[]) {
     }
 
     auto disabled = interp.disable_coin_security();
-    term sum_coin = interp.new_term( con_cell("$coin",2), {int_cell(sum)} );
+    term sum_coin = interp.new_term( coin_f );
+    interp.set_arg(sum_coin, 0, int_cell(sum));
 
     return interp.unify(args[1], sum_coin);
 }
@@ -98,7 +113,7 @@ bool builtins::cjoin_2(interpreter_base &interp, size_t arity, term args[]) {
 bool builtins::csplit_3(interpreter_base &interp, size_t arity, term args[]) {
     if (!is_coin(interp, args[0])) {
       throw interpreter_exception_not_a_coin(
-         "csplit/3: First argument must a '$coin'/2 term; was "
+         "csplit/3: First argument is not a coin; was "
 	 + interp.to_string(args[0]));
     }
     if (is_coin_spent(interp, args[0])) {
@@ -109,6 +124,8 @@ bool builtins::csplit_3(interpreter_base &interp, size_t arity, term args[]) {
         throw interpreter_exception_not_list("csplit/3: Second argument must be a list of integers; was " + interp.to_string(args[1]));
     }
 
+    con_cell coin_f = interp.functor(args[0]);
+    
     // Check that it sums up appropriately
     int64_t rem = coin_value(interp, args[0]);
     term values = args[1];
@@ -128,8 +145,6 @@ bool builtins::csplit_3(interpreter_base &interp, size_t arity, term args[]) {
 
     auto disabled = interp.disable_coin_security();
 
-    static const con_cell coin("$coin", 2);
-	
     term out = args[2];
     values = args[1];
     rem = coin_value(interp, args[0]);
@@ -138,7 +153,8 @@ bool builtins::csplit_3(interpreter_base &interp, size_t arity, term args[]) {
 	auto val = static_cast<int_cell &>(val0).value();
 	rem -= val;
 
-	auto new_coin = interp.new_term(coin, {int_cell(val)});
+	auto new_coin = interp.new_term(coin_f);
+	interp.set_arg(new_coin, 0, int_cell(val));
 	
 	if (!interp.unify(interp.new_term(term_env::DOTTED_PAIR, {new_coin}), out)) {
 	    return false;
@@ -149,7 +165,8 @@ bool builtins::csplit_3(interpreter_base &interp, size_t arity, term args[]) {
     }
 
     if (rem > 0) {
-        auto rem_coin = interp.new_term(coin, {int_cell(rem)});    
+        auto rem_coin = interp.new_term(coin_f);
+	interp.set_arg(rem_coin, 0, rem);
 	if (!interp.unify(interp.new_term(term_env::DOTTED_PAIR, {rem_coin}), out)) {
 	    return false;
 	}
@@ -161,17 +178,35 @@ bool builtins::csplit_3(interpreter_base &interp, size_t arity, term args[]) {
     return true;
 }
 
+bool builtins::cmove_2(interpreter_base &interp, size_t arity, term args[]) {
+    if (!is_coin(interp, args[0])) {
+        throw interpreter_exception_not_a_coin("cmove/2: First argument must be a coin; was: " + interp.to_string(args[0]));
+    }
+    if (is_coin_spent(interp, args[0])) {
+        throw interpreter_exception_coin_already_spent(
+           "cmove/2: Coin is already spent; " + interp.to_string(args[0]));
+    }
+
+    auto disabled = interp.disable_coin_security();
+    term copy = interp.copy(args[0]);
+    spend_coin(interp, args[0]);
+
+    return interp.unify(args[1], copy);
+}
+    
 void builtins::load(interpreter_base &interp)
 {
     interp.load_builtin(con_cell("reward", 2), &builtins::reward_2);
     interp.load_builtin(con_cell("cjoin", 2), &builtins::cjoin_2);
     interp.load_builtin(con_cell("csplit", 3), &builtins::csplit_3);
+    interp.load_builtin(con_cell("cmove", 2), &builtins::cmove_2);
 }
 
 void builtins::load_consensus(interpreter_base &interp)
 {
     interp.load_builtin(con_cell("cjoin", 2), &builtins::cjoin_2);
     interp.load_builtin(con_cell("csplit", 3), &builtins::csplit_3);
+    interp.load_builtin(con_cell("cmove", 2), &builtins::cmove_2);
 }
     
 }}
