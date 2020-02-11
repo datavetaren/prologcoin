@@ -84,3 +84,12 @@ check_closures(N) :- ((frozenk(0, 100, HeapAddrs) @ global) @ node), length(Heap
 %
 ?- resync, balance(B3).
 % Expect: B3 = 83999968000
+
+%
+% Send everything to some random address
+%
+?- password("foobar"), spend_tx(58'13PCw4x3Pc7AKum9Rc8nEgzbq4BX2rvEqf, 83_999_968_000, 0, FinalTx2, ConsumedUtxos2), commit(FinalTx2) @ node, retract_utxos(ConsumedUtxos2), sync.
+% Expect: true/*
+
+?- balance(B4).
+% Expect: B4 = 0
