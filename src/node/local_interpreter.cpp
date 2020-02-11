@@ -404,7 +404,6 @@ void me_builtins::preprocess_hashes(local_interpreter &interp, term t) {
     // Scan for :- and subsitute the hash for body
     if (f == op_clause) {
         auto head = interp.arg(t, 0);
-	auto body = interp.arg(t, 1);
 	if (head.tag() == tag_t::STR && interp.functor(head) == P) {
 	    auto hash_var = interp.arg(head, 0);
 	    if (hash_var.tag().is_ref()) {
