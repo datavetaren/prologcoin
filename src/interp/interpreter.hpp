@@ -92,6 +92,12 @@ private:
     remote_delete_fn_t remote_delete_;
 };
 
+class interpreter_exception_unknown : public interpreter_exception {
+public:
+    interpreter_exception_unknown(const std::string &msg) :
+	interpreter_exception(msg) { }
+};
+
 class interpreter_exception_remote : public interpreter_exception {
 public:
     interpreter_exception_remote(const std::string &msg)
@@ -291,6 +297,8 @@ protected:
     }
   
 private:
+    static bool consult_1(interpreter_base &interp, size_t arity, common::term args[]);
+  
     static bool new_instance_meta(interpreter_base &interp, const meta_reason_t &reason);
 
     void dispatch();

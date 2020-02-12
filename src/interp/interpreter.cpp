@@ -86,6 +86,7 @@ length(Xs, N) :- '$length'(Xs,N,0).
 
     set_current_module(con_cell("system",0));
     load_program(lib);
+    load_builtin(con_cell("consult", 1), consult_1);
     compile();
     set_current_module(con_cell("user",0));
     use_module(con_cell("system",0));
@@ -785,4 +786,61 @@ void interpreter::print_result(std::ostream &out) const
     out << get_result();
 }
 
+bool interpreter::consult_1(interpreter_base &interp0, size_t arity, common::term args[])
+{
+    using namespace prologcoin::common;
+
+    auto &interp = reinterpret_cast<interpreter &>(interp0);
+
+    std::string filename;
+    
+    if (interp.is_atom(args[0])) {
+        filename = interp.atom_name(args[0]);
+    } else if (interp.is_string(args[0])) {
+        filename = interp.list_to_string(args[0]);        
+    } else {
+        throw interpreter_exception_wrong_arg_type("Atom or string expected; was " + interp.to_string(args[0]));
+    }
+
+    std::ifstream infile(filename + ".pl");
+    if (!infile.good()) {
+	throw interpreter_exception_file_not_found("Couldn't open file '" + filename + "'");
+    }
+
+    try {
+        struct pre_action {
+	    pre_action(interpreter &interp) : interp_(interp) { }
+
+	    void operator () (term clause) {
+		auto head = interp_.clause_head(clause);
+		auto head_f = interp_.functor(head);
+
+		if (head_f == interpreter_base::ACTION_BY) {
+		    interp_.compile();
+		}
+	    }
+	    interpreter &interp_;
+	};
+	interp.load_program<pre_action>(infile);
+	interp.compile();
+	infile.close();
+    } catch (const syntax_exception &ex) {
+	interp.abort(ex);
+    } catch (const interpreter_exception &ex) {
+	interp.abort(ex);
+    } catch (const token_exception &ex) {
+        throw ex;
+    } catch (const term_parse_exception &ex) {
+        throw ex;
+    } catch (std::runtime_error &ex) {
+	std::string msg("Unknown error: ");
+	msg += ex.what();
+	throw interpreter_exception_unknown(msg);
+    } catch (...) {
+	throw interpreter_exception_unknown("Unknown error");
+    }
+
+    return true;
+}
+    
 }}

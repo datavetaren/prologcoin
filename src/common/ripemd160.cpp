@@ -1,4 +1,4 @@
-#include "ripemd160.h"
+#include "ripemd160.hpp"
 #include <assert.h>
 
 extern "C" {

@@ -1484,6 +1484,7 @@ bool builtins::status_predicate_2(interpreter_base &interp, size_t arity, common
     return false;
 }
 
+
 void builtins::load(interpreter_base &interp) {
     auto &i = interp;
   
@@ -1575,7 +1576,7 @@ void builtins::load(interpreter_base &interp) {
     i.load_builtin(con_cell("retract",1), builtin(&builtins::retract_1));
     i.load_builtin(i.functor("retractall",1), builtin(&builtins::retractall_1));
     i.load_builtin(i.functor("current_predicate",1), builtin(&builtins::current_predicate_1));
-    i.load_builtin(i.functor("status_predicate",2), builtin(&builtins::status_predicate_2));    
+    i.load_builtin(i.functor("status_predicate",2), builtin(&builtins::status_predicate_2));
     
 }
  

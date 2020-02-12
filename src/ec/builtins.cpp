@@ -5,7 +5,7 @@
 #include "../interp/interpreter_base.hpp"
 #include "../common/term_serializer.hpp"
 #include "../common/hex.hpp"
-#include "ripemd160.h"
+#include "../common/ripemd160.hpp"
 #include "keys.hpp"
 #include "mnemonic.hpp"
 #include "../common/pbkdf2.hpp"

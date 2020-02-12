@@ -1,7 +1,7 @@
 #pragma once
 
-#ifndef _ec_RIPEMD160_H_
-#define _ec_RIPEMD160_H_
+#ifndef _common_RIPEMD160_HPP_
+#define _common_RIPEMD160_HPP_
 
 #include <stdint.h>
 

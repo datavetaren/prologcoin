@@ -84,12 +84,6 @@ public:
 	local_interpreter_exception(msg) { }
 };
 
-class interpreter_exception_unknown : public local_interpreter_exception {
-public:
-    interpreter_exception_unknown(const std::string &msg) :
-	local_interpreter_exception(msg) { }
-};
-
 class interpreter_exception_security : public local_interpreter_exception {
 public:
     interpreter_exception_security(const std::string &msg) :

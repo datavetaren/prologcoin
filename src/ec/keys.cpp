@@ -5,8 +5,8 @@
 #include "../common/sha512.hpp"
 #include "../common/hmac.hpp"
 #include "../common/sha1.hpp"
+#include "../common/ripemd160.hpp"
 #include "keys.hpp"
-#include "ripemd160.h"
 #include "builtins.hpp"
 
 using namespace prologcoin::common;
