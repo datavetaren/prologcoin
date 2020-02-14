@@ -1,6 +1,7 @@
 #include "../common/checked_cast.hpp"
 #include <vector>
 #include <algorithm>
+#include "util.hpp"
 
 namespace prologcoin { namespace statedb {
 
@@ -15,6 +16,8 @@ private:
     inline meta_entry(uint32_t index, uint32_t height)
       : index_(index), height_(height), offset_(0), size_(0) { }
 public:
+    static const size_t SERIALIZATION_SIZE = sizeof(uint32_t)*4;
+  
     inline meta_entry() : index_(0), height_(0), offset_(0), size_(0) { }
     inline meta_entry( uint32_t index, uint32_t height,
 		       uint32_t offset, uint32_t sz )
@@ -41,6 +44,28 @@ public:
 	return height() < other.height();
     }
 
+    void read(uint8_t *buffer, size_t &n)
+    {
+	uint8_t *p = &buffer[0];
+	index_ = read_uint32(p); p += sizeof(uint32_t);
+	height_ = read_uint32(p); p += sizeof(uint32_t);
+	offset_ = read_uint32(p); p += sizeof(uint32_t);
+	size_ = read_uint32(p);
+
+	n = sizeof(uint32_t)*4;
+    }
+  
+    void write(uint8_t *buffer, size_t &n)
+    {
+        uint8_t *p = &buffer[0];
+        write_uint32(p, index_); p += sizeof(uint32_t);
+	write_uint32(p, height_); p += sizeof(uint32_t);
+	write_uint32(p, offset_); p += sizeof(uint32_t);
+	write_uint32(p, size_);
+
+	n = sizeof(uint32_t)*4;
+    }
+
 private:
     uint32_t index_;   // Heap block number
     uint32_t height_;  // Introduced at height
@@ -52,14 +77,18 @@ class bucket {
 public:
     // Requires that provided height is higher than the existing one
     inline void add_entry(size_t index, size_t height, size_t offset, size_t sz) {
-        size_t i = index - first_index_;
+        add_entry(meta_entry(common::checked_cast<uint32_t>(index),
+			     common::checked_cast<uint32_t>(height),
+			     common::checked_cast<uint32_t>(offset),
+			     common::checked_cast<uint32_t>(sz)));
+    }
+
+    inline void add_entry(const meta_entry &e) {
+        size_t i = e.index() - first_index_;
 	if (i >= entries_.size()) {
 	    entries_.resize(i+1);
 	}
-	entries_[i].push_back(meta_entry(common::checked_cast<uint32_t>(index),
-					 common::checked_cast<uint32_t>(height),
-					 common::checked_cast<uint32_t>(offset),
-					 common::checked_cast<uint32_t>(sz)));
+        entries_[i].push_back(e);
     }
 
     inline const meta_entry & find_entry(size_t index, size_t from_height) {
