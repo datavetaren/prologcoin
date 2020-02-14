@@ -1,22 +1,46 @@
+#include <boost/filesystem/operations.hpp>
 #include "statedb.hpp"
 
 namespace prologcoin { namespace statedb {
 
-statedb::statedb(const std::string &dir_path) : dir_path_(dir_path), stream_closer_(), stream_cache_(CACHE_NUM_STREAMS, stream_closer_) {
+statedb::statedb(const std::string &dir_path) : dir_path_(dir_path), stream_closer_(), stream_cache_(CACHE_NUM_STREAMS, stream_closer_), block_flusher_(*this), block_cache_(DEFAULT_CACHE_NUM_BLOCKS, block_flusher_) {
 }
 
-void statedb::load_bucket(size_t bucket_index)
+bucket & statedb::get_bucket(size_t bucket_index) {
+    if (bucket_index < buckets_.size() && !buckets_[bucket_index].empty()) {
+        return buckets_[bucket_index];
+    }
+    get_bucket_stream(bucket_index);
+    return buckets_[bucket_index];
+}
+    
+fstream * statedb::get_bucket_stream(size_t bucket_index)
 {
+    if (bucket_index >= buckets_.size()) {
+        buckets_.resize(bucket_index+1);
+    }
+
     fstream *f = nullptr;
     auto r = stream_cache_.find(bucket_index);
     if (!r.is_initialized()) {
         auto path = bucket_file_path(bucket_index);
+	bool exists = boost::filesystem::exists(path);
 	f = new fstream(path.string(), fstream::binary);
+	if (!exists) {
+	    // Write meta-data for an empty bucket
+	    bucket b;
+	    write_meta_data(f, b);
+	}
 	stream_cache_.insert(bucket_index, f);
     } else {
         f = *r;
     }
-    read_meta_data(f, buckets_[bucket_index]);
+    bucket &b = buckets_[bucket_index];
+    if (b.empty()) {
+        read_meta_data(f, b);
+    }
+
+    return f;
 }
 
 void statedb::read_meta_data(fstream *f, bucket &bucket)
@@ -92,9 +116,18 @@ void statedb::read_meta_data(fstream *f, bucket &bucket)
     }
 }
 
+void statedb::write_meta_data(fstream *f, const bucket &bucket)
+{
+}    
+
 
 block * statedb::find_block(size_t index, size_t from_height)
 {
+    bucket &b = get_bucket(bucket_index(index));
+    auto e = b.find_entry(index, from_height);
+    if (!e.is_initialized()) {
+        return nullptr;
+    }
     return nullptr;
 }
     

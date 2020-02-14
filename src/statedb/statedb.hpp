@@ -4,6 +4,7 @@
 #include "meta_data.hpp"
 #include <boost/filesystem/path.hpp>
 #include <boost/lexical_cast.hpp>
+#include <boost/noncopyable.hpp>
 
 namespace prologcoin { namespace statedb {
 
@@ -21,8 +22,8 @@ class statedb_meta_data_exception : public statedb_exception {
 public:
     statedb_meta_data_exception(const std::string &msg) : statedb_exception(msg) { }  
 };
-    
-class block {
+
+class block : public boost::noncopyable {
 public:
     inline const void * data() const {
         return data_;
@@ -39,10 +40,18 @@ private:
   
     inline block(size_t index, size_t height, size_t offset,
 		 void *data, size_t size)
-      : entry_(index, height, offset, size), data_(data) { }
+      : entry_(index, height, offset, size), data_(data), data_owner_(false) { }
+
+    inline block(size_t index, size_t height, size_t offset, size_t size)
+      : entry_(index, height, offset, size), data_(new uint8_t[size]), data_owner_(true) { }
+
+    inline ~block() {
+        if (data_owner_) delete data_;
+    }
 
     meta_entry entry_; // Meta-data of this block
     void *data_;
+    bool data_owner_;
 };
 
 typedef std::basic_fstream<uint8_t> fstream;
@@ -52,15 +61,19 @@ typedef std::basic_fstream<uint8_t> fstream;
 //    
 class statedb {
 public:
+    static const size_t MB = 1024*1024;
+    static const size_t GB = 1024*MB;
+  
     static const size_t DEFAULT_BUCKET_SIZE = 2048;
     static const size_t DEFAULT_BLOCK_SIZE = 65536;
     static const size_t MAX_BLOCK_SIZE = 65536;
     static const size_t CACHE_NUM_STREAMS = 16;
+    static const size_t DEFAULT_CACHE_NUM_BLOCKS = 4*GB / DEFAULT_BLOCK_SIZE;
 
     statedb(const std::string &dir_path);
 
     block * find_block(size_t index, size_t from_height);
-    block * new_block(size_t index, size_t from_height, void *data, size_t sz);
+    block * new_block(size_t index, size_t from_height, size_t sz);
 
 private:
     inline size_t bucket_index(size_t index) const {
@@ -86,10 +99,12 @@ private:
 	return dir;
     }
 
-    void load_bucket(size_t index);
-    void save_bucket(size_t index);
+    bucket & get_bucket(size_t bucket_index);
+    fstream * get_bucket_stream(size_t bucket_index);
+    void save_bucket(size_t bucket_index);
 
     void read_meta_data(fstream *f, bucket &b);
+    void write_meta_data(fstream *f, const bucket &b);
   
     std::vector<bucket> buckets_;
   
@@ -104,10 +119,25 @@ private:
         }
     };
 
+    struct block_flusher {
+        block_flusher(statedb &db) : db_(db) { }
+        // We assume the block hasn't changed! Note that a new block is always
+        // added instead of changing an existing one
+        void evicted(const meta_key_entry &, block *b) {
+	    delete b;
+        }
+    private:
+        statedb &db_;
+    };
+
     // Map bucket index to stream
     typedef common::lru_cache<size_t, fstream *, stream_closer> stream_cache_t;
     stream_closer stream_closer_;
     stream_cache_t stream_cache_;
+
+    typedef common::lru_cache<meta_key_entry, block *, block_flusher> block_cache;
+    block_flusher block_flusher_;
+    block_cache block_cache_;
 };
     
 }}  
