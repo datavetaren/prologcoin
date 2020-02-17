@@ -1,7 +1,7 @@
 #pragma once
 
-#ifndef _statedb_blockdb_meta_data_hpp
-#define _statedb_blockdb_meta_data_hpp
+#ifndef _db_blockdb_meta_data_hpp
+#define _db_blockdb_meta_data_hpp
 
 #include "../common/checked_cast.hpp"
 #include <vector>
@@ -14,7 +14,7 @@
 #include "fstream.hpp"
 #include "blockdb_params.hpp"
 
-namespace prologcoin { namespace statedb {
+namespace prologcoin { namespace db {
 
 class blockdb;
 class blockdb_bucket;
@@ -47,14 +47,14 @@ private:
 }}
 
 namespace std {
-    template<> struct hash<::prologcoin::statedb::blockdb_meta_key_entry> {
-        inline size_t operator()(const ::prologcoin::statedb::blockdb_meta_key_entry &e) const {
+    template<> struct hash<::prologcoin::db::blockdb_meta_key_entry> {
+        inline size_t operator()(const ::prologcoin::db::blockdb_meta_key_entry &e) const {
 	    return e.hash_value();
         }
     };
 }
 
-namespace prologcoin { namespace statedb {
+namespace prologcoin { namespace db {
     
 class blockdb_meta_entry {
 private:

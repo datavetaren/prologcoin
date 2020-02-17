@@ -1,9 +1,9 @@
 #pragma once
 
-#ifndef _statedb_util_hpp
-#define _statedb_util_hpp
+#ifndef _db_util_hpp
+#define _db_util_hpp
 
-namespace prologcoin { namespace statedb {
+namespace prologcoin { namespace db {
 
 static inline uint32_t read_uint32(uint8_t *buf)
 {

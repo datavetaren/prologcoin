@@ -1,7 +1,7 @@
 #include <boost/filesystem/operations.hpp>
 #include "blockdb.hpp"
 
-namespace prologcoin { namespace statedb {
+namespace prologcoin { namespace db {
 
 blockdb::blockdb(const std::string &dir_path) : dir_path_(dir_path), block_flusher_(*this), block_cache_(DEFAULT_CACHE_NUM_BLOCKS, block_flusher_) {
 }

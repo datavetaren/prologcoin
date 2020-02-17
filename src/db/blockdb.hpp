@@ -1,7 +1,7 @@
 #pragma once
 
-#ifndef _statedb_blockdb_hpp
-#define _statedb_blockdb_hpp
+#ifndef _db_blockdb_hpp
+#define _db_blockdb_hpp
 
 #include <cstdint>
 #include "../common/lru_cache.hpp"
@@ -10,7 +10,7 @@
 #include <boost/lexical_cast.hpp>
 #include <boost/noncopyable.hpp>
 
-namespace prologcoin { namespace statedb {
+namespace prologcoin { namespace db {
 
 class blockdb_exception : public std::runtime_error {
 public:

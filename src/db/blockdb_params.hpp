@@ -1,8 +1,8 @@
-#ifndef _statedb_blockdb_params_hpp
-#define _statedb_blockdb_params_hpp
+#ifndef _db_blockdb_params_hpp
+#define _db_blockdb_params_hpp
 
 
-namespace prologcoin { namespace statedb {
+namespace prologcoin { namespace db {
 
 class blockdb_params {
 public:

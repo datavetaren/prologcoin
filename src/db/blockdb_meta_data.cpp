@@ -1,7 +1,7 @@
 #include "blockdb.hpp"
 #include "blockdb_meta_data.hpp"
 
-namespace prologcoin { namespace statedb {
+namespace prologcoin { namespace db {
 
 void blockdb_meta_entry::print(std::ostream &out) const
 {
