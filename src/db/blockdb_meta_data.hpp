@@ -125,7 +125,10 @@ private:
 
 class blockdb_bucket {
 public:
-    inline blockdb_bucket(const blockdb_params &params, const std::string &filepath, size_t first_index) : params_(params), file_path_(filepath), first_index_(first_index), fstream_(nullptr) { }
+    static const char VERSION[16];
+    static const size_t VERSION_SZ = sizeof(VERSION);
+  
+    inline blockdb_bucket(const blockdb_params &params, const std::string &filepath_meta, const std::string &filepath_data, size_t first_index) : params_(params), file_path_meta_(filepath_meta), file_path_data_(filepath_data), initialized_(false), first_index_(first_index), fstream_meta_(nullptr), fstream_data_(nullptr) { }
 
     // Requires that provided height is higher than the existing one
     inline void add_entry(size_t index, size_t height, size_t offset, size_t sz) {
@@ -145,7 +148,7 @@ public:
 
     // Return the entry for given index reflected at provided height.
     inline boost::optional<const blockdb_meta_entry &> find_entry(size_t index, size_t at_height) {
-        if (fstream_ == nullptr) read_meta_data();
+        if (!initialized_) read_meta_data();
         size_t i = index - first_index_;
 	if (i >= entries_.size()) {
 	    return boost::none;
@@ -162,17 +165,20 @@ public:
 	}
     }
 
-    inline fstream * get_bucket_stream()
+    inline fstream * get_bucket_meta_stream()
     {
-        if (fstream_ == nullptr) {
-	    bool exists = boost::filesystem::exists(file_path_);
-	    fstream_ = new fstream(file_path_, fstream::binary);
-	    if (!exists) {
-	        // Write meta-data for an empty bucket
-	        write_meta_data();
-	    }
+        if (fstream_meta_ == nullptr) {
+	    fstream_meta_ = new fstream(file_path_meta_, fstream::binary);
 	}
-	return fstream_;
+	return fstream_meta_;
+    }
+  
+    inline fstream * get_bucket_data_stream()
+    {
+        if (fstream_data_ == nullptr) {
+	    fstream_data_ = new fstream(file_path_data_, fstream::binary);
+	}
+	return fstream_data_;
     }
 
     void write_meta_data();
@@ -184,11 +190,14 @@ public:
 
 private:
     const blockdb_params &params_;
-    const std::string file_path_;
+    const std::string file_path_meta_;  
+    const std::string file_path_data_;
+    bool initialized_;
     size_t first_index_;
     // First sorted on index, then sorted on height.
     std::vector<std::vector<blockdb_meta_entry> > entries_;
-    fstream *fstream_;
+    fstream *fstream_meta_;
+    fstream *fstream_data_;
 };
 
 }}

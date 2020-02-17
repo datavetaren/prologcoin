@@ -27,6 +27,11 @@ public:
     blockdb_meta_data_exception(const std::string &msg) : blockdb_exception(msg) { }  
 };
 
+class blockdb_write_exception : public blockdb_exception {
+public:
+    blockdb_write_exception(const std::string &msg) : blockdb_exception(msg) { }
+};
+
 class block : public boost::noncopyable {
 public:
     inline const void * data() const {
@@ -69,25 +74,9 @@ public:
     block * new_block(size_t index, size_t from_height, size_t sz);
 
 private:
-
-    // At most 128 files in a directory...
-    inline boost::filesystem::path bucket_dir_location(size_t bucket_index) const {
-        size_t start_bucket = (bucket_index / 128) * 128;
-        size_t end_bucket = (bucket_index / 128) * 128 + 127;
-	std::stringstream ss;
-	ss << "buckets_" << start_bucket << "_" << end_bucket << std::endl;
-	std::string name = ss.str();
-	std::string r = dir_path_;
-	r.append(name);
-	return r;
-    }
-  
-    inline boost::filesystem::path bucket_file_path(size_t bucket_index) const {
-        auto dir = bucket_dir_location(bucket_index);
-	std::string name = "bucket_" + boost::lexical_cast<std::string>(bucket_index) + ".bin";
-	dir.append(name);
-	return dir;
-    }
+    boost::filesystem::path bucket_dir_location(size_t bucket_index) const;
+    boost::filesystem::path bucket_file_data_path(size_t bucket_index) const;
+    boost::filesystem::path bucket_file_meta_path(size_t bucket_index) const;  
 
     blockdb_bucket & get_bucket(size_t bucket_index);
     void save_bucket(size_t bucket_index);
