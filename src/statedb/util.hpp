@@ -1,3 +1,8 @@
+#pragma once
+
+#ifndef _statedb_util_hpp
+#define _statedb_util_hpp
+
 namespace prologcoin { namespace statedb {
 
 static inline uint32_t read_uint32(uint8_t *buf)
@@ -18,3 +23,4 @@ static inline void write_uint32(uint8_t *buf, uint32_t v)
     
 }}
 
+#endif

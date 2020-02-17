@@ -1,25 +1,34 @@
+#pragma once
+
+#ifndef _statedb_blockdb_meta_data_hpp
+#define _statedb_blockdb_meta_data_hpp
+
 #include "../common/checked_cast.hpp"
 #include <vector>
 #include <algorithm>
 #include <boost/optional.hpp>
 #include <boost/functional/hash.hpp>
+#include <boost/filesystem/path.hpp>
+#include <boost/filesystem/operations.hpp>
 #include "util.hpp"
+#include "fstream.hpp"
+#include "blockdb_params.hpp"
 
 namespace prologcoin { namespace statedb {
 
-class statedb;
-class bucket;
+class blockdb;
+class blockdb_bucket;
 
-class meta_key_entry {
+class blockdb_meta_key_entry {
 public:
-    meta_key_entry() = default;
-    meta_key_entry(const meta_key_entry &other) = default;
-    inline meta_key_entry(size_t index, size_t height) : index_(index), height_(height) { }
+    blockdb_meta_key_entry() = default;
+    blockdb_meta_key_entry(const blockdb_meta_key_entry &other) = default;
+    inline blockdb_meta_key_entry(size_t index, size_t height) : index_(index), height_(height) { }
 
     inline size_t index() const { return static_cast<size_t>(index_); }
     inline size_t height() const { return static_cast<size_t>(height_); }
 
-    inline bool operator == (const meta_key_entry &other) const {
+    inline bool operator == (const blockdb_meta_key_entry &other) const {
         return index_ == other.index_ && height_ == other.height_;
     }
 
@@ -38,8 +47,8 @@ private:
 }}
 
 namespace std {
-    template<> struct hash<::prologcoin::statedb::meta_key_entry> {
-        inline size_t operator()(const ::prologcoin::statedb::meta_key_entry &e) const {
+    template<> struct hash<::prologcoin::statedb::blockdb_meta_key_entry> {
+        inline size_t operator()(const ::prologcoin::statedb::blockdb_meta_key_entry &e) const {
 	    return e.hash_value();
         }
     };
@@ -47,22 +56,22 @@ namespace std {
 
 namespace prologcoin { namespace statedb {
     
-class meta_entry {
+class blockdb_meta_entry {
 private:
-    friend class statedb;
-    friend class bucket;  
+    friend class blockdb;
+    friend class blockdb_bucket;  
   
-    inline meta_entry(uint32_t index, uint32_t height)
+    inline blockdb_meta_entry(uint32_t index, uint32_t height)
       : index_(index), height_(height), offset_(0), size_(0) { }
 public:
     static const size_t SERIALIZATION_SIZE = sizeof(uint32_t)*4;
   
-    inline meta_entry() : index_(0), height_(0), offset_(0), size_(0) { }
-    inline meta_entry( uint32_t index, uint32_t height,
+    inline blockdb_meta_entry() : index_(0), height_(0), offset_(0), size_(0) { }
+    inline blockdb_meta_entry( uint32_t index, uint32_t height,
 		       uint32_t offset, uint32_t sz )
       : index_(index), height_(height), offset_(offset), size_(sz) { }
 
-    meta_entry(const meta_entry &other) = default;
+    blockdb_meta_entry(const blockdb_meta_entry &other) = default;
   
     inline uint32_t index() const { return index_; }
     inline uint32_t height() const { return height_; }
@@ -71,10 +80,10 @@ public:
 
     inline bool is_invalid() const { return offset_ == 0; }
 
-    bool operator == (const meta_entry &other) const {
+    bool operator == (const blockdb_meta_entry &other) const {
         return index() == other.index() && height() == other.height();
     }
-    bool operator < (const meta_entry &other) const {
+    bool operator < (const blockdb_meta_entry &other) const {
         if (index() < other.index()) {
 	    return true;
         } else if (index() > other.index()) {
@@ -114,17 +123,19 @@ private:
     uint32_t size_;    // Size of block
 };
 
-class bucket {
+class blockdb_bucket {
 public:
+    inline blockdb_bucket(const blockdb_params &params, const std::string &filepath, size_t first_index) : params_(params), file_path_(filepath), first_index_(first_index), fstream_(nullptr) { }
+
     // Requires that provided height is higher than the existing one
     inline void add_entry(size_t index, size_t height, size_t offset, size_t sz) {
-        add_entry(meta_entry(common::checked_cast<uint32_t>(index),
-			     common::checked_cast<uint32_t>(height),
-			     common::checked_cast<uint32_t>(offset),
-			     common::checked_cast<uint32_t>(sz)));
+        add_entry(blockdb_meta_entry(common::checked_cast<uint32_t>(index),
+				     common::checked_cast<uint32_t>(height),
+				     common::checked_cast<uint32_t>(offset),
+				     common::checked_cast<uint32_t>(sz)));
     }
 
-    inline void add_entry(const meta_entry &e) {
+    inline void add_entry(const blockdb_meta_entry &e) {
         size_t i = e.index() - first_index_;
 	if (i >= entries_.size()) {
 	    entries_.resize(i+1);
@@ -132,32 +143,54 @@ public:
         entries_[i].push_back(e);
     }
 
-    inline boost::optional<const meta_entry &> find_entry(size_t index, size_t from_height) {
+    // Return the entry for given index reflected at provided height.
+    inline boost::optional<const blockdb_meta_entry &> find_entry(size_t index, size_t at_height) {
+        if (fstream_ == nullptr) read_meta_data();
         size_t i = index - first_index_;
 	if (i >= entries_.size()) {
 	    return boost::none;
 	}
-	meta_entry key(index, from_height);
+	blockdb_meta_entry key(index, at_height);
         auto it = std::lower_bound(entries_[i].begin(), entries_[i].end(),key);
 	if (it == entries_[i].end()) {
 	    return boost::none;
 	}
-	if (it->height() == from_height) {
+	if (it->height() == at_height) {
 	    return *it;
 	} else {
    	    return *(it - 1);
 	}
     }
 
+    inline fstream * get_bucket_stream()
+    {
+        if (fstream_ == nullptr) {
+	    bool exists = boost::filesystem::exists(file_path_);
+	    fstream_ = new fstream(file_path_, fstream::binary);
+	    if (!exists) {
+	        // Write meta-data for an empty bucket
+	        write_meta_data();
+	    }
+	}
+	return fstream_;
+    }
+
+    void write_meta_data();
+    void read_meta_data();
+
     inline bool empty() const { return entries_.empty(); }
   
     void print(std::ostream &out) const;
 
 private:
+    const blockdb_params &params_;
+    const std::string file_path_;
     size_t first_index_;
     // First sorted on index, then sorted on height.
-    std::vector<std::vector<meta_entry> > entries_;
-    meta_entry not_found_;
+    std::vector<std::vector<blockdb_meta_entry> > entries_;
+    fstream *fstream_;
 };
 
 }}
+
+#endif

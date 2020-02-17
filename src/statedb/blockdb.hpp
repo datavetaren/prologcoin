@@ -1,26 +1,30 @@
-#include <fstream>
+#pragma once
+
+#ifndef _statedb_blockdb_hpp
+#define _statedb_blockdb_hpp
+
 #include <cstdint>
 #include "../common/lru_cache.hpp"
-#include "meta_data.hpp"
+#include "blockdb_meta_data.hpp"
 #include <boost/filesystem/path.hpp>
 #include <boost/lexical_cast.hpp>
 #include <boost/noncopyable.hpp>
 
 namespace prologcoin { namespace statedb {
 
-class statedb_exception : public std::runtime_error {
+class blockdb_exception : public std::runtime_error {
 public:
-    statedb_exception(const std::string &msg) : std::runtime_error(msg) { }
+    blockdb_exception(const std::string &msg) : std::runtime_error(msg) { }
 };
 
-class statedb_version_exception : public statedb_exception {
+class blockdb_version_exception : public blockdb_exception {
 public:
-    statedb_version_exception(const std::string &msg) : statedb_exception(msg) { }
+    blockdb_version_exception(const std::string &msg) : blockdb_exception(msg) { }
 };
 
-class statedb_meta_data_exception : public statedb_exception {
+class blockdb_meta_data_exception : public blockdb_exception {
 public:
-    statedb_meta_data_exception(const std::string &msg) : statedb_exception(msg) { }  
+    blockdb_meta_data_exception(const std::string &msg) : blockdb_exception(msg) { }  
 };
 
 class block : public boost::noncopyable {
@@ -36,7 +40,7 @@ public:
     }
   
 private:
-    friend class statedb;
+    friend class blockdb;
   
     inline block(size_t index, size_t height, size_t offset,
 		 void *data, size_t size)
@@ -49,36 +53,22 @@ private:
         if (data_owner_) delete data_;
     }
 
-    meta_entry entry_; // Meta-data of this block
+    blockdb_meta_entry entry_; // Meta-data of this block
     void *data_;
     bool data_owner_;
 };
 
-typedef std::basic_fstream<uint8_t> fstream;
-
 //
 // This is a framework for storing blocks with versioning.
 //    
-class statedb {
+class blockdb : public blockdb_params {
 public:
-    static const size_t MB = 1024*1024;
-    static const size_t GB = 1024*MB;
-  
-    static const size_t DEFAULT_BUCKET_SIZE = 2048;
-    static const size_t DEFAULT_BLOCK_SIZE = 65536;
-    static const size_t MAX_BLOCK_SIZE = 65536;
-    static const size_t CACHE_NUM_STREAMS = 16;
-    static const size_t DEFAULT_CACHE_NUM_BLOCKS = 4*GB / DEFAULT_BLOCK_SIZE;
-
-    statedb(const std::string &dir_path);
+    blockdb(const std::string &dir_path);
 
     block * find_block(size_t index, size_t from_height);
     block * new_block(size_t index, size_t from_height, size_t sz);
 
 private:
-    inline size_t bucket_index(size_t index) const {
-        return index / bucket_size_;
-    }
 
     // At most 128 files in a directory...
     inline boost::filesystem::path bucket_dir_location(size_t bucket_index) const {
@@ -99,45 +89,33 @@ private:
 	return dir;
     }
 
-    bucket & get_bucket(size_t bucket_index);
-    fstream * get_bucket_stream(size_t bucket_index);
+    blockdb_bucket & get_bucket(size_t bucket_index);
     void save_bucket(size_t bucket_index);
-
-    void read_meta_data(fstream *f, bucket &b);
-    void write_meta_data(fstream *f, const bucket &b);
-  
-    std::vector<bucket> buckets_;
   
     std::string dir_path_;
-    size_t block_size_;
-    size_t bucket_size_;
 
-    struct stream_closer {
-        void evicted(size_t, fstream *f) {
-	    f->close();
-	    delete f;
-        }
-    };
+    // Each bucket can handle approximately 134 MB of address space.
+    // No need to optimize this. 10000 buckets would mean 1340 GB, and
+    // 10000 buckets in memory means ~64k x 10000 = 640 MB. We can optimize
+    // this later if needed; it's not a consensus rule.
+    std::vector<blockdb_bucket> buckets_;
 
     struct block_flusher {
-        block_flusher(statedb &db) : db_(db) { }
+        block_flusher(blockdb &db) : db_(db) { }
         // We assume the block hasn't changed! Note that a new block is always
         // added instead of changing an existing one
-        void evicted(const meta_key_entry &, block *b) {
+        void evicted(const blockdb_meta_key_entry &, block *b) {
 	    delete b;
         }
     private:
-        statedb &db_;
+        blockdb &db_;
     };
 
-    // Map bucket index to stream
-    typedef common::lru_cache<size_t, fstream *, stream_closer> stream_cache_t;
-    stream_closer stream_closer_;
-    stream_cache_t stream_cache_;
-
-    typedef common::lru_cache<meta_key_entry, block *, block_flusher> block_cache;
+    typedef common::lru_cache<blockdb_meta_key_entry, block *, block_flusher> block_cache;
     block_flusher block_flusher_;
     block_cache block_cache_;
 };
     
 }}  
+
+#endif
