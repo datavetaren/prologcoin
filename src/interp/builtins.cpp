@@ -1458,10 +1458,13 @@ bool builtins::current_predicate_1(interpreter_base &interp, size_t arity, commo
     qname qn = check_predicate(interp, "current_predicate/1", args[0]);
 
     auto &cp = interp.get_code(qn);
-    bool exists = !cp.is_fail() || cp.has_wam_code();
-    if (!exists) {
-        exists = !interp.get_predicate(qn).empty();
+
+    if (!cp.is_fail()) {
+        auto module = cp.module();
+	qn = qname(module, qn.second);
     }
+
+    bool exists = !interp.get_predicate(qn).empty();
 
     return exists;
 }
@@ -1471,10 +1474,14 @@ bool builtins::status_predicate_2(interpreter_base &interp, size_t arity, common
     qname qn = check_predicate(interp, "status_predicate/2", args[0]);
 
     auto &cp = interp.get_code(qn);
-    bool exists = !cp.is_fail() || cp.has_wam_code();
-    if (!exists) {
-        exists = !interp.get_predicate(qn).empty();
+
+    if (!cp.is_fail()) {
+        auto module = cp.module();
+	qn = qname(module, qn.second);
     }
+
+    bool exists = !interp.get_predicate(qn).empty();    
+
     if (exists) {
         const predicate &p = interp.get_predicate(qn);
 	if (p.empty()) return false;

@@ -2,12 +2,14 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <iomanip>
+#include <common/random.hpp>
 #include <node/self_node.hpp>
 #include <node/session.hpp>
 #include <wallet/wallet.hpp>
 #include <terminal/terminal.hpp>
 #include "../../interp/test/test_files_infrastructure.hpp"
 
+using namespace prologcoin::common;
 using namespace prologcoin::terminal;
 using namespace prologcoin::node;
 using namespace prologcoin::wallet;
@@ -44,6 +46,8 @@ int main( int argc, char *argv[] )
 {
     header( "test_wallet_pl_files" );
 
+    random::set_for_testing(true);
+    
     find_home_dir(argv[0]);
     full_mode = is_full(argc, argv);
 
