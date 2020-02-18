@@ -9,17 +9,12 @@ public:
     static const size_t MB = 1024*1024;
     static const size_t GB = 1024*MB;
 
-    static const size_t DEFAULT_META_BLOCK_SIZE = 65536;
     static const size_t DEFAULT_BUCKET_SIZE = 2048;
     static const size_t DEFAULT_BLOCK_SIZE = 65536;
     static const size_t MAX_BLOCK_SIZE = 65536;
-    static const size_t MAX_META_BLOCK_SIZE = 65536;
     static const size_t DEFAULT_CACHE_NUM_BLOCKS = 4*GB / DEFAULT_BLOCK_SIZE;
 
-    inline blockdb_params() : meta_block_size_(DEFAULT_META_BLOCK_SIZE), block_size_(DEFAULT_BLOCK_SIZE), bucket_size_(DEFAULT_BUCKET_SIZE) { }
-
-    inline size_t meta_block_size() const { return meta_block_size_; }
-    inline void set_meta_block_size(size_t sz) { meta_block_size_ = sz; }
+    inline blockdb_params() : block_size_(DEFAULT_BLOCK_SIZE), bucket_size_(DEFAULT_BUCKET_SIZE) { }
   
     inline size_t block_size() const { return block_size_; }
     inline void set_block_size(size_t sz) { block_size_ = sz; }
@@ -29,6 +24,9 @@ public:
 
     inline size_t bucket_index(size_t index) const {
         return index / bucket_size_;
+    }
+    inline size_t bucket_offset(size_t index) const {
+        return bucket_index(index) * bucket_size();
     }
   
 private:
