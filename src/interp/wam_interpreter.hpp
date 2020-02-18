@@ -791,19 +791,23 @@ private:
 
     static inline size_t env_num_y(interpreter_base *interp, environment_base_t *env)
     {
-      // If saved_env a WAM environment we should calculate number of y registers,
-      // otherwise it is automatically 0
-      auto saved_env = env->ce;
-      if(saved_env.kind() == ENV_WAM) {
+      auto wami = reinterpret_cast<wam_interpreter *>(interp);
+      bool top = env == nullptr;
+      auto kind = top ? wami->e_kind() : env->ce.kind();
+      auto saved_env = top ? wami->e0()->ce : env->ce;
+      if(kind == ENV_WAM) {
         auto prev_env = reinterpret_cast<environment_t *>(saved_env.ce0());
-        auto p = env->cp;
+        auto p = top ? wami->cp() : env->cp;
         auto cp = prev_env->cp;
-        assert(cp.has_wam_code());
+        if(cp.has_wam_code()) {
         auto after_call = cp.wam_code();
 	auto at_call = reinterpret_cast<wam_instruction_code_point_reg *>(
 		  reinterpret_cast<code_t *>(after_call) -
 		  sizeof(wam_instruction_code_point_reg)/sizeof(code_t));
 	return at_call->reg();
+	} else {
+	  return interpreter_base::env_num_y(interp, env);
+	}
       } else {
         return 0;
       }

@@ -1068,20 +1068,73 @@ void interpreter_base::dump_stack() {
   auto frame_ptr = e0();
   size_t stack_size = frame_ptr == nullptr ? 0 :
     (size_t)frame_ptr - (size_t)stack_;
-  printf("---- Stack Start(%llu) ---\n", frame_ptr);
-  while(frame_ptr != nullptr) {
-    auto cur_ce = frame_ptr->ce;
-      if(cur_ce.kind() == ENV_NAIVE) {
-	printf("Naive env\n");
-      } else if (cur_ce.kind() == ENV_WAM) {
-	printf("Wam env\n");
-      } else { // FROZEN
-	printf("Frozen env\n");
+  std::cout << "---- Stack Start(" << stack_size << ") ---\n";
+  auto kind = e_kind();
+  environment_base_t *cur_e = nullptr;
+  while(frame_ptr != nullptr || cur_e != nullptr) {
+    if(frame_ptr != nullptr) {
+      std::cout << frame_ptr << ": ";
+    }
+    if(kind == ENV_NAIVE) {
+      std::cout << "Naive env\n";
+    } else if (kind == ENV_WAM) {
+      std::cout << "Wam env\n";
+      size_t numy = env_num_y_fn()(this, cur_e);
+      std::cout << "Num Y: " << numy << "\n";
+      auto wamenv = reinterpret_cast<environment_t*>(cur_e);
+      // For some reason the first y register is a pointer to the stack.
+      for(int i = 1; i < numy; i++) {
+	common::term yi = y(i);
+	std::cout << "y[" << i << "]: " << yi.tag().str();
+	if(yi.tag() == common::tag_t::REF ||
+	   yi.tag() == common::tag_t::RFW) {
+	  std::cout << yi.raw_value() << ", " <<
+	    reinterpret_cast<ptr_cell&>(yi).index();
+	} else if (yi.tag() == common::tag_t::STR) {
+	  std::cout << " " << reinterpret_cast<ptr_cell&>(yi).index() <<
+	    ", " << to_string(yi);
+	} else if (yi.tag() == common::tag_t::CON) {
+	  std::cout << ", " << to_string(yi);
+	}
+	std::cout << "\n";
       }
-      frame_ptr = cur_ce.ce0();
-  }
-  printf("---- Stack End ---\n");
+    } else { // FROZEN
+      std::cout << "Frozen env\n";
+    }
+    cur_e = frame_ptr;
+    if(frame_ptr != nullptr) {
+      kind = frame_ptr->ce.kind();
+      frame_ptr = frame_ptr->ce.ce0();
+    }
+  } 
+  std::cout << "---- Stack End ---\n";
 }
+
+
+void interpreter_base::dump_choice_points() {
+  auto current_b = b();
+  std::cout << "---- Choicepoints Start ---\n";
+  while(current_b != nullptr) {
+    auto barity = current_b->arity;
+    std::cout << "CP(" << barity << "): ";
+    bool is_wam = current_b->bp.has_wam_code();
+    if(is_wam) {
+      std::cout << "WAM\n";
+    } else {
+      std::cout << "Naive\n";
+    }
+    if(!is_wam) {
+      std::cout << "Qr: " << to_string(current_b->qr) << "\n";
+    }
+    std::cout << "Meta: " << current_b->m << "\n";
+    for(int i = 0; i < barity; i++) {
+      std::cout << "Arg[" << i << "]: " << to_string(current_b->ai[i]) << "\n";
+    }
+    current_b = current_b->b;
+  }
+  std::cout << "---- Choicepoint End ---\n";
+}
+
 /*
 void interpreter_base::get_e_roots(std::vector<ptr_cell *> &roots) {
   auto cur_e = e();
