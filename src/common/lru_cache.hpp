@@ -65,6 +65,12 @@ public:
         }
     }
 
+    inline void foreach(const std::function<void(const K &key, V &value)> &apply) {
+        for (auto &e : map_) {
+	    apply(e.first, e.second.first);
+        }
+    }
+
 private:
     typedef typename std::list<K>::iterator access_iterator_type;
     size_t capacity_;

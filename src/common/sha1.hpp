@@ -56,7 +56,8 @@ public:
         memcpy(&buffer[j], data, (i = 64 - j));
         transform(buffer);
         for (; i + 63 < len; i += 64) {
-            transform(data + i);
+	    memcpy(buffer, data + i, 64);
+            transform(buffer);
         }
         j = 0;
     }
