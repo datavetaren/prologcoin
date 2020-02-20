@@ -169,7 +169,15 @@ public:
     inline size_t size() const {
         return entry_.size();
     }
-  
+
+    inline size_t height() const {
+        return entry_.height();
+    }
+
+    inline size_t index() const {
+        return entry_.index();
+    }
+
 private:
     friend class blockdb_bucket;
     friend class blockdb;
@@ -225,15 +233,17 @@ public:
 	if (i >= entries_.size()) {
 	    return boost::none;
 	}
-	blockdb_meta_entry key(index, at_height);
-        auto it = std::lower_bound(entries_[i].begin(), entries_[i].end(),key);
-	if (it == entries_[i].end()) {
-	    return boost::none;
+	if (entries_[i].empty()) {
+	    return boost::none;	  
 	}
-	if (it->height() == at_height) {
-	    return *it;
-	} else {
-   	    return *(it - 1);
+	blockdb_meta_entry key(index, at_height);
+        auto it = std::upper_bound(entries_[i].begin(), entries_[i].end(),key);
+        if (it == entries_[i].begin()) {
+ 	    return boost::none;
+        } else {
+	    // The previous element is equal or less
+            --it;
+   	    return *it;
 	}
     }
 

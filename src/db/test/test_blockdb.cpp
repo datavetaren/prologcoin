@@ -64,7 +64,45 @@ static void test_basic()
 	        assert(data[i] == static_cast<uint8_t>(block_no));
 	    }
 	}
-	
+
+	// Let's check at what heights blocks are available at
+	// Block 0 is available at all heights
+	// Block 1 is available at all heights starting from height 1, etc
+	for (size_t height = 0; height < TEST_NUM_BLOCKS; height++) {
+	    for (size_t block_no = 0; block_no < TEST_NUM_BLOCKS; block_no++) {
+	        auto *blk = db.find_block(block_no, height);
+		if (block_no > height) {
+		    // Should not exist
+		    assert(blk == nullptr);
+		} else {
+	  	    // Should exist
+		    assert(blk != nullptr);
+		    // Index is introuced at the same height for this example.
+		    assert(blk->height() == blk->index());
+		}
+  	    }
+	}
+
+	// Let's modify a previous block at height TEST_NUM_BLOCKS + 1
+	memset(data, 0x55, BLOCK_SIZE);
+	db.new_block(data, BLOCK_SIZE, 10, TEST_NUM_BLOCKS+1);
+
+	// Verify nothing has changed at height TEST_NUM_BLOCKS
+	for (size_t block_no = 0; block_no < TEST_NUM_BLOCKS; block_no++) {
+	    auto *blk = db.find_block(block_no, TEST_NUM_BLOCKS);
+	    assert(blk->height() == blk->index());
+	}
+
+	// Verify that only block 10 has changed at height TEST_NUM_BLOCKS+1
+	for (size_t block_no = 0; block_no < TEST_NUM_BLOCKS; block_no++) {
+	    auto *blk = db.find_block(block_no, TEST_NUM_BLOCKS+1);
+	    if (block_no == 10) {
+	        assert(blk->height() == TEST_NUM_BLOCKS+1);
+		assert(reinterpret_cast<uint8_t *>(blk->data())[0] == 0x55);
+	    } else {
+	        assert(blk->height() == blk->index());
+	    }
+        }
     } catch (blockdb_exception &ex) {
         std::cout << "Exception: " << ex.what() << std::endl;
 	throw ex;
