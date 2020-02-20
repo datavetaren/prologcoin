@@ -1,5 +1,6 @@
 #include <unordered_map>
 #include <list>
+#include <vector>
 #include <boost/optional.hpp>
 
 namespace prologcoin { namespace common {
@@ -24,7 +25,7 @@ public:
         auto it = map_.find(key);
 	if (it == map_.end()) {
 	    if (access_.size() >= capacity_) {
-	        auto &removed_key = access_.back();
+	        auto removed_key = access_.back();
 		erase(removed_key);
 	    }
 	    access_.push_front(key);
@@ -52,11 +53,12 @@ public:
 	if (removed_it == map_.end()) {
 	    return;
 	}
+	auto removed_key = removed_it->first;
 	auto removed_value = removed_it->second.first;
         auto access_it = removed_it->second.second;
 	access_.erase(access_it);
 	map_.erase(removed_it);
-	callback_.evicted(key, removed_value); 
+	callback_.evicted(removed_key, removed_value); 
     }
 
     inline void clear() {
