@@ -10,10 +10,10 @@ void blockdb_meta_entry::print(std::ostream &out) const
 {
     out << "{index=" << index_ << ",height=" << height_
 	<< ",offset=" << offset_ << ",size=" << size_
-	<< ",hash=" << hex::to_string(&hash_.hash[0], sizeof(hash_)) << "}";
+	<< ",hash_node_offset=" << hash_node_offset_ << "}";
 }
 
-const uint8_t blockdb_bucket::VERSION[16] = "blockdb_1.0    ";
+const char blockdb_bucket::VERSION[16] = "blockdb_1.0    ";
     
 void blockdb_bucket::print(std::ostream &out) const
 {
@@ -42,7 +42,8 @@ blockdb_block * blockdb_bucket::new_block(const void *data, size_t sz, size_t in
     hasher.update(data, sz);
     blockdb_hash_t hash;
     hasher.finalize(hash.hash);
-    blockdb_meta_entry e(index, height, offset, sz, hash);
+    // TODO: Fill in the right value for hash_node_offset
+    blockdb_meta_entry e(index, height, offset, sz, 0);
     auto *b = new blockdb_block(e, data);
     append_block(b);
     append_meta_data(e);
@@ -121,7 +122,7 @@ void blockdb_bucket::read_meta_data()
     uint8_t buffer[VERSION_SZ];
     memset(buffer, 'x', VERSION_SZ);
     
-    f->read(buffer, VERSION_SZ);
+    f->read(reinterpret_cast<char *>(buffer), VERSION_SZ);
     if (memcmp(buffer, VERSION, VERSION_SZ) != 0) {
         buffer[15] = '\0';
 	std::string msg = "Unrecognized version: ";
@@ -135,7 +136,7 @@ void blockdb_bucket::read_meta_data()
     size_t ent_size = blockdb_meta_entry::SERIALIZATION_SIZE;
     
     for (size_t offset = 0; offset < max_offset; offset += ent_size) {
-        f->read(buffer, ent_size);
+        f->read(reinterpret_cast<char *>(buffer), ent_size);
 
 	if (!(*f)) {
 	    break;
@@ -157,7 +158,7 @@ void blockdb_bucket::append_meta_data(const blockdb_meta_entry &e)
     size_t n = 0;
     e.write(buffer, n);
     f->seekg(0, fstream::end);
-    f->write(buffer, n);
+    f->write(reinterpret_cast<char *>(buffer), n);
     if (f->fail()) {
         try {
 	    f->exceptions(f->failbit);
@@ -170,7 +171,7 @@ void blockdb_bucket::append_meta_data(const blockdb_meta_entry &e)
 
 blockdb::blockdb(const std::string &dir_path)
     : dir_path_(dir_path),
-      block_flusher_(*this),
+      block_flusher_(),
       block_cache_(blockdb_params::cache_num_blocks(), block_flusher_),
       stream_flusher_(),
       stream_cache_(blockdb_params::cache_num_streams(), stream_flusher_) {
@@ -196,6 +197,13 @@ boost::filesystem::path blockdb::bucket_file_data_path(size_t bucket_index) cons
 boost::filesystem::path blockdb::bucket_file_meta_path(size_t bucket_index) const {
     auto dir = bucket_dir_location(bucket_index);
     std::string name = "bucket_" + boost::lexical_cast<std::string>(bucket_index) + ".meta.bin";
+    return dir / name;
+}
+
+boost::filesystem::path blockdb::hash_node_file_path(size_t node_index) const {
+    auto dir = boost::filesystem::path(dir_path_);
+    size_t hash_bucket_index = node_index / hash_bucket_size();
+    std::string name = "merkle_hash_" + boost::lexical_cast<std::string>(hash_bucket_index) + ".bin";
     return dir / name;
 }
     

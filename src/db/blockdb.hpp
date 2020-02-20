@@ -18,7 +18,7 @@
 
 namespace prologcoin { namespace db {
 
-using fstream = std::basic_fstream<uint8_t>;
+using fstream = std::fstream;
 
 class blockdb_exception : public std::runtime_error {
 public:
@@ -90,14 +90,15 @@ private:
     friend class blockdb_bucket;  
   
     inline blockdb_meta_entry(uint32_t index, uint32_t height)
-      : index_(index), height_(height), offset_(0), size_(0) { }
+	: index_(index), height_(height), offset_(0), size_(0), hash_node_offset_(0) { }
 public:
-    static const size_t SERIALIZATION_SIZE = sizeof(uint32_t)*4 + sizeof(blockdb_hash_t);
+    static const size_t SERIALIZATION_SIZE = sizeof(uint32_t)*5;
   
-    inline blockdb_meta_entry() : index_(0), height_(0), offset_(0), size_(0) { }
+    inline blockdb_meta_entry() : index_(0), height_(0), offset_(0), size_(0), hash_node_offset_(0) { }
     inline blockdb_meta_entry( uint32_t index, uint32_t height,
-			       uint32_t offset, uint32_t sz, blockdb_hash_t &h )
-      : index_(index), height_(height), offset_(offset), size_(sz), hash_(h) { }
+			       uint32_t offset, uint32_t sz, uint32_t hash_node_offset )
+      : index_(index), height_(height), offset_(offset),
+	size_(sz), hash_node_offset_(hash_node_offset) { }
 
     blockdb_meta_entry(const blockdb_meta_entry &other) = default;
   
@@ -105,7 +106,7 @@ public:
     inline uint32_t height() const { return height_; }
     inline uint32_t offset() const { return offset_; }
     inline uint32_t size() const { return size_; }
-    inline blockdb_hash_t & hash() { return hash_; }
+    inline uint32_t hash_node_offset() { return hash_node_offset_; }
 
     inline bool is_invalid() const { return offset_ == 0; }
 
@@ -128,7 +129,7 @@ public:
 	height_ = read_uint32(p); p += sizeof(uint32_t);
 	offset_ = read_uint32(p); p += sizeof(uint32_t);
 	size_ = read_uint32(p); p += sizeof(uint32_t);
-	memcpy(&hash_, p, sizeof(hash_));
+        hash_node_offset_ = read_uint32(p);
 
 	n = SERIALIZATION_SIZE;
     }
@@ -140,7 +141,7 @@ public:
 	write_uint32(p, height_); p += sizeof(uint32_t);
 	write_uint32(p, offset_); p += sizeof(uint32_t);
 	write_uint32(p, size_); p += sizeof(uint32_t);
-	memcpy(p, &hash_, sizeof(hash_));
+	write_uint32(p, hash_node_offset_);
 
 	n = SERIALIZATION_SIZE;
     }
@@ -152,7 +153,33 @@ private:
     uint32_t height_;  // Introduced at height
     uint32_t offset_;  // Stored at offset in file
     uint32_t size_;    // Size of block
-    blockdb_hash_t hash_; // Hash of block
+    uint32_t hash_node_offset_; // Hash node offset for block
+};
+
+
+class blockdb_hash_node {
+public:
+    static const size_t NUM_HASHES = 32;
+
+    blockdb_hash_node() = default;
+    blockdb_hash_node(const blockdb_hash_node &other) = default;
+
+    inline const blockdb_hash_t & hash(size_t index) const
+        { return hashes_[index]; }
+    inline void set_hash(size_t index, const blockdb_hash_t &h)
+        { hashes_[index] = h; }
+    inline void compute_hash(blockdb_hash_t &parent_hash) const
+        { common::sha1 hasher;
+	  for (size_t i = 0; i < NUM_HASHES; i++) {
+	      hasher.update(hash(i).hash, sizeof(hash(i)));
+	  }
+	  hasher.finalize(parent_hash.hash);
+	}
+    inline size_t parent_offset() const { return parent_offset_; }
+
+private:
+    uint32_t parent_offset_;
+    blockdb_hash_t hashes_[NUM_HASHES];
 };
 
 class blockdb_bucket;
@@ -160,10 +187,10 @@ class blockdb;
     
 class blockdb_block : public boost::noncopyable {
 public:
-    inline const void * data() const {
+    inline const uint8_t * data() const {
         return data_;
     }
-    inline void * data() {
+    inline uint8_t * data() {
         return data_;
     }
     inline size_t size() const {
@@ -194,16 +221,16 @@ private:
     }
 
     inline ~blockdb_block() {
-        delete data_;
+        delete [] data_;
     }
 
     blockdb_meta_entry entry_;
-    void *data_;
+    uint8_t *data_;
 };
 
 class blockdb_bucket {
 public:
-    static const uint8_t VERSION[16];
+    static const char VERSION[16];
     static const size_t VERSION_SZ = sizeof(VERSION);
 
     inline blockdb_bucket(blockdb &db,
@@ -211,19 +238,20 @@ public:
 			  const std::string &filepath_meta,
 			  const std::string &filepath_data,
 			  size_t first_index)
-        : db_(db), params_(params), file_path_meta_(filepath_meta),
-	  file_path_data_(filepath_data), initialized_(false),
+        : db_(db), initialized_(false), params_(params),
+	  file_path_meta_(filepath_meta),
+	  file_path_data_(filepath_data), 
 	  first_index_(first_index), fstream_meta_(nullptr),
 	  fstream_data_(nullptr) { }
 
     // Requires that provided height is higher than the existing one
-    inline void add_meta_entry(size_t index, size_t height, size_t offset, size_t sz, blockdb_hash_t &h) {
+    inline void add_meta_entry(size_t index, size_t height, size_t offset, size_t sz, size_t hash_node_offset) {
         internal_add_meta_entry(
 		blockdb_meta_entry(common::checked_cast<uint32_t>(index),
 				   common::checked_cast<uint32_t>(height),
 				   common::checked_cast<uint32_t>(offset),
 				   common::checked_cast<uint32_t>(sz),
-				   h));
+				   common::checked_cast<uint32_t>(hash_node_offset)));
     }
 
     // Return the entry for given index reflected at provided height.
@@ -251,13 +279,13 @@ public:
         auto *b = new blockdb_block(e);
         auto *f = get_bucket_data_stream();
 	f->seekg(e.offset());
-	f->read(reinterpret_cast<uint8_t *>(b->data()), e.size());
+	f->read(reinterpret_cast<char *>(b->data()), e.size());
 	return b;
     }
 
     inline void append_block(blockdb_block *b) {
         auto *f = get_bucket_data_stream();
-	f->write(reinterpret_cast<uint8_t *>(b->data()), b->size());
+	f->write(reinterpret_cast<char *>(b->data()), b->size());
     }
 
     blockdb_block * new_block(const void *data, size_t sz, size_t index, size_t height);
@@ -314,7 +342,10 @@ private:
   
     boost::filesystem::path bucket_dir_location(size_t bucket_index) const;
     boost::filesystem::path bucket_file_data_path(size_t bucket_index) const;
-    boost::filesystem::path bucket_file_meta_path(size_t bucket_index) const;  
+    boost::filesystem::path bucket_file_meta_path(size_t bucket_index) const;
+    boost::filesystem::path hash_node_file_path(size_t bucket_index) const;
+
+    const blockdb_hash_node & hash_node(size_t block_index, size_t at_height);
 
     blockdb_bucket & get_bucket(size_t bucket_index);
     void save_bucket(size_t bucket_index);
@@ -328,14 +359,12 @@ private:
     std::vector<blockdb_bucket *> buckets_;
 
     struct block_flusher {
-        block_flusher(blockdb &db) : db_(db) { }
+        block_flusher()  { }
         // We assume the block hasn't changed! Note that a new block is always
         // added instead of changing an existing one
         void evicted(const blockdb_meta_key_entry &, blockdb_block *b) {
 	    delete b;
         }
-    private:
-        blockdb &db_;
     };
 
     struct stream_flusher {
