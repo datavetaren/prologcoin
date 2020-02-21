@@ -5,7 +5,7 @@
 
 namespace prologcoin { namespace db {
 
-static inline uint32_t read_uint32(uint8_t *buf)
+static inline uint32_t read_uint32(const uint8_t *buf)
 {
     return (static_cast<uint32_t>(buf[0]) & 0xff) |
             ((static_cast<uint32_t>(buf[1]) & 0xff) << 8) |

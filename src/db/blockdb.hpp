@@ -68,12 +68,89 @@ private:
     uint32_t height_;
 };
 
+//
+// The hash node key is the key used to lookup for hash node entries in
+// hash node cache.
+//
+// Consider the (balanced) binary tree:
+//
+//                      root             (level 2)
+//                      /   \
+//                  node     node        (level 1)
+//                 /   \     /   \
+//             node   node node  node    (level 0)
+//
+// The child index is the child number. So the child index of the
+// left most node at level 1 is the first child of level 2: so its index is 0.
+// The index of the right most node at level 1 is the second child of
+// level 2: so its index is 1. The indices at level 0 means that two
+// left most nodes share the same index 0, and the two right most nodes
+// share the same index 1.
+//
+// The idea is that this triplet can uniquely identify the nodes.
+// "Height" is just another dimension of everything else.
+//
+// It's important to understand that this key is in memory only.
+// On disk each node stores a pointer to its parent node. But when we
+// read that node from disk and walks up through the parents (to the root)
+// we construct the tree in memory.
+//
+// In practice the branching fanout is 32 (instead of 2 as depicted above)
+// at each level.
+//
+// Another important thing to realize:
+//
+// Given the block index and the height, we can compute all O(log N) keys
+// up to the root. Thus we can write a function
+// f(block_index, at_height, level) => blockdb_hash_node_key
+//
+class blockdb_hash_node_key {
+public:
+    static const size_t NUM_BRANCHES_BITS = 5;
+    static const size_t NUM_BRANCHES =  1 << NUM_BRANCHES_BITS;
+    static inline blockdb_hash_node_key compute_key(size_t block_index, size_t at_height, size_t level) {
+        size_t child_index = (block_index >> (level*NUM_BRANCHES_BITS)) & (NUM_BRANCHES - 1);
+	return blockdb_hash_node_key(child_index, at_height, level);
+    }
+    inline blockdb_hash_node_key(size_t child_index, size_t at_height, size_t level)
+      : child_index_(child_index), height_(at_height), level_(level) { }
+
+    inline size_t child_index() const { return static_cast<size_t>(child_index_); }
+    inline size_t height() const { return static_cast<size_t>(height_); }
+    inline size_t level() const { return static_cast<size_t>(level_); }
+
+    inline bool operator == (const blockdb_hash_node_key &other) const {
+        return child_index() == other.child_index() &&
+	       height() == other.height() &&
+	       level() == other.level();
+    }
+  
+    inline size_t hash_value() const {
+        size_t s = 0;
+	boost::hash_combine(s, child_index());
+	boost::hash_combine(s, height());
+	boost::hash_combine(s, level());
+	return s;
+    }
+  
+private:
+    uint32_t child_index_;
+    uint32_t height_;
+    uint32_t level_;
+};
+    
 }}
 
 namespace std {
     template<> struct hash<::prologcoin::db::blockdb_meta_key_entry> {
         inline size_t operator()(const ::prologcoin::db::blockdb_meta_key_entry &e) const {
 	    return e.hash_value();
+        }
+    };
+
+    template<> struct hash<::prologcoin::db::blockdb_hash_node_key> {
+        inline size_t operator()(const ::prologcoin::db::blockdb_hash_node_key &k) const {
+	    return k.hash_value();
         }
     };
 }
@@ -106,7 +183,7 @@ public:
     inline uint32_t height() const { return height_; }
     inline uint32_t offset() const { return offset_; }
     inline uint32_t size() const { return size_; }
-    inline uint32_t hash_node_offset() { return hash_node_offset_; }
+    inline uint32_t hash_node_offset() const { return hash_node_offset_; }
 
     inline bool is_invalid() const { return offset_ == 0; }
 
@@ -122,9 +199,9 @@ public:
 	return height() < other.height();
     }
 
-    void read(uint8_t *buffer, size_t &n)
+    void read(const uint8_t *buffer, size_t &n)
     {
-	uint8_t *p = &buffer[0];
+	const uint8_t *p = &buffer[0];
 	index_ = read_uint32(p); p += sizeof(uint32_t);
 	height_ = read_uint32(p); p += sizeof(uint32_t);
 	offset_ = read_uint32(p); p += sizeof(uint32_t);
@@ -160,6 +237,7 @@ private:
 class blockdb_hash_node {
 public:
     static const size_t NUM_HASHES = 32;
+    static const size_t SERIALIZATION_SIZE = sizeof(uint32_t) + NUM_HASHES*sizeof(blockdb_hash_t);
 
     blockdb_hash_node() = default;
     blockdb_hash_node(const blockdb_hash_node &other) = default;
@@ -177,6 +255,23 @@ public:
 	}
     inline size_t parent_offset() const { return parent_offset_; }
 
+    inline void read(const uint8_t *buffer, size_t &n)
+    {
+        const uint8_t *p = &buffer[0];
+	parent_offset_ = read_uint32(p); p += sizeof(uint32_t);
+        memcpy(&hashes_[0], p, sizeof(hashes_));
+	n = SERIALIZATION_SIZE;
+    }
+
+    inline void write(uint8_t *buffer, size_t &n)
+    {
+        uint8_t *p = &buffer[0];
+	write_uint32(p, parent_offset_); p += sizeof(uint32_t);
+	memcpy(p, &hashes_[0], sizeof(hashes_));
+	n = SERIALIZATION_SIZE;
+    }
+  
+  
 private:
     uint32_t parent_offset_;
     blockdb_hash_t hashes_[NUM_HASHES];
@@ -230,9 +325,6 @@ private:
 
 class blockdb_bucket {
 public:
-    static const char VERSION[16];
-    static const size_t VERSION_SZ = sizeof(VERSION);
-
     inline blockdb_bucket(blockdb &db,
 			  const blockdb_params &params,
 			  const std::string &filepath_meta,
@@ -329,9 +421,11 @@ private:
 class blockdb : public blockdb_params {
 public:
     blockdb(const std::string &dir_path);
+    blockdb(const blockdb_params &params, const std::string &dir_path);  
 
     blockdb_block * find_block(size_t index, size_t from_height);
     blockdb_block * new_block(const void *data, size_t sz, size_t index, size_t from_height);
+    const blockdb_hash_t * find_hash(size_t block_index, size_t at_height, size_t level);
 
     bool is_empty() const;
     void erase_all();
@@ -343,7 +437,8 @@ private:
     boost::filesystem::path bucket_dir_location(size_t bucket_index) const;
     boost::filesystem::path bucket_file_data_path(size_t bucket_index) const;
     boost::filesystem::path bucket_file_meta_path(size_t bucket_index) const;
-    boost::filesystem::path hash_node_file_path(size_t bucket_index) const;
+    boost::filesystem::path hash_bucket_file_path(size_t bucket_index) const;
+    fstream * get_hash_bucket_stream(size_t hash_bucket_index);
 
     const blockdb_hash_node & hash_node(size_t block_index, size_t at_height);
 
@@ -373,13 +468,27 @@ private:
         }
     };
 
+    struct hash_bucket_stream_flusher {
+        void evicted(size_t, fstream *f) {
+	    f->close();
+	    delete f;
+        }
+    };
+
     typedef common::lru_cache<blockdb_meta_key_entry, blockdb_block *, block_flusher> block_cache;
     block_flusher block_flusher_;
     block_cache block_cache_;
 
     typedef common::lru_cache<size_t, blockdb_bucket *, stream_flusher> stream_cache;
     stream_flusher stream_flusher_;
-    stream_cache stream_cache_;  
+    stream_cache stream_cache_;
+
+    typedef common::lru_cache<blockdb_hash_node_key, blockdb_hash_node> hash_node_cache;
+    hash_node_cache hash_node_cache_;
+
+    typedef common::lru_cache<size_t, fstream *, hash_bucket_stream_flusher> hash_bucket_stream_cache;
+    hash_bucket_stream_flusher hash_bucket_stream_flusher_;
+    hash_bucket_stream_cache hash_bucket_stream_cache_;
 };
     
 }}  
