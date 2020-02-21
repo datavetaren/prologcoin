@@ -57,10 +57,6 @@ blockdb_block * blockdb_bucket::new_block(const void *data, size_t sz, size_t in
     auto *f = get_bucket_data_stream();
     f->seekg(0, fstream::end);
     size_t offset = f->tellg();
-    common::sha1 hasher;
-    hasher.update(data, sz);
-    blockdb_hash_t hash;
-    hasher.finalize(hash.hash);
     // TODO: Fill in the right value for hash_node_offset
     blockdb_meta_entry e(index, height, offset, sz, 0);
     auto *b = new blockdb_block(e, data);
@@ -275,11 +271,45 @@ blockdb_block * blockdb::find_block(size_t index, size_t from_height)
     return *r;
 }
 
-blockdb_block * blockdb::new_block(const void *data, size_t sz, size_t index, size_t height) {
+blockdb_block * blockdb::new_block(const void *data, size_t sz, size_t block_index, size_t at_height) {
 
-    blockdb_bucket &b = get_bucket(bucket_index(index));
-    auto *blk = b.new_block(data, sz, index, height);
-    blockdb_meta_key_entry key(index, height);
+    // First compute the SHA hash for the block
+    common::sha1 hasher;
+    hasher.update(data, sz);
+    blockdb_hash_t hash;
+    hasher.finalize(hash.hash);
+
+    size_t hash_bucket_index = block_index / hash_bucket_size();
+    auto *f = get_hash_bucket_stream(hash_bucket_index);
+
+    /*
+    size_t hash_node_offset = 0;
+    
+    for (size_t level = 0; (height >> (level*blockdb_hash_node_key::NUM_BRANCHES_BITS)) != 0; level++) {
+        auto key = blockdb_hash_node_key::compute_key(index, height, level);
+        auto *node = find_hash(index, height, level);
+	uint8_t buffer[blockdb_hash_node::SERIALIZATION_SIZE];
+	size_t n = 0;
+	if (node == nullptr) {
+	    // Create a new node
+	    blockdb_hash_node new_node;
+	    new_node.set_hash(key.child_index(), hash);
+	    new_node.write(buffer, n);
+	} else {
+	    blockdb_hash_node copy_node = *node;
+	    copy_node.set_hash(key.child_index(), hash);
+	    copy_node.write(buffer, n);
+	}
+	assert(n == blockdb_hash_node::SERIALIZATION_SIZE);
+	f->seekg(0, fstream::end);
+	hash_node_offset = f->tellg();
+	f->write(buffer, n);
+    }
+    */
+  
+    blockdb_bucket &b = get_bucket(bucket_index(block_index));
+    auto *blk = b.new_block(data, sz, block_index, at_height);
+    blockdb_meta_key_entry key(block_index, at_height);
     block_cache_.insert(key, blk);
     return blk;
 }

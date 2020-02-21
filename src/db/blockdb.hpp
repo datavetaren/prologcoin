@@ -239,7 +239,9 @@ public:
     static const size_t NUM_HASHES = 32;
     static const size_t SERIALIZATION_SIZE = sizeof(uint32_t) + NUM_HASHES*sizeof(blockdb_hash_t);
 
-    blockdb_hash_node() = default;
+    inline blockdb_hash_node() : parent_offset_(0) {
+        memset(hashes_, 0, sizeof(hashes_));
+    }
     blockdb_hash_node(const blockdb_hash_node &other) = default;
 
     inline const blockdb_hash_t & hash(size_t index) const
@@ -270,7 +272,6 @@ public:
 	memcpy(p, &hashes_[0], sizeof(hashes_));
 	n = SERIALIZATION_SIZE;
     }
-  
   
 private:
     uint32_t parent_offset_;
