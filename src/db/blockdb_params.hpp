@@ -1,6 +1,7 @@
 #ifndef _db_blockdb_params_hpp
 #define _db_blockdb_params_hpp
 
+#include <stddef.h>
 
 namespace prologcoin { namespace db {
 

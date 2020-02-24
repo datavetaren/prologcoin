@@ -132,6 +132,17 @@ public:
 	boost::hash_combine(s, level());
 	return s;
     }
+    inline std::string string() const {
+	std::stringstream ss;
+	ss << "key{";
+	if (height() == 0) {
+	    ss << "block_index=" << child_index();
+	} else {
+	    ss << "child_index=" << child_index();
+	}
+	ss << ",height=" << height() << ",level=" << level() << "}";
+	return ss.str();
+    }
   
 private:
     uint32_t child_index_;
@@ -172,10 +183,14 @@ public:
     static const size_t SERIALIZATION_SIZE = sizeof(uint32_t)*5;
   
     inline blockdb_meta_entry() : index_(0), height_(0), offset_(0), size_(0), hash_node_offset_(0) { }
-    inline blockdb_meta_entry( uint32_t index, uint32_t height,
-			       uint32_t offset, uint32_t sz, uint32_t hash_node_offset )
-      : index_(index), height_(height), offset_(offset),
-	size_(sz), hash_node_offset_(hash_node_offset) { }
+    inline blockdb_meta_entry( size_t index, size_t height,
+			       size_t offset, size_t sz, size_t hash_node_offset )
+	: index_(common::checked_cast<uint32_t>(index)),
+	  height_(common::checked_cast<uint32_t>(height)),
+	  offset_(common::checked_cast<uint32_t>(offset)),
+	  size_(common::checked_cast<uint32_t>(sz)),
+	  hash_node_offset_(common::checked_cast<uint32_t>(hash_node_offset))
+        { }
 
     blockdb_meta_entry(const blockdb_meta_entry &other) = default;
   
@@ -256,6 +271,8 @@ public:
 	  hasher.finalize(parent_hash.hash);
 	}
     inline size_t parent_offset() const { return parent_offset_; }
+    inline void set_parent_offset(size_t offset)
+        { parent_offset_ = common::checked_cast<uint32_t>(offset); }
 
     inline void read(const uint8_t *buffer, size_t &n)
     {
@@ -349,7 +366,9 @@ public:
 
     // Return the entry for given index reflected at provided height.
     inline boost::optional<const blockdb_meta_entry &> find_entry(size_t index, size_t at_height) {
-        if (!initialized_) read_meta_data();
+        if (!initialized_) {
+	    read_meta_data();
+	}
         size_t i = index - first_index_;
 	if (i >= entries_.size()) {
 	    return boost::none;
@@ -381,7 +400,7 @@ public:
 	f->write(reinterpret_cast<char *>(b->data()), b->size());
     }
 
-    blockdb_block * new_block(const void *data, size_t sz, size_t index, size_t height);
+    blockdb_block * new_block(const void *data, size_t sz, size_t index, size_t height, size_t hash_node_offset);
     fstream * get_bucket_meta_stream();
     fstream * get_bucket_data_stream();
     void flush_streams();  
@@ -427,6 +446,7 @@ public:
     blockdb_block * find_block(size_t index, size_t from_height);
     blockdb_block * new_block(const void *data, size_t sz, size_t index, size_t from_height);
     const blockdb_hash_t * find_hash(size_t block_index, size_t at_height, size_t level);
+    const blockdb_hash_node * find_hash_node(size_t block_index, size_t at_height, size_t level);
 
     bool is_empty() const;
     void erase_all();
