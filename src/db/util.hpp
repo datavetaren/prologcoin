@@ -3,6 +3,8 @@
 #ifndef _db_util_hpp
 #define _db_util_hpp
 
+#include "../common/sha1.hpp"
+
 namespace prologcoin { namespace db {
 
 using fstream = std::fstream;
