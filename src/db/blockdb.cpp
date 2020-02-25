@@ -37,11 +37,14 @@ static void blockdb_version_check(fstream *f, const std::string &file_path) {
     
 void blockdb_meta_entry::print(std::ostream &out) const
 {
-    out << "{index=" << index_ << ",height=" << height_
-	<< ",offset=" << offset_ << ",size=" << size_
-	<< ",hash_node_offset=" << hash_node_offset_ << "}";
+    out << "{block_index=" << block_index_ << ",height=" << height_
+	<< ",offset=" << offset_ << ",size=" << size_ << "}";
 }
 
+//
+// blockdb_bucket
+//
+    
 void blockdb_bucket::print(std::ostream &out) const
 {
     size_t num_entries = 0;
@@ -60,12 +63,12 @@ void blockdb_bucket::print(std::ostream &out) const
     out << "]}";
 }
 
-blockdb_block * blockdb_bucket::new_block(const void *data, size_t sz, size_t index, size_t height, size_t hash_node_offset)
+blockdb_block * blockdb_bucket::new_block(const void *data, size_t sz, size_t index, size_t height)
 {
     auto *f = get_bucket_data_stream();
     f->seekg(0, fstream::end);
     size_t offset = f->tellg();
-    blockdb_meta_entry e(index, height, offset, sz, hash_node_offset);
+    blockdb_meta_entry e(index, height, offset, sz);
     auto *b = new blockdb_block(e, data);
     append_block(b);
     append_meta_data(e);
@@ -194,20 +197,24 @@ void blockdb_bucket::append_meta_data(const blockdb_meta_entry &e)
     internal_add_meta_entry(e);
 }
 
+//
+// blockdb
+//
+
 blockdb::blockdb(const blockdb_params &params, const std::string &dir_path)
     : blockdb_params(params), dir_path_(dir_path),
       block_flusher_(),
       block_cache_(blockdb_params::cache_num_blocks(), block_flusher_),
       stream_flusher_(),
-      stream_cache_(blockdb_params::cache_num_streams(), stream_flusher_),
-      hash_node_cache_(blockdb_params::cache_num_hash_nodes()),
-      hash_bucket_stream_flusher_(),
-      hash_bucket_stream_cache_(blockdb_params::cache_num_hash_streams(), hash_bucket_stream_flusher_) {
+      stream_cache_(blockdb_params::cache_num_streams(), stream_flusher_) {
 }        
     
 blockdb::blockdb(const std::string &dir_path)
     : blockdb(blockdb_params(), dir_path) { }
 
+blockdb::~blockdb() {
+}
+    
 // At most 128 files in a directory... (64 data + 64 meta)
 boost::filesystem::path blockdb::bucket_dir_location(size_t bucket_index) const {
     size_t start_bucket = (bucket_index / 64) * 64;
@@ -231,33 +238,6 @@ boost::filesystem::path blockdb::bucket_file_meta_path(size_t bucket_index) cons
     return dir / name;
 }
 
-boost::filesystem::path blockdb::hash_bucket_file_path(size_t hash_bucket_index) const {
-    auto dir = boost::filesystem::path(dir_path_);
-    std::string name = "merkle_hash_" + boost::lexical_cast<std::string>(hash_bucket_index) + ".bin";
-    return dir / name;
-}
-
-fstream * blockdb::get_hash_bucket_stream(size_t hash_bucket_index) {
-    auto f = hash_bucket_stream_cache_.find(hash_bucket_index);
-    if (f.is_initialized()) {
-        return *f;
-    }
-    auto path_str = hash_bucket_file_path(hash_bucket_index).string();
-    bool exists = boost::filesystem::exists(path_str);
-    if (!exists) {
-        auto parent_dir = boost::filesystem::path(path_str).parent_path();
-	boost::filesystem::create_directories(parent_dir);
-	fstream fs;
-	fs.open(path_str, fstream::out | fstream::binary | fstream::app);
-        fs.write(blockdb_params::VERSION, blockdb_params::VERSION_SZ);
-	fs.close();
-    }
-    auto ff = new fstream(path_str, fstream::in | fstream::out | fstream::binary);
-    hash_bucket_stream_cache_.insert(hash_bucket_index, ff);
-    blockdb_version_check(ff, path_str);
-    return ff;
-}
-    
 blockdb_bucket & blockdb::get_bucket(size_t bucket_index) {
     if (bucket_index >= buckets_.size()) {
         buckets_.resize(bucket_index+1);
@@ -274,16 +254,16 @@ blockdb_bucket & blockdb::get_bucket(size_t bucket_index) {
     return *b;
 }
     
-blockdb_block * blockdb::find_block(size_t index, size_t from_height)
+blockdb_block * blockdb::find_block(size_t block_index, size_t at_height)
 {
-    blockdb_bucket &b = get_bucket(bucket_index(index));
-    auto e = b.find_entry(index, from_height);
-    if (!e.is_initialized()) {
+    blockdb_bucket &b = get_bucket(bucket_index(block_index));
+    auto e = b.find_entry(block_index, at_height);
+    if (e == nullptr) {
         return nullptr;
     }
-    blockdb_meta_key_entry key(e->index(), e->height());
+    blockdb_meta_key_entry key(e->block_index(), e->height());
     auto r = block_cache_.find(key);
-    if (!r.is_initialized()) {
+    if (r == nullptr) {
         // Read block and add it to cache
         auto *blk = b.read_block(*e);
 	block_cache_.insert(key, blk);
@@ -292,107 +272,20 @@ blockdb_block * blockdb::find_block(size_t index, size_t from_height)
     return *r;
 }
 
-blockdb_block * blockdb::new_block(const void *data, size_t sz, size_t block_index, size_t at_height) {
-
-    // First compute the SHA hash for the block
+void blockdb::compute_block_hash(const void *data, size_t sz, hash_t &hash)
+{
     common::sha1 hasher;
     hasher.update(data, sz);
-    blockdb_hash_t hash;
     hasher.finalize(hash.hash);
+}
 
-    size_t hash_bucket_index = block_index / hash_bucket_size();
-    auto *f = get_hash_bucket_stream(hash_bucket_index);
-
-    f->seekg(0, fstream::end);
-    size_t hash_node_offset = f->tellg();
-    size_t leaf_hash_node_offset = hash_node_offset;
-
-    size_t h = at_height;
-
-    for (size_t level = 0; h != 0; level++) {
-	h >>= blockdb_hash_node_key::NUM_BRANCHES_BITS;
-	size_t parent_node_offset = h != 0 ?
-	    (hash_node_offset + blockdb_hash_node::SERIALIZATION_SIZE) : 0;
-
-        auto key = blockdb_hash_node_key::compute_key(block_index,
-						      at_height, level);
-        auto *node = find_hash_node(block_index, at_height, level);
-	uint8_t buffer[blockdb_hash_node::SERIALIZATION_SIZE];
-	size_t n = 0;
-	blockdb_hash_node new_node;
-	new_node.set_parent_offset(parent_node_offset);
-	if (node != nullptr) {
-	    new_node = *node;
-	}
-	new_node.set_hash(key.child_index(), hash);
-	new_node.write(buffer, n);
-	assert(n == blockdb_hash_node::SERIALIZATION_SIZE);
-	f->seekg(0, fstream::end);
-	f->write(reinterpret_cast<char *>(buffer), n);
-	if (h != 0) new_node.compute_hash(hash);
-	hash_node_offset = parent_node_offset;
-    }
+blockdb_block * blockdb::new_block(const void *data, size_t sz, size_t block_index, size_t at_height) {
+  
     blockdb_bucket &b = get_bucket(bucket_index(block_index));
-    auto *blk = b.new_block(data, sz, block_index, at_height, leaf_hash_node_offset);
+    auto *blk = b.new_block(data, sz, block_index, at_height);
     blockdb_meta_key_entry key(block_index, at_height);
     block_cache_.insert(key, blk);
     return blk;
-}
-
-const blockdb_hash_node * blockdb::find_hash_node(size_t block_index, size_t at_height, size_t level)
-{
-    // First compute the most accurate key; we can have something at a
-    // different height.
-    blockdb_bucket &b = get_bucket(bucket_index(block_index));
-    auto e = b.find_entry(block_index, at_height);
-    if (!e.is_initialized()) {
-	// If there's no entry, then we don't have a hash node for it.
-	return nullptr;
-    }
-
-    // Compute the new key based on proper height
-    auto key = blockdb_hash_node_key::compute_key(block_index,
-						  e->height(), level);
-
-    auto r = hash_node_cache_.find(key);
-    if (!r.is_initialized()) {
-	// We didn't find in hash node cache, so let's read it from disk
-	// and walk up until we get the right level.
-	auto hash_node_offset = e->hash_node_offset();
-	size_t hash_bucket_index = block_index / hash_bucket_size();
-        auto *f = get_hash_bucket_stream(hash_bucket_index);
-
-	for (size_t i = 0; i <= level; i++) {
-	    key =blockdb_hash_node_key::compute_key(block_index,e->height(),i);
-
-	    f->seekg(hash_node_offset);
-	    uint8_t buffer[blockdb_hash_node::SERIALIZATION_SIZE];
-	    f->read(reinterpret_cast<char *>(&buffer[0]), blockdb_hash_node::SERIALIZATION_SIZE);
-	    blockdb_hash_node node;
-	    size_t n = 0;
-	    node.read(buffer, n);
-	    assert(n == blockdb_hash_node::SERIALIZATION_SIZE);
-
-	    hash_node_cache_.insert(key, node);
-	    r = hash_node_cache_.find(key);
-	    assert(r.is_initialized());
-
-	    hash_node_offset = r->parent_offset();
-	}
-    }
-    // It must be initialized at this point
-    assert(r.is_initialized());
-    const blockdb_hash_node &node = *r;
-    return &node;
-}
-
-const blockdb_hash_t * blockdb::find_hash(size_t block_index, size_t at_height, size_t level) {
-    auto *node = find_hash_node(block_index, at_height, level);
-    if (node == nullptr) {
-	return nullptr;
-    }
-    auto key = blockdb_hash_node_key::compute_key(block_index,at_height,level);
-    return &node->hash(key.child_index());
 }
 
 bool blockdb::is_empty() const

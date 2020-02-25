@@ -1,7 +1,6 @@
 #include <unordered_map>
 #include <list>
 #include <vector>
-#include <boost/optional.hpp>
 
 namespace prologcoin { namespace common {
 
@@ -33,11 +32,11 @@ public:
 	}
     }
 
-    inline boost::optional<V> find(const K &key)
+    inline const V * find(const K &key)
     {
         auto it = map_.find(key);
 	if (it == map_.end()) {
-	    return boost::none;
+	    return nullptr;
 	}
 	auto &v = it->second.first;
 	auto &access_it = it->second.second;
@@ -45,7 +44,7 @@ public:
 	access_.push_front(key);
 	it->second.second = access_.begin();
 	
-	return v;
+	return &v;
     }
 
     inline void erase(const K &key) {

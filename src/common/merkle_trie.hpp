@@ -5,6 +5,7 @@
 
 #include <bitset>
 #include <iostream>
+#include <vector>
 #include "blake2.hpp"
 
 namespace prologcoin { namespace common {

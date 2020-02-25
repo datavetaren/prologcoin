@@ -77,7 +77,7 @@ private:
     size_t cache_num_blocks_;
     size_t cache_num_streams_;
     size_t cache_num_hash_nodes_;
-    size_t cache_num_hash_streams_;  
+    size_t cache_num_hash_streams_;
 };
     
 }}

@@ -33,7 +33,7 @@ static void test_lru_cache_1()
     for (size_t i = 0; i < NUM_ELEMENTS; i++) {
         auto f = cache.find(i);	
 	if (i < NUM_ELEMENTS - CACHE_SIZE) {
-	    assert(!f.is_initialized());
+	    assert(f == nullptr);
 	} else {
 	    assert(*f == i*10);
 	}

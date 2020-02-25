@@ -5,6 +5,8 @@
 
 namespace prologcoin { namespace db {
 
+using fstream = std::fstream;
+
 static inline uint32_t read_uint32(const uint8_t *buf)
 {
     return (static_cast<uint32_t>(buf[0]) & 0xff) |
@@ -20,6 +22,14 @@ static inline void write_uint32(uint8_t *buf, uint32_t v)
     buf[2] = static_cast<uint8_t>((v >> 16) & 0xff);
     buf[3] = static_cast<uint8_t>((v >> 24) & 0xff);
 }
+
+struct hash_t {
+    bool operator == (const hash_t &other) const {
+        return memcmp(hash, other.hash, sizeof(hash)) == 0;
+    }
+  
+    uint8_t hash[common::sha1::HASH_SIZE];
+};
     
 }}
 
