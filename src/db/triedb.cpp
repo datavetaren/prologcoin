@@ -81,52 +81,57 @@ triedb::triedb(const triedb_params &params, const std::string &dir_path)
     last_offset_ = scan_last_offset();
 }
 
-triedb_branch * triedb::insert_part(triedb_branch *node, uint64_t key, const uint8_t *data, size_t data_size, size_t part)
+std::pair<triedb_branch *, uint64_t> triedb::insert_part(triedb_branch *node, uint64_t key, const uint8_t *data, size_t data_size, size_t part)
 {
     size_t sub_index = (key >> (MAX_KEY_SIZE_BITS - MAX_BRANCH_BITS - part)) & (MAX_BRANCH-1);
-    auto *new_branch = new triedb_branch(*node);
-    
+
+    // If the child is empty, then create a new node at that position
     if (node->is_empty(sub_index)) {
         auto *new_leaf = new triedb_leaf(key, data, data_size);
 	auto leaf_ptr = append_leaf_node(*new_leaf);
 	leaf_cache_.insert(leaf_ptr, new_leaf);
+	auto *new_branch = new triedb_branch(*node);
 	new_branch->set_child_pointer(sub_index, leaf_ptr);
-	// TODO: update(new_branch);	
-	return new_branch;
+	auto ptr = append_branch_node(*new_branch);
+	// TODO: update(new_branch); 
+	return std::make_pair(new_branch, ptr);
     } else if (node->is_leaf(sub_index)) {
+	// If the child already has a child with the same key, then
+	// substitute with the new data.
         auto *leaf = get_leaf(node, node->get_child_pointer(sub_index));
 	if (leaf->key() == key) {
 	    auto *new_leaf = new triedb_leaf(key, data, data_size);
 	    auto leaf_ptr = append_leaf_node(*new_leaf);
 	    leaf_cache_.insert(leaf_ptr, new_leaf);
+	    auto *new_branch = new triedb_branch(*node);
 	    new_branch->set_child_pointer(sub_index, leaf_ptr);
 	    // TODO: update(new_branch);
-	    return new_branch;
+	    auto ptr = append_branch_node(*new_branch);
+	    return std::make_pair(new_branch, ptr);
+	} else {
+	    // We need to create a branch node at sub_index, reorg the current
+	    // leaf at that position by pushing it down one level. However,
+	    // this new node will be directly recursed into and thus will
+	    // not needed to be stored on disk.
+	    size_t sub_sub_index = (leaf->key() >> (MAX_KEY_SIZE_BITS - 2*MAX_BRANCH_BITS - part)) & (MAX_BRANCH-1);
+	    triedb_branch new_branch(*node);
+	    new_branch.set_mask(static_cast<uint32_t>(1) << sub_sub_index);
+	    new_branch.set_leaf(sub_sub_index);
+	    new_branch.set_child_pointer(sub_sub_index, node->get_child_pointer(sub_index));
+	    return insert_part(&new_branch, key, data, data_size, part + MAX_BRANCH_BITS);
 	}
     }
 
-    /*
-    // We need to create a branch node at sub_index
-	    new_branch->data_[0] = leaf;
-	    size_t sub_sub_index = (leaf->key() >> (L - 2*MAX_BRANCH_BITS - _at_part)) & (MAX_BRANCH-1);
-	    new_branch->mask_ = static_cast<word_t>(1) << sub_sub_index;
-	    new_branch->leaf_ = static_cast<word_t>(1) << sub_sub_index;
-	    auto &leaf1 = insert_part(new_branch, _at_part + MAX_BRANCH_BITS, rehash, _key, updater);
-	    if (rehash) new_branch->recompute_hash();
-	    parent->set_branch(sub_index, new_branch);
-	    if (rehash) parent->recompute_hash();
-	    return leaf1;
-	}
-	auto *child = parent->get_branch(sub_index);
-	auto &leaf = insert_part(child, _at_part + MAX_BRANCH_BITS, rehash, _key, updater);
-	parent->set_branch(sub_index, child);
-	if (rehash) parent->recompute_hash();
-	return leaf;
-    */
-
-    return nullptr;
+    auto *child = get_branch(node, node->get_child_pointer(sub_index));
+    triedb_branch *new_child = nullptr;
+    uint64_t new_child_ptr = 0;
+    std::tie(new_child, new_child_ptr) = insert_part(child, key, data, data_size, part + MAX_BRANCH_BITS);
+    auto *new_branch = new triedb_branch(*node);
+    new_branch->set_child_pointer(sub_index, new_child_ptr);
+    auto new_branch_ptr = append_branch_node(*new_branch);
+    return std::make_pair(new_branch, new_branch_ptr);
 }
-    
+
 boost::filesystem::path triedb::roots_file_path() const {
     auto file_path = boost::filesystem::path(dir_path_) / "roots.bin";
     return file_path;
@@ -239,7 +244,6 @@ fstream * triedb::set_file_offset(uint64_t offset)
 {
     size_t bucket_index = offset / bucket_size();
     auto *f = get_bucket_stream(bucket_index);
-    uint8_t buffer[triedb_branch::MAX_SIZE_IN_BYTES];
     size_t first_offset = bucket_index * bucket_size();
     size_t file_offset = offset - first_offset + VERSION_SZ;
     f->seekg(file_offset, fstream::beg);

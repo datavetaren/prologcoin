@@ -52,7 +52,7 @@ public:
     inline triedb_leaf()
         : key_(0), custom_data_size_(0), custom_data_(nullptr) { }
 
-    inline triedb_leaf(uint64_t key, const uint8_t *custom_data, size_t custom_data_size) : key_(key), custom_data_(new uint8_t[custom_data_size]), custom_data_size_(custom_data_size) {
+    inline triedb_leaf(uint64_t key, const uint8_t *custom_data, size_t custom_data_size) : key_(key), custom_data_size_(custom_data_size), custom_data_(new uint8_t[custom_data_size]) {
         memcpy(custom_data_, custom_data, custom_data_size);
     }
 
@@ -79,7 +79,7 @@ public:
 	assert(((p - buffer) + sizeof(uint64_t)) < MAX_SIZE_IN_BYTES);	
 	key_ = read_uint64(p); p += sizeof(uint64_t);
 	assert(((p - buffer) + sizeof(uint32_t)) < MAX_SIZE_IN_BYTES);		
-	custom_data_size_ = read_uint32(p); p += sizeof(uint32_t);
+	custom_data_size_ = sz - (p - buffer);
 	assert(((p - buffer) + custom_data_size_) < MAX_SIZE_IN_BYTES);
 	if (custom_data_ != nullptr) delete [] custom_data_;
 	custom_data_ = new uint8_t [custom_data_size_];
@@ -122,7 +122,8 @@ public:
 	}
     }
   
-    uint32_t mask() const { return mask_; }
+    inline uint32_t mask() const { return mask_; }
+    inline void set_mask(uint32_t m) { mask_ = m; }
 
     inline size_t num_children() const
         { return std::bitset<triedb_params::MAX_BRANCH>(mask_).count(); }
@@ -130,9 +131,16 @@ public:
     inline bool is_leaf(size_t sub_index) const {
         return ((leaf_ >> sub_index) & 1) != 0;
     }
+    inline void set_leaf(size_t sub_index) {
+	leaf_ |= (1 << sub_index); 
+    }
 
     inline bool is_branch(size_t sub_index) const {
         return !is_leaf(sub_index);
+    }
+
+    inline void set_branch(size_t sub_index) {
+	leaf_ &= ~(1 << sub_index);
     }
 
     inline bool is_empty(size_t sub_index) const {
@@ -167,6 +175,7 @@ public:
         } else {
 	    ptr_[child_index] = ptr;
 	}
+	mask_ |= 1 << sub_index;
     }
   
 private:
@@ -186,7 +195,7 @@ public:
   
 private:
     // Return modified branch node
-    triedb_branch * insert_part(triedb_branch *node, uint64_t key, const uint8_t *data, size_t data_size, size_t part);
+    std::pair<triedb_branch *, uint64_t> insert_part(triedb_branch *node, uint64_t key, const uint8_t *data, size_t data_size, size_t part);
   
     boost::filesystem::path roots_file_path() const;
     void read_roots();
