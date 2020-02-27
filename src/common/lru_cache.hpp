@@ -1,19 +1,21 @@
 #include <unordered_map>
 #include <list>
 #include <vector>
+#include <functional>
 
 namespace prologcoin { namespace common {
 
 template<typename K, typename V> struct lru_cache_callback_nop {
-    inline void evicted(const K &key, const V &value) { }
-    inline void accessed(const K &key, const V &value) { }
+    inline lru_cache_callback_nop() { }
+    inline void evicted(const K &key, V &value) { }
+    inline void accessed(const K &key, V &value) { }
 };
     
 template<typename K, typename V, typename C = lru_cache_callback_nop<K,V> > class lru_cache {
 public:
     typedef K key_type;
     typedef V value_type;
-  
+
     inline lru_cache(size_t capacity) : capacity_(capacity), callback_() { }
     inline lru_cache(size_t capacity, const C &callback) : capacity_(capacity), callback_(callback) { }
     inline ~lru_cache() { clear(); }
