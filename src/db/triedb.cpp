@@ -34,6 +34,37 @@ static void triedb_version_check(fstream *f, const std::string &file_path) {
 	throw triedb_version_exception(msg);
     }
 }
+
+//
+// triedb_leaf
+//
+
+void triedb_leaf::read(const uint8_t *buffer) {
+    const uint8_t *p = buffer;
+    assert(((p - buffer) + sizeof(uint32_t)) < MAX_SIZE_IN_BYTES);
+    size_t sz = read_uint32(p); p += sizeof(uint32_t);
+    assert(((p - buffer) + sizeof(uint64_t)) < MAX_SIZE_IN_BYTES);	
+    key_ = read_uint64(p); p += sizeof(uint64_t);
+    assert(((p - buffer) + sizeof(uint32_t)) < MAX_SIZE_IN_BYTES);		
+    custom_data_size_ = sz - (p - buffer);
+    assert(((p - buffer) + custom_data_size_) < MAX_SIZE_IN_BYTES);
+    if (custom_data_ != nullptr) delete [] custom_data_;
+    custom_data_ = new uint8_t [custom_data_size_];
+    memcpy(custom_data_, p, custom_data_size_);
+}
+
+void triedb_leaf::write(uint8_t *buffer) const {
+    uint8_t *p = buffer;
+    size_t sz = serialization_size();
+    assert(sz < MAX_SIZE_IN_BYTES);
+    write_uint32(p, common::checked_cast<uint32_t>(sz));
+    p += sizeof(uint32_t);
+    write_uint64(p, key_); p += sizeof(uint64_t);
+    write_uint32(p, custom_data_size_); p += sizeof(uint32_t);
+    if (custom_data_ != nullptr) {
+        memcpy(p, custom_data_, custom_data_size_);
+    }
+}
     
 //
 // triedb_branch
@@ -385,7 +416,8 @@ void triedb::read_leaf_node(uint64_t offset, triedb_leaf &node)
     uint8_t buffer[triedb_leaf::MAX_SIZE_IN_BYTES];  
     auto *f = set_file_offset(offset);
     f->read(reinterpret_cast<char *>(&buffer[0]), sizeof(uint32_t));
-    uint32_t size = read_uint32(buffer); assert(size >= 4);
+    uint32_t size = read_uint32(buffer);
+    assert(size >= 4 && size < triedb_leaf::MAX_SIZE_IN_BYTES);
     f->read(reinterpret_cast<char *>(&buffer[sizeof(uint32_t)]),
 	    size-sizeof(uint32_t));
     node.read(buffer);
@@ -416,9 +448,13 @@ uint64_t triedb::append_leaf_node(const triedb_leaf &node)
 void triedb::read_branch_node(uint64_t offset, triedb_branch &node)
 {
     uint8_t buffer[triedb_branch::MAX_SIZE_IN_BYTES];
-    auto *f = set_file_offset(offset);  
+    auto *f = set_file_offset(offset);
+    if (offset > 6560000)
+        std::cout << "read_branch_node: offset=" << offset << " file_size=" << f->tellg() << std::endl;
+    
     f->read(reinterpret_cast<char *>(&buffer[0]), sizeof(uint32_t));
-    uint32_t size = read_uint32(buffer); assert(size >= 4);
+    uint32_t size = read_uint32(buffer);
+    assert(size >= 4 && size < triedb_branch::MAX_SIZE_IN_BYTES);
     f->read(reinterpret_cast<char *>(&buffer[sizeof(uint32_t)]),
 	    size-sizeof(uint32_t));
     node.read(buffer);
@@ -441,6 +477,8 @@ uint64_t triedb::append_branch_node(const triedb_branch &node)
     size_t n = node.serialization_size();
     node.write(buffer);
     auto *f = set_file_offset(offset);
+    if (offset > 6560000)    
+      std::cout << "append_branch_node: offset=" << offset << " file_size=" << f->tellg() << std::endl;
     f->write(reinterpret_cast<char *>(&buffer[0]), n);
     last_offset_ += n;    
     return offset;

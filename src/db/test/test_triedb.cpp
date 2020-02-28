@@ -25,11 +25,74 @@ static void header( const std::string &str )
 
 const size_t TEST_NUM_ENTRIES = 10000;
 
+static void test_basic_check(triedb &db, uint64_t entries[], size_t n)
+{
+    uint64_t *sorted_entries(new uint64_t[n]);
+    uint64_t *half_sorted_entries(new uint64_t[n/2]);
+    std::copy(entries, entries + n, sorted_entries);
+    std::copy(entries, entries + n/2, half_sorted_entries);	
+    std::sort(&sorted_entries[0], &sorted_entries[0] + n);
+    std::sort(&half_sorted_entries[0], &half_sorted_entries[0] + n/2);
+  
+    std::cout << "Check if entries can be found through direct query..." << std::endl;
+    for (size_t i = 0; i < n; i++) {
+        auto *leaf = db.find(n, entries[i]);
+	if (leaf == nullptr) {
+	    std::cout << "Could find entry #" << i << ": key=" << entries[i] << std::endl;
+	    assert(leaf != nullptr && leaf->key() == entries[i]);
+	}
+    }
+    
+    std::cout << "Compare with expected baseline..." << std::endl;
+	
+    size_t i = 0;
+	
+    triedb_iterator it = db.begin(n);
+    triedb_iterator it_end = db.end(n);
+    for (; it != it_end; ++it, ++i) {
+        auto &leaf = *it;
+	uint64_t expect_key = sorted_entries[i];
+	if (expect_key != leaf.key()) {
+	    std::cout << "Error at index " << i << std::endl;
+	    std::cout << "Actual key: " << leaf.key() << std::endl;
+	    std::cout << "Expect key: " << expect_key << std::endl;
+	    assert(expect_key == leaf.key());
+	}
+    }
+
+    std::cout << "Compare with expected baseline at half the height..." << std::endl;
+	
+    // Check how the triedb looks at half height
+    // (only half of the entries are inserted)
+    
+    it = db.begin(n/2 - 1);
+    it_end = db.end(n/2 - 1);
+    i = 0;
+    for (; it != it_end; ++it, ++i) {
+        auto &leaf = *it;
+	uint64_t expect_key = half_sorted_entries[i];
+	if (expect_key != leaf.key()) {
+	    std::cout << "Error at index " << i << std::endl;
+	    std::cout << "Actual key: " << leaf.key() << std::endl;
+	    std::cout << "Expect key: " << expect_key << std::endl;
+	    assert(expect_key == leaf.key());
+	}
+    }
+
+    delete [] sorted_entries;
+    delete [] half_sorted_entries;    
+}
+
 static void test_basic()
 {
     header("test_basic");
     
     std::cout << "Test directory: " << test_dir << std::endl;
+
+    uint64_t *entries(new uint64_t[TEST_NUM_ENTRIES]);
+    for (size_t i = 0; i < TEST_NUM_ENTRIES; i++) {
+        entries[i] = random::next_int(static_cast<uint64_t>(100000000));
+    }
 
     try {
         triedb db(test_dir);
@@ -47,45 +110,29 @@ static void test_basic()
 	
 	std::cout << "Create " << TEST_NUM_ENTRIES << " entries..." << std::endl;
 
-	uint64_t *entries = new uint64_t[TEST_NUM_ENTRIES];
-	for (size_t i = 0; i < TEST_NUM_ENTRIES; i++) {
-	    entries[i] = random::next_int(static_cast<uint64_t>(100000000));
-	}
-
-        uint64_t *sorted_entries = new uint64_t[TEST_NUM_ENTRIES];
-        std::copy(entries, entries + TEST_NUM_ENTRIES, sorted_entries);
-        std::sort(sorted_entries, sorted_entries + TEST_NUM_ENTRIES);
-
 	std::cout << "Insert entries..." << std::endl;
 	
         for (size_t i = 0; i < TEST_NUM_ENTRIES; i++) {
 	    db.insert(i, entries[i], nullptr, 0);
 	}
 
-	std::cout << "Compare with expected baseline..." << std::endl;
-	
-	size_t i = 0;
-	
-	triedb_iterator it = db.begin(TEST_NUM_ENTRIES);
-	triedb_iterator it_end = db.end(TEST_NUM_ENTRIES);
-	for (; it != it_end; ++it, ++i) {
-	    auto &leaf = *it;
-	    uint64_t expect_key = sorted_entries[i];
-	    if (expect_key != leaf.key()) {
-	        std::cout << "Error at index " << i << std::endl;
-	        std::cout << "Actual key: " << leaf.key() << std::endl;
-	        std::cout << "Expect key: " << expect_key << std::endl;
-		assert(expect_key == leaf.key());
-	    }
-	}
-
-	delete [] entries;
-	delete [] sorted_entries;
+	test_basic_check(db, entries, TEST_NUM_ENTRIES);
 	
     } catch (triedb_exception &ex) {
         std::cout << "Exception: " << ex.what() << std::endl;
 	throw ex;
     }
+
+    try { 
+        triedb db(test_dir);
+	DebugBreak();
+	test_basic_check(db, entries, TEST_NUM_ENTRIES);
+    } catch (triedb_exception &ex) {
+        std::cout << "Exception: " << ex.what() << std::endl;
+	throw ex;      
+    }
+
+    delete [] entries;
 }
 
 int main(int argc, char *argv[])

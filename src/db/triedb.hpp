@@ -75,28 +75,8 @@ public:
         return sz;
     }
 
-    inline void read(const uint8_t *buffer) {
-        const uint8_t *p = buffer;
-	assert(((p - buffer) + sizeof(uint32_t)) < MAX_SIZE_IN_BYTES);
-	size_t sz = read_uint32(p); p += sizeof(uint32_t);
-	assert(((p - buffer) + sizeof(uint64_t)) < MAX_SIZE_IN_BYTES);	
-	key_ = read_uint64(p); p += sizeof(uint64_t);
-	assert(((p - buffer) + sizeof(uint32_t)) < MAX_SIZE_IN_BYTES);		
-	custom_data_size_ = sz - (p - buffer);
-	assert(((p - buffer) + custom_data_size_) < MAX_SIZE_IN_BYTES);
-	if (custom_data_ != nullptr) delete [] custom_data_;
-	custom_data_ = new uint8_t [custom_data_size_];
-	memcpy(custom_data_, p, custom_data_size_);
-    }
-  
-    inline void write(uint8_t *buffer) const {
-        uint8_t *p = buffer;
-	write_uint64(p, key_); p += sizeof(uint64_t);
-	write_uint32(p, custom_data_size_); p += sizeof(uint32_t);
-	if (custom_data_ != nullptr) {
-	    memcpy(p, custom_data_, custom_data_size_);
-	}
-    }
+    void read(const uint8_t *buffer);
+    void write(uint8_t *buffer) const;
 
 private:
     uint64_t key_;
@@ -208,6 +188,8 @@ public:
     }
 
     void insert(size_t at_height, uint64_t key, const uint8_t *data, size_t data_size);
+
+    const triedb_leaf * find(size_t at_height, uint64_t key);
 
     triedb_iterator begin(size_t at_height);
     triedb_iterator begin(size_t at_height, uint64_t key);
@@ -324,6 +306,10 @@ private:
 
 class triedb_iterator {
 public:
+    inline triedb_iterator(const triedb_iterator &other) :
+        db_(other.db_), height_(other.height_), spine_(other.spine_) {
+    }
+  
     inline triedb_iterator(triedb &db, size_t at_height)
       : db_(db), height_(at_height) {
         auto parent_ptr = db.get_root(at_height);
@@ -342,6 +328,13 @@ public:
 
     inline triedb_iterator(triedb &db, size_t at_height, bool) 
         : db_(db), height_(at_height) {
+    }
+
+    inline triedb_iterator & operator = (const triedb_iterator &other) {
+        db_ = other.db_;
+	height_ = other.height_;
+	spine_ = other.spine_;
+	return *this;
     }
   
     inline triedb_iterator & operator ++ () {
@@ -444,7 +437,20 @@ inline triedb_iterator triedb::begin(size_t at_height, uint64_t key) {
 inline triedb_iterator triedb::end(size_t at_height) {
     return triedb_iterator(*this, at_height, true);
 }
-    
+
+inline const triedb_leaf * triedb::find(size_t at_height, uint64_t key)
+{
+    auto it = begin(at_height, key);
+    if (it == end(at_height)) {
+        return nullptr;
+    }
+    auto &leaf = *it;
+    if (leaf.key() != key) {
+        return nullptr;
+    }
+    return &leaf;
+}
+
 }}
 
 #endif
