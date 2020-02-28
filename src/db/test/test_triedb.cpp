@@ -45,7 +45,7 @@ static void test_basic()
 	
 	std::cout << "Create " << TEST_NUM_ENTRIES << " entries..." << std::endl;
 
-	uint64_t entries[TEST_NUM_ENTRIES];
+	uint64_t *entries = new uint64_t[TEST_NUM_ENTRIES];
 	for (size_t i = 0; i < TEST_NUM_ENTRIES; i++) {
 	    entries[i] = random::next_int(static_cast<uint64_t>(100000000));
 	}
@@ -53,6 +53,20 @@ static void test_basic()
 	for (size_t i = 0; i < TEST_NUM_ENTRIES; i++) {
 	    db.insert(i, entries[i], nullptr, 0);
 	}
+
+	uint64_t *sorted_entries = new uint64_t[TEST_NUM_ENTRIES];
+	std::copy(entries, entries+TEST_NUM_ENTRIES, sorted_entries);
+	std::sort(sorted_entries, sorted_entries+TEST_NUM_ENTRIES);
+
+	triedb_iterator it = db.begin(TEST_NUM_ENTRIES);
+	triedb_iterator it_end = db.end(TEST_NUM_ENTRIES);
+	for (; it != it_end; ++it) {
+	    auto &leaf = *it;
+	    std::cout << "Leaf: " << leaf.key() << std::endl;
+	}
+
+	delete [] entries;
+	delete [] sorted_entries;
 	
     } catch (triedb_exception &ex) {
         std::cout << "Exception: " << ex.what() << std::endl;

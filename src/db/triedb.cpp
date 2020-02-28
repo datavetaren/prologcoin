@@ -435,4 +435,158 @@ uint64_t triedb::append_branch_node(const triedb_branch &node)
     return offset;
 }
 
+void triedb_iterator::leftmost() {
+    if (spine_.empty()) {
+	return;
+    }
+    auto parent_ptr = spine_.back().parent_ptr;
+    auto *parent = db_.get_branch(parent_ptr);
+    while (!spine_.empty() && parent->mask() == 0) {
+	spine_.pop_back();
+	if (!spine_.empty()) {
+	    parent_ptr = spine_.back().parent_ptr;
+	    parent = db_.get_branch(parent_ptr);
+	}
+    }
+    if (spine_.empty()) {
+	return;
+    }
+    auto sub_index = spine_.back().sub_index;
+    while (parent->is_branch(sub_index)) {
+	parent_ptr = parent->get_child_pointer(sub_index);
+	parent = db_.get_branch(parent_ptr);
+	sub_index = common::lsb(parent->mask());
+	spine_.push_back(cursor(parent_ptr, sub_index));
+    }
+    // At this point we've must found a leaf
+}
+
+void triedb_iterator::rightmost() {
+    if (spine_.empty()) {
+	return;
+    }
+    auto parent_ptr = spine_.back().parent_ptr;
+    auto *parent = db_.get_branch(parent_ptr);
+    while (!spine_.empty() && parent->mask() == 0) {
+	spine_.pop_back();
+	if (!spine_.empty()) {
+	    parent_ptr = spine_.back().parent_ptr;
+	    parent = db_.get_branch(parent_ptr);
+	}
+    }
+    if (spine_.empty()) {
+	return;
+    }
+    auto sub_index = spine_.back().sub_index;
+    while (parent->is_branch(sub_index)) {
+	parent_ptr = parent->get_child_pointer(sub_index);
+	parent = db_.get_branch(parent_ptr);
+	sub_index = common::msb(parent->mask());
+	spine_.push_back(cursor(parent_ptr, sub_index));
+    }
+    // At this point we've must found a leaf
+}
+
+void triedb_iterator::start_from_key(uint64_t parent_ptr, uint64_t key) {
+    auto *parent = db_.get_branch(parent_ptr);
+    size_t part = 0;
+    size_t sub_index = get_sub_index(key, part);
+    auto m = parent->mask();
+    if (parent->is_empty(sub_index)) {
+	m &= (static_cast<uint32_t>(-1) << sub_index) << 1;
+	sub_index = (m == 0) ? triedb_params::MAX_BRANCH : common::lsb(m);
+	if (sub_index == triedb_params::MAX_BRANCH) {
+	    return;
+	}
+	spine_.push_back(cursor(parent_ptr, sub_index));
+	leftmost();
+	return;
+    }
+    
+    while (!parent->is_empty(sub_index) && parent->is_branch(sub_index)) {
+	spine_.push_back(cursor(parent_ptr, sub_index));
+	parent_ptr = parent->get_child_pointer(sub_index);
+	parent = db_.get_branch(parent_ptr);
+	part += triedb_params::MAX_BRANCH_BITS;
+	sub_index = get_sub_index(key, part);
+    }
+    
+    if (parent->is_empty(sub_index)) {
+	m = parent->mask();
+	m &= (static_cast<uint32_t>(-1) << sub_index) << 1;
+	sub_index = (m == 0) ? triedb_params::MAX_BRANCH : common::lsb(m);
+	if (sub_index == triedb_params::MAX_BRANCH) {
+	    sub_index = triedb_params::MAX_BRANCH - 1;
+	    spine_.push_back(cursor(parent_ptr, sub_index));
+	    next();
+	    return;
+	}
+	spine_.push_back(cursor(parent_ptr, sub_index));
+	leftmost();
+	return;
+    }
+    
+    spine_.push_back(cursor(parent_ptr, sub_index));
+    
+    bool found = false;
+    while (!spine_.empty() && !found) {
+	auto parent_ptr = spine_.back().parent_ptr;
+	auto sub_index = spine_.back().sub_index;
+	auto parent = db_.get_branch(parent_ptr);
+	auto *leaf = db_.get_leaf(parent, sub_index);
+	found = leaf->key() >= key;
+	if (!found) {
+	        next();
+	}
+    }
+}
+
+void triedb_iterator::next() {
+    auto parent_ptr = spine_.back().parent_ptr;
+    auto sub_index = spine_.back().sub_index;
+    auto *parent = db_.get_branch(parent_ptr);
+    auto mask_next = parent->mask() & ((static_cast<uint32_t>(-1) << sub_index) << 1);
+    while (mask_next == 0) {
+	spine_.pop_back();
+	if (spine_.empty()) {
+	    return;
+	}
+	parent_ptr = spine_.back().parent_ptr;
+	sub_index = spine_.back().sub_index;
+	parent = db_.get_branch(parent_ptr);
+	mask_next = parent->mask() & ((static_cast<uint32_t>(-1) << sub_index) << 1);
+    }
+    spine_.back().sub_index = common::lsb(mask_next);
+    leftmost();
+}
+
+void triedb_iterator::previous() {
+    if (at_end()) {
+	spine_.push_back(cursor(db_.get_root(height_),
+				triedb_params::MAX_BRANCH-1));
+	rightmost();
+	return;
+    }
+    auto parent_ptr = spine_.back().parent_ptr;
+    auto sub_index = spine_.back().sub_index;
+    auto parent = db_.get_branch(parent_ptr);
+    auto mask_prev = parent->mask() &
+	((static_cast<uint32_t>(-1) >> (31-sub_index)) >> 1);
+    
+    while (mask_prev == 0) {
+	spine_.pop_back();
+	if (spine_.empty()) {
+	    return;
+	}
+	parent_ptr = spine_.back().parent_ptr;
+	sub_index = spine_.back().sub_index;
+	parent = db_.get_branch(parent_ptr);
+	mask_prev = parent->mask() & 
+	    ((static_cast<uint32_t>(-1) >> (31-sub_index)) >> 1);
+    }
+    
+    spine_.back().sub_index = common::msb(mask_prev);
+    rightmost();
+}
+
 }}

@@ -13,6 +13,7 @@
 #include <iostream>
 #include <bitset>
 #include "../common/lru_cache.hpp"
+#include "../common/bits.hpp"
 #include "util.hpp"
 #include "triedb_params.hpp"
 
@@ -207,7 +208,11 @@ public:
     }
 
     void insert(size_t at_height, uint64_t key, const uint8_t *data, size_t data_size);
-  
+
+    triedb_iterator begin(size_t at_height);
+    triedb_iterator begin(size_t at_height, uint64_t key);
+    triedb_iterator end(size_t at_height);
+
 private:
     friend class triedb_iterator;
   
@@ -317,16 +322,21 @@ private:
     std::function<void(triedb &, triedb_branch &)> branch_update_fn_;
 };
 
-/*
 class triedb_iterator {
 public:
-    inline triedb_iterator(triedb &db, size_t at_height) : db_(db) {
+    inline triedb_iterator(triedb &db, size_t at_height)
+      : db_(db), height_(at_height) {
         spine_.push_back(cursor(db.get_root(at_height), 0));
 	leftmost();
     }
 
-    inline triedb_iterator(triedb &db, size_t at_height, uint64_t key) : db_(db)  {
+    inline triedb_iterator(triedb &db, size_t at_height, uint64_t key) 
+	: db_(db), height_(at_height)  {
         start_from_key(db.get_root(at_height), key);
+    }
+
+    inline triedb_iterator(triedb &db, size_t at_height, bool) 
+        : db_(db), height_(at_height) {
     }
   
     inline triedb_iterator & operator ++ () {
@@ -371,13 +381,15 @@ public:
     inline const triedb_leaf & operator * () const {
         auto parent_ptr = spine_.back().parent_ptr;
         auto sub_index = spine_.back().sub_index;
-        return *db_.get_leaf(parent_ptr, sub_index);
+	auto parent = db_.get_branch(parent_ptr);
+        return *db_.get_leaf(parent, sub_index);
     }
 
     inline const triedb_leaf * operator -> () const {
         auto parent_ptr = spine_.back().parent_ptr;
         auto sub_index = spine_.back().sub_index;
-        return db_.get_leaf(parent_ptr, sub_index);
+	auto parent = db_.get_branch(parent_ptr);
+        return db_.get_leaf(parent, sub_index);
     }    
 
     static triedb_iterator & erase(triedb_iterator &it);
@@ -387,180 +399,46 @@ public:
     }
 
 private:
-
-    inline void leftmost() {
-        if (spine_.empty()) {
-	    return;
-        }
-        auto parent_ptr = spine_.back().parent_ptr;
-	auto *parent = db_.get_branch(parent_ptr);
-	while (!spine_.empty() && parent->mask() == 0) {
-	    spine_.pop_back();
-	    if (!spine_.empty()) {
-	        parent_ptr = spine_.back().parent_ptr;
-		parfent = db_.get_branch(parent_ptr);
-	    }
-	}
-	if (spine_.empty()) {
-	    return;
-	}
-	auto index = spine_.back().sub_index;
-	while (parent->is_branch(sub_index)) {
-	    parent_ptr = db_.get_child_pointer(sub_index);
-  	    parent = db_.get_branch(parent, index);
-	    sub_index = common::lsb(parent->mask());
-  	    spine_.push_back(cursor(parent_ptr, sub_index));
-	}
-	// At this point we've must found a leaf
-    }
-
-    inline void rightmost() {
-        if (spine_.empty()) {
-	    return;
-        }
-        auto parent_ptr = spine_.back().parent_ptr;
-	auto *parent = db_.get_branch(parent_ptr);
-	while (!spine_.empty() && parent->mask() == 0) {
-	    spine_.pop_back();
-	    if (!spine.empty()) {
-	        parent_ptr = spine.back().parent_ptr;
-		parent = db_.get_branch(parent_ptr);
-	    }
-	}
-	if (spine.empty()) {
-	    return;
-	}
-	auto sub_index = spine_.back().sub_index;
-	while (parent->is_branch(sub_index)) {
-  	    parent_ptr = parent->get_child_pointer(sub_index);
-	    parent = get_branch(parent_ptr);
-	    sub_index = msb(parent->mask());
-  	    spine_.push_back(cursor(parent_ptr, sub_index));
-	}
-	// At this point we've must found a leaf
-    }
-  
+    void leftmost();
+    void rightmost();
     inline size_t get_sub_index(uint64_t key, size_t part) {
         return (key >> (triedb_params::MAX_KEY_SIZE_BITS -
 			triedb_params::MAX_BRANCH_BITS - part))
 	       & (triedb_params::MAX_BRANCH-1);
     }
 
-    inline void start_from_key(uint64_t parent_ptr, uint64_t key) {
-        auto *parent = db_.get_branch(parent_ptr);
-	size_t part = 0;
-	size_t sub_index = get_sub_index(key, at_part);
-	auto m = parent->mask();
-	if (parent->is_empty(sub_index)) {
-  	    m &= (static_cast<uint32_t>(-1) << sub_index) << 1;
-	    sub_index = (m == 0) ? triedb_params::MAX_BRANCH : common::lsb(m);
-	    if (sub_index == triedb_params::MAX_BRANCH) {
-	        return;
-	    }
-	    spine_.push_back(cursor(parent_ptr, sub_index));
-	    leftmost();
-	    return;
-	}
-
-	while (!parent->is_empty(sub_index) && parent->is_branch(sub_index)) {
-	    spine_.push_back(cursor(parent_ptr, sub_index));
-	    parent_ptr = parent->get_child_pointer(sub_index);
-	    parent = db_.get_parent(parent_ptr);
-	    part += triedb_params::MAX_BRANCH_BITS;
-	    sub_index = get_sub_index(key, part);
-	}
-
-	if (parent->is_empty(sub_index)) {
-  	    m = parent->mask();
-  	    m &= (static_cast<uint32_t>(-1) << index) << 1;
-	    index = (m == 0) ? triedb_params::MAX_BRANCH : common::lsb(m);
-   	    if (sub_index == triedb_params::MAX_BRANCH) {
-	        sub_index = triedb_params::MAX_BRANCH - 1;
-		spine_.push_back(cursor(parent_ptr, sub_index));
-	        next();
-		return;
-	    }
-	    spine_.push_back(cursor(parent_ptr, sub_index));
-	    leftmost();
-	    return;
-	}
-
-	spine_.push_back(cursor(parent_ptr, sub_index));
-	
-	if (parent->is_empty(sub_index)) {
-  	    next();
-	}
-
-	bool found = false;
-	while (!spine_.empty() && !found) {
-	    auto parent_ptr = spine_.back().parent_ptr;
-	    auto sub_index = spine_.back().sub_index;
-	    auto parent = db_.get_parent(parent_ptr);
-	    auto *leaf = db_.get_leaf(parent, sub_index);
-	    found = leaf->key() >= _key;
-	    if (!found) {
-	        next();
-	    }
-	}
-    }
+    void start_from_key(uint64_t parent_ptr, uint64_t key);
   
-    inline void next() {
-        auto parent_ptr = spine_.back().parent_ptr;
-        auto sub_index = spine_.back().sub_index;
-	auto *parent = db_.get_parent(parent_ptr);
-        auto mask_next = parent->mask() & ((static_cast<uint32_t>(-1) << sub_index) << 1);
-        while (mask_next == 0) {
-  	    spine_.pop_back();
-	    if (spine_.empty()) {
-	        return;
-	    }
-	    parent_ptr = spine_.back().parent_ptr;
-	    sub_index = spine_.back().sub_index;
-	    parent = db_.get_branch(parent_ptr);
-	    mask_next = parent->mask() & ((static_cast<uint32_t>(-1) << sub_index) << 1);
-        }
-        spine_.back().sub_index = common::lsb(mask_next);
-        leftmost();
-    }
+    void next();
+    void previous();
 
-    inline void previous() {
-        if (at_end()) {
-	    spine_.push_back(cursor(base_->root(),0));
-	    rightmost();
-	    return;
-        }
-	auto node = spine.back().node;
-	auto index = spine.back().index;
-        typename mtrie::word_t mask_prev = node->mask_ & ((static_cast<typename mtrie::word_t>(-1) >> (31-index)) >> 1);
-
-        while (mask_prev == 0) {
-  	    spine.pop_back();
-	    if (spine.empty()) {
-	        return;
-	    }
-	    node = spine.back().node;
-	    index = spine.back().index;
-	    mask_prev = node->mask_ & ((static_cast<typename mtrie::word_t>(-1) >> (31-index)) >> 1);
-        }
-
-        spine.back().index = msb(mask_prev);
-        rightmost();
-    }
-  
     struct cursor {
-        cursor(mtrie *_node, size_t _index) : node(_node), index(_index) { }
-        mtrie *node;
-        size_t index;
+        cursor(uint64_t _parent_ptr, size_t _sub_index)
+            : parent_ptr(_parent_ptr), sub_index(_sub_index) { }
+        uint64_t parent_ptr;
+        size_t sub_index;
 
         inline bool operator == (const cursor &other) const {
-	    return node == other.node && index == other.index;
+	    return parent_ptr == other.parent_ptr &&
+		   sub_index == other.sub_index;
         }
     };
-    merkle_trie_base<T,L> *base_;
-    std::vector<cursor> spine;
+    triedb &db_;
+    size_t height_;
+    std::vector<cursor> spine_;
 };
 
-*/    
+inline triedb_iterator triedb::begin(size_t at_height) {
+    return triedb_iterator(*this, at_height);
+}
+
+inline triedb_iterator triedb::begin(size_t at_height, uint64_t key) {
+    return triedb_iterator(*this, at_height, key);
+}
+
+inline triedb_iterator triedb::end(size_t at_height) {
+    return triedb_iterator(*this, at_height, true);
+}
     
 }}
 
