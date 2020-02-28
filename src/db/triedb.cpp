@@ -107,6 +107,7 @@ triedb::triedb(const triedb_params &params, const std::string &dir_path)
     leaf_cache_(triedb_params::cache_num_nodes(), leaf_flusher_),
     branch_flusher_(),
     branch_cache_(triedb_params::cache_num_nodes(), branch_flusher_),
+    roots_stream_(nullptr),
     branch_update_fn_(nullptr) {
     last_offset_ = scan_last_offset();
 
@@ -198,11 +199,17 @@ std::pair<triedb_branch *, uint64_t> triedb::insert_part(triedb_branch *node, ui
 	    // this new node will be directly recursed into and thus will
 	    // not needed to be stored on disk.
 	    size_t sub_sub_index = (leaf->key() >> (MAX_KEY_SIZE_BITS - 2*MAX_BRANCH_BITS - part)) & (MAX_BRANCH-1);
-	    triedb_branch new_branch(*node);
-	    new_branch.set_mask(static_cast<uint32_t>(1) << sub_sub_index);
-	    new_branch.set_leaf(sub_sub_index);
-	    new_branch.set_child_pointer(sub_sub_index, node->get_child_pointer(sub_index));
-	    return insert_part(&new_branch, key, data, data_size, part + MAX_BRANCH_BITS);
+	    triedb_branch tmp_branch;
+            tmp_branch.set_child_pointer(sub_sub_index, node->get_child_pointer(sub_index));
+	    tmp_branch.set_leaf(sub_sub_index);
+	    triedb_branch *new_child = nullptr;
+            uint64_t new_child_ptr = 0;
+            std::tie(new_child, new_child_ptr) = insert_part(&tmp_branch, key, data, data_size, part + MAX_BRANCH_BITS);
+            auto *new_branch = new triedb_branch(*node);
+            new_branch->set_child_pointer(sub_index, new_child_ptr);
+            new_branch->set_branch(sub_index);
+            auto ptr = append_branch_node(*new_branch);
+            return std::make_pair(new_branch, ptr);
 	}
     }
 
@@ -366,6 +373,10 @@ fstream * triedb::set_file_offset(uint64_t offset)
 
 uint64_t triedb::get_root(size_t at_height)
 {
+    assert(roots_.size() > 0);
+    if (at_height >= roots_.size()) {
+        at_height = roots_.size() - 1;
+    }
     return roots_[at_height];
 }
     

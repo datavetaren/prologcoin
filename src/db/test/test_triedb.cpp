@@ -14,6 +14,8 @@ using namespace prologcoin::db;
 std::string home_dir;
 std::string test_dir;
 
+extern "C" void DebugBreak();
+
 static void header( const std::string &str )
 {
     std::cout << "\n";
@@ -50,19 +52,31 @@ static void test_basic()
 	    entries[i] = random::next_int(static_cast<uint64_t>(100000000));
 	}
 
-	for (size_t i = 0; i < TEST_NUM_ENTRIES; i++) {
+        uint64_t *sorted_entries = new uint64_t[TEST_NUM_ENTRIES];
+        std::copy(entries, entries + TEST_NUM_ENTRIES, sorted_entries);
+        std::sort(sorted_entries, sorted_entries + TEST_NUM_ENTRIES);
+
+	std::cout << "Insert entries..." << std::endl;
+	
+        for (size_t i = 0; i < TEST_NUM_ENTRIES; i++) {
 	    db.insert(i, entries[i], nullptr, 0);
 	}
 
-	uint64_t *sorted_entries = new uint64_t[TEST_NUM_ENTRIES];
-	std::copy(entries, entries+TEST_NUM_ENTRIES, sorted_entries);
-	std::sort(sorted_entries, sorted_entries+TEST_NUM_ENTRIES);
-
+	std::cout << "Compare with expected baseline..." << std::endl;
+	
+	size_t i = 0;
+	
 	triedb_iterator it = db.begin(TEST_NUM_ENTRIES);
 	triedb_iterator it_end = db.end(TEST_NUM_ENTRIES);
-	for (; it != it_end; ++it) {
+	for (; it != it_end; ++it, ++i) {
 	    auto &leaf = *it;
-	    std::cout << "Leaf: " << leaf.key() << std::endl;
+	    uint64_t expect_key = sorted_entries[i];
+	    if (expect_key != leaf.key()) {
+	        std::cout << "Error at index " << i << std::endl;
+	        std::cout << "Actual key: " << leaf.key() << std::endl;
+	        std::cout << "Expect key: " << expect_key << std::endl;
+		assert(expect_key == leaf.key());
+	    }
 	}
 
 	delete [] entries;

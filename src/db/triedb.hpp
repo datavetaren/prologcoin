@@ -326,8 +326,13 @@ class triedb_iterator {
 public:
     inline triedb_iterator(triedb &db, size_t at_height)
       : db_(db), height_(at_height) {
-        spine_.push_back(cursor(db.get_root(at_height), 0));
-	leftmost();
+        auto parent_ptr = db.get_root(at_height);
+	auto *parent = db.get_branch(parent_ptr);
+	if (parent->mask() != 0) {
+	    spine_.push_back(cursor(parent_ptr,
+				    common::lsb(parent->mask())));
+	    leftmost();
+	}
     }
 
     inline triedb_iterator(triedb &db, size_t at_height, uint64_t key) 
