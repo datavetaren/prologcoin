@@ -173,9 +173,14 @@ class triedb : public triedb_params {
 public:
     triedb(const std::string &dir_path);
     triedb(const triedb_params &params, const std::string &dir_path);
+    ~triedb();
 
-    bool is_empty() const {
+    inline bool is_empty() const {
         return roots_.size() == 0;
+    }
+
+    inline void set_debug(bool b) {
+        debug_ = b;
     }
 
     void erase_all();
@@ -302,6 +307,8 @@ private:
     // This function is called whenever a branch node needs to be updated;
     // let the client update any custom data.
     std::function<void(triedb &, triedb_branch &)> branch_update_fn_;
+
+    bool debug_;
 };
 
 class triedb_iterator {

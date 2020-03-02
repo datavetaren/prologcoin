@@ -36,12 +36,17 @@ static void test_basic_check(triedb &db, uint64_t entries[], size_t n)
   
     std::cout << "Check if entries can be found through direct query..." << std::endl;
     for (size_t i = 0; i < n; i++) {
+        if (i >= 9990) {
+	    db.set_debug(true);
+	}
         auto *leaf = db.find(n, entries[i]);
 	if (leaf == nullptr) {
-	    std::cout << "Could find entry #" << i << ": key=" << entries[i] << std::endl;
+	    std::cout << "Could not find entry #" << i << ": key=" << entries[i] << std::endl;
 	    assert(leaf != nullptr && leaf->key() == entries[i]);
 	}
     }
+
+    db.set_debug(false);
     
     std::cout << "Compare with expected baseline..." << std::endl;
 	
@@ -94,8 +99,13 @@ static void test_basic()
         entries[i] = random::next_int(static_cast<uint64_t>(100000000));
     }
 
+    triedb_params params;
+    params.set_bucket_size(65536);
+    params.set_cache_num_streams(4);
+    params.set_cache_num_nodes(1024);
+    
     try {
-        triedb db(test_dir);
+        triedb db(params, test_dir);
 
 	if (!db.is_empty()) {
 	    std::cout << "Removing existing test database." << std::endl;
@@ -103,10 +113,6 @@ static void test_basic()
 	}
 			  
 	// Set block sizes to be smaller to create more files...
-
-	db.set_bucket_size(65536);
-	db.set_cache_num_streams(4);
-	db.set_cache_num_nodes(1024);
 	
 	std::cout << "Create " << TEST_NUM_ENTRIES << " entries..." << std::endl;
 
@@ -124,8 +130,8 @@ static void test_basic()
     }
 
     try { 
-        triedb db(test_dir);
-	DebugBreak();
+        triedb db(params, test_dir);
+	// DebugBreak();
 	test_basic_check(db, entries, TEST_NUM_ENTRIES);
     } catch (triedb_exception &ex) {
         std::cout << "Exception: " << ex.what() << std::endl;

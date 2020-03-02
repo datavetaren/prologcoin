@@ -145,6 +145,12 @@ triedb::triedb(const triedb_params &params, const std::string &dir_path)
     read_roots();
 }
 
+triedb::~triedb()
+{
+    flush();
+    if (roots_stream_) delete roots_stream_;
+}
+
 void triedb::erase_all()
 {
     branch_cache_.clear();
@@ -449,9 +455,6 @@ void triedb::read_branch_node(uint64_t offset, triedb_branch &node)
 {
     uint8_t buffer[triedb_branch::MAX_SIZE_IN_BYTES];
     auto *f = set_file_offset(offset);
-    if (offset > 6560000)
-        std::cout << "read_branch_node: offset=" << offset << " file_size=" << f->tellg() << std::endl;
-    
     f->read(reinterpret_cast<char *>(&buffer[0]), sizeof(uint32_t));
     uint32_t size = read_uint32(buffer);
     assert(size >= 4 && size < triedb_branch::MAX_SIZE_IN_BYTES);
@@ -477,8 +480,6 @@ uint64_t triedb::append_branch_node(const triedb_branch &node)
     size_t n = node.serialization_size();
     node.write(buffer);
     auto *f = set_file_offset(offset);
-    if (offset > 6560000)    
-      std::cout << "append_branch_node: offset=" << offset << " file_size=" << f->tellg() << std::endl;
     f->write(reinterpret_cast<char *>(&buffer[0]), n);
     last_offset_ += n;    
     return offset;
