@@ -84,8 +84,67 @@ static void test_basic_check(triedb &db, uint64_t entries[], size_t n)
 	}
     }
 
+    //
+    // Reverse iteration
+    //
+    std::cout << "Reverse iteration check..." << std::endl;
+    it_end = db.end(n-1);
+    it = it_end -1 ;
+    i = n - 1;
+    for (; it != it_end; --it, --i) {
+        auto &leaf = *it;
+	uint64_t expect_key = sorted_entries[i];
+	if (expect_key != leaf.key()) {
+	    std::cout << "Error at index " << i << std::endl;
+	    std::cout << "Actual key: " << leaf.key() << std::endl;
+	    std::cout << "Expect key: " << expect_key << std::endl;
+	    assert(expect_key == leaf.key());
+	}
+    }
+
+    //
+    // Reverse iteration
+    //
+    std::cout << "Reverse iteration check from half height..." << std::endl;
+    it_end = db.end(n/2-1);
+    it = it_end - 1;
+    i = n/2 - 1;
+    for (; it != it_end; --it, --i) {
+        auto &leaf = *it;
+	uint64_t expect_key = half_sorted_entries[i];
+	if (expect_key != leaf.key()) {
+	    std::cout << "Error at index " << i << std::endl;
+	    std::cout << "Actual key: " << leaf.key() << std::endl;
+	    std::cout << "Expect key: " << expect_key << std::endl;
+	    assert(expect_key == leaf.key());
+	}
+    }
+
+    std::cout << "Nearby searching..." << std::endl;
+    //
+    // Start iteration from key - 10000
+    // check 10 elements (or end of iteration)
+    //
+    it_end = db.end(n-1);
+    for (i = 0; i < n; i++) {
+       uint64_t from_key = sorted_entries[i] - 10000;
+       it = db.begin(n-1, from_key);
+       auto it_expect = std::lower_bound(&sorted_entries[0], &sorted_entries[n], from_key);
+       for (size_t j = 0; j < 10; j++, ++it, ++it_expect) {
+	   if (it == it_end) {
+	       break;
+  	   }
+	   if (it->key() != *it_expect) {
+	       std::cout << "Error at index " << i << "," << j << std::endl;
+	       std::cout << "Actual key: " << it->key() << std::endl;
+	       std::cout << "Expect key: " << *it_expect << std::endl;
+	       assert(it->key() == *it_expect);
+	   }
+	}
+    }
+    
     delete [] sorted_entries;
-    delete [] half_sorted_entries;    
+    delete [] half_sorted_entries;
 }
 
 static void test_basic()

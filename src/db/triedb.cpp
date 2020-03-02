@@ -612,8 +612,11 @@ void triedb_iterator::next() {
 
 void triedb_iterator::previous() {
     if (at_end()) {
-	spine_.push_back(cursor(db_.get_root(height_),
-				triedb_params::MAX_BRANCH-1));
+        auto parent_ptr = db_.get_root(height_);
+	auto parent = db_.get_branch(parent_ptr);
+	assert(parent->mask() != 0);
+	spine_.push_back(cursor(parent_ptr,
+				common::msb(parent->mask())));
 	rightmost();
 	return;
     }
