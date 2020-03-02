@@ -9,6 +9,11 @@ namespace prologcoin { namespace db {
 struct version_buffer {
     uint8_t buffer[triedb_params::VERSION_SZ];
 };
+
+struct meta_buffer {
+    static const size_t META_SZ = sizeof(uint32_t);
+    uint8_t buffer[META_SZ];
+};
     
 static void triedb_version_check(fstream *f, const std::string &file_path) {
     version_buffer buffer;
@@ -140,9 +145,9 @@ triedb::triedb(const triedb_params &params, const std::string &dir_path)
     branch_cache_(triedb_params::cache_num_nodes(), branch_flusher_),
     roots_stream_(nullptr),
     branch_update_fn_(nullptr) {
-    last_offset_ = scan_last_offset();
 
     read_roots();
+    last_offset_ = scan_last_offset();
 }
 
 triedb::~triedb()
@@ -272,17 +277,26 @@ fstream * triedb::get_roots_stream() {
     }
     auto file_path = roots_file_path();
     bool exists = boost::filesystem::exists(file_path);
+    uint8_t bucket_size_buffer[sizeof(uint32_t)];
     if (!exists) {
         auto parent_dir = file_path.parent_path();
 	boost::filesystem::create_directories(parent_dir);
 	fstream fs;
 	fs.open(file_path.string(), fstream::out | fstream::app | fstream::binary);
 	fs.write(triedb_params::VERSION, triedb_params::VERSION_SZ);
+	write_uint32(&bucket_size_buffer[0],
+		     common::checked_cast<uint32_t>(bucket_size()));
+	fs.write(reinterpret_cast<char *>(&bucket_size_buffer[0]),
+		 sizeof(bucket_size_buffer));
 	fs.close();
     }
     roots_stream_ = new fstream();
     roots_stream_->open(file_path.string(), fstream::in | fstream::out | fstream::binary);
     triedb_version_check(roots_stream_, file_path.string());
+    roots_stream_->read(reinterpret_cast<char *>(&bucket_size_buffer[0]),
+			sizeof(uint32_t));
+    size_t bucket_size = read_uint32(bucket_size_buffer);
+    set_bucket_size(bucket_size);
     return roots_stream_;
 }
 
@@ -290,10 +304,11 @@ void triedb::read_roots() {
     fstream *f = get_roots_stream();
     f->seekg(0, fstream::end);
     size_t file_size = f->tellg();
-    assert(file_size >= 16);
-    size_t num_roots = (file_size - VERSION_SZ) / sizeof(uint64_t);
+    size_t overhead_size = VERSION_SZ + sizeof(uint32_t);
+    assert(file_size >= overhead_size);
+    size_t num_roots = (file_size - overhead_size) / sizeof(uint64_t);
     roots_.resize(num_roots);
-    f->seekg(VERSION_SZ, fstream::beg);
+    f->seekg(overhead_size, fstream::beg);
     uint8_t buffer[sizeof(uint64_t)];
     for (size_t i = 0; i < num_roots; i++) {
         f->read(reinterpret_cast<char *>(&buffer[0]), sizeof(uint64_t));
@@ -310,7 +325,8 @@ void triedb::set_root(size_t height, uint64_t offset)
 	roots_.resize(height+1);
     }
     auto *f = get_roots_stream();
-    f->seekg(VERSION_SZ + height*sizeof(uint64_t), fstream::beg);
+    size_t overhead_size = VERSION_SZ + sizeof(uint32_t);    
+    f->seekg(overhead_size + height*sizeof(uint64_t), fstream::beg);
     uint8_t buffer[sizeof(uint64_t)];
     write_uint64(buffer, offset);
     f->write(reinterpret_cast<char *>(&buffer[0]), sizeof(uint64_t));

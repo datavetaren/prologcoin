@@ -189,8 +189,9 @@ static void test_basic()
     }
 
     try { 
-        triedb db(params, test_dir);
-	// DebugBreak();
+        triedb db(test_dir);
+	db.set_cache_num_streams(4);
+	db.set_cache_num_nodes(1024);	
 	test_basic_check(db, entries, TEST_NUM_ENTRIES);
     } catch (triedb_exception &ex) {
         std::cout << "Exception: " << ex.what() << std::endl;
