@@ -193,7 +193,15 @@ void triedb::flush()
     stream_cache_.foreach( [](size_t, fstream *f) { f->flush(); } );
 }
 
-void triedb::insert(size_t at_height, uint64_t key, const uint8_t *data, size_t data_size)
+void triedb::insert(size_t at_height, uint64_t key, const uint8_t *data, size_t data_size) {
+    insert_or_update(at_height, key, data, data_size, true);
+}
+
+void triedb::update(size_t at_height, uint64_t key, const uint8_t *data, size_t data_size) {
+    insert_or_update(at_height, key, data, data_size, false);
+}
+
+void triedb::insert_or_update(size_t at_height, uint64_t key, const uint8_t *data, size_t data_size, bool do_insert)
 {
     if (at_height >= roots_.size()) {
         // Grow with at most one height at a time
@@ -229,14 +237,15 @@ void triedb::insert(size_t at_height, uint64_t key, const uint8_t *data, size_t 
     }
       
     std::tie(new_branch, new_branch_ptr)
-        = insert_part(current_root, key, data, data_size);
+        = update_part(current_root, key, data, data_size, do_insert);
     set_root(at_height, new_branch_ptr);
 }
     
-std::pair<triedb_branch *, uint64_t> triedb::insert_part(triedb_branch *node,
+std::pair<triedb_branch *, uint64_t> triedb::update_part(triedb_branch *node,
 							 uint64_t key,
 							 const uint8_t *data,
-							 size_t data_size)
+							 size_t data_size,
+							 bool do_insert)
 {
     size_t max_key_bits = node->max_key_bits();
 
@@ -259,6 +268,12 @@ std::pair<triedb_branch *, uint64_t> triedb::insert_part(triedb_branch *node,
 	// substitute with the new data.
         auto *leaf = get_leaf(node, sub_index);
 	if (leaf->key() == key) {
+	    if (do_insert) {
+	        throw triedb_key_already_exists_exception(
+		    "There's already a key '"
+		    + boost::lexical_cast<std::string>(key)
+		    + "' in the database.");
+	    }
 	    auto *new_leaf = new triedb_leaf(key, data, data_size);
 	    auto leaf_ptr = append_leaf_node(*new_leaf);
 	    leaf_cache_.insert(leaf_ptr, new_leaf);
@@ -281,10 +296,11 @@ std::pair<triedb_branch *, uint64_t> triedb::insert_part(triedb_branch *node,
 	    tmp_branch.set_leaf(sub_sub_index);
 	    triedb_branch *new_child = nullptr;
             uint64_t new_child_ptr = 0;
-            std::tie(new_child, new_child_ptr) = insert_part(&tmp_branch, key, data, data_size);
+            std::tie(new_child, new_child_ptr) = update_part(&tmp_branch, key, data, data_size, do_insert);
             auto *new_branch = new triedb_branch(*node);
             new_branch->set_child_pointer(sub_index, new_child_ptr);
             new_branch->set_branch(sub_index);
+	    if (branch_update_fn_) branch_update_fn_(*this, *new_branch);
             auto ptr = append_branch_node(new_branch);
             return std::make_pair(new_branch, ptr);
 	}
@@ -293,7 +309,79 @@ std::pair<triedb_branch *, uint64_t> triedb::insert_part(triedb_branch *node,
     auto *child = get_branch(node, sub_index);
     triedb_branch *new_child = nullptr;
     uint64_t new_child_ptr = 0;
-    std::tie(new_child, new_child_ptr) = insert_part(child, key, data, data_size);
+    std::tie(new_child, new_child_ptr) = update_part(child, key, data, data_size, do_insert);
+    auto *new_branch = new triedb_branch(*node);
+    new_branch->set_child_pointer(sub_index, new_child_ptr);
+    if (branch_update_fn_) branch_update_fn_(*this, *new_branch);
+    auto new_branch_ptr = append_branch_node(new_branch);
+    return std::make_pair(new_branch, new_branch_ptr);
+}
+
+void triedb::remove(size_t at_height, uint64_t key) {
+    if (at_height >= roots_.size()) {
+        // Grow with at most one height at a time
+        assert(at_height == roots_.size() || at_height == roots_.size()+1);
+	if (roots_.size() == 0) {
+	     std::stringstream msg;
+	     msg << "Key '" << key << "' not found at height " << at_height;
+	     throw triedb_key_not_found_exception(msg.str());
+	}
+    }
+    uint64_t current_root_ptr = 0;
+    if (at_height >= roots_.size()) {
+        current_root_ptr = roots_[at_height-1];
+    } else {
+        current_root_ptr = roots_[at_height];
+    }
+    triedb_branch *current_root = get_branch(current_root_ptr);
+    triedb_branch *new_branch = nullptr;
+    uint64_t new_branch_ptr = 0;
+    size_t current_key_bits = current_root->max_key_bits();
+    size_t key_bits = triedb_branch::compute_max_key_bits(key);
+    if (key_bits > current_key_bits) {
+        std::stringstream msg;
+	msg << "Key '" << key << "' not found at height " << at_height;
+        throw triedb_key_not_found_exception(msg.str());
+    }
+      
+    std::tie(new_branch, new_branch_ptr) = remove_part(at_height, current_root, key);
+    set_root(at_height, new_branch_ptr);
+}
+
+std::pair<triedb_branch *, uint64_t> triedb::remove_part(size_t at_height,
+							 triedb_branch *node,
+							 uint64_t key)
+{
+    size_t max_key_bits = node->max_key_bits();
+
+    size_t sub_index = (key >> (max_key_bits - MAX_BRANCH_BITS))
+                        & (MAX_BRANCH-1);
+
+    // If the child is empty, then create a new node at that position
+    if (node->is_empty(sub_index)) {
+        std::stringstream msg;
+	msg << "Key '" << key << "' not found at height " << at_height;
+        throw triedb_key_not_found_exception(msg.str());
+    }
+    if (node->is_leaf(sub_index)) {
+	// Remove key
+        auto *leaf = get_leaf(node, sub_index);
+	if (leaf->key() != key) {
+	    std::stringstream msg;
+	    msg << "Key '" << key << "' not found at height " << at_height;
+	    throw triedb_key_already_exists_exception(msg.str());
+	}
+	auto *new_branch = new triedb_branch(*node);
+	new_branch->set_empty(sub_index);
+	if (branch_update_fn_) branch_update_fn_(*this, *new_branch);
+	auto ptr = append_branch_node(new_branch);
+	return std::make_pair(new_branch, ptr);
+    }
+
+    auto *child = get_branch(node, sub_index);
+    triedb_branch *new_child = nullptr;
+    uint64_t new_child_ptr = 0;
+    std::tie(new_child, new_child_ptr) = remove_part(at_height, child, key);
     auto *new_branch = new triedb_branch(*node);
     new_branch->set_child_pointer(sub_index, new_child_ptr);
     if (branch_update_fn_) branch_update_fn_(*this, *new_branch);

@@ -275,6 +275,8 @@ static void test_increasing()
 	throw ex;
     }
 
+    // Open the database again
+    
     try { 
         triedb db(test_dir);
 	db.set_cache_num_streams(4);
@@ -284,6 +286,31 @@ static void test_increasing()
         std::cout << "Exception: " << ex.what() << std::endl;
 	throw ex;      
     }
+
+    // Open the database again and remove every odd number
+
+    try {
+        size_t at_height = TEST_NUM_ENTRIES;
+        triedb db(test_dir);
+	std::cout << "Remove 1, 3, 5, ... up to 9999" << std::endl;
+	for (size_t i = 1; i < TEST_NUM_ENTRIES; i += 2) {
+	    db.remove(at_height, i);
+	}
+	std::cout << "Check database integrity..." << std::endl;
+
+	for (size_t i = 0; i < TEST_NUM_ENTRIES; i++) {
+	    auto *leaf = db.find(at_height, i);
+	    if (i % 2 == 0) {
+	        assert(leaf != nullptr && leaf->key() == i);
+  	    } else {
+	        assert(leaf == nullptr);
+	    }
+	}
+    } catch (triedb_exception &ex) {
+        std::cout << "Exception: " << ex.what() << std::endl;
+	throw ex;      
+    }
+    
 }
 
 int main(int argc, char *argv[])

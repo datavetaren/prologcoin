@@ -36,6 +36,16 @@ public:
     triedb_write_exception(const std::string &msg) : triedb_exception(msg) { }
 };
 
+class triedb_key_already_exists_exception : public triedb_exception {
+public:
+    triedb_key_already_exists_exception(const std::string &msg) : triedb_exception(msg) { }
+};    
+
+class triedb_key_not_found_exception : public triedb_exception {
+public:
+    triedb_key_not_found_exception(const std::string &msg) : triedb_exception(msg) { }
+};    
+    
 class triedb_node {
 };
     
@@ -140,6 +150,17 @@ public:
     inline bool is_empty(size_t sub_index) const {
         return ((mask_ >> sub_index) & 1) == 0;
     }
+
+    inline void set_empty(size_t sub_index) {
+        size_t child_index = std::bitset<triedb_params::MAX_BRANCH>(mask_ & (static_cast<uint32_t>(1) << sub_index) - 1).count();
+	size_t n = num_children();
+	for (size_t i = child_index; i < n; i++) {
+	    ptr_[i] = ptr_[i+1];
+	}
+	ptr_[n-1] = 0;
+        leaf_ &= ~(1 << sub_index);
+        mask_ &= ~(1 << sub_index);
+    }
   
     inline size_t custom_data_size() const
         { return custom_data_size_; }
@@ -209,6 +230,9 @@ public:
 
     void insert(size_t at_height, uint64_t key,
 		const uint8_t *data, size_t data_size);
+    void update(size_t at_height, uint64_t key,
+		const uint8_t *data, size_t data_size);
+    void remove(size_t at_height, uint64_t key);
 
     const triedb_leaf * find(size_t at_height, uint64_t key);
 
@@ -220,10 +244,18 @@ private:
     friend class triedb_iterator;
   
     // Return modified branch node
-    std::pair<triedb_branch *, uint64_t> insert_part(triedb_branch *node,
+    void insert_or_update(size_t at_height, uint64_t key,
+			  const uint8_t *data, size_t data_size, bool do_insert);
+  
+    std::pair<triedb_branch *, uint64_t> update_part(triedb_branch *node,
 						     uint64_t key,
 						     const uint8_t *data,
-						     size_t data_size);
+						     size_t data_size,
+						     bool do_insert);
+
+    std::pair<triedb_branch *, uint64_t> remove_part(size_t at_height,
+						     triedb_branch *node,
+						     uint64_t key);
   
     boost::filesystem::path roots_file_path() const;
     fstream * get_roots_stream();
