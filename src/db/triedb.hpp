@@ -93,9 +93,9 @@ class triedb_branch : public triedb_node {
 public:
     static const size_t MAX_SIZE_IN_BYTES = sizeof(uint32_t)*2 + sizeof(hash_t) + 32*sizeof(uint64_t) + 1024; // We're not allowed to have custom data bigger than 1024 bytes.
 
-    inline triedb_branch() : mask_(0), leaf_(0), ptr_(nullptr), custom_data_size_(0), custom_data_(nullptr) { }
+    inline triedb_branch() : max_key_bits_(0), mask_(0), leaf_(0), ptr_(nullptr), custom_data_size_(0), custom_data_(nullptr) { }
     inline triedb_branch(const triedb_branch &other)
-      : mask_(other.mask_), leaf_(other.leaf_), ptr_(nullptr), custom_data_size_(other.custom_data_size_), custom_data_(nullptr) {
+      : max_key_bits_(other.max_key_bits_), mask_(other.mask_), leaf_(other.leaf_), ptr_(nullptr), custom_data_size_(other.custom_data_size_), custom_data_(nullptr) {
         size_t n = num_children();
         ptr_ = new uint64_t[n];
 	memcpy(ptr_, other.ptr_, sizeof(uint64_t)*n);
@@ -103,6 +103,17 @@ public:
 	    custom_data_ = new uint8_t[custom_data_size_];
 	    memcpy(custom_data_, other.custom_data_, custom_data_size_);
 	}
+    }
+
+    static inline uint32_t compute_max_key_bits(uint64_t key) {
+        size_t required = common::msb(key) + 1;
+	required = ((required + triedb_params::MAX_BRANCH_BITS - 1) / triedb_params::MAX_BRANCH_BITS) * triedb_params::MAX_BRANCH_BITS;
+	return required;	
+    }
+  
+    inline void set_max_key_bits(size_t m) { max_key_bits_ = m; }
+    inline uint32_t max_key_bits() const {
+        return max_key_bits_;
     }
   
     inline uint32_t mask() const { return mask_; }
@@ -112,14 +123,14 @@ public:
         { return std::bitset<triedb_params::MAX_BRANCH>(mask_).count(); }
 
     inline bool is_leaf(size_t sub_index) const {
-        return ((leaf_ >> sub_index) & 1) != 0;
+        return !is_empty(sub_index) && ((leaf_ >> sub_index) & 1) != 0;
     }
     inline void set_leaf(size_t sub_index) {
 	leaf_ |= (1 << sub_index); 
     }
 
     inline bool is_branch(size_t sub_index) const {
-        return !is_leaf(sub_index);
+        return !is_empty(sub_index) && !is_leaf(sub_index);
     }
 
     inline void set_branch(size_t sub_index) {
@@ -162,6 +173,9 @@ public:
     }
   
 private:
+    // The biggest key in this node
+    // We use this to limit the height of the trie (to avoid all prefix 0s)
+    uint32_t max_key_bits_;
     uint32_t mask_;
     uint32_t leaf_;
     uint64_t *ptr_;
@@ -184,6 +198,7 @@ public:
     }
 
     void erase_all();
+    static void erase_all(const std::string &dir_path);
 
     void flush();
 
@@ -192,7 +207,8 @@ public:
        branch_update_fn_ = branch_updater;
     }
 
-    void insert(size_t at_height, uint64_t key, const uint8_t *data, size_t data_size);
+    void insert(size_t at_height, uint64_t key,
+		const uint8_t *data, size_t data_size);
 
     const triedb_leaf * find(size_t at_height, uint64_t key);
 
@@ -204,7 +220,10 @@ private:
     friend class triedb_iterator;
   
     // Return modified branch node
-    std::pair<triedb_branch *, uint64_t> insert_part(triedb_branch *node, uint64_t key, const uint8_t *data, size_t data_size, size_t part);
+    std::pair<triedb_branch *, uint64_t> insert_part(triedb_branch *node,
+						     uint64_t key,
+						     const uint8_t *data,
+						     size_t data_size);
   
     boost::filesystem::path roots_file_path() const;
     fstream * get_roots_stream();
@@ -223,7 +242,7 @@ private:
     uint64_t append_leaf_node(const triedb_leaf &node);
   
     void read_branch_node(uint64_t offset, triedb_branch &node);
-    uint64_t append_branch_node(const triedb_branch &node);
+    uint64_t append_branch_node(triedb_branch *node);
 
     inline triedb_leaf * get_leaf(uint64_t file_offset) {
         auto *r = leaf_cache_.find(file_offset);
@@ -406,10 +425,9 @@ public:
 private:
     void leftmost();
     void rightmost();
-    inline size_t get_sub_index(uint64_t key, size_t part) {
-        return (key >> (triedb_params::MAX_KEY_SIZE_BITS -
-			triedb_params::MAX_BRANCH_BITS - part))
-	       & (triedb_params::MAX_BRANCH-1);
+    inline size_t get_sub_index(triedb_branch *parent, uint64_t key) {
+      return (key >> (parent->max_key_bits() - triedb_params::MAX_BRANCH_BITS))
+	        & (triedb_params::MAX_BRANCH-1);
     }
 
     void start_from_key(uint64_t parent_ptr, uint64_t key);

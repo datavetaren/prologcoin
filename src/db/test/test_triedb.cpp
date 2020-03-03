@@ -49,7 +49,7 @@ static void test_basic_check(triedb &db, uint64_t entries[], size_t n)
     db.set_debug(false);
     
     std::cout << "Compare with expected baseline..." << std::endl;
-	
+    
     size_t i = 0;
 	
     triedb_iterator it = db.begin(n);
@@ -201,6 +201,91 @@ static void test_basic()
     delete [] entries;
 }
 
+static void test_increasing_check(triedb &db, size_t n)
+{
+    std::cout << "Testing finding keys directly..." << std::endl;
+    for (size_t i = 0; i < n; i++) {
+        auto *leaf = db.find(i, i);
+	assert(leaf->key() == i);
+	auto *not_found = db.find(i, i+1);
+	assert(not_found == nullptr);
+    }
+
+    std::cout << "Iteration check..." << std::endl;
+    auto it = db.begin(n, 0);
+    auto it_end = db.end(n);
+    size_t i = 0;
+    for (; it != it_end; ++it, ++i) {
+        auto &leaf = *it;
+	if (leaf.key() != i) {
+	    std::cout << "Error at index " << i << std::endl;
+	    std::cout << "Actual key: " << leaf.key() << std::endl;
+	    std::cout << "Expect key: " << i << std::endl;
+	}
+	assert(leaf.key() == i);
+    }
+
+    std::cout << "Reverse iteration check..." << std::endl;
+    it_end = db.end(n);
+    it = it_end - 1;
+    i = 9999;
+    for (; it != it_end; --it, --i) {
+        auto &leaf = *it;
+	if (leaf.key() != i) {
+	    std::cout << "Error at index " << i << std::endl;
+	    std::cout << "Actual key: " << leaf.key() << std::endl;
+	    std::cout << "Expect key: " << i << std::endl;
+	}
+	assert(leaf.key() == i);        
+    }
+}
+
+static void test_increasing()
+{
+    header("test_increasing");
+    
+    std::cout << "Test directory: " << test_dir << std::endl;
+    std::cout << "Remove any exisint files..." << std::endl;
+    triedb::erase_all(test_dir);
+
+    triedb_params params;
+    params.set_bucket_size(65536);
+    params.set_cache_num_streams(4);
+    params.set_cache_num_nodes(1024);
+    
+    try {
+        triedb db(params, test_dir);
+	std::cout << "Create " << TEST_NUM_ENTRIES << " entries as 0, 1, 2, 3, ..." << std::endl;
+
+	std::cout << "Insert entries..." << std::endl;
+	
+        for (size_t i = 0; i < TEST_NUM_ENTRIES; i++) {
+	    db.insert(i, i, nullptr, 0);
+
+	    // Zero presence check...
+	
+	    auto *zero_check = db.find(i, 0);
+	    assert(zero_check->key() == 0);
+	}
+
+	test_increasing_check(db, TEST_NUM_ENTRIES);
+	
+    } catch (triedb_exception &ex) {
+        std::cout << "Exception: " << ex.what() << std::endl;
+	throw ex;
+    }
+
+    try { 
+        triedb db(test_dir);
+	db.set_cache_num_streams(4);
+	db.set_cache_num_nodes(1024);	
+	test_increasing_check(db, TEST_NUM_ENTRIES);
+    } catch (triedb_exception &ex) {
+        std::cout << "Exception: " << ex.what() << std::endl;
+	throw ex;      
+    }
+}
+
 int main(int argc, char *argv[])
 {
     home_dir = find_home_dir(argv[0]);
@@ -210,6 +295,7 @@ int main(int argc, char *argv[])
     random::set_for_testing(true);
      
     test_basic();
+    test_increasing();
 
     return 0;
 }

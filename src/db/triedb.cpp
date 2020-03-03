@@ -77,6 +77,7 @@ void triedb_leaf::write(uint8_t *buffer) const {
 
 size_t triedb_branch::serialization_size() const {
     size_t sz = sizeof(uint32_t) +  // total size
+                sizeof(uint32_t) +  // max key bits
                 sizeof(uint32_t) +  // mask
                 sizeof(uint32_t) +  // leaf
                 sizeof(uint64_t)*num_children() + // ptrs
@@ -90,6 +91,8 @@ void triedb_branch::read(const uint8_t *buffer)
     const uint8_t *p = buffer;
     size_t sz = read_uint32(p); assert(sz >= 4 && sz < MAX_SIZE_IN_BYTES);
     p += sizeof(uint32_t);
+    assert(((p - buffer) + sizeof(uint32_t)) <= sz);
+    max_key_bits_ = read_uint32(p); p += sizeof(uint32_t);
     assert(((p - buffer) + sizeof(uint32_t)) <= sz);
     mask_ = read_uint32(p); p += sizeof(uint32_t);
     assert(((p - buffer) + sizeof(uint32_t)) <= sz);
@@ -116,6 +119,7 @@ void triedb_branch::write(uint8_t *buffer) const
     uint8_t *p = buffer;
     size_t sz = serialization_size();
     write_uint32(p, common::checked_cast<uint32_t>(sz)); p += sizeof(uint32_t);
+    write_uint32(p, max_key_bits_); p += sizeof(uint32_t);
     write_uint32(p, mask_); p += sizeof(uint32_t);
     write_uint32(p, leaf_); p += sizeof(uint32_t);
     size_t n = num_children();
@@ -173,6 +177,15 @@ void triedb::erase_all()
     roots_.clear();
 }
 
+void triedb::erase_all(const std::string &dir_path)
+{
+    boost::system::error_code ec;
+    boost::filesystem::remove_all(dir_path, ec);
+    if (ec) {
+      throw triedb_write_exception( "Failed while attempting to erase all; " + ec.message());
+    }
+}
+
 void triedb::flush()
 {
     if (roots_stream_) roots_stream_->flush();
@@ -187,28 +200,48 @@ void triedb::insert(size_t at_height, uint64_t key, const uint8_t *data, size_t 
         assert(at_height == roots_.size() || at_height == roots_.size()+1);
 	if (roots_.size() == 0) {
 	     auto *new_branch = new triedb_branch();
+	     new_branch->set_max_key_bits(5);
 	     if (branch_update_fn_) branch_update_fn_(*this, *new_branch);
-	     auto ptr = append_branch_node(*new_branch);
-	     branch_cache_.insert(ptr, new_branch);
+	     auto ptr = append_branch_node(new_branch);
 	     set_root(at_height, ptr);
 	}
     }
-    triedb_branch *prev_root = nullptr;
+    uint64_t current_root_ptr = 0;
     if (at_height >= roots_.size()) {
-        prev_root = get_branch(roots_[at_height-1]);
+        current_root_ptr = roots_[at_height-1];
     } else {
-        prev_root = get_branch(roots_[at_height]);
+        current_root_ptr = roots_[at_height];
     }
+    triedb_branch *current_root = get_branch(current_root_ptr);
     triedb_branch *new_branch = nullptr;
     uint64_t new_branch_ptr = 0;
-    std::tie(new_branch, new_branch_ptr) =
-      insert_part(prev_root, key, data, data_size, 0);
+    size_t current_key_bits = current_root->max_key_bits();
+    size_t key_bits = triedb_branch::compute_max_key_bits(key);
+    while (key_bits > current_key_bits) {
+        // Increase height of tree until current_key_bits == key_bits
+	current_key_bits += triedb_params::MAX_BRANCH_BITS;
+        auto *new_root = new triedb_branch();
+	new_root->set_max_key_bits(current_key_bits);
+	new_root->set_child_pointer(0, current_root_ptr);
+        auto new_root_ptr = append_branch_node(new_root);
+	current_root = new_root;
+	current_root_ptr = new_root_ptr;
+    }
+      
+    std::tie(new_branch, new_branch_ptr)
+        = insert_part(current_root, key, data, data_size);
     set_root(at_height, new_branch_ptr);
 }
     
-std::pair<triedb_branch *, uint64_t> triedb::insert_part(triedb_branch *node, uint64_t key, const uint8_t *data, size_t data_size, size_t part)
+std::pair<triedb_branch *, uint64_t> triedb::insert_part(triedb_branch *node,
+							 uint64_t key,
+							 const uint8_t *data,
+							 size_t data_size)
 {
-    size_t sub_index = (key >> (MAX_KEY_SIZE_BITS - MAX_BRANCH_BITS - part)) & (MAX_BRANCH-1);
+    size_t max_key_bits = node->max_key_bits();
+
+    size_t sub_index = (key >> (max_key_bits - MAX_BRANCH_BITS))
+                        & (MAX_BRANCH-1);
 
     // If the child is empty, then create a new node at that position
     if (node->is_empty(sub_index)) {
@@ -218,8 +251,8 @@ std::pair<triedb_branch *, uint64_t> triedb::insert_part(triedb_branch *node, ui
 	auto *new_branch = new triedb_branch(*node);
 	new_branch->set_child_pointer(sub_index, leaf_ptr);
 	new_branch->set_leaf(sub_index);
-	auto ptr = append_branch_node(*new_branch);
 	if (branch_update_fn_) branch_update_fn_(*this, *new_branch);
+	auto ptr = append_branch_node(new_branch);
 	return std::make_pair(new_branch, ptr);
     } else if (node->is_leaf(sub_index)) {
 	// If the child already has a child with the same key, then
@@ -233,24 +266,26 @@ std::pair<triedb_branch *, uint64_t> triedb::insert_part(triedb_branch *node, ui
 	    new_branch->set_child_pointer(sub_index, leaf_ptr);
 	    new_branch->set_leaf(sub_index);	    
 	    if (branch_update_fn_) branch_update_fn_(*this, *new_branch);
-	    auto ptr = append_branch_node(*new_branch);
+	    auto ptr = append_branch_node(new_branch);
 	    return std::make_pair(new_branch, ptr);
 	} else {
 	    // We need to create a branch node at sub_index, reorg the current
 	    // leaf at that position by pushing it down one level. However,
 	    // this new node will be directly recursed into and thus will
 	    // not needed to be stored on disk.
-	    size_t sub_sub_index = (leaf->key() >> (MAX_KEY_SIZE_BITS - 2*MAX_BRANCH_BITS - part)) & (MAX_BRANCH-1);
+  	    size_t sub_key_bits = max_key_bits - MAX_BRANCH_BITS;
+  	    size_t sub_sub_index = (leaf->key() >> (sub_key_bits - MAX_BRANCH_BITS)) & (MAX_BRANCH-1);
 	    triedb_branch tmp_branch;
+	    tmp_branch.set_max_key_bits(sub_key_bits);
             tmp_branch.set_child_pointer(sub_sub_index, node->get_child_pointer(sub_index));
 	    tmp_branch.set_leaf(sub_sub_index);
 	    triedb_branch *new_child = nullptr;
             uint64_t new_child_ptr = 0;
-            std::tie(new_child, new_child_ptr) = insert_part(&tmp_branch, key, data, data_size, part + MAX_BRANCH_BITS);
+            std::tie(new_child, new_child_ptr) = insert_part(&tmp_branch, key, data, data_size);
             auto *new_branch = new triedb_branch(*node);
             new_branch->set_child_pointer(sub_index, new_child_ptr);
             new_branch->set_branch(sub_index);
-            auto ptr = append_branch_node(*new_branch);
+            auto ptr = append_branch_node(new_branch);
             return std::make_pair(new_branch, ptr);
 	}
     }
@@ -258,11 +293,11 @@ std::pair<triedb_branch *, uint64_t> triedb::insert_part(triedb_branch *node, ui
     auto *child = get_branch(node, sub_index);
     triedb_branch *new_child = nullptr;
     uint64_t new_child_ptr = 0;
-    std::tie(new_child, new_child_ptr) = insert_part(child, key, data, data_size, part + MAX_BRANCH_BITS);
+    std::tie(new_child, new_child_ptr) = insert_part(child, key, data, data_size);
     auto *new_branch = new triedb_branch(*node);
     new_branch->set_child_pointer(sub_index, new_child_ptr);
     if (branch_update_fn_) branch_update_fn_(*this, *new_branch);
-    auto new_branch_ptr = append_branch_node(*new_branch);
+    auto new_branch_ptr = append_branch_node(new_branch);
     return std::make_pair(new_branch, new_branch_ptr);
 }
 
@@ -479,10 +514,10 @@ void triedb::read_branch_node(uint64_t offset, triedb_branch &node)
     node.read(buffer);
 }
 
-uint64_t triedb::append_branch_node(const triedb_branch &node)
+uint64_t triedb::append_branch_node(triedb_branch *node)
 {
     auto offset = last_offset_;
-    size_t num_bytes = node.serialization_size();
+    size_t num_bytes = node->serialization_size();
     size_t bucket_index = offset / bucket_size();
     auto first_offset = bucket_index * bucket_size();
     // Are we crossing the bucket boundary? 
@@ -493,11 +528,12 @@ uint64_t triedb::append_branch_node(const triedb_branch &node)
 	last_offset_ = offset;	
     }
     uint8_t buffer[triedb_branch::MAX_SIZE_IN_BYTES];
-    size_t n = node.serialization_size();
-    node.write(buffer);
+    size_t n = node->serialization_size();
+    node->write(buffer);
     auto *f = set_file_offset(offset);
     f->write(reinterpret_cast<char *>(&buffer[0]), n);
-    last_offset_ += n;    
+    last_offset_ += n;
+    branch_cache_.insert(offset, node);
     return offset;
 }
 
@@ -518,13 +554,20 @@ void triedb_iterator::leftmost() {
 	return;
     }
     auto sub_index = spine_.back().sub_index;
+    bool found = true;
     while (parent->is_branch(sub_index)) {
 	parent_ptr = parent->get_child_pointer(sub_index);
 	parent = db_.get_branch(parent_ptr);
+	if (parent->mask() == 0) {
+	    found = false;
+	    break;
+	}
 	sub_index = common::lsb(parent->mask());
 	spine_.push_back(cursor(parent_ptr, sub_index));
     }
-    // At this point we've must found a leaf
+    if (!found) {
+        next();
+    }
 }
 
 void triedb_iterator::rightmost() {
@@ -544,19 +587,25 @@ void triedb_iterator::rightmost() {
 	return;
     }
     auto sub_index = spine_.back().sub_index;
+    bool found = true;
     while (parent->is_branch(sub_index)) {
 	parent_ptr = parent->get_child_pointer(sub_index);
 	parent = db_.get_branch(parent_ptr);
+	if (parent->mask() == 0) {
+	    found = false;
+	    break;
+	}
 	sub_index = common::msb(parent->mask());
 	spine_.push_back(cursor(parent_ptr, sub_index));
     }
-    // At this point we've must found a leaf
+    if (!found) {
+        previous();
+    }
 }
 
 void triedb_iterator::start_from_key(uint64_t parent_ptr, uint64_t key) {
     auto *parent = db_.get_branch(parent_ptr);
-    size_t part = 0;
-    size_t sub_index = get_sub_index(key, part);
+    size_t sub_index = get_sub_index(parent, key);
     auto m = parent->mask();
     if (parent->is_empty(sub_index)) {
 	m &= (static_cast<uint32_t>(-1) << sub_index) << 1;
@@ -573,8 +622,7 @@ void triedb_iterator::start_from_key(uint64_t parent_ptr, uint64_t key) {
 	spine_.push_back(cursor(parent_ptr, sub_index));
 	parent_ptr = parent->get_child_pointer(sub_index);
 	parent = db_.get_branch(parent_ptr);
-	part += triedb_params::MAX_BRANCH_BITS;
-	sub_index = get_sub_index(key, part);
+	sub_index = get_sub_index(parent, key);
     }
     
     if (parent->is_empty(sub_index)) {
@@ -653,7 +701,7 @@ void triedb_iterator::previous() {
 	mask_prev = parent->mask() & 
 	    ((static_cast<uint32_t>(-1) >> (31-sub_index)) >> 1);
     }
-    
+
     spine_.back().sub_index = common::msb(mask_prev);
     rightmost();
 }
