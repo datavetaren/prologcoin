@@ -1,3 +1,4 @@
+#include <common/test/test_home_dir.hpp>
 #include <common/term_tools.hpp>
 #include <node/self_node.hpp>
 #include <node/session.hpp>
@@ -11,6 +12,8 @@ static void header( const std::string &str )
     std::cout << "--- [" + str + "] " + std::string(60 - str.length(), '-') << "\n";
     std::cout << "\n";
 }
+
+static std::string test_dir;
 
 //
 // This test does the following:
@@ -28,8 +31,9 @@ static void test_node_out()
     header("test_node_out()");
 
     bool success = false;
-    
-    self_node self;
+
+    self_node self(test_dir);
+    self.erase_db();
 
     // Make everything quicker.
     self.set_timer_interval(utime::ss(1));
@@ -71,8 +75,8 @@ static void test_address_verifier()
 {
     header("test_address_verifier()");
 
-    self_node self;
-    self_node self2(self_node::DEFAULT_PORT+1);
+    self_node self(test_dir);
+    self_node self2(test_dir, self_node::DEFAULT_PORT+1);
     std::string comment_str("foo(bar([17,4711],42))");
     self2.set_comment(comment_str + ".");
 
@@ -157,7 +161,7 @@ static void test_address_propagation()
     std::cout << "Setup from port " << self_node::DEFAULT_PORT << " to " << self_node::DEFAULT_PORT+num_nodes-1 << " (= " << num_nodes << " nodes.)" << std::endl;
     std::vector<self_node *> nodes;
     for (size_t i = 0; i < num_nodes; i++) {
-	auto *node = new self_node(self_node::DEFAULT_PORT+i);
+        auto *node = new self_node(test_dir, self_node::DEFAULT_PORT+i);
 	node->set_timer_interval(utime::ss(1));
 	node->set_time_to_live(utime::ss(2));
 	node->set_testing_mode(true);
@@ -345,6 +349,9 @@ static void test_address_propagation()
 
 int main(int argc, char *argv[])
 {
+    std::string home_dir = find_home_dir(argv[0]);
+    test_dir = (boost::filesystem::path(home_dir) / "bin" / "test" / "node" / "triedb").string();
+      
     test_node_out();
     test_address_verifier();
     test_address_propagation();

@@ -15,7 +15,7 @@ namespace prologcoin { namespace node {
 
 using namespace prologcoin::common;
 
-self_node::self_node(unsigned short port)
+self_node::self_node(const std::string &data_dir, unsigned short port)
     : name_("noname"),
       ioservice_(),
       endpoint_(self_node::tcp::v4(), port),
@@ -34,7 +34,9 @@ self_node::self_node(unsigned short port)
       initial_funds_(DEFAULT_INITIAL_FUNDS),
       maximum_funds_(DEFAULT_MAXIMUM_FUNDS),
       new_funds_per_second_(DEFAULT_NEW_FUNDS_PER_SECOND),
-      grant_root_for_local_(true)
+      grant_root_for_local_(true),
+      data_dir_(data_dir),
+      global_(data_dir_)
 {
     set_timer_interval(utime::ms(DEFAULT_TIMER_INTERVAL_MILLISECONDS));
     set_time_to_live(utime::ss(DEFAULT_TTL_SECONDS));

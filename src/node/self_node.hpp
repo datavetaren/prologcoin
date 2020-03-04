@@ -74,11 +74,13 @@ public:
     static const uint64_t DEFAULT_MAXIMUM_FUNDS = 10000;
     static const uint64_t DEFAULT_NEW_FUNDS_PER_SECOND = 100;
 
-    self_node(unsigned short port = DEFAULT_PORT);
+    self_node(const std::string &data_dir, unsigned short port = DEFAULT_PORT);
 
     inline term_env & env() { return env_; }
 
     inline global::global & global() { return global_; }
+
+    inline void erase_db() { global().erase_db(); }
 
     inline bool is_grant_root_for_local() const { return grant_root_for_local_; }
     inline void set_grant_root_for_local(bool b) { grant_root_for_local_ = b; }
@@ -90,8 +92,7 @@ public:
     inline void set_name(const std::string &name) { name_ = name; }
     inline const std::string & name() const { return name_; }
 
-    inline void set_data_directory(const std::string &dir) { data_directory_ = dir; }
-    inline const std::string & data_directory() const { return data_directory_; }
+    inline const std::string & data_directory() const { return data_dir_; }
 
     // Must be a Prolog term
     void set_comment(const std::string &str);
@@ -307,11 +308,11 @@ private:
     uint64_t new_funds_per_second_;
 
     bool grant_root_for_local_;
+
+    std::string data_dir_;
   
     // This is where the consensus is stored
     global::global global_;
-
-    std::string data_directory_;
 };
 
 inline address_book_wrapper::address_book_wrapper(self_node &self, address_book &book) : self_(self), book_(book)

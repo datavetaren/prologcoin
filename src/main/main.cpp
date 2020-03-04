@@ -36,7 +36,7 @@ static void start()
 {
     std::cout << std::endl;
 
-    self_node node(port);
+    self_node node(dir, port);
 
     if (!name.empty()) {
 	node.set_name(name);
@@ -46,8 +46,6 @@ static void start()
     std::cout << "Data directory: " << dir << std::endl;
     std::cout << std::endl;
 
-    node.set_data_directory(dir);
-    
     node.start();
 
     prologcoin::main::interactive_prompt prompt;

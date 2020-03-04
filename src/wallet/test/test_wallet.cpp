@@ -1,3 +1,4 @@
+#include <boost/filesystem.hpp>
 #include <common/test/test_home_dir.hpp>
 #include <common/utime.hpp>
 #include <wallet/wallet.hpp>
@@ -11,6 +12,7 @@ using namespace prologcoin::terminal;
 using namespace prologcoin::node;
 
 std::string home_dir;
+std::string test_dir;
 std::string wallet_home;
 
 static void header( const std::string &str )
@@ -59,7 +61,7 @@ static void test_wallet_tx()
     };
     
     // First start a node
-    self_node self;
+    self_node self(test_dir);
     self.start();
 
     // Connect a terminal to it
@@ -119,7 +121,8 @@ int main(int argc, char *argv[])
 {
     home_dir = find_home_dir(argv[0]);
     wallet_home = home_dir + "/src/wallet/test/wallet_test.pl";
-
+    test_dir = (boost::filesystem::path(home_dir) / "bin" / "test" / "wallet" / "triedb").string();
+    
     test_wallet();
     test_wallet_tx();
 

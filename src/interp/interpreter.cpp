@@ -212,27 +212,32 @@ bool interpreter::execute(const term query)
 
 bool interpreter::cont()
 {
-    set_complete(false);
-    while (!is_complete()) {
-        while (!is_complete()) {
-	    if (p().has_wam_code()) {
-	        bool ok = cont_wam();
-		if (!ok) {
-	  	    fail();
+    try {
+        set_complete(false);
+	while (!is_complete()) {
+	    while (!is_complete()) {
+	        if (p().has_wam_code()) {
+		    bool ok = cont_wam();
+		    if (!ok) {
+		        fail();
+		    }
+		} else {
+		    dispatch();
 		}
-	    } else {
-		dispatch();
+	    }
+
+	    if (is_complete() && has_meta_context()) {
+	        meta_context *mc = get_current_meta_context();
+		meta_fn fn = mc->fn;
+		if (!fn(*this, meta_reason_t::META_RETURN)) {
+		    set_complete(false);
+		    fail();
+		}
 	    }
 	}
-
-        if (is_complete() && has_meta_context()) {
-	    meta_context *mc = get_current_meta_context();
-	    meta_fn fn = mc->fn;
-	    if (!fn(*this, meta_reason_t::META_RETURN)) {
-		set_complete(false);
-		fail();
-	    }
-        }
+    } catch (std::runtime_error &ex) {
+        reset();
+	throw ex;
     }
 
     bool r = !is_top_fail();

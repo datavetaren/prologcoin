@@ -14,8 +14,6 @@ using namespace prologcoin::db;
 std::string home_dir;
 std::string test_dir;
 
-extern "C" void DebugBreak();
-
 static void header( const std::string &str )
 {
     std::cout << "\n";

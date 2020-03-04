@@ -22,6 +22,7 @@ public:
     struct node_spec {
 	std::string name;
 	unsigned short port;
+        std::string data_dir;
     };
 
     //
@@ -30,7 +31,8 @@ public:
     inline setup_nodes( const std::initializer_list<node_spec> &args )
     {
 	for (auto &ns : args) {
-	    auto *node = new self_node(ns.port);
+  	    auto *node = new self_node(ns.data_dir, ns.port);
+	    node->erase_db();
 	    node->set_name(ns.name);
 	    node->set_testing_mode(true); // Faster propagation
 	    node_map_[ns.name] = node;

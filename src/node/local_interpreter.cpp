@@ -670,7 +670,7 @@ bool local_interpreter::reset()
 	for (auto *task : to_remove) {
 	    resets.erase(task);
 	}
-	utime::sleep(utime::us(self_node().get_fast_timer_interval_microseconds()));
+	utime::sleep(utime::us(self().get_fast_timer_interval_microseconds()));
     }
     return !failed;
 }

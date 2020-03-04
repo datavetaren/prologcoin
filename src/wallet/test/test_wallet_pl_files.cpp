@@ -14,6 +14,8 @@ using namespace prologcoin::terminal;
 using namespace prologcoin::node;
 using namespace prologcoin::wallet;
 
+std::string test_dir;
+
 static void header( const std::string &str )
 {
     std::cout << "\n";
@@ -48,7 +50,9 @@ int main( int argc, char *argv[] )
 
     random::set_for_testing(true);
     
-    find_home_dir(argv[0]);
+    std::string home_dir = find_home_dir(argv[0]);
+    test_dir = (boost::filesystem::path(home_dir) / "bin" / "test" / "wallet" / "triedb").string();
+    
     full_mode = is_full(argc, argv);
 
     const char *name = find_name(argc, argv);
@@ -56,7 +60,8 @@ int main( int argc, char *argv[] )
     const std::string dir = "/src/wallet/test/pl_files";
 
     // First start a node
-    self_node self;
+    self_node self(test_dir);
+    self.erase_db();
     self.start();
 
     // Connect a terminal to it

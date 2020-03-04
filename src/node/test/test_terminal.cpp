@@ -1,13 +1,17 @@
+#include <common/test/test_home_dir.hpp>
 #include <iostream>
 #include <stdio.h>
 #include <stdlib.h>
 #include <iomanip>
 #include <node/self_node.hpp>
 #include <terminal/terminal.hpp>
+#include <boost/filesystem.hpp>
 
 using namespace prologcoin::common;
 using namespace prologcoin::node;
 using namespace prologcoin::terminal;
+
+std::string test_dir;
 
 static void header( const std::string &str )
 {
@@ -22,7 +26,8 @@ static void test_terminal()
 
     std::cout << "Start node at port 8000" << std::endl;
 
-    self_node node(8000);
+    self_node node(test_dir, 8000);
+    node.erase_db();
     node.start();
 
     std::cout << "Open terminal..." << std::endl;
@@ -68,6 +73,9 @@ static void test_terminal()
 
 int main(int argc, char *argv[])
 {
+    std::string home_dir = find_home_dir(argv[0]);
+    test_dir = (boost::filesystem::path(home_dir) / "bin" / "test" / "node" / "triedb").string();
+    
     test_terminal();
     return 0;
 }

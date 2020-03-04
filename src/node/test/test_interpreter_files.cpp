@@ -40,14 +40,17 @@ int main( int argc, char *argv[] )
 {
     header( "test_interpreter_files" );
 
-    find_home_dir(argv[0]);
+    std::string home_dir = find_home_dir(argv[0]);
     full_mode = is_full(argc, argv);
 
     const char *name = find_name(argc, argv);
 
     const std::string dir = "/src/node/test/pl_files";
 
-    self_node node;
+    std::string test_dir = (boost::filesystem::path(home_dir) / "bin" / "test" / "node" / "triedb").string();
+    
+    self_node node(test_dir);
+    node.erase_db();
     auto state = node.new_in_session(nullptr, true);
     auto &interp = state->interp();
     interp.ensure_initialized();

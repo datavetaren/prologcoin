@@ -1,5 +1,5 @@
 @echo off
-SET MODULES=common interp terminal secp256k1 pow ec coin global node wallet main
+SET MODULES=common db interp terminal secp256k1 pow ec coin global node wallet main
 
 IF "%1"=="all" (
 GOTO :ALL

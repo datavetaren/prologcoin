@@ -19,7 +19,10 @@ private:
     using buffer_t = prologcoin::common::term_serializer::buffer_t;
   
 public:
-    global();
+    global(const std::string &data_dir);
+
+    void erase_db();
+  
     inline term_env & env() { return interp_; }
     inline void set_naming(bool b) { interp_.set_naming(b); }
 
@@ -71,6 +74,7 @@ public:
     }
   
 private:
+    std::string data_dir_;
     global_interpreter interp_;
     size_t current_height_;
 };

@@ -1,3 +1,5 @@
+#include <common/test/test_home_dir.hpp>
+#include <boost/filesystem.hpp>
 #include <iostream>
 
 #include <common/utime.hpp>
@@ -5,6 +7,8 @@
 
 using namespace prologcoin::common;
 using namespace prologcoin::node;
+
+boost::filesystem::path test_dir;
 
 static void header( const std::string &str )
 {
@@ -18,10 +22,10 @@ static void test_operator_at_simple()
     header("test_operator_at_simple");
 
     term_env env;
-
-    setup_nodes network( { { "apple", 8000 },
-		           { "pear", 8001 },
-		           { "banana", 8002 } } );
+    
+    setup_nodes network({ { "apple", 8000, (test_dir / "db8000").string() },
+  	                  { "pear", 8001, (test_dir / "db8001").string() },
+		          { "banana", 8002, (test_dir /"db8002").string() } } );
 
     network.start();
 
@@ -118,6 +122,9 @@ static void test_operator_at_simple()
 
 int main(int argc, char *argv[])
 {
+    std::string home_dir = find_home_dir(argv[0]);
+    test_dir = boost::filesystem::path(home_dir) / "bin" / "test" / "node" / "triedb";
+  
     test_operator_at_simple();
 
     return 0;
