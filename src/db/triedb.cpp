@@ -382,8 +382,13 @@ std::pair<triedb_branch *, uint64_t> triedb::remove_part(size_t at_height,
     triedb_branch *new_child = nullptr;
     uint64_t new_child_ptr = 0;
     std::tie(new_child, new_child_ptr) = remove_part(at_height, child, key);
+    // Is the child completely empty?
     auto *new_branch = new triedb_branch(*node);
-    new_branch->set_child_pointer(sub_index, new_child_ptr);
+    if (new_child->mask() == 0) {
+        new_branch->set_empty(sub_index);
+    } else {
+        new_branch->set_child_pointer(sub_index, new_child_ptr);
+    }
     if (branch_update_fn_) branch_update_fn_(*this, *new_branch);
     auto new_branch_ptr = append_branch_node(new_branch);
     return std::make_pair(new_branch, new_branch_ptr);

@@ -306,6 +306,41 @@ static void test_increasing()
 	        assert(leaf == nullptr);
 	    }
 	}
+
+	std::cout << "Remove a range of values..." << std::endl;
+
+	for (size_t i = 1000; i < 2000; i += 2) {
+	    db.remove(at_height, i);
+	}
+
+	std::cout << "Check database integrity again..." << std::endl;
+
+	for (size_t i = 0; i < TEST_NUM_ENTRIES; i++) {
+	    auto *leaf = db.find(at_height, i);	     
+	    if (i % 2 == 0) {
+	        if (i < 1000 || i >= 2000) {
+		    assert(leaf != nullptr && leaf->key() == i);
+	        } else {
+		    assert(leaf == nullptr);
+		}
+  	    } else {
+	        assert(leaf == nullptr);	      
+	    }
+	}
+
+	std::cout << "Check database integrity through iteration..." << std::endl;
+	auto it = db.begin(at_height, 0);
+	auto it_end = db.end(at_height);
+
+	size_t i = 0;
+	for (; it != it_end; ++it) {
+	    assert(it->key() == i);
+	    ++i;
+	    if (i % 2 == 1) ++i;
+	    while (i >= 1000 && i < 2000) ++i;
+	}
+	assert(i == TEST_NUM_ENTRIES);
+
     } catch (triedb_exception &ex) {
         std::cout << "Exception: " << ex.what() << std::endl;
 	throw ex;      

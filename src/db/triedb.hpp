@@ -448,8 +448,6 @@ public:
         return db_.get_leaf(parent, sub_index);
     }    
 
-    static triedb_iterator & erase(triedb_iterator &it);
-
     inline bool at_end() const {
         return spine_.empty();
     }
