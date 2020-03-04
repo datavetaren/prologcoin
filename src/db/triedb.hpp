@@ -60,7 +60,7 @@ class triedb_node {
 //
 class triedb_leaf : public triedb_node {
 public:
-    static const size_t MAX_SIZE_IN_BYTES = sizeof(uint64_t) + 8192;
+    static const size_t MAX_SIZE_IN_BYTES = 65536*2;
   
     inline triedb_leaf()
         : key_(0), custom_data_size_(0), custom_data_(nullptr) { }
@@ -78,6 +78,14 @@ public:
     }
     inline const uint8_t * custom_data() const {
         return custom_data_;
+    }
+    inline uint8_t * custom_data() {
+        return custom_data_;
+    }
+    inline void allocate_custom_data(size_t data_size) {
+        if (custom_data_ != nullptr) delete [] custom_data_;
+	custom_data_ = new uint8_t [data_size];
+	custom_data_size_ = data_size;
     }
 
     inline size_t serialization_size() const {
@@ -166,7 +174,14 @@ public:
         { return custom_data_size_; }
     inline const uint8_t * custom_data() const
         { return custom_data_; }
-
+    inline uint8_t * custom_data() {
+        return custom_data_;
+    }
+    inline void allocate_custom_data(size_t data_size) {
+        if (custom_data_ != nullptr) delete [] custom_data_;
+	custom_data_ = new uint8_t [data_size];
+	custom_data_size_ = data_size;
+    }
     size_t serialization_size() const;
     void read(const uint8_t *buffer);
     void write(uint8_t *buffer) const;
@@ -234,11 +249,28 @@ public:
 		const uint8_t *data, size_t data_size);
     void remove(size_t at_height, uint64_t key);
 
-    const triedb_leaf * find(size_t at_height, uint64_t key);
+    const triedb_leaf * find(size_t at_height, uint64_t key,
+			   std::vector<std::pair<triedb_branch *, size_t> >
+			       *opt_path = nullptr);
 
     triedb_iterator begin(size_t at_height);
     triedb_iterator begin(size_t at_height, uint64_t key);
     triedb_iterator end(size_t at_height);
+
+    triedb_leaf * get_leaf(triedb_branch *parent, size_t sub_index) {
+        auto file_offset = parent->get_child_pointer(sub_index);
+	return get_leaf(file_offset);
+    }
+
+    triedb_branch * get_branch(triedb_branch *parent, size_t sub_index) {
+        auto file_offset = parent->get_child_pointer(sub_index);
+	return get_branch(file_offset);
+    }
+ 
+    triedb_branch * get_root_branch(size_t at_height) {
+        auto file_offset = get_root(at_height);
+	return get_branch(file_offset);
+    }
 
 private:
     friend class triedb_iterator;
@@ -288,11 +320,6 @@ private:
 	}
     }
 
-    triedb_leaf * get_leaf(triedb_branch *parent, size_t sub_index) {
-        auto file_offset = parent->get_child_pointer(sub_index);
-	return get_leaf(file_offset);
-    }
-
     inline triedb_branch * get_branch(uint64_t file_offset) {
         auto *r = branch_cache_.find(file_offset);
 	if (r == nullptr) {
@@ -303,11 +330,6 @@ private:
 	} else {
 	     return *r;
 	}
-    }
-
-    triedb_branch * get_branch(triedb_branch *parent, size_t sub_index) {
-        auto file_offset = parent->get_child_pointer(sub_index);
-	return get_branch(file_offset);
     }
 
     std::string dir_path_;
@@ -373,7 +395,8 @@ public:
         auto parent_ptr = db.get_root(at_height);
 	auto *parent = db.get_branch(parent_ptr);
 	if (parent->mask() != 0) {
-	    spine_.push_back(cursor(parent_ptr,
+	    spine_.push_back(cursor(parent,
+				    parent_ptr,
 				    common::lsb(parent->mask())));
 	    leftmost();
 	}
@@ -466,8 +489,9 @@ private:
     void previous();
 
     struct cursor {
-        cursor(uint64_t _parent_ptr, size_t _sub_index)
-            : parent_ptr(_parent_ptr), sub_index(_sub_index) { }
+        cursor(triedb_branch *_parent, uint64_t _parent_ptr, size_t _sub_index)
+	    : parent(_parent),parent_ptr(_parent_ptr), sub_index(_sub_index) { }
+        triedb_branch *parent;
         uint64_t parent_ptr;
         size_t sub_index;
 
@@ -479,12 +503,17 @@ private:
     triedb &db_;
     size_t height_;
     std::vector<cursor> spine_;
+
+public:
+    inline const std::vector<cursor> & path() const {
+        return spine_;
+    }
 };
 
 inline triedb_iterator triedb::begin(size_t at_height) {
     return triedb_iterator(*this, at_height);
 }
-
+    
 inline triedb_iterator triedb::begin(size_t at_height, uint64_t key) {
     return triedb_iterator(*this, at_height, key);
 }
@@ -493,7 +522,12 @@ inline triedb_iterator triedb::end(size_t at_height) {
     return triedb_iterator(*this, at_height, true);
 }
 
-inline const triedb_leaf * triedb::find(size_t at_height, uint64_t key)
+
+    
+inline const triedb_leaf * triedb::find(size_t at_height, uint64_t key,
+					std::vector<
+					    std::pair<triedb_branch *, size_t>
+					> *path_opt)
 {
     auto it = begin(at_height, key);
     if (it == end(at_height)) {
@@ -502,6 +536,12 @@ inline const triedb_leaf * triedb::find(size_t at_height, uint64_t key)
     auto &leaf = *it;
     if (leaf.key() != key) {
         return nullptr;
+    }
+    if (path_opt != nullptr) {
+        path_opt->clear();
+        for (auto &e : it.path()) {
+	    path_opt->push_back(std::make_pair(e.parent, e.sub_index));
+        }
     }
     return &leaf;
 }

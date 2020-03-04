@@ -656,7 +656,7 @@ void triedb_iterator::leftmost() {
 	    break;
 	}
 	sub_index = common::lsb(parent->mask());
-	spine_.push_back(cursor(parent_ptr, sub_index));
+	spine_.push_back(cursor(parent, parent_ptr, sub_index));
     }
     if (!found) {
         next();
@@ -689,7 +689,7 @@ void triedb_iterator::rightmost() {
 	    break;
 	}
 	sub_index = common::msb(parent->mask());
-	spine_.push_back(cursor(parent_ptr, sub_index));
+	spine_.push_back(cursor(parent, parent_ptr, sub_index));
     }
     if (!found) {
         previous();
@@ -706,13 +706,13 @@ void triedb_iterator::start_from_key(uint64_t parent_ptr, uint64_t key) {
 	if (sub_index == triedb_params::MAX_BRANCH) {
 	    return;
 	}
-	spine_.push_back(cursor(parent_ptr, sub_index));
+	spine_.push_back(cursor(parent, parent_ptr, sub_index));
 	leftmost();
 	return;
     }
     
     while (!parent->is_empty(sub_index) && parent->is_branch(sub_index)) {
-	spine_.push_back(cursor(parent_ptr, sub_index));
+        spine_.push_back(cursor(parent, parent_ptr, sub_index));
 	parent_ptr = parent->get_child_pointer(sub_index);
 	parent = db_.get_branch(parent_ptr);
 	sub_index = get_sub_index(parent, key);
@@ -724,16 +724,16 @@ void triedb_iterator::start_from_key(uint64_t parent_ptr, uint64_t key) {
 	sub_index = (m == 0) ? triedb_params::MAX_BRANCH : common::lsb(m);
 	if (sub_index == triedb_params::MAX_BRANCH) {
 	    sub_index = triedb_params::MAX_BRANCH - 1;
-	    spine_.push_back(cursor(parent_ptr, sub_index));
+	    spine_.push_back(cursor(parent, parent_ptr, sub_index));
 	    next();
 	    return;
 	}
-	spine_.push_back(cursor(parent_ptr, sub_index));
+	spine_.push_back(cursor(parent, parent_ptr, sub_index));
 	leftmost();
 	return;
     }
     
-    spine_.push_back(cursor(parent_ptr, sub_index));
+    spine_.push_back(cursor(parent, parent_ptr, sub_index));
     
     bool found = false;
     while (!spine_.empty() && !found) {
@@ -772,7 +772,7 @@ void triedb_iterator::previous() {
         auto parent_ptr = db_.get_root(height_);
 	auto parent = db_.get_branch(parent_ptr);
 	assert(parent->mask() != 0);
-	spine_.push_back(cursor(parent_ptr,
+	spine_.push_back(cursor(parent, parent_ptr,
 				common::msb(parent->mask())));
 	rightmost();
 	return;
