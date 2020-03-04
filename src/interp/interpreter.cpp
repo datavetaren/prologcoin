@@ -235,9 +235,9 @@ bool interpreter::cont()
 		}
 	    }
 	}
-    } catch (std::runtime_error &ex) {
+    } catch (std::runtime_error &) {
         reset();
-	throw ex;
+	throw;
     }
 
     bool r = !is_top_fail();
