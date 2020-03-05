@@ -1347,11 +1347,8 @@ public:
 
     inline void new_ref(size_t cnt)
     {
-	size_t index;
-	cell *p;
-	std::tie(p, index) = allocate(tag_t::REF, cnt);
 	for (size_t i = 0; i < cnt; i++) {
-	    static_cast<ref_cell &>(p[i]).set_index(index+i);
+	    new_ref();
 	}
     }
 
