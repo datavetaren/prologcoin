@@ -343,6 +343,75 @@ bool heap::check_functor(const cell c) const
     return true;
 }
 
+bool heap::check_term(const term t, std::string *name) const
+{
+  std::unordered_set<size_t> visited;
+  std::vector<std::pair<cell, size_t> > worklist;
+
+  switch(t.tag()) {
+  case tag_t::REF:
+  case tag_t::RFW:
+  case tag_t::STR:
+    worklist.push_back(std::pair<cell, size_t>(t, reinterpret_cast<const ptr_cell &>(t).index()));
+    break;
+  case tag_t::CON:
+    return (reinterpret_cast<const con_cell &>(t)).arity() == 0;
+  case tag_t::INT:
+    return true;
+    // We shouldn't see the ones below directly
+  case tag_t::BIG:
+  case tag_t::DAT:
+  case tag_t::FWD:
+    return true;
+  }
+
+  // Start checking the heap
+  while(worklist.size() > 0) {
+    auto parent_index = worklist.back();
+    cell parent = parent_index.first;
+    auto index = parent_index.second;
+    worklist.pop_back();
+    visited.insert(index);
+    cell index_cell = (*this)[index];
+    switch(index_cell.tag()) {
+    case tag_t::REF:
+    case tag_t::RFW:
+    case tag_t::STR: {
+      auto ptr_index = (reinterpret_cast<const ptr_cell &>(index_cell)).index();
+      if(visited.find(ptr_index) == visited.end())
+	worklist.push_back(std::pair<tag_t, size_t>(index_cell.tag(), ptr_index));
+    }
+      break;
+    case tag_t::CON: {
+      auto con = (reinterpret_cast<const con_cell &>(index_cell));
+      if(name != nullptr && atom_name(con) == *name) {
+	//	std::cout << "Found term containing '" << *name << "\n";
+	return true;
+      }
+      auto arity = con.arity();
+      if(parent.tag() == tag_t::CON && arity > 0) {
+	//	//	std::cout << "Error!!! CON '" << atom_name(reinterpret_cast<con_cell&>(parent)) << "' contains CON '" << atom_name(con) << "' with arity "
+	//		  << arity << " greater than 0\n";
+	return false;
+      }
+      for(int i = 0; i < arity; i++) {
+	// TODO: check that the arguments are correct
+	auto arg_index = index+1+i;
+	if(visited.find(arg_index) == visited.end())
+	  worklist.push_back(std::pair<cell, size_t>(index_cell, arg_index));
+      }
+      }
+      break;
+    case tag_t::INT:
+    case tag_t::BIG:
+    case tag_t::DAT:
+    case tag_t::FWD:
+      break;
+    }
+  }
+  return true;
+}
+
 size_t heap::resolve_atom_index(const std::string &name) const
 {
     auto found = atom_name_to_index_table_.find(name);

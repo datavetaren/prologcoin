@@ -1391,6 +1391,7 @@ public:
         return find_block(addr).watched(addr);
     }  
   
+    bool check_term(const term t, std::string *name = nullptr) const;
 private:
     friend class term_emitter;
 

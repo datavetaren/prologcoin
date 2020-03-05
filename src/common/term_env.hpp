@@ -148,6 +148,9 @@ public:
     inline untagged_cell heap_get_untagged(size_t index)
         { return T::get_heap().untagged_at(index); }
 
+    inline bool check_term(const term t) const
+       { return T::get_heap().check_term(t); }
+
     // Term management
     inline term new_ref()
         { return T::get_heap().new_ref(); }
