@@ -85,7 +85,17 @@ length(Xs, N) :- '$length'(Xs,N,0).
 )PROG";
 
     set_current_module(con_cell("system",0));
-    load_program(lib);
+    // Check if standard library is already available
+    // (This enables the client of this class to load the library in a
+    //  different way, e.g. the global interpreter will restore a global
+    //  persistent state.)
+    auto &member_2 = get_predicate(con_cell("system",0), con_cell("member",2));
+    if (member_2.empty()) {
+        // Nope, so load it
+        load_program(lib);
+	auto &member_2_verify = get_predicate(con_cell("system",0), con_cell("member",2));
+	assert(!member_2_verify.empty());
+    }
     load_builtin(con_cell("consult", 1), consult_1);
     compile();
     set_current_module(con_cell("user",0));

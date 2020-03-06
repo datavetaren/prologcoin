@@ -61,7 +61,13 @@ reward(PubKeyAddr) :-
 
 )PROG";
 
-    interp.load_program(lib);
+    auto &tx_5 = interp.get_predicate(con_cell("user",0), con_cell("tx",5));
+    if (tx_5.empty()) {
+        // Nope, so load it
+        interp.load_program(lib);
+	auto &tx_5_verify = interp.get_predicate(con_cell("user",0), con_cell("tx",5));
+	assert(!tx_5_verify.empty());
+    }
     interp.compile();
 }
   
