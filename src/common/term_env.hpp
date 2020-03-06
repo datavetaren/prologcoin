@@ -141,6 +141,8 @@ public:
     inline heap_dock() { }
 
     // Heap management
+    inline void heap_setup_get_block_function( heap::get_block_fn fn)
+        { T::get_heap().setup_get_block_fn(fn); }
     inline void heap_set(size_t index, term t)
         { T::get_heap()[index] = t; }
     inline term heap_get(size_t index) const

@@ -711,7 +711,7 @@ private:
 //
 class heap_block : private boost::noncopyable {
 public:
-    static const size_t MAX_SIZE = 1024*128;
+    static const size_t MAX_SIZE = 8192; // 64k
 
     inline heap_block() : index_(0), offset_(0),
 			  size_(0), cells_(nullptr) { init_cells(); }
@@ -751,10 +751,6 @@ public:
 
     inline void trim(size_t n) {
 	size_ = n;
-    }
-
-    inline void fill() {
-	size_ = MAX_SIZE;
     }
 
     // Will transform REF into RFW if value is true and
@@ -1392,37 +1388,45 @@ public:
 private:
     friend class term_emitter;
 
-    inline size_t new_block()
-    {
-	heap_block *last_block = blocks_.back();
-	size_t last_offset = last_block->offset();
-	size_t new_offset = last_offset + heap_block::MAX_SIZE;
-	new_block(new_offset);
-	last_block->fill();
-	size_ = new_offset;
-	return new_offset;
-    }
-
-    inline void new_block(size_t offset)
-    {
-	heap_block *block = new heap_block(blocks_.size(), offset);
-	head_block_ = block;
-	blocks_.push_back(block);
-    }
-
     inline size_t find_block_index(size_t addr) const
     {
 	return addr / heap_block::MAX_SIZE;
     }
 
+public:
+    static const size_t NEW_BLOCK = static_cast<size_t>(-1);
+
+    static inline heap_block & get_block_default(heap &h, size_t block_index)
+    {
+        if (block_index == NEW_BLOCK) {
+  	    new_block_default(h);
+	    block_index = h.blocks_.size();
+	}
+        return *h.blocks_[block_index];
+    }
+private:
+
+    inline void set_head_block(heap_block *h) {
+        head_block_ = h;
+        size_ = h->index() * heap_block::MAX_SIZE;
+    }
+  
+    static inline void new_block_default(heap &h)
+    {
+        size_t new_offset = h.blocks_.size() * heap_block::MAX_SIZE;
+	heap_block *block = new heap_block(h.blocks_.size(), new_offset);
+	h.set_head_block(block);
+	h.blocks_.push_back(block);
+    }
+
     inline heap_block & find_block(size_t addr)
     {
-	return *blocks_[find_block_index(addr)];
+        return get_block_fn_(*this, find_block_index(addr));
     }
 
     inline const heap_block & find_block(size_t addr) const
     {
-	return *blocks_[find_block_index(addr)];
+        return get_block_fn_(const_cast<heap &>(*this), find_block_index(addr));
     }
 
     inline const bool in_range(size_t addr) const
@@ -1431,8 +1435,8 @@ private:
     }
 
     inline void ensure_allocate(size_t n) {
-	if (!head_block_->can_allocate(n)) {
-	    new_block();
+        if (head_block_ == nullptr || !head_block_->can_allocate(n)) {
+	    get_block_fn_(*this, NEW_BLOCK);
 	}
     }
 
@@ -1513,6 +1517,12 @@ public:
     static const con_cell COIN;
 
     template<typename T> friend class ext;
+
+    typedef heap_block & (*get_block_fn)(heap &h, size_t block_index);
+    inline void setup_get_block_fn(get_block_fn fn) { get_block_fn_ = fn; }
+
+private:
+    get_block_fn get_block_fn_;
 };
 
 template<typename T> inline big_iterator_base<T>::big_iterator_base(heap &h, size_t index, size_t num) 

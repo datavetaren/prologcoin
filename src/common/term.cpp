@@ -259,10 +259,11 @@ std::string dat_cell::inner_str() const
 
 heap::heap() 
   : size_(0),
+    head_block_(nullptr),
     coin_security_enabled_(true),
     external_ptrs_max_(0)
 {
-    new_block(0);
+    get_block_fn_ = &get_block_default;
 }
 
 heap::~heap()

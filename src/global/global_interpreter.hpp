@@ -44,6 +44,10 @@ public:
 
     global & get_global() { return global_; }
 
+    inline static common::heap_block & global_get_block(common::heap &h, size_t block_index) {
+        return common::heap::get_block_default(h, block_index);
+    }
+  
     static void setup_consensus_lib(interpreter &interp);
   
     inline void set_naming(bool b) { naming_ = b; }
