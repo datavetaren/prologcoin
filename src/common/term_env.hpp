@@ -446,7 +446,7 @@ typedef std::unordered_map<term, std::string> naming_map;
 
 class term_utils : public heap_proxy, stacks_proxy, ops_proxy {
 public:
-    term_utils(heap &h, stacks &s, term_ops &o) : heap_proxy(h), stacks_proxy(s), ops_proxy(o) { }
+    term_utils(heap &h, stacks &s, term_ops &o) : heap_proxy(h), stacks_proxy(s), ops_proxy(o), dont_copy_big_(false) { }
 
     bool unify(term a, term b, uint64_t &cost);
     term copy(const term t, naming_map &names, uint64_t &cost);
@@ -485,6 +485,10 @@ public:
 		       std::vector<std::string> &msgs);
     
 
+    inline void set_dont_copy_big(bool b) {
+        dont_copy_big_ = b;
+    }
+  
 private:
     void restore_cells_after_unify();
     bool unify_helper(term a, term b, uint64_t &cost);
@@ -507,6 +511,12 @@ private:
             heap_set(index, ref_cell(index));
         }
     }
+
+    inline bool dont_copy_big() {
+        return dont_copy_big_;
+    }
+
+    bool dont_copy_big_;
 };
 
 template<typename HT, typename ST, typename OT> class term_env_dock
@@ -605,6 +615,14 @@ public:
   {
       term_utils utils(heap_dock<HT>::get_heap(), stacks_dock<ST>::get_stacks(), ops_dock<OT>::get_ops());
       return utils.copy(t, var_naming(), src.get_heap(), src.var_naming(), cost);
+  }
+
+  inline term copy_except_big(term t, uint64_t &cost)
+  {
+      term_utils utils(heap_dock<HT>::get_heap(), stacks_dock<ST>::get_stacks(), ops_dock<OT>::get_ops());
+      utils.set_dont_copy_big(true);
+      return utils.copy(t, var_naming(), heap_dock<HT>::get_heap(),
+			var_naming(), cost);
   }
 
   inline std::string list_to_string(term t, term_env_dock<HT,ST,OT> &src)

@@ -190,11 +190,30 @@ std::vector<code_point> * wam_compiler::new_merge()
 
 wam_compiler::~wam_compiler()
 {
+    clear();
+}
+
+void wam_compiler::clear()
+{
     for (auto *merge : merges_) {
 	delete merge;
     }
+    merges_.clear();
+    argument_pos_.clear();
+    term_map_.clear();
+    regs_a_.clear();
+    regs_x_.clear();
+    regs_y_.clear();
+    label_count_ = 1;
+    goal_count_ = 0;
+    level_count_ = 0;
+    var_index_.clear();
+    index_var_.clear();
+    seen_vars_.reset();
+    varsets_.clear();
+    stack_.clear();
 }
-
+    
 std::vector<wam_compiler::prim_unification> wam_compiler::flatten(
 	  const term t,
 	  wam_compiler::compile_type for_type,
@@ -390,7 +409,7 @@ void wam_compiler::compile_query(wam_compiler::reg lhsreg, common::ref_cell lhsv
       case common::tag_t::BIG:
 	// We have X = a or X = 4711
 	if (lhsreg.type == A_REG) {
-  	    instrs.push_back(wam_instruction<PUT_CONSTANT>(rhs, lhsreg.num));
+	    instrs.push_back(wam_instruction<PUT_CONSTANT>(rhs, lhsreg.num));
 	} else {
 	    instrs.push_back(wam_instruction<SET_CONSTANT>(rhs));
 	}
@@ -1755,7 +1774,7 @@ void wam_compiler::compile_clause(const managed_clause &m_clause,
     // (inside compile_query_or_program) touches the vars as it
     // unfolds the inner terms.
 
-    term clause = interp_.copy(clause0);
+    term clause = interp_.copy_except_big(clause0);
 
     seq.push_back(wam_instruction<COST>(m_clause.cost()));
 

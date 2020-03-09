@@ -304,6 +304,7 @@ public:
     inline wam_instruction_term_reg(fn_type fn, uint64_t sz_bytes, wam_instruction_type t, common::term te, uint32_t r)
         : wam_instruction_term(fn, sz_bytes, t, te), reg_(r)
     {
+        
     }
 
     inline uint32_t reg() const {
@@ -2083,7 +2084,7 @@ public:
 template<> class wam_instruction<PUT_CONSTANT> : public wam_instruction_term_reg {
 public:
     inline wam_instruction(common::term c, uint32_t ai) :
-	wam_instruction_term_reg(&invoke, sizeof(*this), PUT_CONSTANT,c,ai) {
+       wam_instruction_term_reg(&invoke, sizeof(*this), PUT_CONSTANT,c,ai) {
         init();
     }
 
@@ -2417,7 +2418,7 @@ public:
 template<> class wam_instruction<GET_CONSTANT> : public wam_instruction_term_reg {
 public:
     inline wam_instruction(common::term c, uint32_t ai) :
-	wam_instruction_term_reg(&invoke, sizeof(*this), GET_CONSTANT,c,ai) {
+       wam_instruction_term_reg(&invoke, sizeof(*this), GET_CONSTANT,c,ai) {
         init();
     }
 
@@ -2682,7 +2683,7 @@ public:
 template<> class wam_instruction<SET_CONSTANT> : public wam_instruction_term {
 public:
     inline wam_instruction(common::term t) :
-	wam_instruction_term(&invoke, sizeof(*this), SET_CONSTANT,t) {
+       wam_instruction_term(&invoke, sizeof(*this), SET_CONSTANT,t) {
         init();
     }
     

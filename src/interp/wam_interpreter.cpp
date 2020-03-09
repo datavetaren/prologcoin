@@ -106,7 +106,10 @@ bool wam_interpreter::cont_wam()
 
 void wam_interpreter::compile(const qname &qn)
 {
+    size_t heap_sz = heap_size();
+  
     wam_interim_code instrs(*this);
+    compiler_->clear();
     if (!compiler_->compile_predicate(qn, instrs)) {
         return;
     }
@@ -120,6 +123,8 @@ void wam_interpreter::compile(const qname &qn)
     set_wam_predicate(qn, next_instr, xn_size, yn_size);
     code_point cp(next_instr);
     set_code(qn, cp);
+
+    trim_heap_safe(heap_sz);
 }
 
 void wam_interpreter::compile(common::con_cell module, common::con_cell name)

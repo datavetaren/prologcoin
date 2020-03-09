@@ -625,6 +625,11 @@ term term_utils::copy(term c, naming_map &names,
 
 	case tag_t::BIG: {
 	  auto &big = reinterpret_cast<big_cell &>(c);
+	  if (dont_copy_big()) {
+	      temp_push(big);
+	      temp_push(int_cell(0));
+	      break;
+	  }
 	  size_t index = big.index();
 	  auto datc = src[index];
           auto &dat = reinterpret_cast<const dat_cell &>(datc);

@@ -310,10 +310,12 @@ public:
     typedef common::term term;
 
     wam_compiler(wam_interpreter &interp)
-        : interp_(interp), env_(interp), regs_a_(A_REG), regs_x_(X_REG), regs_y_(Y_REG), label_count_(1), goal_count_(0), level_count_(0) { }
+      : interp_(interp), env_(interp), regs_a_(A_REG), regs_x_(X_REG), regs_y_(Y_REG), label_count_(1), goal_count_(0), level_count_(0) { }
 
     ~wam_compiler();
 
+    void clear();
+  
     static inline bool is_interim_instruction(wam_instruction_base *instr) {
         return static_cast<wam_interim_instruction_type>(instr->type())
 	                         >= INTERIM_FIRST;
@@ -407,6 +409,7 @@ private:
     class register_pool {
     public:
         register_pool(reg_type type) : reg_type_(type) { }
+        inline void clear() { reg_map_.clear(); }
 
 	bool contains(common::ref_cell ref);
 	std::pair<reg,bool> allocate(common::ref_cell ref);

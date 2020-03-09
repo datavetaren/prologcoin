@@ -554,7 +554,7 @@ public:
     virtual ~managed_data() { }
 };
 
-class interpreter_base;
+class wam_compiler;
 
 class interpreter_base : public common::term_env {
     friend class builtins;
@@ -1064,6 +1064,13 @@ public:
 	 return c;
        }
 
+    inline term copy_except_big(term t)
+       { uint64_t cost = 0;
+         term c = common::term_env::copy_except_big(t, cost);
+	 add_accumulated_cost(cost);
+	 return c;
+       }
+  
     inline managed_data * get_managed_data(common::con_cell key)
        { auto it = managed_data_.find(key);
 	 if (it == managed_data_.end()) {
@@ -1680,10 +1687,11 @@ private:
 
     // Stack is emulated at heap offset >= 2^59 (3 bits for tag, remember!)
     // (This conforms to the WAM standard where addr(stack) > addr(heap))
-    const size_t STACK_BASE = 0x80000000000000;
-    const size_t MAX_STACK_SIZE = 1024*1024;
-    const size_t MAX_STACK_SIZE_WORDS = MAX_STACK_SIZE / sizeof(word_t);
-    const size_t MAX_STACK_FRAME_WORDS = 4096 / sizeof(word_t);
+
+    static const size_t STACK_BASE = 0x80000000000000;
+    static const size_t MAX_STACK_SIZE = 1024*1024;
+    static const size_t MAX_STACK_SIZE_WORDS = MAX_STACK_SIZE / sizeof(word_t);
+    static const size_t MAX_STACK_FRAME_WORDS = 4096 / sizeof(word_t);
 
     word_t    *stack_;
 
