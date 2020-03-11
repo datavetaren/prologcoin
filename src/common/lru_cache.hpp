@@ -34,7 +34,7 @@ public:
 	}
     }
 
-    inline const V * find(const K &key)
+    inline V * find(const K &key)
     {
         auto it = map_.find(key);
 	if (it == map_.end()) {

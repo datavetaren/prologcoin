@@ -5,6 +5,7 @@
 
 using namespace prologcoin::common;
 using namespace prologcoin::node;
+using namespace prologcoin::global;
 
 static void header( const std::string &str )
 {
@@ -32,8 +33,9 @@ static void test_node_out()
 
     bool success = false;
 
+    global::erase_db(test_dir);
+    
     self_node self(test_dir);
-    self.erase_db();
 
     // Make everything quicker.
     self.set_timer_interval(utime::ss(1));

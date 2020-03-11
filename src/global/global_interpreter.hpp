@@ -44,8 +44,18 @@ public:
 
     global & get_global() { return global_; }
 
-    inline static common::heap_block & global_get_block(common::heap &h, size_t block_index) {
-        return common::heap::get_block_default(h, block_index);
+    inline void set_current_block(common::heap_block *b, size_t block_index) {
+        current_block_ = b;
+	current_block_index_ = block_index;
+    }
+    inline bool has_block_changed(size_t block_index) const {
+        return block_index != current_block_index_;
+    }
+    inline common::heap_block & get_current_block() {
+        return *current_block_;
+    }
+    inline size_t get_current_block_index() {
+        return current_block_index_;
     }
   
     static void setup_consensus_lib(interpreter &interp);
@@ -80,6 +90,9 @@ private:
     global &global_;
     bool naming_;
     std::unordered_map<std::string, term> name_to_term_;
+
+    common::heap_block *current_block_;
+    size_t current_block_index_;
 };
 
 }}

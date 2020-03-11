@@ -10,6 +10,7 @@
 using namespace prologcoin::common;
 using namespace prologcoin::node;
 using namespace prologcoin::terminal;
+using namespace prologcoin::global;
 
 std::string test_dir;
 
@@ -26,8 +27,9 @@ static void test_terminal()
 
     std::cout << "Start node at port 8000" << std::endl;
 
+    global::erase_db(test_dir);
+    
     self_node node(test_dir, 8000);
-    node.erase_db();
     node.start();
 
     std::cout << "Open terminal..." << std::endl;

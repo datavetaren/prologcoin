@@ -148,14 +148,18 @@ triedb::triedb(const triedb_params &params, const std::string &dir_path)
     branch_flusher_(),
     branch_cache_(triedb_params::cache_num_nodes(), branch_flusher_),
     roots_stream_(nullptr),
-    branch_update_fn_(nullptr) {
-
+    cache_shutdown_(false),
+    branch_update_fn_(nullptr)
+{
     read_roots();
     last_offset_ = scan_last_offset();
 }
 
 triedb::~triedb()
 {
+    cache_shutdown_ = true;
+    leaf_cache_.clear();
+    branch_cache_.clear();
     flush();
     if (roots_stream_) delete roots_stream_;
 }
@@ -626,7 +630,7 @@ uint64_t triedb::append_branch_node(triedb_branch *node)
     auto *f = set_file_offset(offset);
     f->write(reinterpret_cast<char *>(&buffer[0]), n);
     last_offset_ += n;
-    branch_cache_.insert(offset, node);
+    if (!cache_shutdown_) branch_cache_.insert(offset, node);
     return offset;
 }
 

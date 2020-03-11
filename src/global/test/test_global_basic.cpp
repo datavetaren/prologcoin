@@ -21,11 +21,19 @@ static void test_global_basic()
 {
     header("test_global_basic");
 
+    // Remove existing database. Otherwise test will be confused.
+    global::erase_db(test_dir);
+
     global g(test_dir);
 
     std::cout << "Data directory: " << test_dir << std::endl;
-    
     std::cout << "STATUS: " << g.env().status() << std::endl;
+
+    // Let's create a long list of integers and make sure it is correctly
+    // persistently stored.
+
+    for (size_t i = 0; i < 65536; i++) {
+    }
 }
 
 int main(int argc, char *argv[])

@@ -702,7 +702,9 @@ public:
 private:
     big_iterator it_;
 };
- 
+
+class heap; // Forward
+    
 //
 // heap_block
 //
@@ -713,25 +715,31 @@ class heap_block : private boost::noncopyable {
 public:
     static const size_t MAX_SIZE = 8192; // 64k
 
-    inline heap_block() : index_(0), offset_(0),
-			  size_(0), cells_(nullptr) { init_cells(); }
-    inline heap_block(size_t index, size_t offset)
-        : index_(index), offset_(offset),
-	  size_(0), cells_(nullptr) { init_cells(); }
-    inline ~heap_block() { free_cells(); }
+    inline heap_block(heap &h) : heap_block(h, 0) { }
+    inline heap_block(heap &h, size_t index)
+        : heap_(h), index_(index), offset_(index*MAX_SIZE),
+	  size_(0), changed_(false) {
+    }
+    ~heap_block() = default;
 
-    inline void init_cells() {
-	cells_ = reinterpret_cast<cell *>(new uint64_t[MAX_SIZE]);
+    inline const cell * cells() const { return &cells_[0]; }
+    inline cell * cells() { return &cells_[0]; }  
+
+    inline bool has_changed() const {
+        return changed_;
+    }
+    inline void clear_changed() {
+        changed_ = false;
     }
 
-    inline void free_cells() {
-	delete reinterpret_cast<uint64_t *>(cells_);
-    }
+    bool is_head_block() const;
 
     inline size_t index() const { return index_; }
     inline size_t offset() const { return offset_; }
+    inline size_t size() const { return size_; }
 
     inline cell & operator [] (size_t addr) {
+        if (!changed_) { changed_ = true; modified(); }
 	return cells_[addr - offset_];
     }
 
@@ -771,14 +779,16 @@ public:
 	return c.tag() == tag_t::RFW;
     }
 
+    void modified();
+
 private:
+    heap &heap_;
     size_t index_;
     size_t offset_;
     size_t size_;
-    cell *cells_;
+    bool changed_;
+    cell cells_[MAX_SIZE];
 };
-
-class heap; // Forward
 
 //
 // Externally typed cell references.
@@ -890,6 +900,8 @@ public:
 
     inline size_t size() const { return size_; }
 
+    inline size_t num_blocks() const { return size()/heap_block::MAX_SIZE; }
+  
     void trim(size_t new_size);
 
     inline void coin_security_check(con_cell c) const {
@@ -942,7 +954,7 @@ public:
     inline const untagged_cell & untagged_at(size_t addr) const {
 	return get(addr);
     }
-
+  
     size_t list_length(const cell lst) const;
 
     inline con_cell atom(const std::string &name) const
@@ -1396,7 +1408,7 @@ private:
 public:
     static const size_t NEW_BLOCK = static_cast<size_t>(-1);
 
-    static inline heap_block & get_block_default(heap &h, size_t block_index)
+    static inline heap_block & get_block_default(heap &h, void * /*context*/, size_t block_index)
     {
         if (block_index == NEW_BLOCK) {
   	    new_block_default(h);
@@ -1404,29 +1416,37 @@ public:
 	}
         return *h.blocks_[block_index];
     }
-private:
 
+    static inline void modified_block_default(heap_block & /*block*/, void * /* context */) {
+        // Do nothing
+    }
+
+    inline heap_block * get_head_block() {
+        return head_block_;
+    }
+  
     inline void set_head_block(heap_block *h) {
         head_block_ = h;
         size_ = h->index() * heap_block::MAX_SIZE;
     }
   
+private:
+
     static inline void new_block_default(heap &h)
     {
-        size_t new_offset = h.blocks_.size() * heap_block::MAX_SIZE;
-	heap_block *block = new heap_block(h.blocks_.size(), new_offset);
+        heap_block *block = new heap_block(h, h.blocks_.size());
 	h.set_head_block(block);
 	h.blocks_.push_back(block);
     }
 
     inline heap_block & find_block(size_t addr)
     {
-        return get_block_fn_(*this, find_block_index(addr));
+        return get_block_fn_(*this, get_block_fn_context_, find_block_index(addr));
     }
 
     inline const heap_block & find_block(size_t addr) const
     {
-        return get_block_fn_(const_cast<heap &>(*this), find_block_index(addr));
+        return get_block_fn_(const_cast<heap &>(*this), get_block_fn_context_, find_block_index(addr));
     }
 
     inline const bool in_range(size_t addr) const
@@ -1436,7 +1456,7 @@ private:
 
     inline void ensure_allocate(size_t n) {
         if (head_block_ == nullptr || !head_block_->can_allocate(n)) {
-	    get_block_fn_(*this, NEW_BLOCK);
+  	    get_block_fn_(*this, get_block_fn_context_, NEW_BLOCK);
 	}
     }
 
@@ -1518,12 +1538,28 @@ public:
 
     template<typename T> friend class ext;
 
-    typedef heap_block & (*get_block_fn)(heap &h, size_t block_index);
-    inline void setup_get_block_fn(get_block_fn fn) { get_block_fn_ = fn; }
+    typedef heap_block & (*get_block_fn)(heap &h, void *context, size_t block_index);
+    typedef void (*modified_block_fn)(heap_block &block, void *context);
+  
+    inline void setup_get_block_fn(get_block_fn fn, void *context) { get_block_fn_ = fn; get_block_fn_context_ = context; }
+    inline void setup_modified_block_fn(modified_block_fn fn, void *context) { modified_block_fn_ = fn; modified_block_fn_context_ = context; }
 
 private:
     get_block_fn get_block_fn_;
+    void *get_block_fn_context_;
+
+    friend class heap_block;
+    modified_block_fn modified_block_fn_;
+    void *modified_block_fn_context_;
 };
+
+inline void heap_block::modified() {
+    heap_.modified_block_fn_(*this, heap_.modified_block_fn_context_);
+}
+
+inline bool heap_block::is_head_block() const {
+    return this == heap_.head_block_;
+}
 
 template<typename T> inline big_iterator_base<T>::big_iterator_base(heap &h, size_t index, size_t num) 
  : heap_(h),

@@ -264,6 +264,9 @@ heap::heap()
     external_ptrs_max_(0)
 {
     get_block_fn_ = &get_block_default;
+    get_block_fn_context_ = nullptr;
+    modified_block_fn_ = &modified_block_default;
+    modified_block_fn_context_ = nullptr;
 }
 
 heap::~heap()

@@ -63,10 +63,14 @@ public:
     static const size_t MAX_SIZE_IN_BYTES = 65536*2;
   
     inline triedb_leaf()
-        : key_(0), custom_data_size_(0), custom_data_(nullptr) { }
+      : key_(0), custom_data_size_(0), custom_data_(nullptr) { }
 
     inline triedb_leaf(uint64_t key, const uint8_t *custom_data, size_t custom_data_size) : key_(key), custom_data_size_(custom_data_size), custom_data_(new uint8_t[custom_data_size]) {
         memcpy(custom_data_, custom_data, custom_data_size);
+    }
+
+    inline ~triedb_leaf() {
+        destroy_custom_data();
     }
 
     inline uint64_t key() const {
@@ -86,6 +90,11 @@ public:
         if (custom_data_ != nullptr) delete [] custom_data_;
 	custom_data_ = new uint8_t [data_size];
 	custom_data_size_ = data_size;
+    }
+    inline void destroy_custom_data() {
+        if (custom_data_ != nullptr) delete [] custom_data_;
+	custom_data_ = nullptr;
+	custom_data_size_ = 0;
     }
 
     inline size_t serialization_size() const {
@@ -249,9 +258,9 @@ public:
 		const uint8_t *data, size_t data_size);
     void remove(size_t at_height, uint64_t key);
 
-    const triedb_leaf * find(size_t at_height, uint64_t key,
-			   std::vector<std::pair<triedb_branch *, size_t> >
-			       *opt_path = nullptr);
+    triedb_leaf * find(size_t at_height, uint64_t key,
+		       std::vector<std::pair<triedb_branch *, size_t> >
+		           *opt_path = nullptr);
 
     triedb_iterator begin(size_t at_height);
     triedb_iterator begin(size_t at_height, uint64_t key);
@@ -376,6 +385,8 @@ private:
 
     size_t num_heights_;
 
+    bool cache_shutdown_;
+
     // Update function
     // This function is called whenever a branch node needs to be updated;
     // let the client update any custom data.
@@ -457,14 +468,14 @@ public:
         return ! operator == (other);
     }
 
-    inline const triedb_leaf & operator * () const {
+    inline triedb_leaf & operator * () {
         auto parent_ptr = spine_.back().parent_ptr;
         auto sub_index = spine_.back().sub_index;
 	auto parent = db_.get_branch(parent_ptr);
         return *db_.get_leaf(parent, sub_index);
     }
 
-    inline const triedb_leaf * operator -> () const {
+    inline triedb_leaf * operator -> () {
         auto parent_ptr = spine_.back().parent_ptr;
         auto sub_index = spine_.back().sub_index;
 	auto parent = db_.get_branch(parent_ptr);
@@ -524,10 +535,10 @@ inline triedb_iterator triedb::end(size_t at_height) {
 
 
     
-inline const triedb_leaf * triedb::find(size_t at_height, uint64_t key,
-					std::vector<
-					    std::pair<triedb_branch *, size_t>
-					> *path_opt)
+inline triedb_leaf * triedb::find(size_t at_height, uint64_t key,
+				  std::vector<
+				    std::pair<triedb_branch *, size_t> >
+				      *path_opt)
 {
     auto it = begin(at_height, key);
     if (it == end(at_height)) {

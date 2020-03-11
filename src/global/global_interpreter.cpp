@@ -7,12 +7,11 @@
 using namespace prologcoin::common;
 using namespace prologcoin::interp;
 
-extern "C" void DebugBreak();
-
 namespace prologcoin { namespace global {
 
 global_interpreter::global_interpreter(global &g) : global_(g) {
-    heap_setup_get_block_function( global_get_block );
+    heap_setup_get_block_function( global::call_get_heap_block, &global_ );
+    heap_setup_modified_block_function( global::call_modified_heap_block, &global_ );
     
     setup_standard_lib();
     set_retain_state_between_queries(true);

@@ -4,12 +4,14 @@
 #include <wallet/wallet.hpp>
 #include <terminal/terminal.hpp>
 #include <node/self_node.hpp>
+#include <global/global.hpp>
 #include <boost/algorithm/string.hpp>
 
 using namespace prologcoin::common;
 using namespace prologcoin::wallet;
 using namespace prologcoin::terminal;
 using namespace prologcoin::node;
+using namespace prologcoin::global;
 
 std::string home_dir;
 std::string test_dir;
@@ -59,6 +61,8 @@ static void test_wallet_tx()
        "58'1DJ5G7DMKsdcZjDJqJprqz3g4caP5ioCU9"},
       {nullptr, nullptr, nullptr}
     };
+
+    global::erase_db(test_dir);
     
     // First start a node
     self_node self(test_dir);

@@ -7,6 +7,7 @@
 #include "../../interp/test/test_files_infrastructure.hpp"
 
 using namespace prologcoin::node;
+using namespace prologcoin::global;
 
 static void header( const std::string &str )
 {
@@ -48,9 +49,10 @@ int main( int argc, char *argv[] )
     const std::string dir = "/src/node/test/pl_files";
 
     std::string test_dir = (boost::filesystem::path(home_dir) / "bin" / "test" / "node" / "triedb").string();
+
+    global::erase_db(test_dir);
     
     self_node node(test_dir);
-    node.erase_db();
     auto state = node.new_in_session(nullptr, true);
     auto &interp = state->interp();
     interp.ensure_initialized();

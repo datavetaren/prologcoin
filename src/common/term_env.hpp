@@ -141,8 +141,10 @@ public:
     inline heap_dock() { }
 
     // Heap management
-    inline void heap_setup_get_block_function( heap::get_block_fn fn)
-        { T::get_heap().setup_get_block_fn(fn); }
+    inline void heap_setup_get_block_function( heap::get_block_fn fn, void *context)
+        { T::get_heap().setup_get_block_fn(fn, context); }
+    inline void heap_setup_modified_block_function( heap::modified_block_fn fn, void *context)
+        { T::get_heap().setup_modified_block_fn(fn, context); }  
     inline void heap_set(size_t index, term t)
         { T::get_heap()[index] = t; }
     inline term heap_get(size_t index) const
@@ -151,7 +153,7 @@ public:
         { return T::get_heap().untagged_at(index); }
 
     inline bool check_term(const term t) const
-       { return T::get_heap().check_term(t); }
+        { return T::get_heap().check_term(t); }
 
     // Term management
     inline term new_ref()
