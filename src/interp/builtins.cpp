@@ -1,6 +1,7 @@
 #include "builtins.hpp"
 #include "interpreter_base.hpp"
 #include "wam_interpreter.hpp"
+#include "../common/checked_cast.hpp"
 #include <stdarg.h>
 #include <boost/algorithm/string.hpp>
 #include <memory>
@@ -1103,13 +1104,13 @@ term builtins::get_frozen(interpreter_base &interp, common::term arg)
 	interp.abort(interpreter_exception_wrong_arg_type(msg));
     }
 
-    auto *closure = interp.frozen_closures.find(addr);
-    if (closure == nullptr) {
+    auto closure = interp.get_frozen_closure(addr);
+    if (closure == interpreter_base::EMPTY_LIST) {
         std::stringstream msg;
 	msg << "frozen/2: There was no frozen closure at " << interp.to_string(arg) << std::endl;
 	interp.abort(interpreter_exception_wrong_arg_type(msg.str()));
     }
-    return *closure;
+    return closure;
 }
 
 bool builtins::frozen_2(interpreter_base &interp, size_t arity, common::term args[] ) {
@@ -1183,25 +1184,34 @@ bool builtins::frozenk_3(interpreter_base &interp, size_t arity, common::term ar
 	interp.abort(interpreter_exception_wrong_arg_type(msg));
     }
 
+    size_t start_heap_addr = start == -1 ? interp.heap_size() : checked_cast<size_t>(start);
+    size_t end_heap_addr = interp.heap_size();
+    
+    interp.frozen_closure_fn_(interp, interpreter_base::LOAD_FROZEN_CLOSURE,
+			      start_heap_addr,
+			      end_heap_addr,
+			      checked_cast<size_t>(k));
+
     // Extract the K heap positions frozen closures starting from address
 
     term lst = interpreter_base::EMPTY_LIST;
 
-    auto at_end = interp.frozen_closures.end();
     if (start == -1) {
-	auto it = at_end - 1;
+        auto it = interp.frozen_closures_.rbegin();
+	auto at_end = interp.frozen_closures_.rend();
 	while (k > 0 && it != at_end) {
-	    auto heap_address = static_cast<int64_t>(it->key());
+	    auto heap_address = it->first;
 	    lst = interp.new_dotted_pair(int_cell(heap_address), lst);
-	    --it;
+	    ++it;
 	    k--;
 	}
     } else {
-        auto i_start = static_cast<uint64_t>(start);
-        auto it = interp.frozen_closures.begin(i_start);
+        auto i_start = static_cast<size_t>(start);
+        auto it = interp.frozen_closures_.lower_bound(i_start);
+	auto at_end = interp.frozen_closures_.end();
 	auto last = lst;
 	while (k > 0 && it != at_end) {
-	    auto heap_address = static_cast<int64_t>(it->key());
+  	    auto heap_address = it->first;
 	    auto next_lst = interp.new_dotted_pair(int_cell(heap_address),
 						   interpreter_base::EMPTY_LIST);
 	    if (last == interpreter_base::EMPTY_LIST) {
@@ -1237,8 +1247,8 @@ bool builtins::defrost_3(interpreter_base &interp, size_t arity, common::term ar
 	interp.abort(interpreter_exception_wrong_arg_type(msg));
     }
 	
-    auto *closure = interp.frozen_closures.find(addr);
-    if (closure == nullptr) {
+    auto closure = interp.get_frozen_closure(addr);
+    if (closure == interpreter_base::EMPTY_LIST) {
         return false;
     }
 
@@ -1264,7 +1274,7 @@ bool builtins::defrost_3(interpreter_base &interp, size_t arity, common::term ar
     // Note that a closure is ':'('$freeze', TermWithVars)
     // Where TermWithVars is the actual closure.
 
-    term closure_term = interp.arg(*closure, 1);
+    term closure_term = interp.arg(closure, 1);
 
     if (!interp.unify(args[1], closure_term)) {
         return false;

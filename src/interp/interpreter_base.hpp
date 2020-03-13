@@ -623,19 +623,6 @@ public:
     void close_all_files();
     bool is_file_id(size_t id) const;
     void reset_files();
- 
-    inline void clear_all_frozen_closures() {
-        std::vector<size_t> addr;
-	auto it = frozen_closures.begin();
-        for (; it != frozen_closures.end(); ++it) {
-	    auto k = (*it).key();
-	    addr.push_back(k);
-	    heap_watch(k, false);
-        }
-	for (auto a : addr) {
-	    clear_frozen_closure(a);
-	}
-    }
 
     inline arithmetics & arith() { return arith_; }
 
@@ -1767,8 +1754,6 @@ private:
     // Locale
     locale locale_;
 
-    common::merkle_trie<term,60> frozen_closures;
-
     // Current module (can be changed with builtin module/1/2)
     common::con_cell current_module_;
   
@@ -1790,28 +1775,65 @@ protected:
     inline void set_updated_predicate_fn(updated_predicate_fn fn) {
         updated_predicate_fn_ = fn;
     }
-    
+
+protected:
+    static const size_t MAX_FROZEN_CLOSURES = static_cast<size_t>(-1);
+
+    enum frozen_closure_op {
+        SET_FROZEN_CLOSURE = 0,
+	CLEAR_FROZEN_CLOSURE = 1,
+        LOAD_FROZEN_CLOSURE = 2
+    };
+    typedef void (*frozen_closure_fn)(interpreter_base &interp,
+				      frozen_closure_op op,
+				      size_t from_addr,
+				      size_t to_addr,
+				      size_t max_closures);
+
+private:
+    frozen_closure_fn frozen_closure_fn_;
+
+    // This can act as a cache if frozen_closures_fn is used
+    // (happens for global_interpreter)
+    std::map<size_t,term> frozen_closures_;
+
+    static void frozen_closure_default(interpreter_base & /*interp*/,
+				       frozen_closure_op /* op */,
+				       size_t /* from_addr */,
+				       size_t /* to_addr */,
+				       size_t /* max_closures */) {
+      // Do nothing
+    }
+
+protected:
+    inline void set_frozen_clousre_fn(frozen_closure_fn fn) {
+        frozen_closure_fn_ = fn;
+    }
+				      
     inline void set_frozen_closure(size_t index, term closure) {
-        frozen_closures.insert(index, closure);
+        frozen_closures_.insert(std::make_pair(index, closure));
 	heap_watch(index, true);
 	trail(index);
+        frozen_closure_fn_(*this, SET_FROZEN_CLOSURE, index, index+1, 1);
 	if (is_debug()) {
 	    std::cout << "Set frozen closure: " << index << std::endl;
         }
     }
     inline void clear_frozen_closure(size_t index) {
-        frozen_closures.remove(index);
+        frozen_closures_.erase(index);
 	heap_watch(index, false);
+        frozen_closure_fn_(*this, CLEAR_FROZEN_CLOSURE, index, index+1, 1);	
 	if (is_debug()) {
 	    std::cout << "Clear frozen closure: " << index << std::endl;
 	}
     }
+    // This assumes the frozen_closure cache is updated
     inline term get_frozen_closure(size_t index) {
-	auto *v = frozen_closures.find(index);
-	if (v == nullptr) {
+	auto it = frozen_closures_.find(index);
+	if (it == frozen_closures_.end()) {
 	    return EMPTY_LIST;
 	}
-	return *v;
+	return it->second;
     }
 
     inline void unwind_frozen_closures(size_t a, size_t b) {
@@ -1823,21 +1845,36 @@ protected:
         }
     }
 
+public:
+    inline void clear_all_frozen_closures() {
+        std::vector<size_t> addr;
+	auto it = frozen_closures_.begin();
+        for (; it != frozen_closures_.end(); ++it) {
+	    auto k = it->first;
+	    addr.push_back(k);
+	    heap_watch(k, false);
+        }
+	frozen_closures_.clear();
+	frozen_closure_fn_(*this, CLEAR_FROZEN_CLOSURE, 0, heap_size(),
+			   MAX_FROZEN_CLOSURES);
+    }
+
 private:
     void trim_heap(size_t new_size) = delete;
 
-  
 protected:
-  
     inline void trim_heap_safe(size_t new_size) {
+        size_t current_size = heap_size();
         term_env::trim_heap(new_size);
 	// And we need to remove any pending frozen closures
-	for (auto it = frozen_closures.begin(new_size);
-	     it != frozen_closures.end();) {
-   	     size_t addr = it->key();
-	     it = frozen_closures.erase(it);
+	for (auto it = frozen_closures_.lower_bound(new_size);
+	     it != frozen_closures_.end();) {
+   	     size_t addr = it->first;
+	     it = frozen_closures_.erase(it);
 	     heap_watch(addr, false);
 	}
+	frozen_closure_fn_(*this, CLEAR_FROZEN_CLOSURE, new_size, current_size,
+			   MAX_FROZEN_CLOSURES);
     }
 
     inline void trim_heap_unsafe(size_t new_size) {

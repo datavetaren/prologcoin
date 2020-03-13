@@ -36,7 +36,7 @@ meta_context::meta_context(interpreter_base &i, meta_fn mfn)
     old_hb = i.get_register_hb();
 }
 
-interpreter_base::interpreter_base() : has_updated_predicates_(false), register_pr_("", 0), arith_(*this), locale_(*this), current_module_("system",0), persistent_password_(false), updated_predicate_fn_(nullptr)
+interpreter_base::interpreter_base() : has_updated_predicates_(false), register_pr_("", 0), arith_(*this), locale_(*this), current_module_("system",0), persistent_password_(false), updated_predicate_fn_(nullptr), frozen_closure_fn_(&interpreter_base::frozen_closure_default)
 {
     init();
 
@@ -58,10 +58,6 @@ interpreter_base::interpreter_base() : has_updated_predicates_(false), register_
     save_state_fn_ = nullptr;
     restore_state_fn_ = nullptr;
     maximum_cost_ = std::numeric_limits<uint64_t>::max();
-
-    // This is only needed to be true for the global interpeter whichs
-    // tracks the global state.
-    frozen_closures.set_auto_rehash(false);
 }
 
 void interpreter_base::init()
