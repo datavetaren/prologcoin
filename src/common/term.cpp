@@ -267,6 +267,8 @@ heap::heap()
     get_block_fn_context_ = nullptr;
     modified_block_fn_ = &modified_block_default;
     modified_block_fn_context_ = nullptr;
+    new_atom_fn_ = &new_atom_default;
+    new_atom_fn_context_ = nullptr;
 }
 
 heap::~heap()
@@ -424,6 +426,7 @@ size_t heap::resolve_atom_index(const std::string &name) const
         size_t index = atom_index_to_name_table_.size();
         atom_index_to_name_table_.push_back(name);
 	atom_name_to_index_table_[name] = index;
+	new_atom_fn_(*this, new_atom_fn_context_, name, index);
 	return index;
     }
     return found->second;

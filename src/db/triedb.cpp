@@ -1,8 +1,11 @@
 #include <bitset>
 #include "triedb.hpp"
 #include "../common/checked_cast.hpp"
+#include "../common/hex.hpp"
 #include <boost/filesystem/path.hpp>
 #include <boost/filesystem/operations.hpp>
+
+using namespace prologcoin::common;
 
 namespace prologcoin { namespace db {
 
@@ -65,7 +68,6 @@ void triedb_leaf::write(uint8_t *buffer) const {
     write_uint32(p, common::checked_cast<uint32_t>(sz));
     p += sizeof(uint32_t);
     write_uint64(p, key_); p += sizeof(uint64_t);
-    write_uint32(p, custom_data_size_); p += sizeof(uint32_t);
     if (custom_data_ != nullptr) {
         memcpy(p, custom_data_, custom_data_size_);
     }
@@ -492,7 +494,7 @@ size_t triedb::scan_last_bucket() {
     for (;;i++) {
         auto file_path = bucket_file_path(i);
 	if (!boost::filesystem::exists(file_path)) {
-	    return i;
+	    break;
 	}
 	something_found = true;
     }

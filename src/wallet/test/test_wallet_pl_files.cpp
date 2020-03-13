@@ -13,6 +13,7 @@ using namespace prologcoin::common;
 using namespace prologcoin::terminal;
 using namespace prologcoin::node;
 using namespace prologcoin::wallet;
+using namespace prologcoin::global;
 
 std::string test_dir;
 
@@ -59,9 +60,11 @@ int main( int argc, char *argv[] )
 
     const std::string dir = "/src/wallet/test/pl_files";
 
+    // Erase db
+    global::erase_db(test_dir);
+    
     // First start a node
     self_node self(test_dir);
-    self.erase_db();
     self.start();
 
     // Connect a terminal to it

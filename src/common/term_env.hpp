@@ -144,7 +144,14 @@ public:
     inline void heap_setup_get_block_function( heap::get_block_fn fn, void *context)
         { T::get_heap().setup_get_block_fn(fn, context); }
     inline void heap_setup_modified_block_function( heap::modified_block_fn fn, void *context)
-        { T::get_heap().setup_modified_block_fn(fn, context); }  
+        { T::get_heap().setup_modified_block_fn(fn, context); }
+    inline void heap_setup_new_atom_function( heap::new_atom_fn fn, void *context)
+        { T::get_heap().setup_new_atom_fn(fn, context); }
+
+    inline void heap_set_size(size_t sz)
+        { T::get_heap().set_size(sz);  }
+
+  
     inline void heap_set(size_t index, term t)
         { T::get_heap()[index] = t; }
     inline term heap_get(size_t index) const

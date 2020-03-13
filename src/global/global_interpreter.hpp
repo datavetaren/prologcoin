@@ -6,6 +6,8 @@
 #include "../common/term_env.hpp"
 #include "../common/term_serializer.hpp"
 #include "../interp/interpreter.hpp"
+#include "../db/util.hpp"
+#include "../db/triedb.hpp"
 
 namespace prologcoin { namespace global {
 
@@ -32,7 +34,44 @@ public:
 };
 
 class global;
+
+class heap_block_as_custom_data {
+public:
+    heap_block_as_custom_data(common::heap_block &blk) : block_(blk), custom_data_owner_(true), custom_data_(nullptr), custom_data_size_(0) { }
+    heap_block_as_custom_data(common::heap_block &blk, uint8_t *custom_data, size_t custom_data_size) : block_(blk), custom_data_owner_(false), custom_data_(custom_data), custom_data_size_(custom_data_size)  { }
+    ~heap_block_as_custom_data() { if (custom_data_owner_ && custom_data_) delete [] custom_data_; }
+
+    inline const uint8_t * custom_data() const { return custom_data_; }
+    inline size_t custom_data_size() const { return custom_data_size_; }
+  
+    inline void write() {
+        auto n = block_.size();
+        custom_data_size_ = sizeof(common::cell)*block_.size();
+        if (custom_data_ == nullptr) custom_data_ = new uint8_t[custom_data_size_];
+	auto *dst = custom_data_;
+	const common::cell *src = block_.cells();
+	for (size_t i = 0; i < n; i++, dst += sizeof(uint64_t), src++) {
+	    db::write_uint64(dst, static_cast<uint64_t>(src->raw_value()));
+	}
+    }
+
+    inline void read() {
+        auto n = custom_data_size_ / sizeof(common::cell);
+	common::cell *dst = block_.cells();
+	const uint8_t *src = custom_data_;
+	for (size_t i = 0; i < n; i++, dst++, src += sizeof(uint64_t)) {
+	    *dst = common::cell(db::read_uint64(src));
+	}
+	block_.trim(n);
+    }
     
+private:
+    common::heap_block &block_;
+    bool custom_data_owner_;
+    uint8_t *custom_data_;
+    size_t custom_data_size_;
+};
+
 class global_interpreter : public interp::interpreter {
 public:
     using interperter_base = interp::interpreter_base;
@@ -44,6 +83,20 @@ public:
 
     global & get_global() { return global_; }
 
+    void init_from_heap_db();
+    void init_from_symbols_db();  
+    void init_from_program_db();
+
+    void commit_heap();
+    void commit_symbols();
+    void commit_program();
+  
+    static void updated_predicate(interpreter_base &interp, const interp::qname &qn);
+
+    inline void updated_predicate(const interp::qname &qn) {
+        updated_predicates_.push_back(qn);
+    }
+  
     inline void set_current_block(common::heap_block *b, size_t block_index) {
         current_block_ = b;
 	current_block_index_ = block_index;
@@ -85,14 +138,104 @@ public:
     friend class global_builtins;
   
 private:
+    static inline common::heap_block & call_get_heap_block(common::heap &h, void *context, size_t block_index)
+    {
+        auto *gi = reinterpret_cast<global_interpreter *>(context);
+	return gi->get_heap_block(block_index);
+    }
+
+    static inline void call_modified_heap_block(common::heap_block &block, void *context)
+    {
+        auto *gi = reinterpret_cast<global_interpreter *>(context);
+	gi->modified_heap_block(block);
+    }
+
+    static inline void call_new_atom(const common::heap &h, void *context, const std::string &atom_name, size_t atom_index)
+    {
+        auto *gi = reinterpret_cast<global_interpreter *>(context);
+	gi->new_atom(atom_name, atom_index);
+    }
+
+    inline void new_atom(const std::string &atom_name, size_t atom_index)
+    {
+        new_atoms_.push_back(std::make_pair(atom_name, atom_index));
+    }
+  
+    inline void modified_heap_block(common::heap_block &block)
+    {
+        // Won't delete block because of "changed" flag
+        block_cache_.erase(block.index());
+
+	// Reinsert this heap block in modified blocks
+        modified_blocks_.insert(std::make_pair(block.index(), &block));
+    }
+
+    db::triedb_leaf * find_block_db(size_t block_index);
+
+    inline common::heap_block & get_heap_block(size_t block_index)
+    {
+        if (current_block_index_ == block_index) {
+	    return *current_block_;
+        }
+        if (block_index == common::heap::NEW_BLOCK) {
+	    size_t new_block_index;
+  	    if (get_head_block() == nullptr) {
+	        new_block_index = 0;
+	    } else {
+	        new_block_index = num_blocks() + 1;
+	    }
+  	    auto *new_block = new common::heap_block(*this, new_block_index);
+	    modified_blocks_.insert(std::make_pair(new_block_index, new_block));
+	    set_head_block(new_block);
+	    current_block_ = new_block;
+	    current_block_index_ = new_block_index;
+	    return *new_block;
+        }
+	current_block_index_ = block_index;
+        auto it = modified_blocks_.find(block_index);
+	if (it != modified_blocks_.end()) {
+	    current_block_ = it->second;
+	    return *current_block_;
+	}
+	auto *found = block_cache_.find(block_index);
+	if (found != nullptr) {
+  	    current_block_ = *found;
+	    return *current_block_;
+	}
+        auto *leaf = find_block_db(block_index);
+	common::heap_block *block = new common::heap_block(*this, block_index);
+	heap_block_as_custom_data view(*block, leaf->custom_data(),
+				       leaf->custom_data_size());
+	view.read();
+	block_cache_.insert(block_index, block);
+	current_block_ = block;
+	return *block;
+    }
+
     void setup_builtins();
 
     global &global_;
     bool naming_;
     std::unordered_map<std::string, term> name_to_term_;
 
-    common::heap_block *current_block_;
     size_t current_block_index_;
+    common::heap_block *current_block_;
+
+    struct block_flusher {
+        void evicted(size_t, common::heap_block *block) {
+	    if (!block->has_changed() && !block->is_head_block()) {
+	        delete block;
+	    }
+        }
+    };
+    block_flusher block_flusher_;
+    common::lru_cache<size_t, common::heap_block *, block_flusher> block_cache_;
+  
+    std::vector<std::pair<std::string, size_t> > new_atoms_;
+  
+    std::unordered_map<size_t, common::heap_block *> modified_blocks_;
+ 
+    std::vector<interp::qname> updated_predicates_;
 };
 
 }}

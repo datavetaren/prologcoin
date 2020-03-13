@@ -107,7 +107,6 @@ bool wam_interpreter::cont_wam()
 void wam_interpreter::compile(const qname &qn)
 {
     size_t heap_sz = heap_size();
-  
     wam_interim_code instrs(*this);
     compiler_->clear();
     if (!compiler_->compile_predicate(qn, instrs)) {

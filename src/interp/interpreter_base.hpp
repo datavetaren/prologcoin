@@ -578,6 +578,11 @@ public:
 
     static const size_t MAX_ARGS = 256;
 
+    inline void heap_set_size(size_t sz) {
+        term_env::heap_set_size(sz);
+	set_register_hb(sz);
+    }
+  
     inline con_cell current_module() const { return current_module_; }
     void set_current_module(con_cell m);
   
@@ -935,9 +940,15 @@ public:
         return has_updated_predicates_;
     }
     inline void add_updated_predicate(const qname &qn) {
+        size_t already_updated = updated_predicates_.count(qn) != 0;
         updated_predicates_.insert(qn);
 	has_updated_predicates_ = true;
 	module_meta_db_[qn.first].changed();
+	if (!already_updated) {
+	    if (updated_predicate_fn_ != nullptr) {
+	        updated_predicate_fn_(*this, qn);
+	    }
+	}
     }
   
     inline const std::unordered_set<qname> & get_updated_predicates() const
@@ -1768,10 +1779,18 @@ private:
 
     bool is_persistent_password() const { return persistent_password_; }
     void set_persistent_password(bool p) { persistent_password_ = p; }
-  
+
+private:
+    typedef void (*updated_predicate_fn)(interpreter_base &interp, const qname &qn);
+    updated_predicate_fn updated_predicate_fn_;
+
 protected:
     void clear_password();
 
+    inline void set_updated_predicate_fn(updated_predicate_fn fn) {
+        updated_predicate_fn_ = fn;
+    }
+    
     inline void set_frozen_closure(size_t index, term closure) {
         frozen_closures.insert(index, closure);
 	heap_watch(index, true);

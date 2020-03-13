@@ -238,6 +238,10 @@ public:
         return roots_.size() == 0;
     }
 
+    inline size_t total_height() const {
+        return roots_.size();
+    }
+
     inline void set_debug(bool b) {
         debug_ = b;
     }
@@ -250,6 +254,10 @@ public:
     inline void set_update_function(
         const std::function<void(triedb &, triedb_branch &)> &branch_updater) {
        branch_update_fn_ = branch_updater;
+    }
+
+    inline void no_change(size_t at_height) {
+       set_root(at_height, roots_.back());
     }
 
     void insert(size_t at_height, uint64_t key,
@@ -308,7 +316,6 @@ private:
     size_t scan_last_bucket();
     uint64_t scan_last_offset();
     fstream * set_file_offset(uint64_t offset);
-
     uint64_t get_root(size_t at_height);
   
     void read_leaf_node(uint64_t offset, triedb_leaf &node);

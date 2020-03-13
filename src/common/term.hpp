@@ -904,6 +904,10 @@ public:
   
     void trim(size_t new_size);
 
+    inline void set_size(size_t new_size) {
+        size_ = new_size;
+    }
+
     inline void coin_security_check(con_cell c) const {
         if (coin_security_enabled_ && c == COIN) {
 	    throw coin_security_exception();
@@ -1421,6 +1425,10 @@ public:
         // Do nothing
     }
 
+    static inline void new_atom_default(const heap &, void * /* context */, const std::string & /*atom name*/, size_t /* atom_index */ ) {
+        // Do nothing
+    }
+
     inline heap_block * get_head_block() {
         return head_block_;
     }
@@ -1540,9 +1548,11 @@ public:
 
     typedef heap_block & (*get_block_fn)(heap &h, void *context, size_t block_index);
     typedef void (*modified_block_fn)(heap_block &block, void *context);
+    typedef void (*new_atom_fn)(const heap &h, void *context, const std::string &atom_name, size_t atom_index);
   
     inline void setup_get_block_fn(get_block_fn fn, void *context) { get_block_fn_ = fn; get_block_fn_context_ = context; }
     inline void setup_modified_block_fn(modified_block_fn fn, void *context) { modified_block_fn_ = fn; modified_block_fn_context_ = context; }
+    inline void setup_new_atom_fn(new_atom_fn fn, void *context) { new_atom_fn_ = fn; new_atom_fn_context_ = context; }
 
 private:
     get_block_fn get_block_fn_;
@@ -1551,6 +1561,9 @@ private:
     friend class heap_block;
     modified_block_fn modified_block_fn_;
     void *modified_block_fn_context_;
+
+    new_atom_fn new_atom_fn_;
+    void *new_atom_fn_context_;
 };
 
 inline void heap_block::modified() {
