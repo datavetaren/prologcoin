@@ -17,6 +17,10 @@ IF "%1"=="vssln" (
 GOTO :VSSLN
 )
 
+IF "%1"=="count" (
+GOTO :COUNT
+)
+
 echo ------------------------------------------------------
 echo  make all     to build everything from command prompt
 echo ------------------------------------------------------
@@ -85,6 +89,31 @@ pushd
 cd src\common
 make.bat %1
 popd
+GOTO :EXIT
 
+:COUNT
+setlocal EnableDelayedExpansion
+set total=0
+for /f "tokens=*" %%S in ('dir /b /s /a:d "src"') do (
+    set cmd=`"find /v /c "" %%S\*.hpp 2>NUL"`
+    FOR /f "usebackq tokens=3" %%X IN (!cmd!) DO (
+        set /A total=!total!+%%X
+    )
+    set cmd=`"find /v /c "" %%S\*.cpp 2>NUL"`
+    FOR /f "usebackq tokens=3" %%X IN (!cmd!) DO (
+        set /A total=!total!+%%X
+    )
+    set cmd=`"find /v /c "" %%S\*.pl 2>NUL"`
+    FOR /f "usebackq tokens=3" %%X IN (!cmd!) DO (
+        set /A total=!total!+%%X
+    )
+)
+set cmd=`"find /v /c "" src\common\term_parser_gen.hpp"`
+FOR /f "usebackq tokens=3" %%X IN (!cmd!) DO (
+    set /A total=!total!-%%X
+)
+echo Lines of code: !total!
+
+GOTO :EXIT
 
 :EXIT
