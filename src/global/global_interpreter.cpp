@@ -12,10 +12,10 @@ namespace prologcoin { namespace global {
 
 global_interpreter::global_interpreter(global &g)
     : global_(g),
-      current_block_(nullptr),
       current_block_index_(static_cast<size_t>(-2)),
+      current_block_(nullptr),
       block_flusher_(),
-      block_cache_(global::BLOCK_CACHE_SIZE / heap_block::MAX_SIZE / sizeof(cell))
+      block_cache_(global::BLOCK_CACHE_SIZE / heap_block::MAX_SIZE / sizeof(cell), block_flusher_)
 {
     heap_setup_get_block_function( call_get_heap_block, this );
 

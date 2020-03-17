@@ -567,6 +567,12 @@ class interpreter_base : public common::term_env {
     friend class remote_execution_proxy;
     friend class predicate;
 
+private:
+    static const size_t STACK_BASE = 0x80000000000000;
+    static const size_t MAX_STACK_SIZE = 1024*1024;
+    static const size_t MAX_STACK_SIZE_WORDS = MAX_STACK_SIZE / sizeof(word_t);
+    static const size_t MAX_STACK_FRAME_WORDS = 4096 / sizeof(word_t);
+
 public:
     typedef common::term term;
     typedef common::cell cell;
@@ -1427,10 +1433,13 @@ protected:
 	        new_s = base(b()) + words<term>()*b()->arity + words<choice_point_t>();
 	    }
 	}
-
 	if (to_stack_relative_addr(new_s) + MAX_STACK_FRAME_WORDS
 	    >= MAX_STACK_SIZE_WORDS) {
-	    throw interpreter_exception_stack_overflow("Exceeded maximum stack size (" + boost::lexical_cast<std::string>(MAX_STACK_SIZE) + " bytes.)");
+	    // There seems to be a weird compiler bug on Mac OSX / clang
+	    // If you substitute max_stack_size you'll get an unresolved
+	    // symbol linker error.
+	    auto const max_stack_size = MAX_STACK_SIZE;
+	    throw interpreter_exception_stack_overflow("Exceeded maximum stack size (" + boost::lexical_cast<std::string>(max_stack_size) + " bytes.)");
 	}
 
 	return new_s;
@@ -1685,11 +1694,6 @@ private:
 
     // Stack is emulated at heap offset >= 2^59 (3 bits for tag, remember!)
     // (This conforms to the WAM standard where addr(stack) > addr(heap))
-
-    static const size_t STACK_BASE = 0x80000000000000;
-    static const size_t MAX_STACK_SIZE = 1024*1024;
-    static const size_t MAX_STACK_SIZE_WORDS = MAX_STACK_SIZE / sizeof(word_t);
-    static const size_t MAX_STACK_FRAME_WORDS = 4096 / sizeof(word_t);
 
     word_t    *stack_;
 

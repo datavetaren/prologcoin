@@ -102,7 +102,7 @@ static void test_basic()
 
     std::cout << "PATH: ";
     bool first = true;
-    std::pair<triedb_branch *, size_t> *root_hash;    
+    // std::pair<triedb_branch *, size_t> *root_hash;    
     std::pair<triedb_branch *, size_t> *last_e;
     for (auto &e : path) {
         last_e = &e;
