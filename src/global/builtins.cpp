@@ -21,6 +21,8 @@ void builtins::load(interpreter_base &interp, con_cell *module0)
     // This will override the coin::reward_2 builtin (and this will use
     // coin::reward_2 builtin under the hood)
     interp.load_builtin(M, con_cell("reward", 2), &builtins::reward_2);
+
+    interp.load_builtin(M, interp.functor("increment_height", 0), &builtins::increment_height_0);
 }
 
 bool builtins::current_height_1(interpreter_base &interp, size_t arity, term args[] )
@@ -53,8 +55,13 @@ bool builtins::reward_2(interpreter_base &interp, size_t arity, term args[] )
         return false;
     }
     auto r = prologcoin::coin::builtins::reward_2(interp, arity, args);
-    g.increment_height();
     return r;
+}
+
+bool builtins::increment_height_0(interpreter_base &interp, size_t arity, term args[] ) {
+    auto &g = get_global(interp);
+    g.increment_height();
+    return true;
 }
 
 }}

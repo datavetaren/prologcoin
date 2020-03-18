@@ -37,6 +37,7 @@ void global::increment_height()
     interp().commit_heap();
     interp().commit_symbols();
     interp().commit_program();
+    interp().commit_closures();
     current_height_++;
 }
     

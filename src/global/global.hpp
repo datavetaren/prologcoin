@@ -107,7 +107,7 @@ public:
         return get_db_instance(db_heap_, db_heap_dir_);
     }
     inline db::triedb & closures_db() {
-        return get_db_instance(db_heap_, db_closures_dir_);
+        return get_db_instance(db_closures_, db_closures_dir_);
     }
     inline db::triedb & symbols_db() {
         return get_db_instance(db_symbols_, db_symbols_dir_);      

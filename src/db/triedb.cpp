@@ -199,6 +199,19 @@ void triedb::flush()
     stream_cache_.foreach( [](size_t, fstream *f) { f->flush(); } );
 }
 
+void triedb::no_change(size_t at_height)
+{
+    if (roots_.size() == 0) {
+	auto *new_branch = new triedb_branch();
+	new_branch->set_max_key_bits(5);
+	if (branch_update_fn_) branch_update_fn_(*this, *new_branch);
+	auto ptr = append_branch_node(new_branch);
+	set_root(at_height, ptr);
+    } else {
+	set_root(at_height, roots_.back());
+    }
+}
+
 void triedb::insert(size_t at_height, uint64_t key, const uint8_t *data, size_t data_size) {
     insert_or_update(at_height, key, data, data_size, true);
 }
@@ -775,6 +788,9 @@ void triedb_iterator::next() {
 
 void triedb_iterator::previous() {
     if (at_end()) {
+	if (db_.is_empty()) {
+	    return;
+	}
         auto parent_ptr = db_.get_root(height_);
 	auto parent = db_.get_branch(parent_ptr);
 	assert(parent->mask() != 0);

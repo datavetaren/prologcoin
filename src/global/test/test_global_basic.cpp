@@ -1,12 +1,15 @@
 #include <boost/filesystem.hpp>
 #include <common/random.hpp>
+#include <common/checked_cast.hpp>
 #include <common/test/test_home_dir.hpp>
 #include <common/term_tools.hpp>
+#include <ec/builtins.hpp>
 #include <global/global.hpp>
 
 using namespace prologcoin::common;
 using namespace prologcoin::interp;
 using namespace prologcoin::global;
+using namespace prologcoin::ec;
 
 std::string home_dir;
 std::string test_dir;
@@ -114,6 +117,105 @@ static void test_global_basic()
     recheck_global_basic(test_dir, heap_ref_pos);
 }
 
+static void recheck_frozen_closures(std::vector<size_t> &all_frozen_closures0)
+{
+    std::cout << "Recheck begin" << std::endl;
+
+    global g(test_dir);
+
+    std::cout << "Current height: " << g.current_height() << std::endl;
+    std::cout << "Current heap size: " << g.interp().heap_size() << std::endl;
+
+    auto it0 = all_frozen_closures0.begin();
+
+    std::vector<size_t> all_frozen_closures;
+
+    size_t last_addr = 0;
+    for (size_t i = 0; i < all_frozen_closures0.size(); i += 100) {
+	auto check_closures_cmd = g.interp().parse("frozenk(" + boost::lexical_cast<std::string>(last_addr) + ", 100, X).");
+	std::cout << "COMMAND: " << g.interp().to_string(check_closures_cmd) << std::endl;
+	g.interp().execute(check_closures_cmd);
+	auto lst = g.interp().get_result_term("X");
+	size_t j = 0;
+	// std::cout << "List length: " << g.interp().list_length(lst) << std::endl;
+	while (g.interp().is_dotted_pair(lst)) {
+	    auto addr_term = g.interp().arg(lst, 0);
+	    assert(addr_term.tag() == tag_t::INT);
+	    last_addr = checked_cast<size_t>(static_cast<int_cell &>(addr_term).value());
+	    if (last_addr != *it0) {
+		std::cout << "Difference at closure #" << (i+j) << ": Was " << last_addr << " Expected: " << *it0 << std::endl;
+	    }
+	    assert(last_addr == *it0);
+	    ++it0;
+
+	    all_frozen_closures.push_back(last_addr);
+
+	    lst = g.interp().arg(lst, 1);
+	    j++;
+	}
+	last_addr++;
+    }
+    std::cout << "Recheck: Total number of frozen closures: " << all_frozen_closures.size() << std::endl;
+    assert(all_frozen_closures.size() == all_frozen_closures0.size());
+}
+
+void setup_frozen_closures(std::vector<size_t> &all_frozen_closures)
+{
+    static const size_t NUM_REWARDS = 1000;
+
+    // Remove existing database. Otherwise test will be confused.
+    global::erase_db(test_dir);
+
+    global g(test_dir);
+
+    std::cout << "Data directory: " << test_dir << std::endl;
+    std::cout << "STATUS: " << g.env().status() << std::endl;
+    
+    prologcoin::ec::builtins::load(g.interp());
+
+    auto myreward_cmd = g.interp().parse("ec:privkey(X), ec:pubkey(X,Y), ec:address(Y,Z), reward(Z).");
+    for (size_t i = 0; i < NUM_REWARDS; i++) {
+	g.interp().execute(myreward_cmd);
+    }
+
+    size_t last_addr = 0;
+    for (size_t i = 0; i < NUM_REWARDS; i += 100) {
+	auto check_closures_cmd = g.interp().parse("frozenk(" + boost::lexical_cast<std::string>(last_addr) + ", 100, X).");
+	g.interp().execute(check_closures_cmd);
+	auto lst = g.interp().get_result_term("X");
+	while (g.interp().is_dotted_pair(lst)) {
+	    auto addr_term = g.interp().arg(lst, 0);
+	    assert(addr_term.tag() == tag_t::INT);
+	    last_addr = checked_cast<size_t>(static_cast<int_cell &>(addr_term).value());
+	    all_frozen_closures.push_back(last_addr);
+
+	    lst = g.interp().arg(lst, 1);
+	}
+	last_addr++;
+    }
+    std::cout << "Total number of frozen closures: " << all_frozen_closures.size() << std::endl;
+    assert(all_frozen_closures.size() == NUM_REWARDS);
+
+#if 0
+    bool first = true;
+    for (auto cl : all_frozen_closures) {
+	if (!first) std::cout << " ";
+	std::cout << cl;
+	first = false;
+    }
+    std::cout << std::endl;
+#endif
+}
+
+static void test_global_frozen_closures()
+{
+    header("test_global_frozen_closures");
+
+    std::vector<size_t> all_frozen_closures;
+    setup_frozen_closures(all_frozen_closures);
+    recheck_frozen_closures(all_frozen_closures);
+}
+
 int main(int argc, char *argv[])
 {
     home_dir = find_home_dir(argv[0]);
@@ -123,5 +225,6 @@ int main(int argc, char *argv[])
     random::set_for_testing(true);
   
     test_global_basic();
+    test_global_frozen_closures();
     return 0;
 }

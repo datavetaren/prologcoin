@@ -256,9 +256,7 @@ public:
        branch_update_fn_ = branch_updater;
     }
 
-    inline void no_change(size_t at_height) {
-       set_root(at_height, roots_.back());
-    }
+    void no_change(size_t at_height);
 
     void insert(size_t at_height, uint64_t key,
 		const uint8_t *data, size_t data_size);
@@ -410,6 +408,9 @@ public:
   
     inline triedb_iterator(triedb &db, size_t at_height)
       : db_(db), height_(at_height) {
+        if (db.is_empty()) {
+	    return;
+	}
         auto parent_ptr = db.get_root(at_height);
 	auto *parent = db.get_branch(parent_ptr);
 	if (parent->mask() != 0) {
@@ -422,7 +423,9 @@ public:
 
     inline triedb_iterator(triedb &db, size_t at_height, uint64_t key) 
 	: db_(db), height_(at_height)  {
-        start_from_key(db.get_root(at_height), key);
+	if (!db.is_empty()) {
+	    start_from_key(db.get_root(at_height), key);
+	}
     }
 
     inline triedb_iterator(triedb &db, size_t at_height, bool) 

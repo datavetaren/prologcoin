@@ -23,6 +23,8 @@ public:
     static bool reward_2(interpreter_base &interp, size_t arity, term args[] );
 
     static bool current_height_1(interpreter_base &interp, size_t arity, term args[] );
+
+    static bool increment_height_0(interpreter_base &interp, size_t arity, term args[] );
 };
 
 }}

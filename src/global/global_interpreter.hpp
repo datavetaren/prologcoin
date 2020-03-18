@@ -90,8 +90,15 @@ public:
     void commit_heap();
     void commit_symbols();
     void commit_program();
+    void commit_closures();
   
     static void updated_predicate(interpreter_base &interp, const interp::qname &qn);
+    virtual term get_frozen_closure(size_t addr) override;
+    virtual void clear_frozen_closure(size_t addr) override;
+    virtual void set_frozen_closure(size_t addr, term closure) override;
+    virtual void get_frozen_closures(size_t from_addr, size_t to_addr,
+				     size_t max_clousres,
+	     std::vector<std::pair<size_t, term> > &closures) override;
 
     inline void updated_predicate(const interp::qname &qn) {
         updated_predicates_.push_back(qn);
@@ -230,12 +237,15 @@ private:
     };
     block_flusher block_flusher_;
     common::lru_cache<size_t, common::heap_block *, block_flusher> block_cache_;
-  
+
     std::vector<std::pair<std::string, size_t> > new_atoms_;
   
     std::unordered_map<size_t, common::heap_block *> modified_blocks_;
  
     std::vector<interp::qname> updated_predicates_;
+
+    // Use common::term() to indiciate removal of closure
+    std::map<size_t, common::term> modified_closures_;
 };
 
 }}

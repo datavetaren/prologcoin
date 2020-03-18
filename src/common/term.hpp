@@ -1435,7 +1435,7 @@ public:
   
     inline void set_head_block(heap_block *h) {
         head_block_ = h;
-        size_ = h->index() * heap_block::MAX_SIZE;
+        size_ = h->index() * heap_block::MAX_SIZE + h->size();
     }
   
 private:

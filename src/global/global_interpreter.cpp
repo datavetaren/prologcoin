@@ -23,7 +23,7 @@ global_interpreter::global_interpreter(global &g)
     init_from_symbols_db();
     init_from_program_db();
 
-    set_updated_predicate_fn(updated_predicate);
+    setup_updated_predicate_function(updated_predicate);
     heap_setup_new_atom_function( call_new_atom, this );
     heap_setup_modified_block_function( call_modified_heap_block, this );
 
@@ -42,7 +42,7 @@ void global_interpreter::updated_predicate(interpreter_base &interp, const inter
     auto &gi = reinterpret_cast<global_interpreter &>(interp);
     gi.updated_predicate(qn);
 }
-    
+
 void global_interpreter::setup_consensus_lib(interpreter &interp) {
   ec::builtins::load_consensus(interp);
   coin::builtins::load_consensus(interp);
@@ -75,7 +75,8 @@ tx1(Hash,args(Signature,PubKey,PubKeyAddr)) :-
 
 reward(PubKeyAddr) :-
     reward(_, Coin),
-    tx(Coin, _, tx1, args(_,_,PubKeyAddr), _).
+    tx(Coin, _, tx1, args(_,_,PubKeyAddr), _),
+    increment_height.
 
 )PROG";
 
@@ -192,9 +193,144 @@ db::triedb_leaf * global_interpreter::find_block_db(size_t block_index)
     return get_global().heap_db().find(get_global().current_height(), block_index);
 }
 
+term global_interpreter::get_frozen_closure(size_t addr)
+{
+    auto height = get_global().current_height();
+    auto it = modified_closures_.find(addr);
+    if (it != modified_closures_.end()) {
+	return it->second;
+    }
+    auto *leaf = get_global().closures_db().find(height, addr);
+    if (leaf == nullptr) {
+	return EMPTY_LIST;
+    }
+    assert(leaf->custom_data_size() == sizeof(uint64_t));
+    return cell(db::read_uint64(leaf->custom_data()));
+}
+
+void global_interpreter::clear_frozen_closure(size_t addr)
+{
+    internal_clear_frozen_closure(addr);
+
+    // Check if frozen closure is in modified list, then remove it
+    auto it = modified_closures_.find(addr);
+    if (it != modified_closures_.end()) {
+	modified_closures_.erase(addr);
+	return;
+    }
+    // We need to remove it from the database, so we annotate for it
+    modified_closures_[addr] = term();
+}
+
+void global_interpreter::set_frozen_closure(size_t addr, term closure)
+{
+    internal_set_frozen_closure(addr, closure);
+    modified_closures_[addr] = closure;
+}
+
+void global_interpreter::get_frozen_closures(size_t from_addr,
+					     size_t to_addr,
+					     size_t max_closures,
+			     std::vector<std::pair<size_t,term> > &closures)
+{
+    size_t height = get_global().current_height();
+    size_t k = max_closures;
+
+    bool reversed = get_global().interp().heap_size() == from_addr &&
+	            to_addr <= from_addr;
+
+    const auto none = term();
+
+    auto &closures_db = get_global().closures_db();
+    
+    auto it1 = reversed ? closures_db.end(height) : closures_db.begin(height, from_addr);
+    if (reversed) --it1;
+    size_t prev_last_addr = from_addr;
+    size_t last_addr = from_addr;
+    while (!it1.at_end() && k > 0) {
+	auto &leaf = *it1;
+	if (leaf.key() >= to_addr) {
+	    break;
+	}
+	prev_last_addr = last_addr;
+	last_addr = leaf.key();
+
+	// Process modified closures in between
+	if (reversed) {
+	    auto it2 = modified_closures_.lower_bound(last_addr+1);
+	    while (it2 != modified_closures_.end()) {
+		if (it2->first >= prev_last_addr) {
+		    break;
+		}
+		if (it2->second != none) {
+		    closures.push_back(*it2);
+		}
+		++it2;
+	    }
+	} else {
+	    auto it2 = modified_closures_.lower_bound(prev_last_addr+1);
+	    while (it2 != modified_closures_.end()) {
+		if (it2->first >= last_addr) {
+		    break;
+		}
+		if (it2->second != none) {
+		    closures.push_back(*it2);
+		}
+		++it2;
+	    }
+	}
+
+	auto mod = modified_closures_.find(leaf.key());
+	if (mod != modified_closures_.end()) {
+	    ++it1;
+	    if (mod->second == none) {
+		continue;
+	    }
+	    k--;
+	    closures.push_back(*mod);
+	    continue;
+	}
+
+	assert(it1->custom_data_size() == sizeof(uint64_t));
+	cell cl(db::read_uint64(it1->custom_data()));
+	closures.push_back(std::make_pair(leaf.key(), cl));
+	k--;
+	if (reversed) --it1; else ++it1;
+    }
+
+    if (!reversed) {
+	// At this point we check modified closures from last_addr
+	auto mod = modified_closures_.lower_bound(last_addr);
+	while (mod != modified_closures_.end() && k > 0) {
+	    if (mod->second != none) {
+		closures.push_back(*mod);
+		k--;
+	    }
+	    ++mod;
+	}
+    } else if (last_addr > 0) {
+	auto mod0 = modified_closures_.lower_bound(last_addr-1);
+	std::map<size_t, term>::reverse_iterator mod(mod0);
+	while (mod != modified_closures_.rend() && k > 0) {
+	    if (mod->first < last_addr) {
+		if (mod->second != none) {
+		    closures.push_back(*mod);
+		    k--;
+		}
+	    }
+	    ++mod;
+	}
+    }
+}
+
 void global_interpreter::commit_symbols()
 {
     size_t current_height = get_global().current_height();
+
+    if (new_atoms_.empty()) {
+         get_global().symbols_db().no_change(current_height);
+	 return;
+    }
     
     std::vector<uint8_t> buffer;
 
@@ -220,6 +356,30 @@ void global_interpreter::commit_symbols()
     get_global().symbols_db().update(current_height, current_height,
 				     &buffer[0], buffer.size());
     new_atoms_.clear();
+}
+
+void global_interpreter::commit_closures()
+{
+    size_t current_height = get_global().current_height();
+
+    auto &closures_db = get_global().closures_db();
+
+    if (modified_closures_.empty()) {
+         closures_db.no_change(current_height);
+	 return;
+    }
+    
+    uint8_t buffer[sizeof(uint64_t)];
+    const auto none = term();
+    for (auto &cl : modified_closures_) {
+	if (cl.second == none) {
+	    closures_db.remove(current_height, cl.first);
+	} else {
+	    db::write_uint64(buffer, cl.second.raw_value());
+	    closures_db.update(current_height, cl.first, buffer, sizeof(buffer));
+	}
+    }
+    modified_closures_.clear();
 }
     
 void global_interpreter::commit_heap()

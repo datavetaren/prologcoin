@@ -1186,46 +1186,25 @@ bool builtins::frozenk_3(interpreter_base &interp, size_t arity, common::term ar
 
     size_t start_heap_addr = start == -1 ? interp.heap_size() : checked_cast<size_t>(start);
     size_t end_heap_addr = interp.heap_size();
-    
-    interp.frozen_closure_fn_(interp, interpreter_base::LOAD_FROZEN_CLOSURE,
-			      start_heap_addr,
-			      end_heap_addr,
-			      checked_cast<size_t>(k));
 
     // Extract the K heap positions frozen closures starting from address
 
     term lst = interpreter_base::EMPTY_LIST;
-
-    if (start == -1) {
-        auto it = interp.frozen_closures_.rbegin();
-	auto at_end = interp.frozen_closures_.rend();
-	while (k > 0 && it != at_end) {
-	    auto heap_address = it->first;
-	    lst = interp.new_dotted_pair(int_cell(heap_address), lst);
-	    ++it;
-	    k--;
-	}
-    } else {
-        auto i_start = static_cast<size_t>(start);
-        auto it = interp.frozen_closures_.lower_bound(i_start);
-	auto at_end = interp.frozen_closures_.end();
-	auto last = lst;
-	while (k > 0 && it != at_end) {
-  	    auto heap_address = it->first;
-	    auto next_lst = interp.new_dotted_pair(int_cell(heap_address),
-						   interpreter_base::EMPTY_LIST);
-	    if (last == interpreter_base::EMPTY_LIST) {
-	        lst = next_lst;
-	        last = next_lst;
-	    } else {
-	        interp.set_arg(last, 1, next_lst);
-		last = next_lst;
-	    }
-	    ++it;
-	    k--;
+    term last = lst;
+    std::vector<std::pair<size_t, term> > closures;
+    interp.get_frozen_closures(start_heap_addr, end_heap_addr, k, closures);
+    for (auto &p : closures) {
+	auto heap_address = p.first;
+	auto next_lst = interp.new_dotted_pair(int_cell(heap_address),
+					       interpreter_base::EMPTY_LIST);
+	if (last == interpreter_base::EMPTY_LIST) {
+	    lst = next_lst;
+	    last = next_lst;
+	} else {
+	    interp.set_arg(last, 1, next_lst);
+	    last = next_lst;
 	}
     }
-
     return interp.unify(args[2], lst);
 }
 

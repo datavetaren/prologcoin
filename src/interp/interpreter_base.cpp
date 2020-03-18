@@ -36,7 +36,7 @@ meta_context::meta_context(interpreter_base &i, meta_fn mfn)
     old_hb = i.get_register_hb();
 }
 
-interpreter_base::interpreter_base() : has_updated_predicates_(false), register_pr_("", 0), arith_(*this), locale_(*this), current_module_("system",0), persistent_password_(false), updated_predicate_fn_(nullptr), frozen_closure_fn_(&interpreter_base::frozen_closure_default)
+interpreter_base::interpreter_base() : has_updated_predicates_(false), register_pr_("", 0), arith_(*this), locale_(*this), current_module_("system",0), persistent_password_(false), updated_predicate_fn_(nullptr)
 {
     init();
 

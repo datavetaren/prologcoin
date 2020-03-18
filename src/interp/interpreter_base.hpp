@@ -1776,68 +1776,82 @@ private:
 protected:
     void clear_password();
 
-    inline void set_updated_predicate_fn(updated_predicate_fn fn) {
+    inline void setup_updated_predicate_function(updated_predicate_fn fn) {
         updated_predicate_fn_ = fn;
     }
 
+private:
+    std::map<size_t, term> frozen_closures_;
+
 protected:
+    // Closure management is virtual as that, although not the most efficient,
+    // it's the easiest way to override its behavior, e.g. accessing a database
+    // with caching.
+
     static const size_t MAX_FROZEN_CLOSURES = static_cast<size_t>(-1);
 
-    enum frozen_closure_op {
-        SET_FROZEN_CLOSURE = 0,
-	CLEAR_FROZEN_CLOSURE = 1,
-        LOAD_FROZEN_CLOSURE = 2
-    };
-    typedef void (*frozen_closure_fn)(interpreter_base &interp,
-				      frozen_closure_op op,
-				      size_t from_addr,
-				      size_t to_addr,
-				      size_t max_closures);
-
-private:
-    frozen_closure_fn frozen_closure_fn_;
-
-    // This can act as a cache if frozen_closures_fn is used
-    // (happens for global_interpreter)
-    std::map<size_t,term> frozen_closures_;
-
-    static void frozen_closure_default(interpreter_base & /*interp*/,
-				       frozen_closure_op /* op */,
-				       size_t /* from_addr */,
-				       size_t /* to_addr */,
-				       size_t /* max_closures */) {
-      // Do nothing
-    }
-
-protected:
-    inline void set_frozen_clousre_fn(frozen_closure_fn fn) {
-        frozen_closure_fn_ = fn;
-    }
-				      
-    inline void set_frozen_closure(size_t index, term closure) {
-        frozen_closures_.insert(std::make_pair(index, closure));
+    inline void internal_set_frozen_closure(size_t index, term closure) {
 	heap_watch(index, true);
 	trail(index);
-        frozen_closure_fn_(*this, SET_FROZEN_CLOSURE, index, index+1, 1);
 	if (is_debug()) {
 	    std::cout << "Set frozen closure: " << index << std::endl;
         }
     }
-    inline void clear_frozen_closure(size_t index) {
-        frozen_closures_.erase(index);
+
+    inline void internal_clear_frozen_closure(size_t index) {
 	heap_watch(index, false);
-        frozen_closure_fn_(*this, CLEAR_FROZEN_CLOSURE, index, index+1, 1);	
 	if (is_debug()) {
 	    std::cout << "Clear frozen closure: " << index << std::endl;
 	}
     }
-    // This assumes the frozen_closure cache is updated
-    inline term get_frozen_closure(size_t index) {
+
+    virtual void set_frozen_closure(size_t index, term closure) {
+	internal_set_frozen_closure(index, closure);
+        frozen_closures_.insert(std::make_pair(index, closure));
+    }
+
+    virtual void clear_frozen_closure(size_t index) {
+	internal_clear_frozen_closure(index);
+        frozen_closures_.erase(index);
+    }
+
+    virtual term get_frozen_closure(size_t index) {
 	auto it = frozen_closures_.find(index);
 	if (it == frozen_closures_.end()) {
 	    return EMPTY_LIST;
 	}
 	return it->second;
+    }
+
+    virtual void get_frozen_closures(size_t from_addr, size_t to_addr,
+				     size_t max_closures,
+			  std::vector<std::pair<size_t, term> > &closures)
+    {
+	bool from_end = from_addr == heap_size();
+
+	if (from_end) {
+	    auto it = frozen_closures_.rbegin();
+	    auto it_end = frozen_closures_.rend();
+	    size_t k = max_closures;
+	    while (k > 0 && it != it_end) {
+		closures.push_back(*it);
+		k--;
+		++it;
+	    }
+	} else {
+	    auto it = frozen_closures_.lower_bound(from_addr);
+	    auto it_end = frozen_closures_.end();
+	    size_t k = max_closures;
+	    while (k > 0 && it != it_end) {
+		auto heap_address = it->first;
+		if (heap_address >= to_addr) {
+		    break;
+		}
+		closures.push_back(*it);
+		k--;
+		++it;
+	    }
+	}
     }
 
     inline void unwind_frozen_closures(size_t a, size_t b) {
@@ -1859,8 +1873,6 @@ public:
 	    heap_watch(k, false);
         }
 	frozen_closures_.clear();
-	frozen_closure_fn_(*this, CLEAR_FROZEN_CLOSURE, 0, heap_size(),
-			   MAX_FROZEN_CLOSURES);
     }
 
 private:
@@ -1869,16 +1881,14 @@ private:
 protected:
     inline void trim_heap_safe(size_t new_size) {
         size_t current_size = heap_size();
-        term_env::trim_heap(new_size);
 	// And we need to remove any pending frozen closures
-	for (auto it = frozen_closures_.lower_bound(new_size);
-	     it != frozen_closures_.end();) {
-   	     size_t addr = it->first;
-	     it = frozen_closures_.erase(it);
-	     heap_watch(addr, false);
+	std::vector<std::pair<size_t, term> > closures;
+	get_frozen_closures(new_size, current_size, MAX_FROZEN_CLOSURES, closures);
+	for (auto &p : closures) {
+   	     size_t addr = p.first;
+	     clear_frozen_closure(addr);
 	}
-	frozen_closure_fn_(*this, CLEAR_FROZEN_CLOSURE, new_size, current_size,
-			   MAX_FROZEN_CLOSURES);
+        term_env::trim_heap(new_size);
     }
 
     inline void trim_heap_unsafe(size_t new_size) {

@@ -534,6 +534,11 @@ template<typename HT, typename ST, typename OT> class term_env_dock
 public:
   inline term_env_dock() { }
 
+  inline void heap_set_size(size_t sz)
+      { heap_dock<HT>::heap_set_size(sz);
+	stacks_dock<ST>::set_register_hb(sz);
+      }
+
   inline bool is_atom(const term t) const
       { return is_functor(t) && heap_dock<HT>::functor(t).arity() == 0; }
 
