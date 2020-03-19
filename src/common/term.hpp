@@ -823,7 +823,7 @@ public:
 	return cells_[addr - offset_];
     }
 
-    inline cell & get(size_t index) const {
+    inline const cell & get(size_t index) const {
         return cells_[index];
     }
 
