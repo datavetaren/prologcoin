@@ -719,6 +719,11 @@ void triedb_iterator::start_from_key(uint64_t parent_ptr, uint64_t key) {
     auto *parent = db_.get_branch(parent_ptr);
     size_t sub_index = get_sub_index(parent, key);
     auto m = parent->mask();
+    // Is the key bigger than what is represented by the root node,
+    // then it's not present.
+    if (common::msb(key) >= parent->max_key_bits()) {
+        return;
+    }
     if (parent->is_empty(sub_index)) {
 	m &= (static_cast<uint32_t>(-1) << sub_index) << 1;
 	sub_index = (m == 0) ? triedb_params::MAX_BRANCH : common::lsb(m);

@@ -38,6 +38,10 @@ void global::increment_height()
     interp().commit_symbols();
     interp().commit_program();
     interp().commit_closures();
+    heap_db().flush();
+    symbols_db().flush();
+    program_db().flush();
+    closures_db().flush();
     current_height_++;
 }
     
