@@ -40,11 +40,7 @@ int main( int argc, char *argv[] )
 
     const std::string dir = "/src/coin/test/pl_files";
 
-    if (argc == 2) {
-        test_interpreter_files<interpreter>(dir, [](interpreter &i){prologcoin::coin::builtins::load(i);}, name);
-    } else {
-        test_interpreter_files<interpreter>(dir, [](interpreter &i){prologcoin::coin::builtins::load(i);});
-    }
+    test_interpreter_files<interpreter>(dir, [](interpreter &i){prologcoin::coin::builtins::load(i);}, [](const std::string &){return false;}, name);
 
     return 0;
 }

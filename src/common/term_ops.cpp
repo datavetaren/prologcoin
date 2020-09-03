@@ -6,6 +6,11 @@ namespace prologcoin { namespace common {
 
 term_ops::term_ops()
 {
+    reset();
+}
+
+void term_ops::reset()
+{
     static op_entry DEFAULT[] =
 	{
 	    { "-->",    2, 1200,       XFX, SPACE_XFX},
@@ -75,6 +80,10 @@ term_ops::term_ops()
     op_none_.precedence = 0;
     op_none_.type = FX;
     op_none_.space = SPACE_F;
+
+    op_prec_.clear();
+    name_prec_.clear();
+    op_empty_list_.clear();
 
     for (auto i = std::size_t(0); i < sizeof(DEFAULT) / sizeof(op_entry); i++) {
 	const std::string &name = DEFAULT[i].name;

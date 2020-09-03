@@ -52,7 +52,7 @@ int main( int argc, char *argv[] )
     random::set_for_testing(true);
     
     std::string home_dir = find_home_dir(argv[0]);
-    test_dir = (boost::filesystem::path(home_dir) / "bin" / "test" / "wallet" / "triedb").string();
+    test_dir = (boost::filesystem::path(home_dir) / "bin" / "test" / "wallet").string();
     
     full_mode = is_full(argc, argv);
 
@@ -78,11 +78,16 @@ int main( int argc, char *argv[] )
     w.connect_node(&term);
     w.load();
 
-    if (argc == 2) {
-        test_interpreter_files(dir, w.interp(), name);
-    } else {
-        test_interpreter_files(dir, w.interp());
-    }
+    auto hook = [&](const std::string &cmd) {
+	if (cmd == "global reset") {
+	    std::cout << "### Global reset ###" << std::endl;
+	    self.global().total_reset();
+	    return true;
+	}
+	return false;
+    };
+
+    test_interpreter_files(dir, w.interp(), hook, name);
 
     self.stop();
     self.join();

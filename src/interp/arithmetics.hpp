@@ -26,6 +26,8 @@ namespace prologcoin { namespace interp {
         arithmetics(interpreter_base &interp) : interp_(interp), debug_(false)
  	   { }
 
+	void total_reset();
+
 	inline void set_debug(bool dbg) { debug_ = dbg; }
 
 	void unload();

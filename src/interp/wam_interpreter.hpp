@@ -393,10 +393,16 @@ private:
 class wam_code
 {
 public:
-    wam_code(wam_interpreter &interp,
-  			     size_t initial_capacity = 1024)
-	: interp_(interp), instrs_size_(0), instrs_capacity_(initial_capacity)
-    { instrs_ = new code_t[instrs_capacity_]; }
+    wam_code(wam_interpreter &interp)
+	: interp_(interp), instrs_(nullptr)
+    { total_reset(); }
+
+    void total_reset() {
+	if (instrs_) delete [] instrs_;
+	instrs_capacity_ = 1024;
+	instrs_size_ = 0;
+	instrs_ = new code_t[instrs_capacity_];
+    }
 
     inline size_t next_offset() const
     {
@@ -665,6 +671,9 @@ class wam_interpreter : public interpreter_base, public wam_code
 public:
     wam_interpreter();
     ~wam_interpreter();
+
+    void total_reset();
+
 
     typedef common::term term;
 

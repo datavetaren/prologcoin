@@ -60,15 +60,9 @@ void wam_code::print_code(std::ostream &out)
     }
 }
 
-wam_interpreter::wam_interpreter() : wam_code(*this)
+wam_interpreter::wam_interpreter() : wam_code(*this), compiler_(nullptr)
 {
-    fail_ = false;
-    mode_ = READ;
-    set_num_y_fn( &num_y );
-    set_save_restore_state_fns( &save_state, &restore_state );
-    register_s_ = 0;
-    memset(register_xn_, 0, sizeof(register_xn_));
-    compiler_ = new wam_compiler(*this);
+    total_reset();
 }
 
 wam_interpreter::~wam_interpreter()
@@ -77,6 +71,21 @@ wam_interpreter::~wam_interpreter()
     for (auto m : hash_maps_) {
 	delete m;
     }
+}
+
+void wam_interpreter::total_reset()
+{
+    interpreter_base::total_reset();
+    wam_code::total_reset();
+
+    fail_ = false;
+    mode_ = READ;
+    set_num_y_fn( &num_y );
+    set_save_restore_state_fns( &save_state, &restore_state );
+    register_s_ = 0;
+    memset(register_xn_, 0, sizeof(register_xn_));
+    if (compiler_) delete compiler_;
+    compiler_ = new wam_compiler(*this);
 }
 
 bool wam_interpreter::cont_wam()
@@ -111,6 +120,7 @@ void wam_interpreter::compile(const qname &qn)
     wam_interim_code instrs(*this);
     compiler_->clear();
     if (!compiler_->compile_predicate(qn, instrs)) {
+	trim_heap_safe(heap_sz);
         return;
     }
     size_t xn_size = compiler_->get_num_x_registers(instrs);

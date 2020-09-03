@@ -69,10 +69,15 @@ static inline std::vector<std::string> parse_meta(std::string &comments)
 }
 
 static inline void process_meta(interpreter &interp, std::string &comments,
-				std::unordered_map<std::string, int> &opt)
+				std::unordered_map<std::string, int> &opt,
+				std::function<bool (const std::string &)> hook)
 {
     auto meta = parse_meta(comments);
     for (auto cmd : meta) {
+	if (hook(cmd)) {
+	    // Short-circuited
+	    continue;
+	}
         if (cmd == "debug on") {
   	    interp.set_debug(true);
         } else if (cmd == "debug off") {
@@ -202,7 +207,8 @@ static inline bool test_run_once(interpreter &interp,
 }
 
 static inline bool test_interpreter_file(const std::string &filepath,
-				  interpreter &interp)
+					 interpreter &interp,
+					 std::function<bool (const std::string &cmd)> hook)
 {
     std::cout << std::endl;
     std::cout << std::string(60, '=') << std::endl;
@@ -243,7 +249,7 @@ static inline bool test_interpreter_file(const std::string &filepath,
 
 	    // interp.sync_with_heap();
 
-	    process_meta(interp, comments, opt);
+	    process_meta(interp, comments, opt, hook);
 
 	    bool is_query = interp.is_functor(t, query_op);
 	    bool is_action = interp.is_functor(t, action_op);
@@ -472,22 +478,22 @@ static inline std::vector<boost::filesystem::path> test_interpreter_get_files(co
     return files;
 }
 
-template<typename Interpreter = interpreter> static inline void test_interpreter_files(const std::string &dir, std::function<void (Interpreter &)> init_fn, const char *filter = nullptr)
+template<typename Interpreter = interpreter> static inline void test_interpreter_files(const std::string &dir, std::function<void (Interpreter &)> init_fn, std::function<bool (const std::string &)> hook, const char *filter = nullptr)
 {
     auto files = test_interpreter_get_files(dir, filter);
     for (auto &filepath : files) {
 	Interpreter interp;
 	init_fn(interp);
-	bool r = test_interpreter_file(filepath.string(), interp);
+	bool r = test_interpreter_file(filepath.string(), interp, hook);
 	assert(r);
     }
 }
 
-template<typename Interpreter = interpreter>static inline void test_interpreter_files(const std::string &dir, Interpreter &interp, const char *filter = nullptr)
+template<typename Interpreter = interpreter>static inline void test_interpreter_files(const std::string &dir, Interpreter &interp, std::function<bool (const std::string &cmd)> hook, const char *filter = nullptr)
 {
     auto files = test_interpreter_get_files(dir, filter);
     for (auto &filepath : files) {
-	bool r = test_interpreter_file(filepath.string(), interp);
+	bool r = test_interpreter_file(filepath.string(), interp, hook);
 	assert(r);
     }
 }

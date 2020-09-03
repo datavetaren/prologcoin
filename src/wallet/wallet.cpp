@@ -12,6 +12,10 @@ using namespace prologcoin::interp;
 
 namespace prologcoin { namespace wallet {
 
+void wallet::erase(const std::string &wallet_file) {
+    boost::filesystem::remove(wallet_file);
+}
+
 wallet::wallet(const std::string &wallet_file) : wallet_file_(wallet_file), interp_(*this, wallet_file), killed_(false), terminal_(nullptr)
 {
 }
@@ -19,6 +23,19 @@ wallet::wallet(const std::string &wallet_file) : wallet_file_(wallet_file), inte
 wallet::~wallet()
 {
     killed_ = true;
+}
+
+void wallet::total_reset()
+{
+    interp_.total_reset();
+}
+
+const std::string & wallet::get_file() const {
+    return wallet_file_;
+}
+
+void wallet::set_file(const std::string &file) {
+    wallet_file_ = file;
 }
 
 void wallet::load()

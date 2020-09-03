@@ -57,11 +57,7 @@ int main( int argc, char *argv[] )
     auto &interp = state->interp();
     interp.ensure_initialized();
 
-    if (argc == 2) {
-        test_interpreter_files(dir, interp, name);
-    } else {
-        test_interpreter_files(dir, interp);
-    }
+    test_interpreter_files(dir, interp, [](const std::string &){return false;}, name);
 
     return 0;
 }

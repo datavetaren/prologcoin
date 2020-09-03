@@ -3,6 +3,7 @@
 #include "../coin/builtins.hpp"
 #include "wallet_interpreter.hpp"
 #include "wallet.hpp"
+#include <boost/filesystem/path.hpp>
 
 using namespace prologcoin::common;
 using namespace prologcoin::interp;
@@ -10,6 +11,11 @@ using namespace prologcoin::interp;
 namespace prologcoin { namespace wallet {
 
 wallet_interpreter::wallet_interpreter(wallet &w, const std::string &wallet_file) : file_path_(wallet_file), wallet_(w), no_coin_security_(this->disable_coin_security()) {
+    init();
+}
+
+void wallet_interpreter::init()
+{
     load_builtins_file_io();
     ec::builtins::load(*this);
     coin::builtins::load(*this);
@@ -21,11 +27,20 @@ wallet_interpreter::wallet_interpreter(wallet &w, const std::string &wallet_file
     use_module(functor("wallet_impl",0));
 }
 
+void wallet_interpreter::total_reset()
+{
+    interpreter::total_reset();
+    disable_coin_security();
+    init();
+}
+
 void wallet_interpreter::setup_local_builtins()
 {
     static const con_cell M("wallet",0);
     load_builtin(M, con_cell("@",2), &wallet_interpreter::operator_at_2);
     load_builtin(M, con_cell("create",2), &wallet_interpreter::create_2);
+    load_builtin(M, con_cell("save",0), &wallet_interpreter::save_0);
+    load_builtin(M, con_cell("file",1), &wallet_interpreter::file_1);
 }
 
 void wallet_interpreter::setup_wallet_impl()
@@ -257,6 +272,44 @@ bool wallet_interpreter::operator_at_2(interpreter_base &interp, size_t arity, t
 	   {return LL(interp).get_wallet().delete_instance_at(interp, where);});
 
     return proxy.start(query, where);
+}
+
+bool wallet_interpreter::save_0(interpreter_base &interp, size_t arity, term args[])
+{
+    auto &w = reinterpret_cast<wallet_interpreter &>(interp).get_wallet();
+    w.save();
+    return true;
+}
+
+bool wallet_interpreter::file_1(interpreter_base &interp, size_t arity, term args[])
+{
+    auto &w = reinterpret_cast<wallet_interpreter &>(interp).get_wallet();
+    if (args[0].tag().is_ref()) {
+	
+	return interp.unify(args[0], interp.string_to_list(w.get_file()));
+    } else {
+	// Switch to a new file
+	// If the file name is relative,
+	// use the same directory as the current file.
+
+	if (!interp.is_string(args[0])) {
+	    throw interp::interpreter_exception_wrong_arg_type("file/1: Argument must be a string; was " + interp.to_string(args[0]));
+	}
+	auto new_file = interp.list_to_string(args[0]);
+	if (new_file.empty()) {
+	    w.set_file(new_file);
+	    return true;
+	}
+	auto new_path = boost::filesystem::path(new_file);
+	if (new_path.is_relative()) {
+	    auto p = boost::filesystem::path(w.get_file()).parent_path();
+	    p /= new_path;
+	    new_path = p;
+	}
+	new_file = new_path.string();
+	w.set_file(new_file);
+	return true;
+    }
 }
 
 bool wallet_interpreter::create_2(interpreter_base &interp, size_t arity, term args[])

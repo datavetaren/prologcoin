@@ -20,6 +20,8 @@ class term_ops {
 public:
     term_ops();
 
+    void reset();
+
     inline term_ops & get_ops() { return *this; }
     inline const term_ops & get_ops() const { return *this; }
 

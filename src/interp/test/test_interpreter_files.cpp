@@ -38,11 +38,7 @@ int main( int argc, char *argv[] )
 
     const std::string dir = "/src/interp/test/pl_files";
 
-    if (argc >= 2) {
-        test_interpreter_files<interpreter>(dir, [](interpreter &){}, name);
-    } else {
-        test_interpreter_files<interpreter>(dir, [](interpreter &){});
-    }
+    test_interpreter_files<interpreter>(dir, [](interpreter &){}, [](const std::string &){return false;}, name);
 
     return 0;
 }

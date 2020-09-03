@@ -895,6 +895,8 @@ public:
     heap();
     ~heap();
 
+    void reset();
+
     inline heap & get_heap() { return *this; }
     inline const heap & get_heap() const { return *this; }
 

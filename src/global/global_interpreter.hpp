@@ -81,6 +81,8 @@ public:
 
     global_interpreter(global &g);
 
+    void total_reset();
+
     global & get_global() { return global_; }
 
     void init_from_heap_db();
@@ -145,6 +147,8 @@ public:
     friend class global_builtins;
   
 private:
+    void init();
+
     static inline common::heap_block & call_get_heap_block(common::heap &h, void *context, size_t block_index)
     {
         auto *gi = reinterpret_cast<global_interpreter *>(context);

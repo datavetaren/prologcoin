@@ -10,14 +10,16 @@ interpreter::interpreter()
     query_vars_ = nullptr;
     num_instances_ = 0;
     retain_state_between_queries_ = false;
+}
 
-    set_debug_check_fn(
-       [&] {
-	   size_t n1 = to_stack_relative_addr((word_t *)e0());
-	   size_t n2 = to_stack_relative_addr((word_t *)b());
-	   size_t n = (n1 > n2) ? n1 : n2;
-	   std::cout << "STACK: " << n << " " << ((n2 > n1) ? "B" : "E") << " HEAP: " << heap_size() << " TRAIL: " << trail_size() << "\n";
-       });
+void interpreter::total_reset()
+{
+    wam_interpreter::total_reset();
+
+    wam_enabled_ = true;
+    query_vars_ = nullptr;
+    num_instances_ = 0;
+    retain_state_between_queries_ = false;
 }
 
 interpreter::~interpreter()

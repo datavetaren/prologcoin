@@ -270,7 +270,9 @@ bool builtins::get_bignum(interpreter_base &interp, term big0, uint8_t *bytes, s
 
     auto &big = reinterpret_cast<const big_cell &>(big0);
     size_t nbits = interp.num_bits(big);
+
     size_t nbytes = (nbits + 7) / 8;
+
     if (nbytes > n) {
 	return false;
     }

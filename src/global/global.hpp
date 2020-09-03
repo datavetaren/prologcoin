@@ -37,6 +37,8 @@ private:
 public:
     static const size_t BLOCK_CACHE_SIZE = 4*GB;
 
+    inline const std::string & data_dir() { return data_dir_; }
+
     global(const std::string &data_dir);
 
     void go_debug();
@@ -57,7 +59,9 @@ public:
     inline void reset() {
         return interp_.reset();
     }
-  
+
+    void total_reset();
+
     inline bool execute_goal(term t, bool and_undo) {
         return interp_.execute_goal(t, and_undo);
     }

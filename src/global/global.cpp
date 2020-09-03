@@ -32,6 +32,18 @@ void global::erase_db()
     erase_db(data_dir_);
 }
 
+void global::total_reset()
+{
+    db_heap_ = nullptr;
+    db_closures_ = nullptr;
+    db_symbols_ = nullptr;
+    db_program_ = nullptr;
+    db_meta_ = nullptr;
+    erase_db();
+    current_height_ = 0;
+    interp().total_reset();
+}
+
 void global::increment_height()
 {
     interp().commit_heap();

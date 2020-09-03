@@ -22,19 +22,26 @@ class wallet {
 public:
     using terminal = prologcoin::terminal::terminal;
     using remote_return_t = interp::remote_return_t;
+
+    // For testing purposes
+    static void erase(const std::string &wallet_file);
   
     // Wallet file is some Prolog source code (.pl) representing a wallet.
     wallet(const std::string &wallet_file = "");
     ~wallet();
 
+    void total_reset();
+
     inline common::term_env & env() { return interp_; }
     inline interp::interpreter & interp() { return interp_; }
-  
+
+    const std::string & get_file() const;
+    void set_file(const std::string &wallet_file);
     void load();
     void save();
     void create(const std::string &passwd, common::term sentence);
     void check_dirty();
-  
+
     // Start the thread that will talk to the node.
     void connect_node(terminal *node_terminal);
     void node_pulse();

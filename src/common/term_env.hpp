@@ -318,6 +318,14 @@ public:
     inline size_t get_register_hb() const { return register_hb_; }
     inline void set_register_hb(size_t hb) { register_hb_ = hb; }
 
+    inline void reset() {
+	stack_.clear();
+	trail_.clear();
+	temp_.clear();
+	temp_trail_.clear();
+	register_hb_ = 0;
+    }
+    
 private:
     std::vector<term> stack_;
     std::vector<size_t> trail_;
@@ -533,6 +541,12 @@ template<typename HT, typename ST, typename OT> class term_env_dock
 {
 public:
   inline term_env_dock() { }
+
+  void reset() {
+      heap_dock<HT>::reset();
+      stacks_dock<ST>::reset();
+      ops_dock<OT>::reset();
+  }
 
   inline void heap_set_size(size_t sz)
       { heap_dock<HT>::heap_set_size(sz);

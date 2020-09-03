@@ -345,6 +345,7 @@ public:
     inline static code_point fail() {
         return code_point();
     }
+
     inline void reset()
     { static const common::con_cell el = common::con_cell("[]",0);
       wam_code_ = nullptr;
@@ -618,6 +619,7 @@ public:
     }
 
     void reset();
+    void total_reset();
 
     bool is_track_cost() const { return track_cost_; }
     void set_track_cost(bool b) { track_cost_ = b; }

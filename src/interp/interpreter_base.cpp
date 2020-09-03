@@ -36,9 +36,55 @@ meta_context::meta_context(interpreter_base &i, meta_fn mfn)
     old_hb = i.get_register_hb();
 }
 
-interpreter_base::interpreter_base() : has_updated_predicates_(false), register_pr_("", 0), arith_(*this), locale_(*this), current_module_("system",0), persistent_password_(false), updated_predicate_fn_(nullptr)
+interpreter_base::interpreter_base() : arith_(*this), locale_(*this)
 {
     init();
+}
+
+void interpreter_base::total_reset()
+{
+    term_env::reset();
+    secondary_env_.reset();
+
+    code_db_.clear();
+    builtins_.clear();
+    program_db_.clear();
+    module_db_.clear();
+    module_db_set_.clear();
+    program_predicates_.clear();
+    updated_predicates_.clear();
+    module_meta_db_.clear();
+    if (stack_) delete [] stack_;
+    stack_ = nullptr;
+
+    init();
+    reset_files();
+    frozen_closures_.clear();
+    reset_accumulated_cost();
+}
+
+void interpreter_base::init()
+{
+    has_updated_predicates_ = false;
+    register_pr_ = con_cell("",0);
+    arith_.total_reset();
+    locale_.total_reset();
+    current_module_ = con_cell("system",0);
+    persistent_password_ = false;
+    updated_predicate_fn_ = nullptr;
+
+    debug_ = false;
+    track_cost_ = false;
+    file_id_count_ = 3;
+    num_of_args_= 0;
+    memset(register_ai_, 0, sizeof(register_ai_));
+    stack_ = reinterpret_cast<word_t *>(new char[MAX_STACK_SIZE]);
+    num_y_fn_ = &num_y;
+    save_state_fn_ = &save_state;
+    restore_state_fn_ = &restore_state;
+    standard_output_ = nullptr;
+    prepare_execution();
+    new_roots_ = false;
 
     // These will be loaded into the system module
     builtins::load(*this);
@@ -54,26 +100,7 @@ interpreter_base::interpreter_base() : has_updated_predicates_(false), register_
     register_m_ = nullptr;
     num_of_args_ = 0;
     memset(&register_ai_[0], 0, sizeof(common::term)*MAX_ARGS);
-    num_y_fn_ = nullptr;
-    save_state_fn_ = nullptr;
-    restore_state_fn_ = nullptr;
     maximum_cost_ = std::numeric_limits<uint64_t>::max();
-}
-
-void interpreter_base::init()
-{
-    debug_ = false;
-    track_cost_ = false;
-    file_id_count_ = 3;
-    num_of_args_= 0;
-    memset(register_ai_, 0, sizeof(register_ai_));
-    stack_ = reinterpret_cast<word_t *>(new char[MAX_STACK_SIZE]);
-    num_y_fn_ = &num_y;
-    save_state_fn_ = &save_state;
-    restore_state_fn_ = &restore_state;
-    standard_output_ = nullptr;
-    prepare_execution();
-    new_roots_ = false;
 }
 
 interpreter_base::~interpreter_base()

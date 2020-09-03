@@ -70,7 +70,7 @@ check_closures(N) :- ((frozenk(0, 100, HeapAddrs) @ global) @ node), length(Heap
 % This is actually spending to myself (key number 3.)
 % Sending 31_000_000_000 (31 billion units) 
 %
-?- password("foobar"), spend_tx(58'1DgKvJZtrs8KEqWEcrPXW2a7A5TYDoYwKm, 31_000_000_000, 32_000, FinalTx, ConsumedUtxos), commit(FinalTx) @ node, retract_utxos(ConsumedUtxos), sync.
+?- password("foobar"), spend_tx(58'1DgKvJZtrs8KEqWEcrPXW2a7A5TYDoYwKm, 31_000_000_000, 32_000, FinalTx, ConsumedUtxos), write(FinalTx), nl, commit(FinalTx) @ node, retract_utxos(ConsumedUtxos), sync.
 % Expect: true/*
 
 %

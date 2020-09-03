@@ -211,6 +211,8 @@ public:
     interpreter();
     ~interpreter();
 
+    void total_reset();
+
     void setup_standard_lib();
 
     template<typename Pre = no_processing, typename Post = no_processing> void load_program(const std::string &str) {

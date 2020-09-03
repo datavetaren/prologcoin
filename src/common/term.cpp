@@ -263,12 +263,28 @@ heap::heap()
     coin_security_enabled_(true),
     external_ptrs_max_(0)
 {
+    reset();
+}
+
+void heap::reset()
+{
+    for (auto b : blocks_) {
+	delete b;
+    }
+    blocks_.clear();
+    watched_.clear();
+    size_ = 0;
+    head_block_ = nullptr;
+    coin_security_enabled_ = true;
+    external_ptrs_max_ = 0;
     get_block_fn_ = &get_block_default;
     get_block_fn_context_ = nullptr;
     modified_block_fn_ = &modified_block_default;
     modified_block_fn_context_ = nullptr;
     new_atom_fn_ = &new_atom_default;
     new_atom_fn_context_ = nullptr;
+    atom_index_to_name_table_.clear();
+    atom_name_to_index_table_.clear();
 }
 
 heap::~heap()

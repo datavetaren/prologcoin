@@ -28,6 +28,12 @@ namespace prologcoin { namespace interp {
 	return get_int(args[0]) * get_int(args[1]);
     }
 
+    void arithmetics::total_reset() {
+	fn_map_.clear();
+	args_.clear();
+	debug_ = false;
+    }
+
     void arithmetics::load_fn(const std::string &name, size_t arity, arithmetics::fn fn)
     {
 	con_cell f = interp_.functor(name, arity);

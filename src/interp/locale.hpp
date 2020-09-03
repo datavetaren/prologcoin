@@ -21,6 +21,8 @@ public:
     locale(interpreter_base &intp);
     locale(interpreter_base &intp, const std::string &name);
 
+    void total_reset();
+
     void set_from_platform();
 
     void set_decimal_point(con_cell decp) { decimal_point_ = decp; }
@@ -32,6 +34,8 @@ public:
     inline const std::vector<int> & grouping() const { return grouping_; }
 
 private:
+    void init();
+
     interpreter_base &interp_;
     con_cell alias_;
     con_cell decimal_point_;

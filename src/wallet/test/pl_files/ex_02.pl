@@ -36,3 +36,6 @@
 ?- balance(X).
 % Expect: X = 42000000000    
     
+?- save.
+% Expect: true/*
+

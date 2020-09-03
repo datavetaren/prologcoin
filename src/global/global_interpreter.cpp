@@ -17,6 +17,11 @@ global_interpreter::global_interpreter(global &g)
       block_flusher_(),
       block_cache_(global::BLOCK_CACHE_SIZE / heap_block::MAX_SIZE / sizeof(cell), block_flusher_)
 {
+    init();
+}
+
+void global_interpreter::init()
+{
     heap_setup_get_block_function( call_get_heap_block, this );
 
     init_from_heap_db();
@@ -36,6 +41,24 @@ global_interpreter::global_interpreter(global &g)
     setup_consensus_lib(*this);
 
     setup_builtins();
+}
+
+void global_interpreter::total_reset()
+{
+    block_cache_.clear();
+
+    naming_ = false;
+    name_to_term_.clear();
+    current_block_index_ = static_cast<size_t>(-2);
+    current_block_ = nullptr;
+    new_atoms_.clear();
+    modified_blocks_.clear();
+    updated_predicates_.clear();
+    modified_closures_.clear();
+
+    get_global().erase_db();
+    interpreter::total_reset();
+    init();
 }
 
 void global_interpreter::updated_predicate(interpreter_base &interp, const interp::qname &qn) {
@@ -81,7 +104,9 @@ reward(PubKeyAddr) :-
 )PROG";
 
     auto &tx_5 = interp.get_predicate(con_cell("user",0), con_cell("tx",5));
+    std::cout << "global_interpreter: setup..." << std::endl;
     if (tx_5.empty()) {
+	std::cout << "global_interpreter: load program..." << std::endl;
         // Nope, so load it
         interp.load_program(lib);
 	auto &tx_5_verify = interp.get_predicate(con_cell("user",0), con_cell("tx",5));
@@ -375,6 +400,7 @@ void global_interpreter::commit_closures()
 	if (cl.second == none) {
 	    closures_db.remove(current_height, cl.first);
 	} else {
+	    std::cout << "Writing " << cl.first << std::endl;
 	    db::write_uint64(buffer, cl.second.raw_value());
 	    closures_db.update(current_height, cl.first, buffer, sizeof(buffer));
 	}
