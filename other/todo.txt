@@ -1,0 +1,47 @@
+What needs to be done:
+
+* TrieDB: Fix triedb and replace "at_height" with generic "id" (32
+  bytes) And fix root file to store these generic id's instead. This
+  way we can store all forks and manage reorgs easily. (I first
+  thought that we could create a separate DB for orphans, but that's
+  just too complicated. Better to store everything for all branches.)
+
+* Create a test where we produce a couple of thousand transactions
+  between 10 different wallets. We want to create a 1 MB block with
+  transactions that we can serialize and deserialize and run in the
+  global interpreter. Then we record the entire state (= all UTXOs =
+  all closures) and make sure we get the same set of closures when
+  we restart the global interpreter.
+
+* Mempool. Likely we introduce a new module 'mempool' for where we
+  store pending transactions as predicates: mempool( <hash-id>,
+  <transaction data> ) mempool( <hash-id>, <transaction data> ) ...
+  We can use assert/retract to add/remove transactions in the mempool.
+  Of course, <transaction data> is just serialized term which can
+  immediately be sent to the global interpreter using commit(...).
+  <hash-id> should likely be the hash of <transaction data>. If we
+  want to take advantage of first level indexing in Prolog it would be
+  better to use 61-bit integers (int_cell), e.g. the first 61 bits
+  from <hash-id>:
+    mempool(<short-id>, <hash-id>, <transaction data>)
+
+* Broadcasting transactions: We should first check that the transaction
+  is valid (just run it in the global interpreter) and then send it
+  to our peers. A new builtin for the node can be added:
+  broadcast( <transaction-data> )
+
+* Mining & blocks. We need a miner node that can bundle transactions,
+  perform PoW and broadcast blocks. When a node gets a block we first
+  check that we can run it in the global interpreter and then advance
+  state.
+
+* Syncing. When a node starts it needs to update the global state.
+  First we need to find the best chain with most accumulated difficulty
+  and then a branch-point to initialize the state.
+
+* Garbage collection.
+  (For both global and local interpreters. For global interpreter
+   we should perform garbage collection for every 1000 blocks or so,
+   as that is a quite expensive operation - at the same time, this
+   reduces the total state that needs to be downloaded.)
+
