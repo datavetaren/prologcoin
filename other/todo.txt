@@ -1,10 +1,19 @@
 What needs to be done:
 
-* TrieDB: Fix triedb and replace "at_height" with generic "id" (32
+[FIXED] * TrieDB: Fix triedb and replace "at_height" with generic "id" (32
   bytes) And fix root file to store these generic id's instead. This
   way we can store all forks and manage reorgs easily. (I first
   thought that we could create a separate DB for orphans, but that's
   just too complicated. Better to store everything for all branches.)
+
+* Better global interpreter management. We might want to skip the
+  "commit" vs "@" operator. It's better make "@" to just modify the
+  environment. We then add an option to backtrack (to last known
+  state) and another option to increment to the next state (increment height.)
+  We also want to add some builtins to "node" that enables you to
+  list all chains, switch to a specific state, etc. After this is done
+  we can write some non-trivial tests to create large states in different
+  branches and switch between them.
 
 * Create a test where we produce a couple of thousand transactions
   between 10 different wallets. We want to create a 1 MB block with
