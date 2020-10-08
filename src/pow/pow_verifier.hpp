@@ -32,6 +32,18 @@ public:
 	return difficulty_ * val;
     }
 
+    size_t serialization_size() const {
+	return difficulty_.serialization_size();
+    }
+
+    void write(uint8_t *bytes) const {
+	difficulty_.write(bytes);
+    }
+
+    void read(const uint8_t *bytes) {
+	difficulty_.read(bytes);
+    }
+
     inline void get_target(uint8_t target[32]) const {
 	static const flt1648 ONE(1);
 	if (difficulty_ == ONE) {

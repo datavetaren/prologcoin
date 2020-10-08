@@ -12,12 +12,177 @@
 #include <boost/intrusive_ptr.hpp>
 #include <iostream>
 #include <bitset>
+#include <algorithm>
 #include "../common/lru_cache.hpp"
 #include "../common/bits.hpp"
 #include "util.hpp"
 #include "triedb_params.hpp"
 
 namespace prologcoin { namespace db {
+
+//
+// root_id: to identify a specific node in the blockchain.
+//
+class root_id {
+public:
+    static const size_t SIZE = sizeof(uint64_t);
+
+    root_id() : value_(0) {
+    }
+
+    explicit root_id(uint64_t v) : value_(v) {
+    }
+
+    root_id(const root_id &other) = default;
+
+    uint64_t value() const {
+	return value_;
+    }
+
+    bool is_zero() const {
+	return value_ == 0;
+    }
+
+    bool operator == (const root_id &other) const {
+	return value_ == other.value_;
+    }
+
+    bool operator < (const root_id &other) const {
+	return value_ < other.value_;
+    }
+
+    std::string str() const {
+	std::stringstream ss;
+	ss << value_;
+	return ss.str();
+    }
+
+private:
+    uint64_t value_;
+};
+
+}}
+
+namespace std {
+    template<> struct hash<prologcoin::db::root_id> {
+	size_t operator () (const prologcoin::db::root_id &key) const {
+	    return static_cast<size_t>(key.value());
+	}
+    };
+}
+
+namespace prologcoin { namespace db {
+
+//
+// root_node (stored in the root file)
+//
+// We have 'id' (32 bytes, typically a hash)
+//         'previous_id' (so we can follow the chain backwards.)
+//         'height' (so we don't have to compute it)
+//         'file_offset' (where it is in the root file)
+//         'ptr' (where it is in the data file)
+//         'custom_data' (for more information - which will be
+//                        different depending on database.)
+
+class triedb;
+
+class triedb_root {
+private:
+    friend class triedb;
+    static const size_t MAX_SIZE_IN_BYTES = 4096;
+public:
+    triedb_root() : id_(0), previous_id_(0), ptr_(0), height_(0),
+		    num_entries_(0) { }
+
+    triedb_root(const triedb_root &parent, const root_id &child) :
+	id_(child), previous_id_(parent.id()), 
+	ptr_(0), height_(parent.height() + 1),
+	num_entries_(parent.num_entries()) { }
+
+    triedb_root(const root_id &id)
+	: id_(id), previous_id_(),
+	  ptr_(0), height_(0),
+	  num_entries_(0) { }
+
+    const root_id & id() const {
+	return id_;
+    }
+
+    void set_id(const root_id &id) {
+	id_ = id;
+    }
+
+    const root_id & previous_id() const {
+	return previous_id_;
+    }
+
+    void set_previous_id(const root_id &id) {
+	previous_id_ = id;
+    }
+	
+    uint64_t ptr() const {
+	return ptr_;
+    }
+
+    void set_ptr(uint64_t ptr) {
+	ptr_ = ptr;
+    }
+
+    size_t height() const {
+	return height_;
+    }
+
+    void set_height(size_t h) {
+	height_ = h;
+    }
+
+    inline size_t num_entries() const {
+	return static_cast<size_t>(num_entries_);
+    }
+
+    inline void set_num_entries(size_t n) {
+	num_entries_ = static_cast<uint64_t>(n);
+    }
+
+    inline void increment_num_entries() {
+	num_entries_++;
+    }
+
+    inline void decrement_num_entries() {
+	num_entries_--;
+    }
+
+    static size_t serialization_size() {
+	return sizeof(uint32_t) + // Total size
+	       sizeof(uint32_t) + // height
+	       sizeof(uint64_t) + // num entries
+	       sizeof(uint64_t) + // previous root id
+	       sizeof(uint64_t);  // ptr
+    }
+
+    std::string str() const {
+	std::stringstream ss;
+	ss << "triedb_root{";
+	ss << "id=" << id_.str() << ",prev=" << previous_id_.str()
+	   << ",ptr=" << ptr_ << ",height=" << height_ << ",num_entries="
+	   << num_entries_ << "}";
+	return ss.str();
+    }
+
+    void read(const uint8_t *buffer);
+    void write(uint8_t *buffer) const;
+
+private:
+    // Not directly stored (it's identified by file offset)
+    root_id id_;
+
+    // Stored
+    root_id previous_id_;
+    uint64_t ptr_;
+    size_t height_;
+    size_t num_entries_;
+};
+
 
 class triedb_iterator;
     
@@ -63,42 +228,57 @@ public:
     static const size_t MAX_SIZE_IN_BYTES = 65536*2;
   
     inline triedb_leaf()
-      : key_(0), custom_data_size_(0), custom_data_(nullptr) { }
+	: key_(0), hash_size_(0), custom_data_size_(0), hash_(nullptr), custom_data_(nullptr) { }
 
-    inline triedb_leaf(uint64_t key, const uint8_t *custom_data, size_t custom_data_size) : key_(key), custom_data_size_(custom_data_size), custom_data_(new uint8_t[custom_data_size]) {
-        memcpy(custom_data_, custom_data, custom_data_size);
+    inline triedb_leaf(uint64_t key, const uint8_t *custom_data, size_t custom_data_size) : key_(key), hash_size_(0), custom_data_size_(custom_data_size), hash_(nullptr), custom_data_(nullptr) {
+	if (custom_data_size_) {
+	    custom_data_ = new uint8_t[custom_data_size_];
+	    memcpy(custom_data_, custom_data, custom_data_size_);
+	}
     }
 
     inline ~triedb_leaf() {
-        destroy_custom_data();
+	if (hash_) delete [] hash_;
+        if (custom_data_) delete [] custom_data_;
     }
 
     inline uint64_t key() const {
         return key_;
     }
+
+    const uint8_t * hash() const {
+	return hash_;
+    }
+
+    size_t hash_size() const {
+	return hash_size_;
+    }
+    
+    void set_hash(const uint8_t *h, size_t sz) {
+	if (hash_ == nullptr || hash_size_ != sz) {
+	    if (hash_) delete [] hash_;
+	    hash_ = sz > 0 ? new uint8_t[sz] : nullptr;
+	    hash_size_ = sz;
+	}
+	if (sz > 0) {
+	    memcpy(hash_, h, sz);
+	}
+    }
   
     inline size_t custom_data_size() const {
         return custom_data_size_;
     }
+
     inline const uint8_t * custom_data() const {
         return custom_data_;
     }
-    inline uint8_t * custom_data() {
-        return custom_data_;
-    }
-    inline void allocate_custom_data(size_t data_size) {
-        if (custom_data_ != nullptr) delete [] custom_data_;
-	custom_data_ = new uint8_t [data_size];
-	custom_data_size_ = data_size;
-    }
-    inline void destroy_custom_data() {
-        if (custom_data_ != nullptr) delete [] custom_data_;
-	custom_data_ = nullptr;
-	custom_data_size_ = 0;
-    }
 
     inline size_t serialization_size() const {
-        size_t sz = sizeof(uint32_t) + sizeof(uint64_t) + custom_data_size_;
+        size_t sz = sizeof(uint32_t) + // Total size
+  	            sizeof(uint64_t) + // key
+  	            sizeof(uint8_t) + // hash size
+	            hash_size_ + // hash itself
+	            custom_data_size_; // Value of leaf node
         return sz;
     }
 
@@ -107,28 +287,28 @@ public:
 
 private:
     uint64_t key_;
+    uint8_t hash_size_;
     uint32_t custom_data_size_; // Not stored on disk
+    uint8_t *hash_;
     uint8_t *custom_data_;
 };
 
 //
-// The branch node of a trie. The custom data here will typically be
-// two hashes (20 + 20 byets) that represent the aggregated hash for
-// the bitvectors and the aggregated hash for the heap blocks.
+// The branch node of a trie.
 //
 class triedb_branch : public triedb_node {
 public:
-    static const size_t MAX_SIZE_IN_BYTES = sizeof(uint32_t)*2 + sizeof(hash_t) + 32*sizeof(uint64_t) + 1024; // We're not allowed to have custom data bigger than 1024 bytes.
+    static const size_t MAX_SIZE_IN_BYTES = 1024;
 
-    inline triedb_branch() : max_key_bits_(0), mask_(0), leaf_(0), ptr_(nullptr), custom_data_size_(0), custom_data_(nullptr) { }
+    inline triedb_branch() : max_key_bits_(0), hash_size_(0), mask_(0), leaf_(0), ptr_(nullptr), hash_(nullptr) { }
     inline triedb_branch(const triedb_branch &other)
-      : max_key_bits_(other.max_key_bits_), mask_(other.mask_), leaf_(other.leaf_), ptr_(nullptr), custom_data_size_(other.custom_data_size_), custom_data_(nullptr) {
+        : max_key_bits_(other.max_key_bits_), hash_size_(other.hash_size_), mask_(other.mask_), leaf_(other.leaf_), ptr_(nullptr), hash_(nullptr) {
         size_t n = num_children();
         ptr_ = new uint64_t[n];
 	memcpy(ptr_, other.ptr_, sizeof(uint64_t)*n);
-	if (custom_data_size_ > 0) {
-	    custom_data_ = new uint8_t[custom_data_size_];
-	    memcpy(custom_data_, other.custom_data_, custom_data_size_);
+	if (hash_size_ > 0) {
+	    hash_ = new uint8_t[hash_size_];
+	    memcpy(hash_, other.hash_, hash_size_);
 	}
     }
 
@@ -178,20 +358,38 @@ public:
         leaf_ &= ~(1 << sub_index);
         mask_ &= ~(1 << sub_index);
     }
-  
-    inline size_t custom_data_size() const
-        { return custom_data_size_; }
-    inline const uint8_t * custom_data() const
-        { return custom_data_; }
-    inline uint8_t * custom_data() {
-        return custom_data_;
+
+    inline const uint8_t * hash() const {
+	return hash_;
     }
-    inline void allocate_custom_data(size_t data_size) {
-        if (custom_data_ != nullptr) delete [] custom_data_;
-	custom_data_ = new uint8_t [data_size];
-	custom_data_size_ = data_size;
+
+    inline size_t hash_size() const {
+	return hash_size_;
     }
-    size_t serialization_size() const;
+
+    inline void set_hash(const uint8_t *h, size_t sz) {
+	if (hash_ == nullptr || hash_size_ != sz) {
+	    if (hash_) delete [] hash_;
+	    hash_ = sz > 0 ? new uint8_t[sz] : nullptr;
+	    hash_size_ = sz;
+	}
+	if (sz > 0) {
+	    memcpy(hash_, h, sz);
+	}
+    }
+
+    size_t serialization_size() const {
+       size_t sz = sizeof(uint32_t) +  // total size
+                   sizeof(uint8_t) +  // max key bits
+	           sizeof(uint8_t) + // hash size
+                   sizeof(uint32_t) + // mask
+                   sizeof(uint32_t) +  // leaf
+                   sizeof(uint64_t)*num_children() + // ptrs
+	           hash_size_; // hash itself
+       assert(sz < MAX_SIZE_IN_BYTES);
+       return sz;
+    }
+
     void read(const uint8_t *buffer);
     void write(uint8_t *buffer) const;
 
@@ -220,12 +418,14 @@ public:
 private:
     // The biggest key in this node
     // We use this to limit the height of the trie (to avoid all prefix 0s)
-    uint32_t max_key_bits_;
+    uint8_t max_key_bits_; // A key is less than 64 bits
+    uint8_t hash_size_; // Hash size in bytes (can be zero)
     uint32_t mask_;
     uint32_t leaf_;
     uint64_t *ptr_;
-    uint32_t custom_data_size_; // Not stored on disk
-    uint8_t *custom_data_;
+    uint8_t *hash_; // Optional hash (most DBs will use it though
+                    // as we'll quickly want to know the new root
+                    // hash after modifying the DB.)
 };
     
 class triedb : public triedb_params {
@@ -238,10 +438,6 @@ public:
         return roots_.size() == 0;
     }
 
-    inline size_t total_height() const {
-        return roots_.size();
-    }
-
     inline void set_debug(bool b) {
         debug_ = b;
     }
@@ -251,26 +447,34 @@ public:
 
     void flush();
 
-    inline void set_update_function(
-        const std::function<void(triedb &, triedb_branch &)> &branch_updater) {
-       branch_update_fn_ = branch_updater;
+    void set_leaf_hasher(std::function<void (triedb &db, triedb_leaf *leaf)> fn) {
+	leaf_hasher_fn_ = fn;
     }
 
-    void no_change(size_t at_height);
+    const std::set<root_id> & find_roots(size_t height) const;
 
-    void insert(size_t at_height, uint64_t key,
-		const uint8_t *data, size_t data_size);
-    void update(size_t at_height, uint64_t key,
-		const uint8_t *data, size_t data_size);
-    void remove(size_t at_height, uint64_t key);
+    // Asserts if there are more than 1. This is useful for testing only.
+    root_id find_root(size_t height) const;
+    
+    const triedb_root & get_root(const root_id &id) const;
 
-    triedb_leaf * find(size_t at_height, uint64_t key,
+    root_id new_root();
+    root_id new_root(const root_id &parent);
+
+    bool is_empty(const root_id &at_root) const;
+    void insert(const root_id &at_root, uint64_t key,
+		const uint8_t *data, size_t data_size);
+    void update(const root_id &at_root, uint64_t key,
+		const uint8_t *data, size_t data_size);
+    void remove(const root_id &at_root, uint64_t key);
+
+    triedb_leaf * find(const root_id &at_root, uint64_t key,
 		       std::vector<std::pair<triedb_branch *, size_t> >
 		           *opt_path = nullptr);
 
-    triedb_iterator begin(size_t at_height);
-    triedb_iterator begin(size_t at_height, uint64_t key);
-    triedb_iterator end(size_t at_height);
+    triedb_iterator begin(const root_id &at_root);
+    triedb_iterator begin(const root_id &at_root, uint64_t key);
+    triedb_iterator end(const root_id &at_root);
 
     triedb_leaf * get_leaf(triedb_branch *parent, size_t sub_index) {
         auto file_offset = parent->get_child_pointer(sub_index);
@@ -282,39 +486,60 @@ public:
 	return get_branch(file_offset);
     }
  
-    triedb_branch * get_root_branch(size_t at_height) {
-        auto file_offset = get_root(at_height);
+    triedb_branch * get_root_branch(const root_id &at_root) {
+        auto file_offset = get_root(at_root).ptr();
 	return get_branch(file_offset);
+    }
+    
+    std::pair<const uint8_t *, size_t> get_root_hash(const root_id &at_root) {
+	auto br = get_root_branch(at_root);
+	return std::make_pair(br->hash(), br->hash_size());
+    }
+
+    size_t num_entries(const root_id &at_root) const {
+	return get_root(at_root).num_entries();
     }
 
 private:
     friend class triedb_iterator;
   
+    void branch_hasher(triedb_branch *branch);
+    void leaf_hasher(triedb_leaf *leaf);
+
+    std::function<void (triedb &db, triedb_leaf *leaf)> leaf_hasher_fn_{&triedb::leaf_hasher};
+
     // Return modified branch node
-    void insert_or_update(size_t at_height, uint64_t key,
+    void insert_or_update(const root_id &at_root, uint64_t key,
 			  const uint8_t *data, size_t data_size, bool do_insert);
   
     std::pair<triedb_branch *, uint64_t> update_part(triedb_branch *node,
 						     uint64_t key,
 						     const uint8_t *data,
 						     size_t data_size,
-						     bool do_insert);
+						     bool do_insert,
+						     bool &new_entry);
 
-    std::pair<triedb_branch *, uint64_t> remove_part(size_t at_height,
+    std::pair<triedb_branch *, uint64_t> remove_part(const root_id &at_root,
 						     triedb_branch *node,
 						     uint64_t key);
   
     boost::filesystem::path roots_file_path() const;
     fstream * get_roots_stream();
     void read_roots();
-    void set_root(size_t height, uint64_t offset);
+    inline void increment_num_entries(const root_id &id) {
+	roots_[id].increment_num_entries();
+    }
+    inline void decrement_num_entries(const root_id &id) {
+	roots_[id].decrement_num_entries();
+    }
+    void set_root(const root_id &at_root, uint64_t offset);
     boost::filesystem::path bucket_dir_location(size_t bucket_index) const;
     boost::filesystem::path bucket_file_path(size_t bucket_index) const;
     fstream * get_bucket_stream(size_t bucket_index);
     size_t scan_last_bucket();
     uint64_t scan_last_offset();
     fstream * set_file_offset(uint64_t offset);
-    uint64_t get_root(size_t at_height);
+    const triedb_root & get_root(const root_id &id);
   
     void read_leaf_node(uint64_t offset, triedb_leaf &node);
     uint64_t append_leaf_node(const triedb_leaf &node);
@@ -382,20 +607,14 @@ private:
     branch_flusher branch_flusher_;
     branch_cache branch_cache_;
 
-    // Root references, one for each height.
-    std::vector<uint64_t> roots_;
+    // Root references
+    std::unordered_map<root_id, triedb_root> roots_;
+    std::unordered_map<size_t, std::set<root_id> > roots_at_height_;
     fstream *roots_stream_;
   
     uint64_t last_offset_;
 
-    size_t num_heights_;
-
     bool cache_shutdown_;
-
-    // Update function
-    // This function is called whenever a branch node needs to be updated;
-    // let the client update any custom data.
-    std::function<void(triedb &, triedb_branch &)> branch_update_fn_;
 
     bool debug_;
 };
@@ -403,15 +622,15 @@ private:
 class triedb_iterator {
 public:
     inline triedb_iterator(const triedb_iterator &other) :
-        db_(other.db_), height_(other.height_), spine_(other.spine_) {
+        db_(other.db_), root_(other.root_), spine_(other.spine_) {
     }
   
-    inline triedb_iterator(triedb &db, size_t at_height)
-      : db_(db), height_(at_height) {
+    inline triedb_iterator(triedb &db, const root_id &at_root)
+      : db_(db), root_(at_root) {
         if (db.is_empty()) {
 	    return;
 	}
-        auto parent_ptr = db.get_root(at_height);
+        auto parent_ptr = db.get_root(at_root).ptr();
 	auto *parent = db.get_branch(parent_ptr);
 	if (parent->mask() != 0) {
 	    spine_.push_back(cursor(parent,
@@ -421,20 +640,20 @@ public:
 	}
     }
 
-    inline triedb_iterator(triedb &db, size_t at_height, uint64_t key) 
-	: db_(db), height_(at_height)  {
+    inline triedb_iterator(triedb &db, const root_id &at_root, uint64_t key) 
+	: db_(db), root_(at_root)  {
 	if (!db.is_empty()) {
-	    start_from_key(db.get_root(at_height), key);
+	    start_from_key(db.get_root(at_root).ptr(), key);
 	}
     }
 
-    inline triedb_iterator(triedb &db, size_t at_height, bool) 
-        : db_(db), height_(at_height) {
+    inline triedb_iterator(triedb &db, const root_id &at_root, bool) 
+        : db_(db), root_(at_root) {
     }
 
     inline triedb_iterator & operator = (const triedb_iterator &other) {
         db_ = other.db_;
-	height_ = other.height_;
+	root_ = other.root_;
 	spine_ = other.spine_;
 	return *this;
     }
@@ -522,7 +741,7 @@ private:
         }
     };
     triedb &db_;
-    size_t height_;
+    root_id root_;
     std::vector<cursor> spine_;
 
 public:
@@ -531,27 +750,27 @@ public:
     }
 };
 
-inline triedb_iterator triedb::begin(size_t at_height) {
-    return triedb_iterator(*this, at_height);
+inline triedb_iterator triedb::begin(const root_id &at_root) {
+    return triedb_iterator(*this, at_root);
 }
     
-inline triedb_iterator triedb::begin(size_t at_height, uint64_t key) {
-    return triedb_iterator(*this, at_height, key);
+inline triedb_iterator triedb::begin(const root_id &at_root, uint64_t key) {
+    return triedb_iterator(*this, at_root, key);
 }
 
-inline triedb_iterator triedb::end(size_t at_height) {
-    return triedb_iterator(*this, at_height, true);
+inline triedb_iterator triedb::end(const root_id &at_root) {
+    return triedb_iterator(*this, at_root, true);
 }
 
 
     
-inline triedb_leaf * triedb::find(size_t at_height, uint64_t key,
+inline triedb_leaf * triedb::find(const root_id &at_root, uint64_t key,
 				  std::vector<
 				    std::pair<triedb_branch *, size_t> >
 				      *path_opt)
 {
-    auto it = begin(at_height, key);
-    if (it == end(at_height)) {
+    auto it = begin(at_root, key);
+    if (it == end(at_root)) {
         return nullptr;
     }
     auto &leaf = *it;

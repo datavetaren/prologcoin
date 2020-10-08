@@ -134,13 +134,17 @@ public:
 	return ss.str();
     }
 
+    inline size_t serialization_size() const {
+	return 8;
+    }
+
     inline void write(uint8_t bytes[8]) const {
 	mantissa().write(bytes);
 	bytes[0] = static_cast<uint8_t>((exponent_ >> 8) & 0xff);
 	bytes[1] = static_cast<uint8_t>(exponent_ & 0xff);
     }
 
-    inline void read(uint8_t bytes[8]) {
+    inline void read(const uint8_t bytes[8]) {
 	uint8_t fraction[8];
 	memcpy(fraction, bytes, 8);
 	fraction[0] = 0;

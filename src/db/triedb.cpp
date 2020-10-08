@@ -2,12 +2,45 @@
 #include "triedb.hpp"
 #include "../common/checked_cast.hpp"
 #include "../common/hex.hpp"
+#include "../common/blake2.hpp"
 #include <boost/filesystem/path.hpp>
 #include <boost/filesystem/operations.hpp>
 
 using namespace prologcoin::common;
 
 namespace prologcoin { namespace db {
+
+void triedb_root::read(const uint8_t *buffer) {
+    const uint8_t *p = buffer;
+
+    // Total size
+    assert(((p - buffer) + sizeof(uint32_t)) < MAX_SIZE_IN_BYTES);
+    size_t sz = read_uint32(p); p += sizeof(uint32_t);
+    assert(sz == serialization_size());
+
+    assert(((p - buffer) + sizeof(uint32_t)) < MAX_SIZE_IN_BYTES);
+    height_ = read_uint32(p); p += sizeof(uint32_t);
+
+    assert(((p - buffer) + sizeof(uint64_t)) < MAX_SIZE_IN_BYTES);
+    num_entries_ = read_uint64(p); p += sizeof(uint64_t);
+
+    assert(((p - buffer) + sizeof(uint64_t)) < MAX_SIZE_IN_BYTES);
+    previous_id_ = root_id(read_uint64(p)); p += sizeof(uint64_t);
+
+    assert(((p - buffer) + sizeof(uint64_t)) < MAX_SIZE_IN_BYTES);
+    ptr_ = read_uint64(p); p += sizeof(uint64_t);
+}
+
+void triedb_root::write(uint8_t *buffer) const {
+    uint8_t *p = buffer;
+    size_t sz = serialization_size();
+    assert(sz < MAX_SIZE_IN_BYTES);
+    write_uint32(p, checked_cast<uint32_t>(sz)); p += sizeof(uint32_t);
+    write_uint32(p, checked_cast<uint32_t>(height_)); p += sizeof(uint32_t);
+    write_uint64(p, checked_cast<uint64_t>(num_entries_)); p += sizeof(uint64_t);
+    write_uint64(p, previous_id_.value()); p += sizeof(uint64_t);
+    write_uint64(p, ptr_); p += sizeof(uint64_t);
+}
 
 struct version_buffer {
     uint8_t buffer[triedb_params::VERSION_SZ];
@@ -49,13 +82,29 @@ static void triedb_version_check(fstream *f, const std::string &file_path) {
 
 void triedb_leaf::read(const uint8_t *buffer) {
     const uint8_t *p = buffer;
+
+    // First read total size
     assert(((p - buffer) + sizeof(uint32_t)) < MAX_SIZE_IN_BYTES);
     size_t sz = read_uint32(p); p += sizeof(uint32_t);
+
+    // Read hash size (1 byte)
+    assert(((p - buffer) + sizeof(uint8_t)) < MAX_SIZE_IN_BYTES);	
+    hash_size_ = *p; p++;
+
+    // Read key
     assert(((p - buffer) + sizeof(uint64_t)) < MAX_SIZE_IN_BYTES);	
     key_ = read_uint64(p); p += sizeof(uint64_t);
-    assert(((p - buffer) + sizeof(uint32_t)) < MAX_SIZE_IN_BYTES);		
+
+    // Write hash
+    assert(((p - buffer) + hash_size_) < MAX_SIZE_IN_BYTES);
+    if (hash_ != nullptr) delete [] hash_;
+    hash_ = new uint8_t[hash_size_];
+    memcpy(hash_, p, hash_size_); p += hash_size_;
+
+    // Remaining is custom data
     custom_data_size_ = sz - (p - buffer);
     assert(((p - buffer) + custom_data_size_) < MAX_SIZE_IN_BYTES);
+
     if (custom_data_ != nullptr) delete [] custom_data_;
     custom_data_ = new uint8_t [custom_data_size_];
     memcpy(custom_data_, p, custom_data_size_);
@@ -63,11 +112,25 @@ void triedb_leaf::read(const uint8_t *buffer) {
 
 void triedb_leaf::write(uint8_t *buffer) const {
     uint8_t *p = buffer;
+    // First write total size
     size_t sz = serialization_size();
     assert(sz < MAX_SIZE_IN_BYTES);
-    write_uint32(p, common::checked_cast<uint32_t>(sz));
+    write_uint32(p, checked_cast<uint32_t>(sz));
     p += sizeof(uint32_t);
+
+    // Write hash size
+    *p = hash_size_; p++;
+
+    // Write key
     write_uint64(p, key_); p += sizeof(uint64_t);
+
+    // Write hash (if any)
+    if (hash_size_ > 0) {
+	memcpy(p, hash_, hash_size_);
+	p += hash_size_;
+    }
+
+    // Write custom data (if any)
     if (custom_data_ != nullptr) {
         memcpy(p, custom_data_, custom_data_size_);
     }
@@ -77,42 +140,44 @@ void triedb_leaf::write(uint8_t *buffer) const {
 // triedb_branch
 //
 
-size_t triedb_branch::serialization_size() const {
-    size_t sz = sizeof(uint32_t) +  // total size
-                sizeof(uint32_t) +  // max key bits
-                sizeof(uint32_t) +  // mask
-                sizeof(uint32_t) +  // leaf
-                sizeof(uint64_t)*num_children() + // ptrs
-                custom_data_size_;
-    assert(sz < MAX_SIZE_IN_BYTES);
-    return sz;
-}
-    
 void triedb_branch::read(const uint8_t *buffer)
 {
     const uint8_t *p = buffer;
+
+    // First read total size of this node
+
     size_t sz = read_uint32(p); assert(sz >= 4 && sz < MAX_SIZE_IN_BYTES);
     p += sizeof(uint32_t);
     assert(((p - buffer) + sizeof(uint32_t)) <= sz);
-    max_key_bits_ = read_uint32(p); p += sizeof(uint32_t);
+
+    // Read max key bits (1 byte)
+    max_key_bits_ = *p; p++;
+    // Read hash size (1 byte)
+    assert(((p - buffer) + sizeof(uint32_t)) <= sz);
+    hash_size_ = *p; p++;
+    // Read mask
     assert(((p - buffer) + sizeof(uint32_t)) <= sz);
     mask_ = read_uint32(p); p += sizeof(uint32_t);
+    // Read leaf bits
     assert(((p - buffer) + sizeof(uint32_t)) <= sz);
     leaf_ = read_uint32(p); p += sizeof(uint32_t);
+    // Compute number of children (based on mask)
     size_t n = num_children();
+    // Allocate space for children
     if (ptr_ != nullptr) delete [] ptr_;
     ptr_ = new uint64_t[n];
+    // For each active child, read child pointer (64 bit)
     for (size_t i = 0; i < n; i++) {
         assert(((p - buffer) + sizeof(uint64_t)) <= sz);
         ptr_[i] = read_uint64(p); p += sizeof(uint64_t);
     }
     assert((p - buffer) <= sz);
-    custom_data_size_ = sz - (p - buffer);
-    if (custom_data_ != nullptr) delete [] custom_data_;
-    custom_data_ = nullptr;
-    if (custom_data_size_ > 0) {
-        custom_data_ = new uint8_t[custom_data_size_];
-        memcpy(custom_data_, p, custom_data_size_);
+    // Remaining data is hash
+    assert(hash_size_ == sz - (p - buffer));
+    if (hash_size_ > 0) {
+	if (hash_ != nullptr) delete [] hash_;
+        hash_ = new uint8_t[hash_size_];
+        memcpy(hash_, p, hash_size_);
     }
 }
 
@@ -120,22 +185,77 @@ void triedb_branch::write(uint8_t *buffer) const
 {
     uint8_t *p = buffer;
     size_t sz = serialization_size();
+    // First write total size of this node
     write_uint32(p, common::checked_cast<uint32_t>(sz)); p += sizeof(uint32_t);
-    write_uint32(p, max_key_bits_); p += sizeof(uint32_t);
+
+    // Write max key bits (1 byte)
+    *p = max_key_bits_; p++;
+    // Write hash size (1 byte)
+    *p = hash_size_; p++;
+    // Write mask (32 bits)
     write_uint32(p, mask_); p += sizeof(uint32_t);
+    // Write leaf bits (32 bits)
     write_uint32(p, leaf_); p += sizeof(uint32_t);
+    // Compute number of children (based on mask)
     size_t n = num_children();
+    // Write each child pointer (64 bits)
     for (size_t i = 0; i < n; i++) {
         write_uint64(p, ptr_[i]); p += sizeof(uint64_t);
     }
-    if (custom_data_ != nullptr) {
-        memcpy(p, custom_data_, custom_data_size_);
+    // Write hash (if any)
+    if (hash_size_) {
+        memcpy(p, hash_, hash_size_);
     }
 }
 
 //
 // triedb
 //
+
+void triedb::branch_hasher(triedb_branch *branch) {
+    if (!use_hashing()) {
+	branch->set_hash(nullptr, 0);
+	return;
+    }
+    uint8_t final_hash[32];
+
+    blake2b_state s;
+    blake2b_init(&s, sizeof(final_hash));
+    for (size_t i = 0; i < triedb_params::MAX_BRANCH; i++) {
+	if (branch->is_branch(i)) {
+	    auto *sub_branch = get_branch(branch, i);
+	    blake2b_update(&s, sub_branch->hash(), sub_branch->hash_size());
+	} else if (branch->is_leaf(i)) {
+	    auto *sub_leaf = get_leaf(branch, i);
+	    blake2b_update(&s, sub_leaf->hash(), sub_leaf->hash_size());
+	}
+    }
+    blake2b_final(&s, &final_hash[0], sizeof(final_hash));
+    branch->set_hash(final_hash, sizeof(final_hash));
+}
+
+void triedb::leaf_hasher(triedb_leaf *leaf) {
+    if (!use_hashing()) {
+	leaf->set_hash(nullptr, 0);
+	return;
+    }
+
+    uint8_t final_hash[32];
+
+    blake2b_state s;
+    blake2b_init(&s, sizeof(final_hash));
+
+    uint8_t key_serialized[sizeof(uint64_t)];
+    write_uint64(key_serialized, leaf->key());
+
+    blake2b_update(&s, key_serialized, sizeof(uint64_t));
+
+    if (leaf->custom_data_size() > 0) {
+	blake2b_update(&s, leaf->custom_data(), leaf->custom_data_size());
+    }
+    blake2b_final(&s, &final_hash[0], sizeof(final_hash));
+    leaf->set_hash(final_hash, sizeof(final_hash));
+}
     
 triedb::triedb(const std::string &dir_path) : triedb(triedb_params(), dir_path) {
 }
@@ -150,8 +270,7 @@ triedb::triedb(const triedb_params &params, const std::string &dir_path)
     branch_flusher_(),
     branch_cache_(triedb_params::cache_num_nodes(), branch_flusher_),
     roots_stream_(nullptr),
-    cache_shutdown_(false),
-    branch_update_fn_(nullptr)
+    cache_shutdown_(false)
 {
     read_roots();
     last_offset_ = scan_last_offset();
@@ -199,46 +318,96 @@ void triedb::flush()
     stream_cache_.foreach( [](size_t, fstream *f) { f->flush(); } );
 }
 
-void triedb::no_change(size_t at_height)
-{
-    if (roots_.size() == 0) {
-	auto *new_branch = new triedb_branch();
-	new_branch->set_max_key_bits(5);
-	if (branch_update_fn_) branch_update_fn_(*this, *new_branch);
-	auto ptr = append_branch_node(new_branch);
-	set_root(at_height, ptr);
-    } else {
-	set_root(at_height, roots_.back());
+root_id triedb::new_root() {
+    auto *new_branch = new triedb_branch();
+    new_branch->set_max_key_bits(5);
+    branch_hasher(new_branch);
+    auto ptr = append_branch_node(new_branch);
+
+    triedb_root root;
+    root.set_height(0);
+    auto s = get_roots_stream();
+    size_t id = s->tellg();
+    root_id rid = root_id(id);
+    root.set_id(rid);
+    root.set_ptr(ptr);
+    uint8_t buffer[triedb_root::MAX_SIZE_IN_BYTES];
+    root.write(buffer);
+    size_t n = root.serialization_size();
+    s->seekg(0, fstream::end);
+    s->write(reinterpret_cast<char *>(buffer), n);
+    roots_[rid] = root;
+    roots_at_height_[0].insert(rid);
+
+    return rid;
+}
+
+root_id triedb::new_root(const root_id &parent_id) {
+    const triedb_root &parent = get_root(parent_id);
+    triedb_root root;
+    size_t height = parent.height()+1;
+    root.set_height(height);
+    auto s = get_roots_stream();
+    s->seekg(0, fstream::end);
+    auto rid = root_id(s->tellg());
+    root.set_id(rid);
+    root.set_previous_id(parent.id());
+    root.set_ptr(parent.ptr());
+    root.set_num_entries(parent.num_entries());
+    uint8_t buffer[triedb_root::MAX_SIZE_IN_BYTES];
+    root.write(buffer);
+    size_t n = root.serialization_size();
+    s->write(reinterpret_cast<char *>(buffer), n);
+    roots_[rid] = root;
+    roots_at_height_[height].insert(rid);
+    return rid;
+}
+
+const std::set<root_id> & triedb::find_roots(size_t height) const {
+    static std::set<root_id> empty_set;
+
+    auto it = roots_at_height_.find(height);
+    if (it == roots_at_height_.end()) {
+	return empty_set;
     }
+    return it->second;
 }
 
-void triedb::insert(size_t at_height, uint64_t key, const uint8_t *data, size_t data_size) {
-    insert_or_update(at_height, key, data, data_size, true);
+root_id triedb::find_root(size_t height) const {
+    auto roots = find_roots(height);
+    assert(roots.size() == 1);
+    return *roots.begin();
 }
 
-void triedb::update(size_t at_height, uint64_t key, const uint8_t *data, size_t data_size) {
-    insert_or_update(at_height, key, data, data_size, false);
+const triedb_root & triedb::get_root(const root_id &id) const {
+    auto it = roots_.find(id);
+    assert(it != roots_.end());
+    return it->second;
 }
 
-void triedb::insert_or_update(size_t at_height, uint64_t key, const uint8_t *data, size_t data_size, bool do_insert)
+void triedb::insert(const root_id &at_root, uint64_t key, const uint8_t *data, size_t data_size) {
+    return insert_or_update(at_root, key, data, data_size, true);
+}
+
+void triedb::update(const root_id &at_root, uint64_t key, const uint8_t *data, size_t data_size) {
+    return insert_or_update(at_root, key, data, data_size, false);
+}
+
+void triedb::insert_or_update(const root_id &at_root, uint64_t key, const uint8_t *data, size_t data_size, bool do_insert)
 {
-    if (at_height >= roots_.size()) {
+    auto some_root = roots_.find(at_root);
+    if (some_root == roots_.end()) {
         // Grow with at most one height at a time
-        assert(at_height == roots_.size() || at_height == roots_.size()+1);
-	if (roots_.size() == 0) {
+	if (roots_.empty() == 0) {
 	     auto *new_branch = new triedb_branch();
 	     new_branch->set_max_key_bits(5);
-	     if (branch_update_fn_) branch_update_fn_(*this, *new_branch);
+	     branch_hasher(new_branch);
 	     auto ptr = append_branch_node(new_branch);
-	     set_root(at_height, ptr);
+	     set_root(at_root, ptr);
+	     some_root = roots_.find(at_root);
 	}
     }
-    uint64_t current_root_ptr = 0;
-    if (at_height >= roots_.size()) {
-        current_root_ptr = roots_[at_height-1];
-    } else {
-        current_root_ptr = roots_[at_height];
-    }
+    uint64_t current_root_ptr = some_root->second.ptr();
     triedb_branch *current_root = get_branch(current_root_ptr);
     triedb_branch *new_branch = nullptr;
     uint64_t new_branch_ptr = 0;
@@ -254,17 +423,20 @@ void triedb::insert_or_update(size_t at_height, uint64_t key, const uint8_t *dat
 	current_root = new_root;
 	current_root_ptr = new_root_ptr;
     }
-      
+
+    bool new_entry = false;
     std::tie(new_branch, new_branch_ptr)
-        = update_part(current_root, key, data, data_size, do_insert);
-    set_root(at_height, new_branch_ptr);
+       = update_part(current_root, key, data, data_size, do_insert, new_entry);
+    if (new_entry) increment_num_entries(at_root);
+    set_root(at_root, new_branch_ptr);
 }
     
 std::pair<triedb_branch *, uint64_t> triedb::update_part(triedb_branch *node,
 							 uint64_t key,
 							 const uint8_t *data,
 							 size_t data_size,
-							 bool do_insert)
+							 bool do_insert,
+							 bool &new_entry)
 {
     size_t max_key_bits = node->max_key_bits();
 
@@ -274,13 +446,15 @@ std::pair<triedb_branch *, uint64_t> triedb::update_part(triedb_branch *node,
     // If the child is empty, then create a new node at that position
     if (node->is_empty(sub_index)) {
         auto *new_leaf = new triedb_leaf(key, data, data_size);
+	leaf_hasher_fn_(*this, new_leaf);
 	auto leaf_ptr = append_leaf_node(*new_leaf);
 	leaf_cache_.insert(leaf_ptr, new_leaf);
 	auto *new_branch = new triedb_branch(*node);
 	new_branch->set_child_pointer(sub_index, leaf_ptr);
 	new_branch->set_leaf(sub_index);
-	if (branch_update_fn_) branch_update_fn_(*this, *new_branch);
+	branch_hasher(new_branch);
 	auto ptr = append_branch_node(new_branch);
+	new_entry = true;
 	return std::make_pair(new_branch, ptr);
     } else if (node->is_leaf(sub_index)) {
 	// If the child already has a child with the same key, then
@@ -294,12 +468,13 @@ std::pair<triedb_branch *, uint64_t> triedb::update_part(triedb_branch *node,
 		    + "' in the database.");
 	    }
 	    auto *new_leaf = new triedb_leaf(key, data, data_size);
+	    leaf_hasher_fn_(*this, new_leaf);
 	    auto leaf_ptr = append_leaf_node(*new_leaf);
 	    leaf_cache_.insert(leaf_ptr, new_leaf);
 	    auto *new_branch = new triedb_branch(*node);
 	    new_branch->set_child_pointer(sub_index, leaf_ptr);
 	    new_branch->set_leaf(sub_index);	    
-	    if (branch_update_fn_) branch_update_fn_(*this, *new_branch);
+	    branch_hasher(new_branch);
 	    auto ptr = append_branch_node(new_branch);
 	    return std::make_pair(new_branch, ptr);
 	} else {
@@ -315,11 +490,11 @@ std::pair<triedb_branch *, uint64_t> triedb::update_part(triedb_branch *node,
 	    tmp_branch.set_leaf(sub_sub_index);
 	    triedb_branch *new_child = nullptr;
             uint64_t new_child_ptr = 0;
-            std::tie(new_child, new_child_ptr) = update_part(&tmp_branch, key, data, data_size, do_insert);
+            std::tie(new_child, new_child_ptr) = update_part(&tmp_branch, key, data, data_size, do_insert, new_entry);
             auto *new_branch = new triedb_branch(*node);
             new_branch->set_child_pointer(sub_index, new_child_ptr);
             new_branch->set_branch(sub_index);
-	    if (branch_update_fn_) branch_update_fn_(*this, *new_branch);
+	    branch_hasher(new_branch);
             auto ptr = append_branch_node(new_branch);
             return std::make_pair(new_branch, ptr);
 	}
@@ -328,30 +503,22 @@ std::pair<triedb_branch *, uint64_t> triedb::update_part(triedb_branch *node,
     auto *child = get_branch(node, sub_index);
     triedb_branch *new_child = nullptr;
     uint64_t new_child_ptr = 0;
-    std::tie(new_child, new_child_ptr) = update_part(child, key, data, data_size, do_insert);
+    std::tie(new_child, new_child_ptr) = update_part(child, key, data, data_size, do_insert, new_entry);
     auto *new_branch = new triedb_branch(*node);
     new_branch->set_child_pointer(sub_index, new_child_ptr);
-    if (branch_update_fn_) branch_update_fn_(*this, *new_branch);
+    branch_hasher(new_branch);
     auto new_branch_ptr = append_branch_node(new_branch);
     return std::make_pair(new_branch, new_branch_ptr);
 }
 
-void triedb::remove(size_t at_height, uint64_t key) {
-    if (at_height >= roots_.size()) {
-        // Grow with at most one height at a time
-        assert(at_height == roots_.size() || at_height == roots_.size()+1);
-	if (roots_.size() == 0) {
-	     std::stringstream msg;
-	     msg << "Key '" << key << "' not found at height " << at_height;
-	     throw triedb_key_not_found_exception(msg.str());
-	}
+void triedb::remove(const root_id &at_root, uint64_t key) {
+    auto found_root = roots_.find(at_root);
+    if (found_root == roots_.end()) {
+	std::stringstream msg;
+	msg << "Key '" << key << "' not found at root " << at_root.value();
+	throw triedb_key_not_found_exception(msg.str());
     }
-    uint64_t current_root_ptr = 0;
-    if (at_height >= roots_.size()) {
-        current_root_ptr = roots_[at_height-1];
-    } else {
-        current_root_ptr = roots_[at_height];
-    }
+    uint64_t current_root_ptr = found_root->second.ptr();
     triedb_branch *current_root = get_branch(current_root_ptr);
     triedb_branch *new_branch = nullptr;
     uint64_t new_branch_ptr = 0;
@@ -359,15 +526,16 @@ void triedb::remove(size_t at_height, uint64_t key) {
     size_t key_bits = triedb_branch::compute_max_key_bits(key);
     if (key_bits > current_key_bits) {
         std::stringstream msg;
-	msg << "Key '" << key << "' not found at height " << at_height;
+	msg << "Key '" << key << "' not found at root " << at_root.value();
         throw triedb_key_not_found_exception(msg.str());
     }
       
-    std::tie(new_branch, new_branch_ptr) = remove_part(at_height, current_root, key);
-    set_root(at_height, new_branch_ptr);
+    std::tie(new_branch, new_branch_ptr) = remove_part(at_root, current_root, key);
+    decrement_num_entries(at_root);
+    set_root(at_root, new_branch_ptr);
 }
 
-std::pair<triedb_branch *, uint64_t> triedb::remove_part(size_t at_height,
+std::pair<triedb_branch *, uint64_t> triedb::remove_part(const root_id &at_root,
 							 triedb_branch *node,
 							 uint64_t key)
 {
@@ -379,7 +547,7 @@ std::pair<triedb_branch *, uint64_t> triedb::remove_part(size_t at_height,
     // If the child is empty, then create a new node at that position
     if (node->is_empty(sub_index)) {
         std::stringstream msg;
-	msg << "Key '" << key << "' not found at height " << at_height;
+	msg << "Key '" << key << "' not found at root " << at_root.value();
         throw triedb_key_not_found_exception(msg.str());
     }
     if (node->is_leaf(sub_index)) {
@@ -387,12 +555,12 @@ std::pair<triedb_branch *, uint64_t> triedb::remove_part(size_t at_height,
         auto *leaf = get_leaf(node, sub_index);
 	if (leaf->key() != key) {
 	    std::stringstream msg;
-	    msg << "Key '" << key << "' not found at height " << at_height;
+	    msg << "Key '" << key << "' not found at root " << at_root.value();
 	    throw triedb_key_already_exists_exception(msg.str());
 	}
 	auto *new_branch = new triedb_branch(*node);
 	new_branch->set_empty(sub_index);
-	if (branch_update_fn_) branch_update_fn_(*this, *new_branch);
+	branch_hasher(new_branch);
 	auto ptr = append_branch_node(new_branch);
 	return std::make_pair(new_branch, ptr);
     }
@@ -400,7 +568,7 @@ std::pair<triedb_branch *, uint64_t> triedb::remove_part(size_t at_height,
     auto *child = get_branch(node, sub_index);
     triedb_branch *new_child = nullptr;
     uint64_t new_child_ptr = 0;
-    std::tie(new_child, new_child_ptr) = remove_part(at_height, child, key);
+    std::tie(new_child, new_child_ptr) = remove_part(at_root, child, key);
     // Is the child completely empty?
     auto *new_branch = new triedb_branch(*node);
     if (new_child->mask() == 0) {
@@ -408,7 +576,7 @@ std::pair<triedb_branch *, uint64_t> triedb::remove_part(size_t at_height,
     } else {
         new_branch->set_child_pointer(sub_index, new_child_ptr);
     }
-    if (branch_update_fn_) branch_update_fn_(*this, *new_branch);
+    branch_hasher(new_branch);
     auto new_branch_ptr = append_branch_node(new_branch);
     return std::make_pair(new_branch, new_branch_ptr);
 }
@@ -453,31 +621,41 @@ void triedb::read_roots() {
     size_t file_size = f->tellg();
     size_t overhead_size = VERSION_SZ + sizeof(uint32_t);
     assert(file_size >= overhead_size);
-    size_t num_roots = (file_size - overhead_size) / sizeof(uint64_t);
-    roots_.resize(num_roots);
-    f->seekg(overhead_size, fstream::beg);
-    uint8_t buffer[sizeof(uint64_t)];
-    for (size_t i = 0; i < num_roots; i++) {
-        f->read(reinterpret_cast<char *>(&buffer[0]), sizeof(uint64_t));
-        roots_[i] = read_uint64(buffer);
-    }
 
-    num_heights_ = num_roots;
+    f->seekg(overhead_size, fstream::beg);
+    uint8_t buffer[triedb_root::MAX_SIZE_IN_BYTES];
+    triedb_root root;
+
+    size_t file_offset = f->tellg();
+
+    while (file_offset < file_size) {
+        f->read(reinterpret_cast<char *>(&buffer[0]), sizeof(uint32_t));
+	size_t n = read_uint32(buffer);
+
+	assert(n == triedb_root::serialization_size());
+	f->read(reinterpret_cast<char *>(&buffer[sizeof(uint32_t)]),
+		n-sizeof(uint32_t));
+	root.read(buffer);
+	root.set_id(root_id(file_offset));
+	roots_.insert(std::make_pair(root.id(), root));
+	roots_at_height_[root.height()].insert(root.id());
+
+	file_offset = f->tellg();
+    }
 }
 
-void triedb::set_root(size_t height, uint64_t offset)
+void triedb::set_root(const root_id &id, uint64_t offset)
 {
-    if (height >= roots_.size()) {
-        assert(height == roots_.size());
-	roots_.resize(height+1);
-    }
+    auto root = get_root(id);
+    root.set_ptr(offset);
+    size_t file_offset = root.id().value();
+    assert(file_offset >= VERSION_SZ);
     auto *f = get_roots_stream();
-    size_t overhead_size = VERSION_SZ + sizeof(uint32_t);    
-    f->seekg(overhead_size + height*sizeof(uint64_t), fstream::beg);
-    uint8_t buffer[sizeof(uint64_t)];
-    write_uint64(buffer, offset);
-    f->write(reinterpret_cast<char *>(&buffer[0]), sizeof(uint64_t));
-    roots_[height] = offset;
+    f->seekg(file_offset, fstream::beg);
+    uint8_t buffer[triedb_root::MAX_SIZE_IN_BYTES];
+    root.write(buffer);
+    f->write(reinterpret_cast<char *>(&buffer[0]), root.serialization_size());
+    roots_[id] = root;
 }
 
 boost::filesystem::path triedb::bucket_dir_location(size_t bucket_index) const {
@@ -571,13 +749,11 @@ fstream * triedb::set_file_offset(uint64_t offset)
     return f;
 }
 
-uint64_t triedb::get_root(size_t at_height)
+const triedb_root & triedb::get_root(const root_id &id)
 {
-    assert(roots_.size() > 0);
-    if (at_height >= roots_.size()) {
-        at_height = roots_.size() - 1;
-    }
-    return roots_[at_height];
+    auto found = roots_.find(id);
+    assert(found != roots_.end());
+    return found->second;
 }
     
 void triedb::read_leaf_node(uint64_t offset, triedb_leaf &node)
@@ -796,9 +972,11 @@ void triedb_iterator::previous() {
 	if (db_.is_empty()) {
 	    return;
 	}
-        auto parent_ptr = db_.get_root(height_);
+        auto parent_ptr = db_.get_root(root_).ptr();
 	auto parent = db_.get_branch(parent_ptr);
-	assert(parent->mask() != 0);
+	if (parent->mask() == 0) {
+	    return;
+	}
 	spine_.push_back(cursor(parent, parent_ptr,
 				common::msb(parent->mask())));
 	rightmost();

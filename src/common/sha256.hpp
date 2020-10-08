@@ -10,7 +10,6 @@
 
 namespace prologcoin { namespace common {
 
-
 class sha256 {
 public:
   static const size_t HASH_SIZE = 32;

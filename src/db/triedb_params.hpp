@@ -24,7 +24,8 @@ public:
     inline triedb_params()
       : bucket_size_(DEFAULT_BUCKET_SIZE),
         cache_num_streams_(DEFAULT_CACHE_NUM_STREAMS),
-        cache_num_nodes_(DEFAULT_CACHE_NUM_NODES) { }
+        cache_num_nodes_(DEFAULT_CACHE_NUM_NODES),
+        use_hashing_(true) { }
   
     inline size_t bucket_size() const { return bucket_size_; }
     inline void set_bucket_size(size_t sz) { bucket_size_ = sz; }
@@ -34,11 +35,15 @@ public:
 
     inline size_t cache_num_nodes() const { return cache_num_nodes_; }
     inline void set_cache_num_nodes(size_t n) { cache_num_nodes_ = n; }
+
+    inline bool use_hashing() const { return use_hashing_; }
+    inline void set_use_hashing(bool h) { use_hashing_ = h; }
   
 private:
     size_t bucket_size_;
     size_t cache_num_streams_;
     size_t cache_num_nodes_;
+    bool use_hashing_;
 };
     
 }}

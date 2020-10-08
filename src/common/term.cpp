@@ -436,16 +436,11 @@ bool heap::check_term(const term t, std::string *name) const
 
 size_t heap::resolve_atom_index(const std::string &name) const
 {
-    auto found = atom_name_to_index_table_.find(name);
-    if (found == atom_name_to_index_table_.end()) {
-        // Not found. Create a new entry.
-        size_t index = atom_index_to_name_table_.size();
-        atom_index_to_name_table_.push_back(name);
-	atom_name_to_index_table_[name] = index;
-	new_atom_fn_(*this, new_atom_fn_context_, name, index);
-	return index;
+    auto it = atom_name_to_index_table_.find(name);
+    if (it != atom_name_to_index_table_.end()) {
+	return it->second;
     }
-    return found->second;
+    return new_atom_fn_(*this, new_atom_fn_context_, name);
 }
 
 bool heap::is_name(con_cell c, const std::string &name) const

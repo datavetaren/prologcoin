@@ -35,51 +35,17 @@ public:
 
 class global;
 
-class heap_block_as_custom_data {
-public:
-    heap_block_as_custom_data(common::heap_block &blk) : block_(blk), custom_data_owner_(true), custom_data_(nullptr), custom_data_size_(0) { }
-    heap_block_as_custom_data(common::heap_block &blk, uint8_t *custom_data, size_t custom_data_size) : block_(blk), custom_data_owner_(false), custom_data_(custom_data), custom_data_size_(custom_data_size)  { }
-    ~heap_block_as_custom_data() { if (custom_data_owner_ && custom_data_) delete [] custom_data_; }
-
-    inline const uint8_t * custom_data() const { return custom_data_; }
-    inline size_t custom_data_size() const { return custom_data_size_; }
-  
-    inline void write() {
-        auto n = block_.size();
-        custom_data_size_ = sizeof(common::cell)*block_.size();
-        if (custom_data_ == nullptr) custom_data_ = new uint8_t[custom_data_size_];
-	auto *dst = custom_data_;
-	const common::cell *src = block_.cells();
-	for (size_t i = 0; i < n; i++, dst += sizeof(uint64_t), src++) {
-	    db::write_uint64(dst, static_cast<uint64_t>(src->raw_value()));
-	}
-    }
-
-    inline void read() {
-        auto n = custom_data_size_ / sizeof(common::cell);
-	common::cell *dst = block_.cells();
-	const uint8_t *src = custom_data_;
-	for (size_t i = 0; i < n; i++, dst++, src += sizeof(uint64_t)) {
-	    *dst = common::cell(db::read_uint64(src));
-	}
-	block_.trim(n);
-    }
-    
-private:
-    common::heap_block &block_;
-    bool custom_data_owner_;
-    uint8_t *custom_data_;
-    size_t custom_data_size_;
-};
-
 class global_interpreter : public interp::interpreter {
 public:
+    friend class global;
+
     using interperter_base = interp::interpreter_base;
     using term = common::term;
     using term_serializer = common::term_serializer;
     using buffer_t = common::term_serializer::buffer_t;
 
     global_interpreter(global &g);
+    virtual ~global_interpreter() = default;
 
     void total_reset();
 
@@ -88,6 +54,7 @@ public:
     void init_from_heap_db();
     void init_from_symbols_db();  
     void init_from_program_db();
+    void new_heap();
 
     void commit_heap();
     void commit_symbols();
@@ -95,6 +62,8 @@ public:
     void commit_closures();
   
     static void updated_predicate(interpreter_base &interp, const interp::qname &qn);
+    static void load_predicate(interpreter_base &interp, const interp::qname &qn);
+    static size_t unique_predicate_id(interpreter_base &interp, const common::con_cell module_name);
     virtual term get_frozen_closure(size_t addr) override;
     virtual void clear_frozen_closure(size_t addr) override;
     virtual void set_frozen_closure(size_t addr, term closure) override;
@@ -103,8 +72,16 @@ public:
 	     std::vector<std::pair<size_t, term> > &closures) override;
 
     inline void updated_predicate(const interp::qname &qn) {
+	auto p = internal_get_predicate(qn);
+	if (p) {
+	    old_predicates_.push_back(*p);
+	}
         updated_predicates_.push_back(qn);
     }
+
+    void load_predicate(const interp::qname &qn);
+
+    size_t unique_predicate_id(const common::con_cell module);
   
     inline void set_current_block(common::heap_block *b, size_t block_index) {
         current_block_ = b;
@@ -161,17 +138,14 @@ private:
 	gi->modified_heap_block(block);
     }
 
-    static inline void call_new_atom(const common::heap &h, void *context, const std::string &atom_name, size_t atom_index)
+    static inline size_t call_new_atom(const common::heap &h, void *context, const std::string &atom_name)
     {
         auto *gi = reinterpret_cast<global_interpreter *>(context);
-	gi->new_atom(atom_name, atom_index);
+	return gi->new_atom(atom_name);
     }
 
-    inline void new_atom(const std::string &atom_name, size_t atom_index)
-    {
-        new_atoms_.push_back(std::make_pair(atom_name, atom_index));
-    }
-  
+    size_t new_atom(const std::string &atom_name);
+
     inline void modified_heap_block(common::heap_block &block)
     {
         // Won't delete block because of "changed" flag
@@ -181,7 +155,9 @@ private:
         modified_blocks_.insert(std::make_pair(block.index(), &block));
     }
 
-    db::triedb_leaf * find_block_db(size_t block_index);
+    void discard_changes();
+
+    common::heap_block * db_get_heap_block(size_t block_index);
 
     inline common::heap_block & get_heap_block(size_t block_index)
     {
@@ -213,13 +189,7 @@ private:
   	    current_block_ = *found;
 	    return *current_block_;
 	}
-        auto *leaf = find_block_db(block_index);
-	common::heap_block *block = new common::heap_block(*this, block_index);
-	heap_block_as_custom_data view(*block, leaf->custom_data(),
-				       leaf->custom_data_size());
-	view.read();
-	block_cache_.insert(block_index, block);
-	current_block_ = block;
+	auto block = db_get_heap_block(block_index);
 	return *block;
     }
 
@@ -242,14 +212,20 @@ private:
     block_flusher block_flusher_;
     common::lru_cache<size_t, common::heap_block *, block_flusher> block_cache_;
 
-    std::vector<std::pair<std::string, size_t> > new_atoms_;
-  
     std::unordered_map<size_t, common::heap_block *> modified_blocks_;
  
     std::vector<interp::qname> updated_predicates_;
+    std::vector<interp::predicate> old_predicates_;
 
     // Use common::term() to indiciate removal of closure
     std::map<size_t, common::term> modified_closures_;
+
+    size_t next_atom_id_;
+    size_t start_next_atom_id_;
+    std::vector<std::pair<size_t, std::string> > new_atoms_;
+
+    size_t next_predicate_id_;
+    size_t start_next_predicate_id_;
 };
 
 }}

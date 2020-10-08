@@ -295,7 +295,7 @@ public:
 class heap_index_out_of_range_exception : public term_exception {
 public:
     heap_index_out_of_range_exception(size_t index, size_t max_sz)
-	: term_exception( std::string("Heap index ") + boost::lexical_cast<std::string>(index) + " exceeded " + boost::lexical_cast<std::string>(max_sz-1)) { }
+	: term_exception( std::string("Heap index ") + boost::lexical_cast<std::string>(index) + " exceeded " + boost::lexical_cast<std::string>(max_sz == 0 ? 0 : max_sz-1)) { }
 };
 
 class expected_con_cell_exception : public term_exception {
@@ -395,6 +395,7 @@ public:
 class con_cell : public cell {
 public:
     static const size_t MAX_ARITY = 8192 - 1;
+    static const size_t MAX_NAME_LENGTH = 256;
   
     inline con_cell() : cell(tag_t::CON) { }
     inline con_cell(const con_cell &other) : cell(other) { }
@@ -1058,7 +1059,9 @@ public:
 
     inline con_cell functor(const std::string &name, size_t arity)
     {
-        if (name.length() > 7) {
+	auto name_len = name.length();
+        if (name_len > 7) {
+	    assert(name_len < con_cell::MAX_NAME_LENGTH);
    	    return con_cell(resolve_atom_index(name), arity);
 	}
 	
@@ -1427,8 +1430,26 @@ public:
         // Do nothing
     }
 
-    static inline void new_atom_default(const heap &, void * /* context */, const std::string & /*atom name*/, size_t /* atom_index */ ) {
-        // Do nothing
+    static inline size_t new_atom_default(const heap &h, void * /* context */, const std::string &name) {
+	// This is a simple way of returning new identifiers for atoms
+	// but it is not deterministic. For the global Prolog interpreter
+	// we need to query the database.
+	size_t new_index = h.atom_name_to_index_table_.size();
+	h.atom_name_to_index_table_[name] = new_index;
+	h.atom_index_to_name_table_[new_index] = name;
+	return new_index;
+    }
+
+    inline void set_atom_index(const std::string &name, size_t index)
+    {
+	atom_name_to_index_table_[name] = index;
+	atom_index_to_name_table_[index] = name;
+    }
+
+    inline void clear_atom_index(const std::string &name, size_t index)
+    {
+	atom_name_to_index_table_.erase(name);
+	atom_index_to_name_table_.erase(index);
     }
 
     inline heap_block * get_head_block() {
@@ -1537,7 +1558,7 @@ private:
 #endif
     mutable size_t external_ptrs_max_;
 
-    mutable std::vector<std::string> atom_index_to_name_table_;
+    mutable std::unordered_map<size_t, std::string> atom_index_to_name_table_;
     mutable std::unordered_map<std::string, size_t> atom_name_to_index_table_;
 
 public:
@@ -1550,7 +1571,7 @@ public:
 
     typedef heap_block & (*get_block_fn)(heap &h, void *context, size_t block_index);
     typedef void (*modified_block_fn)(heap_block &block, void *context);
-    typedef void (*new_atom_fn)(const heap &h, void *context, const std::string &atom_name, size_t atom_index);
+    typedef size_t (*new_atom_fn)(const heap &h, void *context, const std::string &atom_name);
   
     inline void setup_get_block_fn(get_block_fn fn, void *context) { get_block_fn_ = fn; get_block_fn_context_ = context; }
     inline void setup_modified_block_fn(modified_block_fn fn, void *context) { modified_block_fn_ = fn; modified_block_fn_context_ = context; }

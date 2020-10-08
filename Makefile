@@ -2,7 +2,7 @@
 # Recurse into sub-directories and build and test
 #
 
-MODULES := secp256k1 common db interp terminal ec coin global node pow wallet main
+MODULES := secp256k1 common db interp terminal ec coin pow global node wallet main
 
 yellow="\033[0;33m"
 off="\033[0m"

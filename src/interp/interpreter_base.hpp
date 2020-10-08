@@ -845,7 +845,7 @@ public:
 	    auto mod = clause_module(clause);
 	    auto pn = clause_predicate(clause);
 	    qname qn{mod, pn};
-	    auto &pred = get_predicate(*this, qn);
+	    auto &pred = get_predicate(qn);
 	    if (!seen.count(qn)) {
 	        pred.clear();
 		seen.insert(qn);
@@ -883,32 +883,55 @@ public:
     inline const predicate & get_predicate(con_cell module, con_cell f) const
         { return get_predicate(std::make_pair(module, f)); }
 
-    inline const predicate & get_predicate(const qname &pn) const
-        {
-	    static const predicate NOT_FOUND = predicate();
-	  
-	    auto it = program_db_.find(pn);
-	    if (it == program_db_.end()) {
-	        return NOT_FOUND;
-	    } else {
-	        return it->second;
+    inline const predicate & get_predicate(const qname &pn) const {
+	  return const_cast<interpreter_base *>(this)->get_predicate(pn);
+        }
+
+    inline void clear_predicate(const qname &qn) {
+	auto it = program_db_.find(qn);
+	if (it != program_db_.end()) {
+	    program_db_.erase(it);
+	    auto preds = module_db_[qn.first];
+	    auto it2 = std::find(preds.begin(), preds.end(), qn);
+	    if (it2 != preds.end()) {
+		preds.erase(it2);
 	    }
 	}
+    }
 
-    inline predicate & get_predicate(interpreter_base &interp, const qname &qn)
+    inline const predicate * internal_get_predicate(const qname &qn) {
+	auto it = program_db_.find(qn);
+	if (it == program_db_.end()) {
+	    return nullptr;
+	}
+	return &(it->second);
+    } 
+
+    inline predicate & get_predicate(const qname &qn)
         {
 	    auto it = program_db_.find(qn);
-	    if (it == program_db_.end()) {
-	         size_t id = program_predicates_.size() + 1;
-	         program_predicates_.push_back(qn);
-		 predicate &pred = program_db_[qn];
-		 pred = predicate(qn);
-		 pred.set_id(id);
-		 return pred;
+	    if (it != program_db_.end()) {
+		return it->second;
 	    }
-	    assert(it != program_db_.end());
-	    return it->second;
+
+	    size_t id = program_predicates_.size() + 1;
+	    program_predicates_.push_back(qn);
+	    predicate &pred = program_db_[qn];
+	    pred = predicate(qn);
+	    pred.set_id(id);
+
+	    // Enables a client to fill the predicate with clauses
+	    // (from a database)
+	    load_predicate_fn_(*this, qn);
+
+	    return pred;
 	}
+
+    inline void restore_predicate(const predicate &p)
+    {
+	const qname &qn = p.qualified_name();
+	program_db_[qn] = p;
+    }  
 
     inline const module_meta & get_module_meta(con_cell name)
     {
@@ -923,6 +946,7 @@ public:
 	  }
 	  return it->second;
 	}
+
     inline bool is_existing_module(const con_cell name)
         { return module_db_.find(name) != module_db_.end(); }
 
@@ -1728,6 +1752,18 @@ private:
     term register_qr_;     // Current query 
     con_cell register_pr_; // Current predicate (for profiling)
 
+    static void load_predicate_default(interpreter_base & /*interp*/, const qname & /*qn*/) {
+    }
+    typedef void (*load_predicate_fn)(interpreter_base &interp, const qname &qn);
+    load_predicate_fn load_predicate_fn_;
+
+    static size_t unique_predicate_id_default(interpreter_base &interp, 
+					      const common::con_cell /*module*/ ) {
+	return interp.program_predicates_.size() + 1;
+    }
+    typedef size_t (*unique_predicate_id_fn)(interpreter_base &interp, const common::con_cell module);
+    unique_predicate_id_fn unique_predicate_id_fn_;
+
 public:
     static const con_cell COMMA;
     static const con_cell EMPTY_LIST;
@@ -1780,6 +1816,14 @@ protected:
 
     inline void setup_updated_predicate_function(updated_predicate_fn fn) {
         updated_predicate_fn_ = fn;
+    }
+
+    inline void setup_load_predicate_function(load_predicate_fn fn) {
+	load_predicate_fn_ = fn;
+    }
+
+    inline void setup_unique_predicate_id_function(unique_predicate_id_fn fn) {
+	unique_predicate_id_fn_ = fn;
     }
 
 private:
@@ -1903,6 +1947,10 @@ protected:
     inline void new_roots() {
         new_roots_ = true;
     }
+
+    inline void no_new_roots() {
+	new_roots_ = false;
+    }   
   
     void check_frozen();
 private:

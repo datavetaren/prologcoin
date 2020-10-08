@@ -80,7 +80,7 @@ public:
 
     inline global::global & global() { return global_; }
 
-    inline void erase_db() { global().erase_db(); }
+    inline void erase_db(const std::string &data_dir) { global::global::erase_db(data_dir); }
 
     inline bool is_grant_root_for_local() const { return grant_root_for_local_; }
     inline void set_grant_root_for_local(bool b) { grant_root_for_local_ = b; }

@@ -17,7 +17,6 @@ global_interpreter::global_interpreter(global &g)
       block_flusher_(),
       block_cache_(global::BLOCK_CACHE_SIZE / heap_block::MAX_SIZE / sizeof(cell), block_flusher_)
 {
-    init();
 }
 
 void global_interpreter::init()
@@ -29,6 +28,8 @@ void global_interpreter::init()
     init_from_program_db();
 
     setup_updated_predicate_function(updated_predicate);
+    setup_load_predicate_function(load_predicate);
+    setup_unique_predicate_id_function(unique_predicate_id);
     heap_setup_new_atom_function( call_new_atom, this );
     heap_setup_modified_block_function( call_modified_heap_block, this );
 
@@ -54,9 +55,10 @@ void global_interpreter::total_reset()
     new_atoms_.clear();
     modified_blocks_.clear();
     updated_predicates_.clear();
+    old_predicates_.clear();
     modified_closures_.clear();
 
-    get_global().erase_db();
+    global::erase_db(get_global().data_dir());
     interpreter::total_reset();
     init();
 }
@@ -64,6 +66,32 @@ void global_interpreter::total_reset()
 void global_interpreter::updated_predicate(interpreter_base &interp, const interp::qname &qn) {
     auto &gi = reinterpret_cast<global_interpreter &>(interp);
     gi.updated_predicate(qn);
+}
+
+void global_interpreter::load_predicate(interpreter_base &interp, const interp::qname &qn) {
+    auto &gi = reinterpret_cast<global_interpreter &>(interp);
+    gi.load_predicate(qn);
+}
+
+size_t global_interpreter::unique_predicate_id(interpreter_base &interp, const con_cell module) {
+    auto &gi = reinterpret_cast<global_interpreter &>(interp);
+    return gi.unique_predicate_id(module);
+}
+
+void global_interpreter::load_predicate(const interp::qname &qn) {
+    std::vector<term> clauses;
+    if (get_global().db_get_predicate(qn, clauses)) {
+	auto &pred = get_predicate(qn);
+	for (auto clause : clauses) {
+	    pred.add_clause(*this, clause);
+	}
+    }
+}
+
+size_t global_interpreter::unique_predicate_id(const common::con_cell /*module*/) {
+    size_t predicate_id = next_predicate_id_;
+    next_predicate_id_++;
+    return predicate_id;
 }
 
 void global_interpreter::setup_consensus_lib(interpreter &interp) {
@@ -104,9 +132,7 @@ reward(PubKeyAddr) :-
 )PROG";
 
     auto &tx_5 = interp.get_predicate(con_cell("user",0), con_cell("tx",5));
-    std::cout << "global_interpreter: setup..." << std::endl;
     if (tx_5.empty()) {
-	std::cout << "global_interpreter: load program..." << std::endl;
         // Nope, so load it
         interp.load_program(lib);
 	auto &tx_5_verify = interp.get_predicate(con_cell("user",0), con_cell("tx",5));
@@ -120,7 +146,10 @@ bool global_interpreter::execute_goal(term t, bool and_undo) {
         allocate_choice_point(code_point::fail());
     }  
     bool r = execute(t);
-    if (and_undo) unwind_to_top_choice_point();
+    if (and_undo) {
+	discard_changes();
+    }
+
     return r;
 }
 
@@ -128,8 +157,6 @@ bool global_interpreter::execute_goal(buffer_t &serialized, bool and_undo)
 {
     term_serializer ser(*this);
 
-    size_t old_height = get_global().current_height();
-    
     try {
 	if (and_undo) {
 	    allocate_choice_point(code_point::fail());
@@ -159,24 +186,20 @@ bool global_interpreter::execute_goal(buffer_t &serialized, bool and_undo)
 	}
 
 	if (!execute(goal)) {
-	    get_global().set_height(old_height);
-	    if (and_undo) {
-	        reset();
-	    }
+	    discard_changes();
 	    return false;
 	}
 	serialized.clear();
 	ser.write(serialized, goal);
 	if (and_undo) {
-	    get_global().set_height(old_height);	
-	    reset();
+	    discard_changes();
 	}
 	return true;
     } catch (serializer_exception &ex) {
-	get_global().set_height(old_height);
+	discard_changes();
         throw ex;
     } catch (interpreter_exception &ex) {
-	get_global().set_height(old_height);      
+	discard_changes();
         throw ex;
     }
 }
@@ -185,6 +208,46 @@ void global_interpreter::execute_cut() {
     set_b0(nullptr); // Set cut point to top level
     interpreter_base::cut();
     interpreter_base::clear_trail();
+}
+
+void global_interpreter::discard_changes() {
+    // Discard program changes
+    for (auto &qn : updated_predicates_) {
+	clear_predicate(qn);
+	remove_compiled(qn);
+    }
+    updated_predicates_.clear();
+
+    // Restore old predictaes (if any)
+    for (auto &p : old_predicates_) {
+	restore_predicate(p);
+    }
+    old_predicates_.clear();
+
+    // Tell that no program changes have occurred so that
+    // heap can be properly trimmed.
+    no_new_roots();
+
+    // Unwind everything on heap (unbind variables, etc.)
+    reset();
+
+    // Discard heap changes
+    for (auto &m : modified_blocks_) {
+	auto block_index = m.first;
+	auto block = m.second;
+	block->clear_changed();
+	block_cache_.erase(block_index);
+    }
+    modified_blocks_.clear();
+
+    // Discard new symbols
+    for (auto &sym : new_atoms_) {
+	clear_atom_index(sym.second, sym.first);
+    }
+
+    // Reset symbol counters
+    next_atom_id_ = start_next_atom_id_;
+    next_predicate_id_ = start_next_predicate_id_;
 }
     
 bool global_builtins::operator_clause_2(interpreter_base &interp0, size_t arity, term args[] )
@@ -212,25 +275,29 @@ void global_interpreter::setup_builtins()
     load_builtin(con_cell(":-",2), &global_builtins::operator_clause_2);
 }
 
-db::triedb_leaf * global_interpreter::find_block_db(size_t block_index)
-
+size_t global_interpreter::new_atom(const std::string &atom_name)
 {
-    return get_global().heap_db().find(get_global().current_height(), block_index);
+    size_t atom_id = next_atom_id_;
+    next_atom_id_++;
+    set_atom_index(atom_name, atom_id);
+    new_atoms_.push_back(std::make_pair(atom_id, atom_name));
+    return atom_id;
+}
+
+heap_block * global_interpreter::db_get_heap_block(size_t block_index) {
+    common::heap_block *block = get_global().db_get_heap_block(block_index);
+    block_cache_.insert(block_index, block);
+    current_block_ = block;
+    return block;
 }
 
 term global_interpreter::get_frozen_closure(size_t addr)
 {
-    auto height = get_global().current_height();
     auto it = modified_closures_.find(addr);
     if (it != modified_closures_.end()) {
 	return it->second;
     }
-    auto *leaf = get_global().closures_db().find(height, addr);
-    if (leaf == nullptr) {
-	return EMPTY_LIST;
-    }
-    assert(leaf->custom_data_size() == sizeof(uint64_t));
-    return cell(db::read_uint64(leaf->custom_data()));
+    return get_global().db_get_closure(addr);
 }
 
 void global_interpreter::clear_frozen_closure(size_t addr)
@@ -258,17 +325,17 @@ void global_interpreter::get_frozen_closures(size_t from_addr,
 					     size_t max_closures,
 			     std::vector<std::pair<size_t,term> > &closures)
 {
-    size_t height = get_global().current_height();
+    auto root = get_global().get_blockchain().closures_root();
     size_t k = max_closures;
 
-    bool reversed = get_global().interp().heap_size() == from_addr &&
-	            to_addr <= from_addr;
+    bool reversed = heap_size() == from_addr && to_addr <= from_addr;
 
     const auto none = term();
 
-    auto &closures_db = get_global().closures_db();
+    auto &closures_db = get_global().get_blockchain().closures_db();
     
-    auto it1 = reversed ? closures_db.end(height) : closures_db.begin(height, from_addr);
+    auto it1 = reversed ? closures_db.end(root) : 
+	                  closures_db.begin(root, from_addr);
     if (reversed) --it1;
     size_t prev_last_addr = from_addr;
     size_t last_addr = from_addr;
@@ -350,59 +417,27 @@ void global_interpreter::get_frozen_closures(size_t from_addr,
 
 void global_interpreter::commit_symbols()
 {
-    size_t current_height = get_global().current_height();
-
     if (new_atoms_.empty()) {
-         get_global().symbols_db().no_change(current_height);
 	 return;
     }
     
-    std::vector<uint8_t> buffer;
-
-    auto buffer_ensure = [&](size_t n) {
-         size_t p = buffer.size();
-         buffer.resize(p+n);
-	 return &buffer[p];
-    };
-    
     for (auto &a : new_atoms_) {
-        const std::string &atom_name = a.first;
-	size_t atom_index = a.second;
-	auto *p = buffer_ensure(sizeof(uint32_t));
-	// Store atom index for sanity check only (it's not really needed)
-	db::write_uint32(p, checked_cast<uint32_t>(atom_index));
-	// Store atom name length
-	p = buffer_ensure(sizeof(uint32_t));
-	db::write_uint32(p, checked_cast<uint32_t>(atom_name.size()));
-	p = buffer_ensure(atom_name.size());
-	memcpy(p, &atom_name[0], atom_name.size());
+	size_t symbol_index = a.first;
+        const std::string &symbol_name = a.second;
+	get_global().db_set_symbol_index(symbol_index, symbol_name);
     }
 
-    get_global().symbols_db().update(current_height, current_height,
-				     &buffer[0], buffer.size());
     new_atoms_.clear();
 }
 
 void global_interpreter::commit_closures()
 {
-    size_t current_height = get_global().current_height();
-
-    auto &closures_db = get_global().closures_db();
-
-    if (modified_closures_.empty()) {
-         closures_db.no_change(current_height);
-	 return;
-    }
-    
-    uint8_t buffer[sizeof(uint64_t)];
     const auto none = term();
     for (auto &cl : modified_closures_) {
 	if (cl.second == none) {
-	    closures_db.remove(current_height, cl.first);
+	    get_global().db_remove_closure(cl.first);
 	} else {
-	    std::cout << "Writing " << cl.first << std::endl;
-	    db::write_uint64(buffer, cl.second.raw_value());
-	    closures_db.update(current_height, cl.first, buffer, sizeof(buffer));
+	    get_global().db_set_closure(cl.first, cl.second);
 	}
     }
     modified_closures_.clear();
@@ -418,11 +453,7 @@ void global_interpreter::commit_heap()
     std::sort(blocks.begin(), blocks.end(),
 	   [](heap_block *a, heap_block *b) { return a->index() < b->index();});
     for (auto *block : blocks) {
-	heap_block_as_custom_data view(*block);
-	view.write();
-	// Write on disk and move block to block cache
-	get_global().heap_db().update(get_global().current_height(), block->index(),
-				      view.custom_data(), view.custom_data_size());
+	get_global().db_set_heap_block(block->index(), block);
 	block->clear_changed();
 	block_cache_.insert(block->index(), block);
     }
@@ -431,13 +462,23 @@ void global_interpreter::commit_heap()
 
 void global_interpreter::init_from_heap_db()
 {
-    auto &hdb = get_global().heap_db();
+    auto &hdb = get_global().get_blockchain().heap_db();
     if (hdb.is_empty()) {
+	new_heap();
         return;
     }
-    size_t current_height = get_global().current_height();
-    auto it = hdb.end(current_height);
+    auto root = get_global().get_blockchain().heap_root();
+    if (get_global().get_blockchain().heap_db().num_entries(root) == 0) {
+	new_heap();
+	return;
+    }
+		
+    auto it = hdb.end(root);
     --it;
+    if (it.at_end()) {
+	new_heap();
+	return;
+    }
     assert(!it.at_end());
     auto &leaf = *it;
     auto block_index = leaf.key();
@@ -447,90 +488,41 @@ void global_interpreter::init_from_heap_db()
     set_head_block(&block);
 }
 
+void global_interpreter::new_heap() {
+    assert(heap_size() == 0);
+    auto &block = get_heap_block(common::heap::NEW_BLOCK);
+    set_head_block(&block);
+} 
+
 void global_interpreter::init_from_symbols_db()
 {
-    auto &sdb = get_global().symbols_db();
-    if (sdb.is_empty()) {
-        return;
-    }
-    size_t current_height = get_global().current_height();
-    auto it = sdb.begin(current_height);
-    auto it_end = sdb.end(current_height);
-    for (; it != it_end; ++it) {
-        auto *data = it->custom_data();
-	auto data_size = it->custom_data_size();
-	for (size_t i = 0; i < data_size; ) {
-  	    auto atom_index = static_cast<size_t>(db::read_uint32(&data[i]));
-	    i += sizeof(uint32_t);
-	    auto atom_name_size =static_cast<size_t>(db::read_uint32(&data[i]));
-	    i += sizeof(uint32_t);
-	    std::string atom_name(atom_name_size, ' ');
-	    memcpy(&atom_name[0], &data[i], atom_name_size);
-	    i += atom_name_size;
-	    size_t resolved_index = resolve_atom_index(atom_name);
-	    assert(atom_index == resolved_index);
-	}
-    }
+    next_atom_id_ = get_global().db_num_symbols();
+    start_next_atom_id_ = next_atom_id_;
 }
     
 void global_interpreter::init_from_program_db()
 {
-    // Load all from latest height
-
-    auto &pdb = get_global().program_db();
-    if (pdb.is_empty()) {
-        return;
-    }
-    size_t current_height = get_global().current_height();
-    auto it = pdb.begin(current_height);
-    auto it_end = pdb.end(current_height);
-    for (; it != it_end; ++it) {
-        auto *data = it->custom_data();
-	auto data_size = it->custom_data_size();
-	for (size_t i = 0; i < data_size; ) {
-	    auto raw_clause = db::read_uint64(&data[i]); i += sizeof(uint64_t);
-	    cell clause(raw_clause);
-	    load_clause(clause, interp::LAST_CLAUSE);
-	}
-    }
+    next_predicate_id_ = get_global().db_num_predicates();
+    start_next_predicate_id_ = next_predicate_id_;
 }
     
 void global_interpreter::commit_program()
-
-{    size_t current_height = get_global().current_height();
-
+{    
     if (updated_predicates_.empty()) {
-         get_global().program_db().no_change(current_height);
 	 return;
     }
 
-    std::vector<uint8_t> buffer;
-
-    auto buffer_ensure = [&](size_t n) {
-         size_t p = buffer.size();
-         buffer.resize(p+n);
-	 return &buffer[p];
-    };
-    
     for (auto &qn : updated_predicates_) {
         auto &pred = get_predicate(qn);
-	// First write predicate id (module and name)
-	// Then number of clauses
-	// Followed by the clauses (one cell for each clause)
-
-	auto &clauses = pred.get_clauses();
-	for (auto &mclause : clauses) {
-	    auto t = mclause.clause();
-	    auto *p = buffer_ensure(sizeof(uint64_t));
-	    db::write_uint64(p, t.raw_value());
-	}
+	auto &mclauses = pred.get_clauses();
+	std::vector<term> clauses;
+	for (auto &mc : mclauses) {
+	    clauses.push_back(mc.clause());
+	} 
+	get_global().db_set_predicate(qn, clauses);
     }
 
-    get_global().program_db().update(current_height, current_height,
-				     &buffer[0], buffer.size());
     updated_predicates_.clear();
 }
 
-    
-    
 }}

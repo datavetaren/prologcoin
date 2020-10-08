@@ -1332,7 +1332,7 @@ bool builtins::password_2(interpreter_base &interp, size_t arity, common::term a
 	throw interpreter_exception_wrong_arg_type(msg.str());
     }
 
-    auto &pred = interp.get_predicate(interp, qname(SYSTEM, PASSWD));
+    auto &pred = interp.get_predicate(qname(SYSTEM, PASSWD));
     term clause = interp.new_term(PASSWD);
     interp.set_arg(clause, 0, args[0]);
     pred.clear();
@@ -1394,7 +1394,7 @@ bool builtins::retract(interpreter_base &interp, const std::string &pname, term 
     }
     con_cell p = interp.functor(head);
     auto qn = qname{module,p};
-    auto &pred = interp.get_predicate(interp, qn);
+    auto &pred = interp.get_predicate(qn);
     bool r = pred.remove_clauses(interp, head, all);
     if (r) interp.add_updated_predicate(qn);
     return r;

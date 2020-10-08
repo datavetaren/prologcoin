@@ -33,11 +33,12 @@ static void test_basic_check(triedb &db, uint64_t entries[], size_t n)
     std::sort(&half_sorted_entries[0], &half_sorted_entries[0] + n/2);
   
     std::cout << "Check if entries can be found through direct query..." << std::endl;
+    auto n_root = db.find_root(n-1);
     for (size_t i = 0; i < n; i++) {
         if (i >= 9990) {
 	    db.set_debug(true);
 	}
-        auto *leaf = db.find(n, entries[i]);
+        auto *leaf = db.find(n_root, entries[i]);
 	if (leaf == nullptr) {
 	    std::cout << "Could not find entry #" << i << ": key=" << entries[i] << std::endl;
 	    assert(leaf != nullptr && leaf->key() == entries[i]);
@@ -49,9 +50,9 @@ static void test_basic_check(triedb &db, uint64_t entries[], size_t n)
     std::cout << "Compare with expected baseline..." << std::endl;
     
     size_t i = 0;
-	
-    triedb_iterator it = db.begin(n);
-    triedb_iterator it_end = db.end(n);
+
+    triedb_iterator it = db.begin(n_root);
+    triedb_iterator it_end = db.end(n_root);
     for (; it != it_end; ++it, ++i) {
         auto &leaf = *it;
 	uint64_t expect_key = sorted_entries[i];
@@ -68,8 +69,9 @@ static void test_basic_check(triedb &db, uint64_t entries[], size_t n)
     // Check how the triedb looks at half height
     // (only half of the entries are inserted)
     
-    it = db.begin(n/2 - 1);
-    it_end = db.end(n/2 - 1);
+    auto n2_root = db.find_root(n/2 -1);
+    it = db.begin(n2_root);
+    it_end = db.end(n2_root);
     i = 0;
     for (; it != it_end; ++it, ++i) {
         auto &leaf = *it;
@@ -86,7 +88,8 @@ static void test_basic_check(triedb &db, uint64_t entries[], size_t n)
     // Reverse iteration
     //
     std::cout << "Reverse iteration check..." << std::endl;
-    it_end = db.end(n-1);
+    auto n1_root = db.find_root(n-1);
+    it_end = db.end(n1_root);
     it = it_end -1 ;
     i = n - 1;
     for (; it != it_end; --it, --i) {
@@ -104,7 +107,8 @@ static void test_basic_check(triedb &db, uint64_t entries[], size_t n)
     // Reverse iteration
     //
     std::cout << "Reverse iteration check from half height..." << std::endl;
-    it_end = db.end(n/2-1);
+    n2_root = db.find_root(n/2-1);
+    it_end = db.end(n2_root);
     it = it_end - 1;
     i = n/2 - 1;
     for (; it != it_end; --it, --i) {
@@ -123,10 +127,11 @@ static void test_basic_check(triedb &db, uint64_t entries[], size_t n)
     // Start iteration from key - 10000
     // check 10 elements (or end of iteration)
     //
-    it_end = db.end(n-1);
+    n1_root = db.find_root(n-1);
+    it_end = db.end(n1_root);
     for (i = 0; i < n; i++) {
        uint64_t from_key = sorted_entries[i] - 10000;
-       it = db.begin(n-1, from_key);
+       it = db.begin(n1_root, from_key);
        auto it_expect = std::lower_bound(&sorted_entries[0], &sorted_entries[n], from_key);
        for (size_t j = 0; j < 10; j++, ++it, ++it_expect) {
 	   if (it == it_end) {
@@ -162,13 +167,13 @@ static void test_basic()
     params.set_cache_num_nodes(1024);
     
     try {
+	triedb::erase_all(test_dir);
+			  
         triedb db(params, test_dir);
 
-	if (!db.is_empty()) {
-	    std::cout << "Removing existing test database." << std::endl;
-	    db.erase_all();
-	}
-			  
+	// Create genesis
+	root_id root = db.new_root();
+
 	// Set block sizes to be smaller to create more files...
 	
 	std::cout << "Create " << TEST_NUM_ENTRIES << " entries..." << std::endl;
@@ -176,7 +181,8 @@ static void test_basic()
 	std::cout << "Insert entries..." << std::endl;
 	
         for (size_t i = 0; i < TEST_NUM_ENTRIES; i++) {
-	    db.insert(i, entries[i], nullptr, 0);
+	    db.insert(root, entries[i], nullptr, 0);
+	    root = db.new_root(root);
 	}
 
 	test_basic_check(db, entries, TEST_NUM_ENTRIES);
@@ -203,15 +209,17 @@ static void test_increasing_check(triedb &db, size_t n)
 {
     std::cout << "Testing finding keys directly..." << std::endl;
     for (size_t i = 0; i < n; i++) {
-        auto *leaf = db.find(i, i);
+	auto i_root = db.find_root(i);
+        auto *leaf = db.find(i_root, i);
 	assert(leaf->key() == i);
-	auto *not_found = db.find(i, i+1);
+	auto *not_found = db.find(i_root, i+1);
 	assert(not_found == nullptr);
     }
 
     std::cout << "Iteration check..." << std::endl;
-    auto it = db.begin(n, 0);
-    auto it_end = db.end(n);
+    auto n_root = db.find_root(n);
+    auto it = db.begin(n_root, 0);
+    auto it_end = db.end(n_root);
     size_t i = 0;
     for (; it != it_end; ++it, ++i) {
         auto &leaf = *it;
@@ -224,7 +232,7 @@ static void test_increasing_check(triedb &db, size_t n)
     }
 
     std::cout << "Reverse iteration check..." << std::endl;
-    it_end = db.end(n);
+    it_end = db.end(n_root);
     it = it_end - 1;
     i = 9999;
     for (; it != it_end; --it, --i) {
@@ -257,12 +265,15 @@ static void test_increasing()
 
 	std::cout << "Insert entries..." << std::endl;
 	
+	auto at_root = db.new_root();
+
         for (size_t i = 0; i < TEST_NUM_ENTRIES; i++) {
-	    db.insert(i, i, nullptr, 0);
+	    db.insert(at_root, i, nullptr, 0);
+	    at_root = db.new_root(at_root);
 
 	    // Zero presence check...
 	
-	    auto *zero_check = db.find(i, 0);
+	    auto *zero_check = db.find(at_root, 0);
 	    assert(zero_check->key() == 0);
 	}
 
@@ -288,16 +299,17 @@ static void test_increasing()
     // Open the database again and remove every odd number
 
     try {
-        size_t at_height = TEST_NUM_ENTRIES;
+        size_t at_height = TEST_NUM_ENTRIES-1;
         triedb db(test_dir);
+	auto at_root = db.find_root(at_height);
 	std::cout << "Remove 1, 3, 5, ... up to 9999" << std::endl;
 	for (size_t i = 1; i < TEST_NUM_ENTRIES; i += 2) {
-	    db.remove(at_height, i);
+	    db.remove(at_root, i);
 	}
 	std::cout << "Check database integrity..." << std::endl;
 
 	for (size_t i = 0; i < TEST_NUM_ENTRIES; i++) {
-	    auto *leaf = db.find(at_height, i);
+	    auto *leaf = db.find(at_root, i);
 	    if (i % 2 == 0) {
 	        assert(leaf != nullptr && leaf->key() == i);
   	    } else {
@@ -308,13 +320,13 @@ static void test_increasing()
 	std::cout << "Remove a range of values..." << std::endl;
 
 	for (size_t i = 1000; i < 2000; i += 2) {
-	    db.remove(at_height, i);
+	    db.remove(at_root, i);
 	}
 
 	std::cout << "Check database integrity again..." << std::endl;
 
 	for (size_t i = 0; i < TEST_NUM_ENTRIES; i++) {
-	    auto *leaf = db.find(at_height, i);	     
+	    auto *leaf = db.find(at_root, i);
 	    if (i % 2 == 0) {
 	        if (i < 1000 || i >= 2000) {
 		    assert(leaf != nullptr && leaf->key() == i);
@@ -327,8 +339,8 @@ static void test_increasing()
 	}
 
 	std::cout << "Check database integrity through iteration..." << std::endl;
-	auto it = db.begin(at_height, 0);
-	auto it_end = db.end(at_height);
+	auto it = db.begin(at_root, 0);
+	auto it_end = db.end(at_root);
 
 	size_t i = 0;
 	for (; it != it_end; ++it) {

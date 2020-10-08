@@ -72,6 +72,8 @@ void interpreter_base::init()
     current_module_ = con_cell("system",0);
     persistent_password_ = false;
     updated_predicate_fn_ = nullptr;
+    load_predicate_fn_ = &load_predicate_default;
+    unique_predicate_id_fn_ = &unique_predicate_id_default;
 
     debug_ = false;
     track_cost_ = false;
@@ -348,7 +350,7 @@ term interpreter_base::rewrite_freeze_body(term freezeVar, term freezeBody)
     set_arg(freeze_clause, 0, head);
     set_arg(freeze_clause, 1, freezeBody);
 
-    get_predicate(*this, qname).add_clause(*this, freeze_clause);
+    get_predicate(qname).add_clause(*this, freeze_clause);
 
     auto closure_head = new_str(qname.second);
     for (size_t i = 0; i < vars_list.size(); i++) {
@@ -499,16 +501,14 @@ void interpreter_base::load_builtins_file_io()
     load_builtin(con_cell("sformat",3), builtin(&builtins_fileio::sformat_3,true));
 }
 
-qname interpreter_base::gen_predicate(const common::con_cell module,
-				      size_t arity)
-{
+qname interpreter_base::gen_predicate(const common::con_cell module, size_t arity) {
     static const char ALPHABET[64] = {
       'a','b','c','d','e','f','g','h','i','j','k','l','m','n','o','p',
       'q','r','s','t','u','v','w','x','y','z','A','B','C','D','E','F',
       'G','H','I','J','K','L','M','N','O','P','Q','R','S','T','U','V',
       'W','X','Y','Z','0','1','2','3','4','5','6','7','8','9','-','+'};
     
-    size_t num = program_predicates_.size() + 1;
+    size_t num = unique_predicate_id_fn_(*this, module);
     char name[7];
     size_t i;
     for (i = 0; i < 7 && num != 0; i++) {
@@ -876,7 +876,7 @@ void interpreter_base::clear_password()
 {
     static con_cell SYSTEM("system",0);
     static con_cell PASSWD("$passwd",1);
-    auto &pred = get_predicate(*this, qname(SYSTEM, PASSWD));
+    auto &pred = get_predicate(qname(SYSTEM, PASSWD));
     pred.clear();
     // std::cout << "clear_password(): current_module=" << to_string(current_module()) << std::endl;
 }

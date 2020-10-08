@@ -202,9 +202,9 @@ static void test_address_propagation()
     // Each node should have the other 9 addresses. Not all of them
     // verified perhaps.
     //
-    std::cout << "Check for address propagation (max 60 seconds.)" << std::endl;
+    std::cout << "Check for address propagation (max 120 seconds.)" << std::endl;
     std::unordered_set<unsigned short> ok_nodes;
-    for (size_t i = 0; i < 60 && ok_nodes.size() < num_nodes; i++) {
+    for (size_t i = 0; i < 120 && ok_nodes.size() < num_nodes; i++) {
 	utime::sleep(utime::ss(1));
 	for (auto *node : nodes) {
 	    size_t count = 0;

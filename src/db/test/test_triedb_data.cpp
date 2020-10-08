@@ -3,6 +3,7 @@
 #include <common/sha1.hpp>
 #include <common/hex.hpp>
 #include <common/random.hpp>
+#include <common/blake2.hpp>
 #include <boost/algorithm/string.hpp>
 #include <iostream>
 #include <boost/filesystem.hpp>
@@ -25,37 +26,6 @@ const size_t TEST_NUM_ENTRIES = 1024; // Perfect full trie (32x32)
 
 struct custom_data_leaf {
     uint8_t heap_block[65536];
-    uint8_t hash[20];
-};
-
-struct custom_data_branch {
-    uint8_t hash[20];
-};
-
-class custom_branch : public triedb_branch {
-public:
-    const uint8_t * hash() const {
-        return custom_data();
-    }
-    void recompute_hash(triedb &db) {
-        sha1 hasher;
-        for (size_t i = 0; i < triedb_params::MAX_BRANCH; i++) {
-	    if (is_branch(i)) {
-	        auto *sub_branch = db.get_branch(this, i);
-		hasher.update(sub_branch->custom_data(),
-			      sub_branch->custom_data_size());
-	    } else if (is_leaf(i)) {
-	        auto *sub_leaf = db.get_leaf(this, i);
-		auto *data_leaf = reinterpret_cast<custom_data_leaf *>(sub_leaf->custom_data());
-		hasher.update(data_leaf->hash, sizeof(data_leaf->hash));
-	    }
-        }
-	if (custom_data() == nullptr) {
-	    allocate_custom_data(sizeof(custom_data_branch));
-	}
-    
-	hasher.finalize(custom_data());
-    }
 };
 
 static void test_basic()
@@ -64,58 +34,46 @@ static void test_basic()
     
     std::cout << "Test directory: " << test_dir << std::endl;
 
+    triedb::erase_all(test_dir);
     triedb db(test_dir);
-    db.erase_all();
-    
-    db.set_update_function(
-	   [](triedb &db0, triedb_branch &branch) {
-	       auto *br = reinterpret_cast<custom_branch *>(&branch);
-	       br->recompute_hash(db0);
-	   });
 
     std::vector<std::pair<triedb_branch *, size_t> > path;
-    
+
+    auto at_root = db.new_root();
     for (size_t i = 0; i < TEST_NUM_ENTRIES; i++) {
         custom_data_leaf data;
 	for (size_t j = 0; j < 65536; j++) {
 	    uint8_t b = (i + j) & 0xff;
 	    data.heap_block[j] = b;
 	}
-	sha1 hasher;
-	hasher.update(&data.heap_block[0], 65536);
-	hasher.finalize( &data.hash[0] );
-        db.insert(i, i, reinterpret_cast<uint8_t *>(&data), sizeof(data));	
-	/*
-	db.find(i, 0, &path);
-	auto *root = reinterpret_cast<const custom_data_branch *>(path[0].first->custom_data());
-
-	std::cout << "Insert " << i << ": ";
-	std::cout << "Root Hash: " << hex::to_string(&root->hash[0], sizeof(root->hash));
-	std::cout << std::endl;
-	*/
+        db.insert(at_root, i, reinterpret_cast<uint8_t *>(&data), sizeof(data));
+	at_root = db.new_root(at_root);
     }
 
     // Check root hash
-    db.find(TEST_NUM_ENTRIES, 0, &path);
+    at_root = db.find_root(TEST_NUM_ENTRIES-1);
+    db.find(at_root, 0, &path);
+
+    using hash_t = struct { uint8_t hash[32]; };
 
     hash_t actual_root_hash;
 
     std::cout << "PATH: ";
     bool first = true;
-    // std::pair<triedb_branch *, size_t> *root_hash;    
     std::pair<triedb_branch *, size_t> *last_e;
     for (auto &e : path) {
         last_e = &e;
-        auto *br = reinterpret_cast<custom_branch *>(e.first);
+        auto *br = e.first;
 	if (first) {
-	    memcpy(&actual_root_hash.hash[0], br->custom_data(), sizeof(hash_t));
+	    assert(br->hash_size() == sizeof(hash_t));
+	    memcpy(&actual_root_hash.hash[0], br->hash(), br->hash_size());
 	}
 	if (!first) std::cout << " -> ";
-	std::cout << e.second << "[" << hex::to_string(br->hash(), 20) << "]";
+	std::cout << e.second << "[" << hex::to_string(br->hash(), br->hash_size()) << "]";
 	first = false;
     }
-    auto *lf = reinterpret_cast<custom_data_leaf *>(db.get_leaf(last_e->first,last_e->second)->custom_data());
-    std::cout << " -> " << hex::to_string(lf->hash, 20);
+    auto *lf = db.get_leaf(last_e->first,last_e->second);
+    std::cout << " -> " << hex::to_string(lf->hash(), lf->hash_size());
     std::cout << std::endl;
 
     //
@@ -125,36 +83,46 @@ static void test_basic()
     std::vector<hash_t> hashes;
     for (size_t i = 0; i < TEST_NUM_ENTRIES; i++) {
       uint8_t data[65536];
-      for (size_t j = 0; j < 65536; j++) {
+      for (size_t j = 0; j < sizeof(data); j++) {
 	  data[j] = static_cast<uint8_t>((i+j) & 0xff);
       }
-      sha1 hasher;
-      hasher.update(data, 65536);
+      blake2b_state s;
+      blake2b_init(&s, sizeof(hash_t));
+      uint64_t key = i;
+      uint8_t key_serialized[sizeof(uint64_t)];
+      write_uint64(key_serialized, key);
+      blake2b_update(&s, key_serialized, sizeof(key_serialized));
+      blake2b_update(&s, data, sizeof(data));
       hash_t hash;
-      hasher.finalize(&hash.hash[0]);
+      blake2b_final(&s, &hash.hash[0], sizeof(hash_t));
       hashes.push_back(hash);
+      if (i == 0) {
+	  std::cout << "First hash (bottom left): " << hex::to_string(&hash.hash[0], sizeof(hash)) << std::endl;
+      }
     }
     while (hashes.size() > 1) {
         std::vector<hash_t> next_hashes;
 	size_t i = 0;
-	sha1 hasher;
+	blake2b_state s;
+	blake2b_init(&s, sizeof(hash_t));
 	for (auto &h : hashes) {
-	    hasher.update(&h.hash[0], sizeof(hash_t));
+	    blake2b_update(&s, &h.hash[0], sizeof(hash_t));
 	    i++;
 	    if (i == 32) {
 	        hash_t next_hash;
-	        hasher.finalize(&next_hash.hash[0]);
+	        blake2b_final(&s, &next_hash.hash[0], sizeof(hash_t));
 	        next_hashes.push_back(next_hash);
-		hasher.init();
+		blake2b_init(&s, sizeof(hash_t));
 		i = 0;
 	    }
 	}
+	assert(i == 0); // We have a perfect trie
 	hashes = next_hashes;
     }
     hash_t &expect_root_hash = hashes[0];
     std::cout << "Actual root hash: " << hex::to_string(&actual_root_hash.hash[0], sizeof(hash_t)) << std::endl;
     std::cout << "Expect root hash: " << hex::to_string(&expect_root_hash.hash[0], sizeof(hash_t)) << std::endl;
-    assert(expect_root_hash == actual_root_hash);
+    assert(memcmp(expect_root_hash.hash, actual_root_hash.hash, sizeof(hash_t)) == 0);
 }
 
 int main(int argc, char *argv[])
