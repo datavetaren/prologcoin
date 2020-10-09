@@ -16,6 +16,6 @@ jobs:
     - name: boost
       run: brew install boost
     - name: libsecp
-      run: git clone https://github.com/datavetaren/secp256k1-zkp ..
+      run: git clone https://github.com/datavetaren/secp256k1-zkp ../secp256k1-zkp
     - name: doall
       run: make all
