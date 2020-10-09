@@ -24,5 +24,5 @@ jobs:
     - name: upload
       uses: actions/upload-artifact@v2
       with:
-        name: prologcoin_mac_osx
-	path: ./bin/prologcoin_mac_osx.zip
+        name: prologcoin-macosx
+	path: bin/prologcoin_macosx.zip
