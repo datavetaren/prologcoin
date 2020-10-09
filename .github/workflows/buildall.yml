@@ -16,6 +16,6 @@ jobs:
     - name: boost
       run: brew install boost
     - name secp256k1
-      run: sh -c "echo hello"
+      run: echo "hello"
     - name: doall
       run: make all
