@@ -16,6 +16,6 @@ jobs:
     - name: boost
       run: brew install boost
     - name secp256k1
-      run: pwd
+      run: echo $(pwd)
     - name: doall
       run: make all
