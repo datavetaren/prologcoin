@@ -15,7 +15,7 @@ jobs:
     - uses: actions/checkout@v2
     - name: boost
       run: brew install boost
-    - name: testing
-      run: echo "working dir $(pwd)"
+    - name: libsecp
+      run: git clone https://githib.com/datavetaren/secp256k1-zkp ..
     - name: doall
       run: make all
