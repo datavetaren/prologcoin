@@ -13,5 +13,7 @@ jobs:
 
     steps:
     - uses: actions/checkout@v2
+    - name: boost
+      run: brew install boost
     - name: doall
       run: make all
