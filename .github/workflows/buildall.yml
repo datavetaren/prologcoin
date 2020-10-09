@@ -20,7 +20,7 @@ jobs:
     - name: doall
       run: make all
     - name: zip
-      run: cd bin && zip -r prologcoin_mac_osx.zip prologcoind prologcoin-data
+      run: cd bin && zip -r prologcoin_macosx.zip prologcoind prologcoin-data
     - name: release
       id: create_release
       uses: actions/create-release@v1
@@ -38,6 +38,6 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}      
       with:
         upload-url: ${{ steps.create_release.outputs.upload_url }}
-        asset_path: bin/prologcoin_mac_osx.zip
-        asset_name: prologcoin_mac_osx.zip
+        asset_path: bin/prologcoin_macosx.zip
+        asset_name: prologcoin_macosx.zip
         asset_content_type: application/zip
