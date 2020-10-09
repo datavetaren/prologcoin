@@ -15,5 +15,7 @@ jobs:
     - uses: actions/checkout@v2
     - name: boost
       run: brew install boost
+    - name secp256k1
+      run: pwd
     - name: doall
       run: make all
