@@ -36,9 +36,12 @@ connection::connection(self_node &self,
 
 connection::~connection()
 {
+    // std::cout << "connection::~connection(): this=" << this << " port=" << self_node_.port() << std::endl;
     boost::system::error_code ec;
+    socket_.cancel(ec);
     socket_.shutdown(boost::asio::ip::tcp::socket::shutdown_both, ec);
     socket_.close(ec);
+    socket_.release(ec);
 }
 
 void connection::start()
@@ -178,7 +181,9 @@ void connection::run()
 			     }
 			     run();
 			 } else {
-			     set_state(STATE_ERROR);
+			     std::stringstream msg;
+			     msg << "While receiving length: n=" << n << "; error: " << ec.message();
+			     set_state_error(msg.str());
 			     dispatch();
 			     close();
 			 }
@@ -200,7 +205,9 @@ void connection::run()
 			     dispatch();
 			     run();
 			 } else {
-			     set_state(STATE_ERROR);
+			     std::stringstream msg;
+			     msg << "While receiving data: n=" << n << "; error: " << ec.message();
+			     set_state_error(msg.str());
 			     dispatch();
 			     close();
 			 }
@@ -220,7 +227,9 @@ void connection::run()
 			  }
 			  run();
 		      } else {
-			  set_state(STATE_ERROR);
+			  std::stringstream msg;
+			  msg << "While sending len: n=" << n << "; error: " << ec.message();
+			  set_state_error(msg.str());
 			  dispatch();
 			  close();
 		      }
@@ -241,7 +250,9 @@ void connection::run()
 			     }
 			     run();
 		         } else {
-			     set_state(STATE_ERROR);
+			     std::stringstream msg;
+			     msg << "While sending data: n=" << n << "; error: " << ec.message();
+			     set_state_error(msg.str());
 			     dispatch();
 			     close();
 			 }
@@ -269,7 +280,7 @@ void connection::run()
 			     run();
 			 } else {
 			     if (is_stopped()) {
-				 set_state(STATE_ERROR);
+				 set_state_error("Node stopped");
 				 dispatch();
 				 close();
 			     } else {
@@ -303,6 +314,7 @@ in_connection::in_connection(self_node &self)
 
 in_connection::~in_connection()
 {
+    // std::cout << self().port() << ": in, this=" << this << std::endl;
     // std::cout << "in_connection::~in_connection()" << std::endl;
 }
 
@@ -645,6 +657,8 @@ out_connection::out_connection(self_node &self, out_connection::out_type_t t, co
 
 out_connection::~out_connection()
 {
+    // std::cout << self().port() << ": out=" << ip().port() << " this=" << this << std::endl;
+
     boost::lock_guard<boost::recursive_mutex> guard(work_lock_);
 
     while (!work_.empty()) {
@@ -716,6 +730,7 @@ void out_connection::reschedule(out_task *task, utime t)
 void out_connection::error(const reason_t &reason,
 			   const std::string &msg)
 {
+    // std::cout << "out_connection: " << "self=" << self().port() << " to=" << ip().port() << " error=" << msg << " last_error=" << last_error() << std::endl;
     //
     // Find address entry
     //

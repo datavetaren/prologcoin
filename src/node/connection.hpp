@@ -120,6 +120,10 @@ protected:
 
     inline state get_state() const { return state_; }
     inline void set_state(state state) { state_ = state; }
+    inline void set_state_error(const std::string &info) {
+	state_ = STATE_ERROR;
+	last_error_ = info;
+    }
 
     void start();
     void run();
@@ -129,6 +133,8 @@ protected:
     boost::asio::io_service::strand strand() { return strand_; }
 
     void trigger_now();
+
+    const std::string & last_error() const { return last_error_; }
 
 private:
     bool received_length();
@@ -152,6 +158,7 @@ private:
     std::function<void ()> dispatcher_;
     bool auto_send_;
     bool stopped_;
+    std::string last_error_;
 };
 
 class in_connection : public connection {

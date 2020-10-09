@@ -154,7 +154,7 @@ static void test_address_propagation()
 
     // bool success = false;
 
-    const size_t num_nodes = 10;
+    const size_t num_nodes = 6;
 
     //
     // Setup nodes & start nodes
@@ -164,8 +164,8 @@ static void test_address_propagation()
     std::vector<self_node *> nodes;
     for (size_t i = 0; i < num_nodes; i++) {
         auto *node = new self_node(test_dir, self_node::DEFAULT_PORT+i);
-	node->set_timer_interval(utime::ss(1));
-	node->set_time_to_live(utime::ss(2));
+	node->set_timer_interval(utime::ss(5));
+	node->set_time_to_live(utime::ss(10));
 	node->set_testing_mode(true);
 	nodes.push_back(node);
     }
@@ -199,7 +199,7 @@ static void test_address_propagation()
     //
     // Check for maximum 60 seconds:
     //
-    // Each node should have the other 9 addresses. Not all of them
+    // Each node should have the other N-1 addresses. Not all of them
     // verified perhaps.
     //
     std::cout << "Check for address propagation (max 120 seconds.)" << std::endl;

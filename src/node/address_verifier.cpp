@@ -83,7 +83,7 @@ void task_address_verifier::process()
 		      p.ignore()));
 
 	if (!pat(e, get_result())) {
-	    error(reason_t::ERROR_UNRECOGNIZED);
+	    error(reason_t::ERROR_UNRECOGNIZED, "Unrecognized response");
 	    return;
 	}
 
@@ -91,7 +91,7 @@ void task_address_verifier::process()
 	if (e.atom_name(id) == self().id()) {
 	    self().add_self(connection().ip());
 	    self().book()().remove(connection().ip());
-	    error(reason_t::ERROR_SELF);
+	    error(reason_t::ERROR_SELF, "Attempting circular connection.");
 	    return;
 	}
 
@@ -100,7 +100,7 @@ void task_address_verifier::process()
 	    major_ver = checked_cast<int32_t>(major_ver0, 0, 1000);
 	    minor_ver = checked_cast<int32_t>(minor_ver0, 0, 1000);
 	} catch (checked_cast_exception &ex) {
-	    error(reason_t::ERROR_UNRECOGNIZED);
+	    error(reason_t::ERROR_UNRECOGNIZED, "Unrecognized version");
 	    return;
 	}	
 
