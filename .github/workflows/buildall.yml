@@ -16,6 +16,6 @@ jobs:
     - name: boost
       run: brew install boost
     - name: testing
-      run: echo "hello"
+      run: echo "working dir $(pwd)"
     - name: doall
       run: make all
