@@ -141,27 +141,16 @@ reward(PubKeyAddr) :-
     interp.compile();
 }
   
-bool global_interpreter::execute_goal(term t, bool and_undo) {
-    if (and_undo) {
-        allocate_choice_point(code_point::fail());
-    }  
+bool global_interpreter::execute_goal(term t) {
     bool r = execute(t);
-    if (and_undo) {
-	discard_changes();
-    }
-
     return r;
 }
 
-bool global_interpreter::execute_goal(buffer_t &serialized, bool and_undo)
+bool global_interpreter::execute_goal(buffer_t &serialized)
 {
     term_serializer ser(*this);
 
     try {
-	if (and_undo) {
-	    allocate_choice_point(code_point::fail());
-	}
-	
         term goal = ser.read(serialized);
 
 	if (naming_) {
@@ -191,9 +180,6 @@ bool global_interpreter::execute_goal(buffer_t &serialized, bool and_undo)
 	}
 	serialized.clear();
 	ser.write(serialized, goal);
-	if (and_undo) {
-	    discard_changes();
-	}
 	return true;
     } catch (serializer_exception &ex) {
 	discard_changes();

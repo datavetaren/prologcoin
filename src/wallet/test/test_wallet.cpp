@@ -98,7 +98,7 @@ static void test_wallet_tx()
     int64_t start_addr = 0;
     bool cont = false;
     do {
-        auto query = w.parse("me:query(frozenk(" + boost::lexical_cast<std::string>(start_addr) + ",100, X)) @ node.");
+        auto query = w.parse("me:global(frozenk(" + boost::lexical_cast<std::string>(start_addr) + ",100, X)) @ node.");
 	cont = w.execute(query);
 	if (cont) {
 	     auto lst = w.get_result_term("X");

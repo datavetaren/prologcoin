@@ -266,6 +266,9 @@ void readline::enter_read()
     ws.ws_col = 80;
     ioctl(STDOUT_FILENO, TIOCGWINSZ, &ws);
     column_width_ = ws.ws_col;
+    if (column_width_ == 0) {
+	column_width_ = 80;
+    }
 
     struct termios term;
     tcgetattr(STDIN, &term);

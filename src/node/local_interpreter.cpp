@@ -76,9 +76,9 @@ bool me_builtins::operator_at_2(interpreter_base &interp0, size_t arity, term ar
     std::string where = interp.atom_name(where_term);
 
     if (where == "global") {
-        // Then this is same as query(...)
+        // Then this is same as global(...)
         term local_args[1] = { query };
-        return query_1(interp, 1, local_args);
+        return global_1(interp, 1, local_args);
     }
 
 #define LL(interp) reinterpret_cast<local_interpreter &>(interp)
@@ -444,17 +444,8 @@ bool me_builtins::commit(local_interpreter &interp, term_serializer::buffer_t &b
     buf.clear();
     ser.write(buf, t);
 
-    try {
-        if (!g.execute_goal(buf, false)) {
-	   g.reset();
-           return false;
-	}
-    } catch (interpreter_exception &ex) {
-        g.reset();
-        throw ex;
-    } catch (serializer_exception &ex) {
-        g.reset();
-        throw ex;
+    if (!g.execute_goal(buf)) {
+	return false;
     }
 	
     g.execute_cut();
@@ -492,11 +483,11 @@ bool me_builtins::commit_2(interpreter_base &interp0, size_t arity, term args[])
     return true;
 }
 
-bool me_builtins::query_1(interpreter_base &interp0, size_t arity, term args[] )
+bool me_builtins::global_1(interpreter_base &interp0, size_t arity, term args[] )
 {
     auto &interp = to_local(interp0);
 
-    interp.root_check("query", arity);
+    interp.root_check("global", arity);
   
     global::global &g = interp.self().global();
 
@@ -508,22 +499,13 @@ bool me_builtins::query_1(interpreter_base &interp0, size_t arity, term args[] )
     buf.clear();
     ser.write(buf, t);
 
-    try {
-        if (!g.execute_goal(buf, true)) {
-           return false;
-	}
-    } catch (interpreter_exception &ex) {
-        g.reset();
-        throw ex;
-    } catch (serializer_exception &ex) {
-        g.reset();
-        throw ex;
+    if (!g.execute_goal(buf)) {
+	return false;
     }
 
-    assert(g.is_clean());
+    // assert(g.is_clean());
 
     term t1 = ser.read(buf);
-    g.reset();
     return interp.unify(t, t1);
 }
 
@@ -614,8 +596,8 @@ void local_interpreter::setup_local_builtins()
     load_builtin(ME, con_cell("commit", 1), &me_builtins::commit_2);
     load_builtin(ME, con_cell("commit", 2), &me_builtins::commit_2);
 
-    // Query the global interpreter (do not modify its state)
-    load_builtin(ME, con_cell("query", 1), &me_builtins::query_1);
+    // Execute on global interpreter
+    load_builtin(ME, con_cell("global", 1), &me_builtins::global_1);
 }
 
 void local_interpreter::startup_file()

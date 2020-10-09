@@ -226,7 +226,7 @@ typedef std::pair<common::con_cell, common::con_cell> qname;
         //
         // Non-standard, Prologcoin specific
         //
-      
+
         // frozen(+X, -Closure)
         static bool frozen_2(interpreter_base &interp, size_t arity, common::term args[] );
         static common::term get_frozen(interpreter_base &interp, common::term arg);
@@ -235,6 +235,7 @@ typedef std::pair<common::con_cell, common::con_cell> qname;
         static bool frozenk_3(interpreter_base &interp, size_t arity, common::term args[] );
         // defrost(+HeapAddress, -Closure, +Values)
         static bool defrost_3(interpreter_base &interp, size_t arity, common::term args[] );
+
         // password(+String, [+Options])
         // General password management. If password(String) used then
         // it temporarily sets the password for the next query (and then

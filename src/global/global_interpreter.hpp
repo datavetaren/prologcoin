@@ -101,8 +101,8 @@ public:
   
     inline void set_naming(bool b) { naming_ = b; }
   
-    bool execute_goal(term t, bool and_undo);
-    bool execute_goal(buffer_t &serialized, bool and_undo);
+    bool execute_goal(term t);
+    bool execute_goal(buffer_t &serialized);
     void execute_cut();
   
     inline bool is_empty_stack() const {
