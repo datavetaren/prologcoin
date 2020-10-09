@@ -20,9 +20,9 @@ jobs:
     - name: doall
       run: make all
     - name: zip
-      run: cd bin && zip -r prologcoin-mac-osx.zip prologcoind prologcoin-data
+      run: cd bin && zip -r prologcoin_mac_osx.zip prologcoind prologcoin-data
     - name: upload
       uses: actions/upload-artifact@v2
       with:
-        name: prologcoin-mac-osx
-	path: bin/prologcoin-mac-osx.zip
+        name: prologcoin_mac_osx
+	path: ./bin/prologcoin_mac_osx.zip
