@@ -1517,12 +1517,14 @@ protected:
 	    break;
    	    }
 	case ENV_WAM: {
+	  auto frame_ptr = e0();
+	  std::cout << "Deallocate: " << frame_ptr << "\n";
   	    set_cp(e0()->cp);
 	    set_e(e0()->ce);
 	    break;
 	}
 	}
-	    
+
 	// std::cout << "[after]  deallocate_environment: e=" << e() << " p=" << to_string_cp(p()) << " cp=" << to_string_cp(cp()) << "\n";
 	
     }
@@ -2270,10 +2272,10 @@ template<> inline environment_t * interpreter_base::allocate_environment<ENV_WAM
     set_e(new_e, ENV_WAM);
 
     auto ny = num_y_fn()(this, true);
-    printf("New env(%llu): %p\n", ny, new_e);
-    for(size_t i = 0; i < ny; i++) {
-      y(i) = common::int_cell(0);
-    }
+    std::cout << "New Env: num_y = " << ny << ", new_e: " << new_e << "\n";
+    //    for(size_t i = 0; i < ny; i++) {
+    //      y(i) = common::int_cell(0);
+    //    }
 
     return new_e;
 }
