@@ -21,6 +21,7 @@ jobs:
       run: make all
     - name: zip
       run: cd bin && zip -r prologcoin_macosx_latest.zip prologcoind prologcoin-data
+    - name: release
       uses: svenstaro/upload-release-action@v2
       with:
         repo_token: ${{ secrets.GITHUB_TOKEN }}
