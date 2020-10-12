@@ -26,7 +26,7 @@ jobs:
       with:
         repo_token: ${{ secrets.GITHUB_TOKEN }}
         file: bin/prologcoin_macosx_latest.zip
-        asset_name: prologcoin-macosx-latest
+        asset_name: prologcoin-macosx-latest.zip
         tag: ${{ github.ref }}
         overwrite: true
-        body: "Latest build of Prologcoin "
+        body: "Latest build of Prologcoin"
