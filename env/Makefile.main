@@ -90,7 +90,7 @@ SCRIPT_EXE_FILES := $(addprefix $(BIN)/script/$(SUBDIR)/, $(SCRIPT_CPP_FILES:$(S
 SCRIPT_OK_FILES := $(addprefix $(BIN)/script/$(SUBDIR)/, $(SCRIPT_CPP_FILES:$(SRC)/$(SUBDIR)/script/%.cpp=%$(EXE_EXT).ok))
 
 LINK_DEP_FILES := $(addsuffix $(LIB_EXT), $(addprefix $(BIN)/lib,$(DEPENDS)))
-LINK_DEP_FILES := $(LINK_DEP_FILES) $(addprefix -l, $(EXT))
+LINK_DEP_FILES := $(LINK_DEP_FILES) $(addsuffix .a, $(addprefix /usr/local/lib/lib, $(EXT)))
 
 ifneq ($(LIB),)
 GOAL := $(BIN)/lib$(LIB)$(LIB_EXT)
@@ -115,6 +115,7 @@ $(GOAL) : $(BIN) $(OUT) $(OUT)/$(SUBDIR) $(OBJ_FILES)
 	@mkdir -p $(BIN)/$(SUBDIR)
 	@rm -f /tmp/err.log
 	@(echo $(green) $(bold) $@ $(off) $(white))
+#	@(echo $(LINK) $(LINKFLAGS) $(LINKOUT)$@ $(OBJ_FILES) $(LINK_DEP_FILES))
 	@($(LINK) $(LINKFLAGS) $(LINKOUT)$@ $(OBJ_FILES) $(LINK_DEP_FILES) 2>/tmp/err.log 1>&2) || $(printerr)
 	@rm -f /tmp/err.log
 endif
