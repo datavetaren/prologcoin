@@ -24,8 +24,8 @@ jobs:
       uses: svenstaro/upload-release-action@v2
       with:
         repo_token: ${{ secrets.GITHUB_TOKEN }}
-	file: bin/prologcoin_macosx_latest.zip
+        file: bin/prologcoin_macosx_latest.zip
         asset_name: prologcoin-macosx-latest
         tag: ${{ github.ref }}
-	overwrite: true
+        overwrite: true
         body: "Latest build of Prologcoin "
