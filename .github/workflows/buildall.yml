@@ -20,24 +20,12 @@ jobs:
     - name: doall
       run: make all
     - name: zip
-      run: cd bin && zip -r prologcoin_macosx.zip prologcoind prologcoin-data
-    - name: release
-      id: create_release
-      uses: actions/create-release@v1
-      env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: cd bin && zip -r prologcoin_macosx_latest.zip prologcoind prologcoin-data
+      uses: svenstaro/upload-release-action@v2
       with:
-        tag_name: ${{ github.ref }}
-        release_name: Release ${{ github.ref }}
-        draft: false
-        prerelease: false
-    - name: upload
-      id: upload-release-asset
-      uses: actions/upload-release-asset@v1
-      env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}      
-      with:
-        upload_url: ${{ steps.create_release.outputs.upload_url }}
-        asset_path: bin/prologcoin_macosx.zip
-        asset_name: prologcoin_macosx.zip
-        asset_content_type: application/zip
+        repo_token: ${{ secrets.GITHUB_TOKEN }}
+	file: bin/prologcoin_macosx_latest.zip
+        asset_name: prologcoin-macosx-latest
+        tag: ${{ github.ref }}
+	overwrite: true
+        body: "Latest build of Prologcoin "
