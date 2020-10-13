@@ -3,7 +3,13 @@
 Mission: To fuse Prolog (the logic programming language) with
 cryptocurrency technology.
 
-## How to build
+## Latest Prologcoin binaries (automatically updated)
+
+[Linux Ubuntu 18] https://github.com/datavetaren/prologcoin/releases/download/master/prologcoin_linux_ubuntu_18_latest.zip
+[Mac OSX Catalina] https://github.com/datavetaren/prologcoin/releases/download/master/prologcoin_macosx_catalina_latest.zip
+[Windows 10] https://github.com/datavetaren/prologcoin/releases/download/master/prologcoin_macosx_catalina_latest.zip
+
+## How to build from source
 
 Go to some directory:
 
