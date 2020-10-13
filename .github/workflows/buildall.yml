@@ -32,6 +32,8 @@ jobs:
     runs-on: ubuntu-18.04
     steps:
     - uses: actions/checkout@v2
+    - name: gdb
+      run: sudo apt-get install gdb
     - name: boost
       run: sudo apt-get install libboost-all-dev
     - name: libsecp
