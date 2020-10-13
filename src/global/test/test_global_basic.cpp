@@ -27,8 +27,8 @@ static size_t check_list(term_env &env, term t, bool recheck)
     while (env.is_dotted_pair(t)) {
         term el = env.arg(t, 0);
 	assert(el.tag() == tag_t::INT);
-	auto ival = static_cast<int_cell &>(el).value();
-	if (ival == cnt) cnt++;
+	auto ival = reinterpret_cast<int_cell &>(el).value();
+	if (static_cast<size_t>(ival) == cnt) cnt++;
 	t = env.arg(t, 1);
     }
     assert(t == heap::EMPTY_LIST);
@@ -89,7 +89,7 @@ static size_t setup_global_basic(const std::string &test_dir)
 
     // Let's bind the first var to list head
 
-    size_t ref_heap_pos = static_cast<ref_cell &>(my_ref).index();
+    size_t ref_heap_pos = reinterpret_cast<ref_cell &>(my_ref).index();
     
     std::cout << "Bind ref " << ref_heap_pos << std::endl;
     
@@ -141,7 +141,7 @@ static void recheck_frozen_closures(std::vector<size_t> &all_frozen_closures0)
 	while (g.interp().is_dotted_pair(lst)) {
 	    auto addr_term = g.interp().arg(lst, 0);
 	    assert(addr_term.tag() == tag_t::INT);
-	    last_addr = checked_cast<size_t>(static_cast<int_cell &>(addr_term).value());
+	    last_addr = checked_cast<size_t>(reinterpret_cast<int_cell &>(addr_term).value());
 	    if (last_addr != *it0) {
 		std::cout << "Difference at closure #" << (i+j) << ": Was " << last_addr << " Expected: " << *it0 << std::endl;
 	    }
@@ -186,7 +186,7 @@ void setup_frozen_closures(std::vector<size_t> &all_frozen_closures)
 	while (g.interp().is_dotted_pair(lst)) {
 	    auto addr_term = g.interp().arg(lst, 0);
 	    assert(addr_term.tag() == tag_t::INT);
-	    last_addr = checked_cast<size_t>(static_cast<int_cell &>(addr_term).value());
+	    last_addr = checked_cast<size_t>(reinterpret_cast<int_cell &>(addr_term).value());
 	    all_frozen_closures.push_back(last_addr);
 
 	    lst = g.interp().arg(lst, 1);

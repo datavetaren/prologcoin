@@ -2,6 +2,7 @@
 
 #include <stdint.h>
 #include <string>
+#include <string.h>
 #include <memory>
 #include "hex.hpp"
 

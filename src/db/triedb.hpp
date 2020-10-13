@@ -349,7 +349,7 @@ public:
     }
 
     inline void set_empty(size_t sub_index) {
-        size_t child_index = std::bitset<triedb_params::MAX_BRANCH>(mask_ & (static_cast<uint32_t>(1) << sub_index) - 1).count();
+        size_t child_index = std::bitset<triedb_params::MAX_BRANCH>(mask_ & ((static_cast<uint32_t>(1) << sub_index) - 1)).count();
 	size_t n = num_children();
 	for (size_t i = child_index; i < n; i++) {
 	    ptr_[i] = ptr_[i+1];
@@ -394,12 +394,12 @@ public:
     void write(uint8_t *buffer) const;
 
     inline uint64_t get_child_pointer(size_t sub_index) const {
-        size_t child_index = std::bitset<triedb_params::MAX_BRANCH>(mask_ & (static_cast<uint32_t>(1) << sub_index) - 1).count();
+        size_t child_index = std::bitset<triedb_params::MAX_BRANCH>(mask_ & ((static_cast<uint32_t>(1) << sub_index) - 1)).count();
         return ptr_[child_index];
     }
 
     inline void set_child_pointer(size_t sub_index, uint64_t ptr) {
-        size_t child_index = std::bitset<triedb_params::MAX_BRANCH>(mask_ & (static_cast<uint32_t>(1) << sub_index) - 1).count();
+        size_t child_index = std::bitset<triedb_params::MAX_BRANCH>(mask_ & ((static_cast<uint32_t>(1) << sub_index) - 1)).count();
         if (is_empty(sub_index)) {
   	    size_t n = num_children();
 	    uint64_t *new_ptr = new uint64_t[n+1];

@@ -125,7 +125,6 @@ void mnemonic::to_integers(std::vector<size_t> &ints)
 {
     size_t checksum_len = (ent_/32);    
     size_t num_bits = ent_+checksum_len;
-    term lst = term_env::EMPTY_LIST;
     for (size_t i = 0; i < num_bits; i += 11) {
 	size_t off = i;
 	size_t n = 0;
@@ -160,7 +159,6 @@ std::string mnemonic::to_sentence_string()
     std::string str;
     std::vector<size_t> ints;
     to_integers(ints);
-    term lst = term_env::EMPTY_LIST;
     for (auto word_index : ints) {
 	if (!str.empty()) str += " ";
 	str += BIP39_ENGLISH_WORD_LIST[word_index];

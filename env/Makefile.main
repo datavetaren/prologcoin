@@ -16,7 +16,15 @@ CP := cp -f
 AR := ar 
 ARFLAGS :=
 AROUT := -cr
+
 GCCLIBPATH := $(shell g++ -Xlinker -v  2>&1 |sed -n 's/^[[:space:]]*\(\/.*\)/\1/p')
+GCCLIBDIRS := $(strip $(foreach d,$(GCCLIBPATH),$(filter -L%, $(d))))
+GCCLIBDIRS := $(foreach d, $(GCCLIBDIRS), $(subst -L,,$(d)))
+BOOSTDIR := $(dir $(firstword $(sort $(foreach d, $(GCCLIBDIRS), $(wildcard $(d)/libboost_filesystem.a)))))
+ifeq ($(BOOSTDIR),)
+    BOOSTDIR := $(dir $(firstword $(sort $(foreach d, $(GCCLIBPATH), $(wildcard $(d)/libboost_filesystem.a)))))
+endif
+
 HAS_BOOST_THREAD_MT := $(strip $(foreach d, $(GCCLIBPATH), $(wildcard $(d)/*boost_thread-mt*)))
 BOOST_THREAD_LIB := $(if $(HAS_BOOST_THREAD_MT),boost_thread-mt,boost_thread)
 EXT := $(subst boost_thread, $(BOOST_THREAD_LIB), $(EXT))
@@ -90,7 +98,7 @@ SCRIPT_EXE_FILES := $(addprefix $(BIN)/script/$(SUBDIR)/, $(SCRIPT_CPP_FILES:$(S
 SCRIPT_OK_FILES := $(addprefix $(BIN)/script/$(SUBDIR)/, $(SCRIPT_CPP_FILES:$(SRC)/$(SUBDIR)/script/%.cpp=%$(EXE_EXT).ok))
 
 LINK_DEP_FILES := $(addsuffix $(LIB_EXT), $(addprefix $(BIN)/lib,$(DEPENDS)))
-LINK_DEP_FILES := $(LINK_DEP_FILES) $(addsuffix .a, $(addprefix /usr/local/lib/lib, $(EXT)))
+LINK_DEP_FILES := $(LINK_DEP_FILES) $(addsuffix .a, $(addprefix $(BOOSTDIR)/lib, $(EXT)))
 
 ifneq ($(LIB),)
 GOAL := $(BIN)/lib$(LIB)$(LIB_EXT)

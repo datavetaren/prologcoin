@@ -98,7 +98,7 @@ void term_serializer::write_all_header(buffer_t &bytes,const term t)
             break;
         }
         case tag_t::REF: case tag_t::RFW: { 
-            ref_cell v = static_cast<ref_cell &>(t1);
+            ref_cell v = reinterpret_cast<ref_cell &>(t1);
             if (!is_indexed(v) && env_.has_name(v)) {
 	        const std::string &name = env_.get_name(t1);
 		write_ref_cell(bytes, bytes.size(), v);
@@ -543,7 +543,7 @@ void term_serializer::integrity_check(size_t heap_start, size_t heap_end,
 	size_t i = start;
 	while (i != end) {
 	    auto c = env_.heap_get(i);
-	    auto &ref = static_cast<const ref_cell &>(c);
+	    auto &ref = reinterpret_cast<const ref_cell &>(c);
 	    arrow(path);
 	    path += compute_old_cell(ref).str();
 	    i = ref.index();

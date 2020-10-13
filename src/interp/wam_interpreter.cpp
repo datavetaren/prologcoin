@@ -192,7 +192,7 @@ void wam_interpreter::bind_code_point(std::unordered_map<size_t, size_t> &label_
     if (!cp.has_wam_code()) {
 	auto term = cp.term_code();
 	if (term.tag() == common::tag_t::INT) {
-	    auto lbl_int = static_cast<const int_cell &>(term);
+	    auto lbl_int = reinterpret_cast<const int_cell &>(term);
 	    auto lbl = static_cast<size_t>(lbl_int.value());
 	    if (label_map.count(lbl)) {
 		size_t offset = label_map[lbl];
@@ -200,7 +200,7 @@ void wam_interpreter::bind_code_point(std::unordered_map<size_t, size_t> &label_
 		cp.set_wam_code(instr);
 	    }
 	} else if (term.tag() == common::tag_t::CON) {
-	    auto lbl_con = static_cast<const con_cell &>(term);
+	    auto lbl_con = reinterpret_cast<const con_cell &>(term);
 
 	    qname qn{current_module(), lbl_con};
 	    auto &code = get_code(qn);

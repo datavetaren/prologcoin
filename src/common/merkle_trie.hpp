@@ -6,6 +6,8 @@
 #include <bitset>
 #include <iostream>
 #include <vector>
+#include <string.h>
+#include <assert.h>
 #include "blake2.hpp"
 #include "bits.hpp"
 
@@ -14,7 +16,7 @@ namespace prologcoin { namespace common {
     
 struct merkle_trie_hash_t {
     typedef uint8_t data_t[32];
-    inline merkle_trie_hash_t() { memset(&data, 0, sizeof(data)); }
+    inline merkle_trie_hash_t() = default;
 
     inline bool operator == (const merkle_trie_hash_t &other) {
         return memcmp(&data, &other.data, sizeof(data)) == 0;
@@ -29,7 +31,7 @@ struct merkle_trie_hash_t {
 
 template<typename T> class merkle_trie_leaf {
 public:
-    inline merkle_trie_leaf() { }
+    inline merkle_trie_leaf() = default;
     inline merkle_trie_leaf(uint64_t _key, const T &_value)
       : key_(_key), value_(_value) { }
     inline merkle_trie_leaf(uint64_t _key)
@@ -140,7 +142,7 @@ public:
 	return r;
     }
 
-    inline merkle_trie_branch() : mask_(0), leaf_(0) { }
+    inline merkle_trie_branch() = default;
 
     inline const hash_t & hash() const {
         return hash_;
@@ -339,7 +341,7 @@ private:
     }
       
     inline size_t get_child_index(size_t sub_index) {
-        return std::bitset<MAX_BRANCH>(mask_ & (static_cast<word_t>(1) << sub_index) - 1).count();
+        return std::bitset<MAX_BRANCH>(mask_ & ((static_cast<word_t>(1) << sub_index) - 1)).count();
     }
 
     inline merkle_trie_leaf<T> * get_leaf(size_t sub_index) {

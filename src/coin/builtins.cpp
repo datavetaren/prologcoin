@@ -12,7 +12,7 @@ bool builtins::reward_2(interpreter_base &interp, size_t arity, term args[]) {
           "reward/2: First argument, Height, must be an integer value.");
     }
 
-    int64_t height = static_cast<int_cell &>(args[0]).value();
+    int64_t height = reinterpret_cast<int_cell &>(args[0]).value();
     
     int64_t reward = 0;
     if (height == 0) {
@@ -55,7 +55,7 @@ static int64_t coin_value(interpreter_base &interp, term t) {
     assert(is_coin(interp, t));
     term v = interp.arg(t, 0);
     assert(v.tag() == tag_t::INT);
-    return static_cast<int_cell &>(v).value();
+    return reinterpret_cast<int_cell &>(v).value();
 }
 
 static bool are_all_integers(interpreter_base &interp, term t) {
@@ -99,7 +99,7 @@ bool builtins::cjoin_2(interpreter_base &interp, size_t arity, term args[]) {
 	if (elem.tag() != tag_t::INT) {
 	    return false;
 	}
-	sum += static_cast<int_cell &>(elem).value();
+	sum += reinterpret_cast<int_cell &>(elem).value();
 	in_coins = interp.arg(in_coins, 1);
     }
 
@@ -131,7 +131,7 @@ bool builtins::csplit_3(interpreter_base &interp, size_t arity, term args[]) {
     term values = args[1];
     while (!interp.is_empty_list(values)) {
         auto val = interp.arg(values, 0);
-	rem -= static_cast<int_cell &>(val).value();
+	rem -= reinterpret_cast<int_cell &>(val).value();
 	if (rem < 0) {
 	    throw interpreter_exception_not_enough_coins("csplit/3: Second argument list of values sum exceeds coin value in first argument");
 	}
@@ -150,7 +150,7 @@ bool builtins::csplit_3(interpreter_base &interp, size_t arity, term args[]) {
     rem = coin_value(interp, args[0]);
     while (rem > 0 && !interp.is_empty_list(values)) {
         auto val0 = interp.arg(values, 0);
-	auto val = static_cast<int_cell &>(val0).value();
+	auto val = reinterpret_cast<int_cell &>(val0).value();
 	rem -= val;
 
 	auto new_coin = interp.new_term(coin_f);
@@ -166,7 +166,7 @@ bool builtins::csplit_3(interpreter_base &interp, size_t arity, term args[]) {
 
     if (rem > 0) {
         auto rem_coin = interp.new_term(coin_f);
-	interp.set_arg(rem_coin, 0, rem);
+	interp.set_arg(rem_coin, 0, int_cell(rem));
 	if (!interp.unify(interp.new_term(term_env::DOTTED_PAIR, {rem_coin}), out)) {
 	    return false;
 	}

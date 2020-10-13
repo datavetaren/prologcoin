@@ -592,7 +592,7 @@ public:
 
     inline common::con_cell pn() const
     { auto c = p().term_code();
-      common::con_cell &cc = static_cast<common::con_cell &>(c);
+      common::con_cell &cc = reinterpret_cast<common::con_cell &>(c);
       return cc;
     }
 
@@ -793,8 +793,8 @@ private:
 	  ef->extra[1+num_x+1+i] = wami->a(i);
 	}
 	ef->num_extra = 2 + num_x + num_a;
-	interp->set_p( interpreter_base::EMPTY_LIST );
-	interp->set_cp( interpreter_base::EMPTY_LIST );	    
+	interp->set_p( code_point(interpreter_base::EMPTY_LIST) );
+	interp->set_cp( code_point(interpreter_base::EMPTY_LIST) );
     }
 
     static inline void restore_state(interpreter_base *interp)
@@ -805,11 +805,11 @@ private:
 	     interpreter_base::restore_state(interp);
 	     return;
 	}
-	size_t num_x = static_cast<int_cell &>(ef->extra[0]).value();
+	size_t num_x = reinterpret_cast<int_cell &>(ef->extra[0]).value();
 	for (size_t i = 0; i < num_x; i++) {
 	  wami->x(i) = ef->extra[1+i];
 	}
-	size_t num_a = static_cast<int_cell &>(ef->extra[1+num_x]).value();
+	size_t num_a = reinterpret_cast<int_cell &>(ef->extra[1+num_x]).value();
 	for (size_t i = 0; i < num_a; i++) {
 	  wami->a(i) = ef->extra[1+num_x+1+i];
 	}
@@ -908,7 +908,7 @@ private:
     inline term deref(term t) const
     {
         if (t.tag() == common::tag_t::REF) {
-  	    auto ref = static_cast<common::ref_cell &>(t);
+  	    auto ref = reinterpret_cast<common::ref_cell &>(t);
 	    if (is_stack(ref)) {
 	        return deref_stack(ref);
 	    } else {
@@ -930,7 +930,7 @@ private:
     {
         term t1 = to_stack(ref)->term;
         while (t1.tag() == common::tag_t::REF) {
-  	    auto &ref1 = static_cast<common::ref_cell &>(t1);
+  	    auto &ref1 = reinterpret_cast<common::ref_cell &>(t1);
 	    if (!is_stack(ref)) {
 	        return term_env::deref(t1);
 	    }
@@ -989,7 +989,7 @@ private:
 	    goto_next_instruction();
 	    return;
 	}
-	auto ref = static_cast<common::ref_cell &>(t);
+	auto ref = reinterpret_cast<common::ref_cell &>(t);
 	if (!is_stack(ref) || to_stack(ref) < base(e())) {
 	    a(ai) = t;
         } else {
@@ -1099,13 +1099,13 @@ private:
 	switch (t.tag()) {
 	case common::tag_t::REF: case common::tag_t::RFW: {
 	    term s = new_term_str(f);
-	    auto ref = static_cast<common::ref_cell &>(t);
+	    auto ref = reinterpret_cast<common::ref_cell &>(t);
 	    bind(ref, s);
 	    mode_ = WRITE;
 	    break;
 	  }
 	case common::tag_t::STR: {
-  	    auto str = static_cast<common::str_cell &>(t);
+  	    auto str = reinterpret_cast<common::str_cell &>(t);
 	    common::con_cell c = functor(str);
 	    if (c == f) {
 	        register_s_ = str.index() + 1;
@@ -1148,12 +1148,12 @@ private:
 
 	switch (t.tag()) {
 	case common::tag_t::REF: case common::tag_t::RFW: {
-	  auto ref = static_cast<common::ref_cell &>(t);
+	  auto ref = reinterpret_cast<common::ref_cell &>(t);
 	  bind(ref, c);
 	  break;
   	  }
 	case common::tag_t::CON: case common::tag_t::INT: {
-	  auto c1 = static_cast<common::con_cell &>(t);
+	  auto c1 = reinterpret_cast<common::con_cell &>(t);
 	  fail = c != c1;
 	  break;
   	  }
@@ -1217,7 +1217,7 @@ private:
     {
         term t = deref(x(xn));
 	if (t.tag().is_ref()) {
-	    auto ref = static_cast<common::ref_cell &>(t);
+	    auto ref = reinterpret_cast<common::ref_cell &>(t);
 	    if (is_stack(ref)) {
 	        term h = new_ref();
 		bind(ref, h);
@@ -1234,7 +1234,7 @@ private:
     {
         term t = deref(y(yn));
 	if (t.tag().is_ref()) {
-	    auto ref = static_cast<common::ref_cell &>(t);
+	    auto ref = reinterpret_cast<common::ref_cell &>(t);
 	    if (is_stack(ref)) {
 	        term h = new_ref();
 		bind(ref, h);
@@ -1342,7 +1342,7 @@ private:
 	case WRITE: {
 	  term t = deref(x(xn));
 	  if (t.tag().is_ref()) {
-	      auto ref = static_cast<common::ref_cell &>(t);
+	      auto ref = reinterpret_cast<common::ref_cell &>(t);
 	      if (is_stack(ref)) {
 		  auto h = new_ref();
 		  bind(ref, h);
@@ -1371,7 +1371,7 @@ private:
 	case WRITE: {
 	  term t = deref(x(xn));
 	  if (t.tag().is_ref()) {
-	      auto ref = static_cast<common::ref_cell &>(t);
+	      auto ref = reinterpret_cast<common::ref_cell &>(t);
 	      if (is_stack(ref)) {
 		  auto h = new_ref();
 		  bind(ref, h);
@@ -1400,12 +1400,12 @@ private:
 	    term t = deref(heap_get(register_s_));
 	    switch (t.tag()) {
 	    case common::tag_t::REF: case common::tag_t::RFW: {
-	        auto ref = static_cast<common::ref_cell &>(t);
+	        auto ref = reinterpret_cast<common::ref_cell &>(t);
 		bind(ref, c);
 		break;
 	      }
 	    case common::tag_t::CON: case common::tag_t::INT: {
-	        auto c1 = static_cast<common::term &>(t);
+	        auto c1 = t;
 		fail = c != c1;
 		break;
 	      }
@@ -1475,7 +1475,7 @@ private:
 		a(i) = deref(a(i));
 	    }
 	    allocate_environment<ENV_NAIVE>();
-	    set_cp(EMPTY_LIST);
+	    set_cp(code_point(EMPTY_LIST));
 	    return; // Go back to simple interpreter
 	}
     }
@@ -1512,7 +1512,7 @@ private:
 	// A recursive predicate will return to the next instruction
 	set_cp(p());
 	allocate_environment<ENV_NAIVE>();
-	set_cp(EMPTY_LIST);
+	set_cp(code_point(EMPTY_LIST));
 	bool r = fn(*this, bn->arity(), args);
 	if (!r) {
 	    backtrack();
@@ -1702,7 +1702,7 @@ private:
     inline void cut(uint32_t yn)
     {
         auto b0 = reinterpret_cast<choice_point_t *>(
-	     to_stack(static_cast<common::int_cell &>(y(yn)).value()));
+	     to_stack(reinterpret_cast<common::int_cell &>(y(yn)).value()));
 	if (b() > b0) {
 	    set_b(b0);
 	    if (b() != nullptr) set_register_hb(b()->h);
@@ -3144,7 +3144,7 @@ public:
 
     inline common::con_cell pn() const
     { auto c = p().term_code();
-      common::con_cell &cc = static_cast<common::con_cell &>(c);
+      common::con_cell &cc = reinterpret_cast<common::con_cell &>(c);
       return cc;
     }
 
@@ -3603,7 +3603,7 @@ public:
 	bool first = true;
 	for (auto &v : self1->map()) {
 	    if (!first) out << ", ";
-	    auto str = static_cast<const common::str_cell &>(v.first);
+	    auto str = reinterpret_cast<const common::str_cell &>(v.first);
 	    auto f = interp.functor(str);
 	    out << interp.to_string(v.first) << "/" << f.arity() << "->" << interp.to_string(v.second);
 	    first = false;

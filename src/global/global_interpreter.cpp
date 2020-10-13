@@ -160,7 +160,7 @@ bool global_interpreter::execute_goal(buffer_t &serialized)
 		   end(goal),
 		   [&](term t) {
 		     if (t.tag().is_ref()) {
-		           ref_cell r = static_cast<ref_cell &>(t).unwatch();
+		           ref_cell r = reinterpret_cast<ref_cell &>(t).unwatch();
 			   const std::string name = to_string(r);
 			   if (!seen.count(name)) {
 			       seen.insert(name);
@@ -250,8 +250,8 @@ bool global_builtins::operator_clause_2(interpreter_base &interp0, size_t arity,
     // Setup new environment and where to continue
     interp.allocate_environment<ENV_NAIVE>();
 	
-    interp.set_p(body);
-    interp.set_cp(interpreter_base::EMPTY_LIST);
+    interp.set_p(code_point(body));
+    interp.set_cp(code_point(interpreter_base::EMPTY_LIST));
 
     return true;
 }

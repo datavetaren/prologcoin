@@ -3,6 +3,7 @@
 #include <iostream>
 #include <assert.h>
 #include <string>
+#include <string.h>
 
 using namespace prologcoin::common;
 

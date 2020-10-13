@@ -96,14 +96,14 @@ void triedb_leaf::read(const uint8_t *buffer) {
     key_ = read_uint64(p); p += sizeof(uint64_t);
 
     // Write hash
-    assert(((p - buffer) + hash_size_) < MAX_SIZE_IN_BYTES);
+    assert((static_cast<size_t>(p - buffer) + hash_size_) < MAX_SIZE_IN_BYTES);
     if (hash_ != nullptr) delete [] hash_;
     hash_ = new uint8_t[hash_size_];
     memcpy(hash_, p, hash_size_); p += hash_size_;
 
     // Remaining is custom data
     custom_data_size_ = sz - (p - buffer);
-    assert(((p - buffer) + custom_data_size_) < MAX_SIZE_IN_BYTES);
+    assert((static_cast<size_t>(p - buffer) + custom_data_size_) < MAX_SIZE_IN_BYTES);
 
     if (custom_data_ != nullptr) delete [] custom_data_;
     custom_data_ = new uint8_t [custom_data_size_];
@@ -171,7 +171,7 @@ void triedb_branch::read(const uint8_t *buffer)
         assert(((p - buffer) + sizeof(uint64_t)) <= sz);
         ptr_[i] = read_uint64(p); p += sizeof(uint64_t);
     }
-    assert((p - buffer) <= sz);
+    assert(static_cast<size_t>(p - buffer) <= sz);
     // Remaining data is hash
     assert(hash_size_ == sz - (p - buffer));
     if (hash_size_ > 0) {

@@ -35,7 +35,7 @@ void builtins::load(interpreter_base &interp, con_cell *module0)
 bool builtins::ref_2(interpreter_base &interp, size_t arity, common::term args[] ) {
     if (args[1].tag().is_ref()) {
 	if (args[0].tag().is_ref()) {
-	    ref_cell &rc = static_cast<ref_cell &>(args[0]);
+	    ref_cell &rc = reinterpret_cast<ref_cell &>(args[0]);
 	    return interp.unify(args[1], int_cell(rc.index()));
 	} else {
 	    std::string msg = "ref/2: First argument is not allowed to be instantiated; it must be an unbound variable; was " + interp.to_string(args[0]);
@@ -73,13 +73,13 @@ bool builtins::reward_2(interpreter_base &interp, size_t arity, term args[] )
     auto &g = get_global(interp);
     int64_t height = g.current_height();
     if (args[0].tag() == tag_t::INT) {
-        height = static_cast<int_cell &>(args[0]).value();
+        height = reinterpret_cast<int_cell &>(args[0]).value();
     } else {
         assert(args[0].tag() == tag_t::REF);
         interp.unify(args[0], int_cell(height));
 	args[0] = interp.deref(args[0]);
     }
-    if (height != g.current_height()) {
+    if (static_cast<size_t>(height) != g.current_height()) {
         return false;
     }
     auto r = prologcoin::coin::builtins::reward_2(interp, arity, args);

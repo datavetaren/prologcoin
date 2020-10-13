@@ -64,7 +64,7 @@ bool builtins::operator_comma(interpreter_base &interp, size_t arity, common::te
     interp.set_cp(code_point(args[1]));
     interp.allocate_environment<ENV_NAIVE>();
     interp.set_p(code_point(args[0]));
-    interp.set_cp(interpreter_base::EMPTY_LIST);
+    interp.set_cp(code_point(interpreter_base::EMPTY_LIST));
     
     return true;
 }
@@ -302,7 +302,7 @@ bool builtins::upcase_atom_2(interpreter_base &interp, size_t arity, common::ter
        interp.abort(interpreter_exception_not_sufficiently_instantiated("upcase_atom/2: Arguments are not sufficiently instantiated"));
        return false;
    case tag_t::INT: {
-       int_cell &ic = static_cast<int_cell &>(from);
+       int_cell &ic = reinterpret_cast<int_cell &>(from);
        s = boost::lexical_cast<std::string>(ic.value());
        break;
    }
@@ -355,14 +355,14 @@ bool builtins::bytes_number_2(interpreter_base &interp, size_t arity, common::te
 	while (interp.is_dotted_pair(charlst)) {
 	    term charelem = interp.arg(charlst,0);
 	    if (charelem.tag() != tag_t::INT ||
-		static_cast<int_cell &>(charelem).value() < 0 ||
-		static_cast<int_cell &>(charelem).value() > 255) {
+		reinterpret_cast<int_cell &>(charelem).value() < 0 ||
+		reinterpret_cast<int_cell &>(charelem).value() > 255) {
 	        std::stringstream msg;
 		msg << "bytes_number/2: Element at position " << (i+1) << " is not an integer between 0 and 255; was ";
 		msg << interp.to_string(charelem);
 		interp.abort(interpreter_exception_wrong_arg_type(msg.str()));
 	    }
-	    auto v = static_cast<int_cell &>(charelem).value();
+	    auto v = reinterpret_cast<int_cell &>(charelem).value();
 	    (bytes.get())[i] = static_cast<uint8_t>(v);
 	    charlst = interp.arg(charlst, 1);
 	    i++;
@@ -426,9 +426,9 @@ bool builtins::bytes_number_2(interpreter_base &interp, size_t arity, common::te
 bool builtins::cyclic_term_1(interpreter_base &interp, size_t arity, common::term args[]) {
     int i = 0;
     term t = args[0];
-    std::list<std::pair<term, int> > workstack;
+    std::list<std::pair<term, size_t> > workstack;
     std::set<untagged_cell::value_t> path;
-    workstack.push_front(std::pair<term, int>(t, 0));
+    workstack.push_front(std::pair<term, size_t>(t, 0));
     while(workstack.size() > 0) {
         i++;
 	if(i > 20) {
@@ -450,8 +450,8 @@ bool builtins::cyclic_term_1(interpreter_base &interp, size_t arity, common::ter
 	    auto arity = tf.arity();
 	    if (current_index < arity) {
 	        auto arg = interp.arg(current_term, current_index);
-		workstack.push_front(std::pair<term, int>(current_term, current_index+1));
-		workstack.push_front(std::pair<term, int>(arg, 0));
+		workstack.push_front(std::pair<term, size_t>(current_term, current_index+1));
+		workstack.push_front(std::pair<term, size_t>(arg, 0));
 	    } else {
 	        path.erase(current_term.raw_value());
 	    }
@@ -462,7 +462,7 @@ bool builtins::cyclic_term_1(interpreter_base &interp, size_t arity, common::ter
 	    if (deref_term == current_term && current_tag.is_ref()) {
 	        return false;
 	    }
-	    workstack.push_front(std::pair<term, int>(deref_term, 0));
+	    workstack.push_front(std::pair<term, size_t>(deref_term, 0));
 	    break;
 	}
 	default: {
@@ -565,11 +565,11 @@ void builtins::restore_p_from_heap_if_wam(interpreter_base &interp) {
 bool builtins::arg_3_cp(interpreter_base &interp, size_t arity, common::term args[])
 {
     auto arg_index_term = interp.get_heap()[interp.heap_size()-2];
-    auto arg_index = static_cast<int_cell &>(arg_index_term).value();
+    auto arg_index = reinterpret_cast<int_cell &>(arg_index_term).value();
     term t = args[1];
     size_t n = interp.functor(t).arity();
     arg_index++;
-    if (arg_index == n) {
+    if (static_cast<size_t>(arg_index) == n) {
         interp.b()->bp = code_point::fail();
 	return false;
     }
@@ -610,10 +610,10 @@ bool builtins::arg_3(interpreter_base &interp, size_t arity, common::term args[]
 	interp.abort(interpreter_exception_wrong_arg_type(msg));
     }
 
-    auto arg_index = static_cast<int_cell &>(arg_index_term).value();
+    auto arg_index = reinterpret_cast<int_cell &>(arg_index_term).value();
     
     size_t n = interp.functor(t).arity();
-    if ((arg_index < 1) || (arg_index > n)) {
+    if ((arg_index < 1) || (static_cast<size_t>(arg_index) > n)) {
         std::stringstream msg;
 	msg << "arg/3: Argument index is out of range. "
 	    << "It needs to be within 1 and " << n << "; was "
@@ -645,10 +645,10 @@ bool builtins::functor_3(interpreter_base &interp, size_t arity, common::term ar
 	      "functor/3: Expected third argument to be an integer; was " + interp.to_string(a);
 	    interp.abort(interpreter_exception_wrong_arg_type(msg));
 	}
-	size_t arity = static_cast<int_cell &>(a).value();
+	size_t arity = reinterpret_cast<int_cell &>(a).value();
 	if (arity < 0 || arity > con_cell::MAX_ARITY) {
 	    std::stringstream msg;
-	    msg << "functor/3: Arity must be 0 or maximum " << con_cell::MAX_ARITY << "; was " << interp.to_string(arity);
+	    msg << "functor/3: Arity must be 0 or maximum " << con_cell::MAX_ARITY << "; was " << arity;
 	    interp.abort(interpreter_exception_wrong_arg_type(msg.str()));
 	}
 	switch (f.tag()) {
@@ -659,7 +659,7 @@ bool builtins::functor_3(interpreter_base &interp, size_t arity, common::term ar
 	    return false;
 	}
 
-	auto c = static_cast<con_cell &>(f);
+	auto &c = reinterpret_cast<con_cell &>(f);
 	con_cell newfun = interp.to_functor(c, arity);
 	return interp.unify(t, interp.new_term(newfun));
     } else {
@@ -892,8 +892,8 @@ bool builtins::call_n(interpreter_base &interp, size_t arity, common::term args[
     // Setup new environment and where to continue
     interp.allocate_environment<ENV_NAIVE>();
 	
-    interp.set_p(new_call);
-    interp.set_cp(interpreter_base::EMPTY_LIST);
+    interp.set_p(code_point(new_call));
+    interp.set_cp(code_point(interpreter_base::EMPTY_LIST));
 
     return true;
 }
@@ -907,7 +907,7 @@ bool builtins::operator_disprove(interpreter_base &interp, size_t arity, common:
     interp.allocate_choice_point(code_point::fail());
     interp.set_top_b(interp.b());
     interp.set_p(code_point(arg));
-    interp.set_cp(interpreter_base::EMPTY_LIST);
+    interp.set_cp(code_point(interpreter_base::EMPTY_LIST));
 
     return true;
 }
@@ -930,7 +930,7 @@ bool builtins::operator_disprove_meta(interpreter_base &interp,
     //	    interp.deallocate_environment();
     //	}
     interp.set_p(interp.cp());
-    interp.set_cp(interpreter_base::EMPTY_LIST);
+    interp.set_cp(code_point(interpreter_base::EMPTY_LIST));
 
     interp.set_top_fail(false);
     interp.set_complete(false);
@@ -965,7 +965,7 @@ bool builtins::findall_3(interpreter_base &interp, size_t arity, common::term ar
     interp.allocate_choice_point(code_point::fail());
     interp.set_top_b(interp.b());
     interp.set_p(code_point(qr));
-    interp.set_cp(interpreter_base::EMPTY_LIST);
+    interp.set_cp(code_point(interpreter_base::EMPTY_LIST));
     
     return true;
 }
@@ -996,7 +996,7 @@ bool builtins::findall_3_meta(interpreter_base &interp, const meta_reason_t &rea
 	    interp.deallocate_environment();
 	}
 	interp.set_p(interp.cp());
-	interp.set_cp(interpreter_base::EMPTY_LIST);
+	interp.set_cp(code_point(interpreter_base::EMPTY_LIST));
 	
 	interp.set_top_fail(false);
 	interp.set_complete(false);
@@ -1016,8 +1016,8 @@ bool builtins::findall_3_meta(interpreter_base &interp, const meta_reason_t &rea
 	context->tail_ = newtail;
     }
 
-    interp.set_p(common::con_cell("fail",0));
-    interp.set_cp(interpreter_base::EMPTY_LIST);
+    interp.set_p(code_point(common::con_cell("fail",0)));
+    interp.set_cp(code_point(interpreter_base::EMPTY_LIST));
     
     return true;
 }
@@ -1026,8 +1026,8 @@ bool builtins::freeze_2(interpreter_base &interp, size_t arity, common::term arg
 {
     term v = args[0];
     if (!v.tag().is_ref()) {
-        interp.set_p(args[1]);
-	interp.set_cp(interpreter_base::EMPTY_LIST);
+        interp.set_p(code_point(args[1]));
+	interp.set_cp(code_point(interpreter_base::EMPTY_LIST));
 	return true;
     }
 
@@ -1035,10 +1035,10 @@ bool builtins::freeze_2(interpreter_base &interp, size_t arity, common::term arg
 
     // At this point args[1] should be '$freeze':<id>( .... )
 
-    interp.set_frozen_closure(static_cast<ref_cell &>(args[0]).index(), args[1]);
+    interp.set_frozen_closure(reinterpret_cast<ref_cell &>(args[0]).index(), args[1]);
 
     interp.set_p(interp.cp());
-    interp.set_cp(interpreter_base::EMPTY_LIST);
+    interp.set_cp(code_point(interpreter_base::EMPTY_LIST));
     
     return true;
 }
@@ -1096,7 +1096,7 @@ term builtins::get_frozen(interpreter_base &interp, common::term arg)
 	interp.abort(interpreter_exception_wrong_arg_type(msg));
     }
 
-    auto addr = static_cast<int_cell &>(arg).value();
+    auto addr = reinterpret_cast<int_cell &>(arg).value();
     if (addr < 0) {
         std::string msg = "frozen/2: "
 	  "Integer must be a positive integer; was "
@@ -1159,7 +1159,7 @@ bool builtins::frozenk_3(interpreter_base &interp, size_t arity, common::term ar
 	  + interp.to_string(start_term);
 	interp.abort(interpreter_exception_wrong_arg_type(msg));
     }
-    int64_t start = static_cast<int_cell &>(start_term).value();
+    int64_t start = reinterpret_cast<int_cell &>(start_term).value();
     if (start < -1) {
         std::string msg = "frozenk/3: "
 	  "Starting address was out of range. "
@@ -1175,7 +1175,7 @@ bool builtins::frozenk_3(interpreter_base &interp, size_t arity, common::term ar
 	  "is not an integer; was " + interp.to_string(k_term);
 	interp.abort(interpreter_exception_wrong_arg_type(msg));
     }
-    auto k = static_cast<int_cell &>(k_term).value();
+    auto k = reinterpret_cast<int_cell &>(k_term).value();
     if (k < 0 || k > 255) {
         std::string msg = "frozenk/3: "
 	  "Number of frozen closures was out of range. "
@@ -1218,7 +1218,7 @@ bool builtins::defrost_3(interpreter_base &interp, size_t arity, common::term ar
 	interp.abort(interpreter_exception_wrong_arg_type(msg));
     }
 
-    auto addr = static_cast<int_cell &>(addr_term).value();
+    auto addr = reinterpret_cast<int_cell &>(addr_term).value();
     if (addr < 0) {
         std::string msg = "defrost/3: "
 	  "Integer must be a positive integer; was "
@@ -1384,7 +1384,7 @@ bool builtins::retract(interpreter_base &interp, const std::string &pname, term 
 	    msg << pname << ": Expected an atom as module name; was " << interp.to_string(module_term);
 	    throw interpreter_exception_wrong_arg_type(msg.str());
 	}
-	module = static_cast<con_cell &>(module_term);
+	module = reinterpret_cast<con_cell &>(module_term);
         head = interp.arg(head, 1);
     }
     if (head.tag() != tag_t::STR && head.tag() != tag_t::CON) {
@@ -1430,7 +1430,7 @@ qname builtins::check_predicate(interpreter_base &interp, const std::string &pna
         throw interpreter_exception_wrong_arg_type(pname + ": Expected arity as an integer of predicate; was " + interp.to_string(arity_part));
     }
     auto a = reinterpret_cast<int_cell &>(arity_part).value();
-    if (a < 0 || a > con_cell::MAX_ARITY) {
+    if (a < 0 || static_cast<size_t>(a) > con_cell::MAX_ARITY) {
         std::stringstream msg;
 	msg << pname << ": Arity must be within 0 and " << con_cell::MAX_ARITY;
         throw interpreter_exception_wrong_arg_type(msg.str());

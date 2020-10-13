@@ -100,8 +100,8 @@ bool term_utils::equal(term a, term b, uint64_t &cost)
 	    return false;
 	}
 
-	str_cell &astr = static_cast<str_cell &>(a);
-	str_cell &bstr = static_cast<str_cell &>(b);
+	str_cell &astr = reinterpret_cast<str_cell &>(a);
+	str_cell &bstr = reinterpret_cast<str_cell &>(b);
 
 	size_t num_args = fa.arity();
 	for (size_t i = 0; i < num_args; i++) {
@@ -215,7 +215,7 @@ void term_utils::restore_cells_after_unify() {
   while(temp_trail_size() > 0) {
     auto index = temp_trail_pop();
     auto fwd0 = heap_get(index);
-    auto fwd = static_cast<fwd_cell &>(fwd0);
+    auto fwd = reinterpret_cast<fwd_cell &>(fwd0);
     heap_set(index, heap_get(fwd.index()));
   }
 }
@@ -248,8 +248,8 @@ bool term_utils::unify_helper(term a, term b, uint64_t &cost)
 	// If at least one of them is a REF, then bind it.
 	if (a.tag().is_ref()) {
 	    if (b.tag().is_ref()) {
-	      auto ra = static_cast<ref_cell &>(a);
-	      auto rb = static_cast<ref_cell &>(b);
+	      auto ra = reinterpret_cast<ref_cell &>(a);
+	      auto rb = reinterpret_cast<ref_cell &>(b);
 	      // It's more efficient to bind higher addresses
 	      // to lower if there's a choice. That way we
 	      // don't need to trail the bindings.
@@ -266,12 +266,12 @@ bool term_utils::unify_helper(term a, term b, uint64_t &cost)
 	      }
 	      continue;
 	    } else {
-	      auto ra = static_cast<ref_cell &>(a);
+	      auto ra = reinterpret_cast<ref_cell &>(a);
 	      bind(ra, b);
 	      continue;
 	    }
 	} else if (b.tag().is_ref()) {
-	    auto rb = static_cast<ref_cell &>(b);
+	    auto rb = reinterpret_cast<ref_cell &>(b);
 	    bind(rb, a);
 	    continue;
 	}
@@ -293,13 +293,13 @@ bool term_utils::unify_helper(term a, term b, uint64_t &cost)
 	  }
 	  break;
 	case tag_t::STR: {
-	  str_cell &astr = static_cast<str_cell &>(a);
-	  str_cell &bstr = static_cast<str_cell &>(b);
+	  str_cell &astr = reinterpret_cast<str_cell &>(a);
+	  str_cell &bstr = reinterpret_cast<str_cell &>(b);
 
           size_t aindex = astr.index();
           term adest = heap_get(aindex);
           while(adest.tag() == tag_t::FWD) {
-            fwd_cell &afwd = static_cast<fwd_cell &>(adest);
+            fwd_cell &afwd = reinterpret_cast<fwd_cell &>(adest);
             aindex = afwd.index();
             adest = heap_get(aindex);
           }
@@ -307,7 +307,7 @@ bool term_utils::unify_helper(term a, term b, uint64_t &cost)
           size_t bindex = bstr.index();
           term bdest = heap_get(bindex);
           while(bdest.tag() == tag_t::FWD) {
-            fwd_cell &bfwd = static_cast<fwd_cell &>(bdest);
+            fwd_cell &bfwd = reinterpret_cast<fwd_cell &>(bdest);
             bindex = bfwd.index();
             bdest = heap_get(bindex);
           }
@@ -323,8 +323,8 @@ bool term_utils::unify_helper(term a, term b, uint64_t &cost)
 	    continue;
           }
 
-	  con_cell f = static_cast<con_cell &>(adest);
-          if (f != static_cast<con_cell &>(bdest)) {
+	  con_cell f = reinterpret_cast<con_cell &>(adest);
+          if (f != reinterpret_cast<con_cell &>(bdest)) {
 	    cost = cost_tmp;
 	    restore_cells_after_unify();
 	    return false;
@@ -352,8 +352,8 @@ bool term_utils::unify_helper(term a, term b, uint64_t &cost)
 	  break;
 	}
 	case tag_t::BIG: {
-	  auto &abig = static_cast<big_cell &>(a);
-	  auto &bbig = static_cast<big_cell &>(b);
+	  auto &abig = reinterpret_cast<big_cell &>(a);
+	  auto &bbig = reinterpret_cast<big_cell &>(b);
 	  if (num_bits(abig) != num_bits(bbig)) {
 	      cost = cost_tmp;
 	      restore_cells_after_unify();
@@ -430,8 +430,8 @@ int term_utils::standard_order(term a, term b, uint64_t &cost)
  	case tag_t::CON:
 	  {
 	    trim_stack(d);
-	    const con_cell &fa = static_cast<const con_cell &>(a);
-	    const con_cell &fb = static_cast<const con_cell &>(b);
+	    const con_cell &fa = reinterpret_cast<const con_cell &>(a);
+	    const con_cell &fb = reinterpret_cast<const con_cell &>(b);
 	    // Can never be equal as it would have triggered if (a == b)...
 	    int cmp = functor_standard_order(fa, fb);
 	    cost = cost_tmp;
@@ -479,8 +479,8 @@ int term_utils::standard_order(term a, term b, uint64_t &cost)
 	    return functor_standard_order(fa, fb);
 	}
 
-	str_cell &astr = static_cast<str_cell &>(a);
-	str_cell &bstr = static_cast<str_cell &>(b);
+	str_cell &astr = reinterpret_cast<str_cell &>(a);
+	str_cell &bstr = reinterpret_cast<str_cell &>(b);
 
 	size_t num_args = fa.arity();
 	for (size_t i = 0; i < num_args; i++) {
@@ -671,7 +671,7 @@ std::string term_utils::list_to_string(const term t, heap &src)
 	if (elem.tag() != tag_t::INT) {
 	    continue;
 	}
-	auto ascii = static_cast<const int_cell &>(elem).value();
+	auto ascii = reinterpret_cast<const int_cell &>(elem).value();
 	if (ascii >= 0 && ascii <= 255) {
 	    str += static_cast<const char>(ascii);
 	}
@@ -705,7 +705,7 @@ bool term_utils::is_string(const term t, heap &src)
 	if (elem.tag() != tag_t::INT) {
 	    return false;
 	}
-	auto ascii = static_cast<const int_cell &>(elem).value();
+	auto ascii = reinterpret_cast<const int_cell &>(elem).value();
 	if (ascii < 0 || ascii > 255) {
 	    return false;
 	}

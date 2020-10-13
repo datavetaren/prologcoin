@@ -267,7 +267,7 @@ std::vector<wam_compiler::prim_unification> wam_compiler::flatten(
 		    ref = found->second;
 		} else {
 		    auto ref1 = env_.new_ref();
-  		    auto ref0 = static_cast<const common::ref_cell &>(ref1);
+  		    auto ref0 = reinterpret_cast<const common::ref_cell &>(ref1);
 	  	    ref = ref0;
 		    term_map_.insert(std::make_pair(common::eq_term(env_,arg), ref));
 		}
@@ -310,7 +310,7 @@ std::vector<wam_compiler::prim_unification> wam_compiler::flatten(
 wam_compiler::prim_unification wam_compiler::new_unification(term t)
 {
     term namet = env_.new_ref();
-    common::ref_cell &name = static_cast<common::ref_cell &>(namet);
+    common::ref_cell &name = reinterpret_cast<common::ref_cell &>(namet);
     return prim_unification(name, t);
 }
 
@@ -375,7 +375,7 @@ void wam_compiler::compile_query_str(wam_compiler::reg lhsreg, common::ref_cell 
 	    instrs.push_back(wam_instruction<SET_CONSTANT>(arg));
 	} else {
 	    assert(arg.tag().is_ref());
-	    auto ref = static_cast<common::ref_cell &>(arg);
+	    auto ref = reinterpret_cast<common::ref_cell &>(arg);
 
 	    reg r;
 	    bool isnew = false;
@@ -416,7 +416,7 @@ void wam_compiler::compile_query(wam_compiler::reg lhsreg, common::ref_cell lhsv
 	break;
       case common::tag_t::REF:
       case common::tag_t::RFW:
-	compile_query_ref(lhsreg, static_cast<common::ref_cell &>(rhs), instrs);
+	compile_query_ref(lhsreg, reinterpret_cast<common::ref_cell &>(rhs), instrs);
 	break;
       case common::tag_t::STR:
 	compile_query_str(lhsreg, lhsvar, rhs, instrs);
@@ -477,7 +477,7 @@ void wam_compiler::compile_program_str(wam_compiler::reg lhsreg, common::ref_cel
 	    instrs.push_back(wam_instruction<UNIFY_CONSTANT>(arg));
 	} else {
 	    assert(arg.tag().is_ref());
-	    auto ref = static_cast<common::ref_cell &>(arg);
+	    auto ref = reinterpret_cast<common::ref_cell &>(arg);
 	    reg r;
 	    bool isnew = false;
 	    if (has_reg<A_REG>(ref)) {
@@ -513,7 +513,7 @@ void wam_compiler::compile_program(wam_compiler::reg lhsreg, common::ref_cell lh
 	break;
       case common::tag_t::REF:
       case common::tag_t::RFW:
-	compile_program_ref(lhsreg, static_cast<common::ref_cell &>(rhs), instrs);
+	compile_program_ref(lhsreg, reinterpret_cast<common::ref_cell &>(rhs), instrs);
 	break;
       case common::tag_t::STR:
 	compile_program_str(lhsreg, lhsvar, rhs, instrs);
@@ -1402,14 +1402,14 @@ void wam_compiler::compile_if_then_else(const term goal, wam_interim_code &seq)
     size_t lvl = new_level();
     seq.push_back(wam_instruction<RESET_LEVEL>());
 
-    seq.push_back(wam_instruction<TRY_ME_ELSE>(l1));
+    seq.push_back(wam_instruction<TRY_ME_ELSE>(code_point(l1)));
     seq.push_back(wam_interim_instruction<INTERIM_LABEL>(to_merge_0));
     seq.push_back(wam_instruction<GET_LEVEL>(static_cast<uint32_t>(lvl)));
     compile_goal(goal_a, false, seq);
 
     seq.push_back(wam_instruction<CUT>(static_cast<uint32_t>(lvl)));
     compile_goal(goal_b, false, seq);
-    seq.push_back(wam_instruction<GOTO>(l2));
+    seq.push_back(wam_instruction<GOTO>(code_point(l2)));
     seq.push_back(wam_interim_instruction<INTERIM_LABEL>(l1));
     seq.push_back(wam_interim_instruction<INTERIM_LABEL>(to_merge_1));
     seq.push_back(wam_instruction<TRUST_ME>());
@@ -1419,7 +1419,7 @@ void wam_compiler::compile_if_then_else(const term goal, wam_interim_code &seq)
 
     compile_goal(goal_c, false, seq);
     seq.push_back(wam_interim_instruction<INTERIM_LABEL>(l2));
-    seq.push_back(wam_interim_instruction<INTERIM_MERGE>(*this, {l2, to_merge_0, to_merge_1}));
+    seq.push_back(wam_interim_instruction<INTERIM_MERGE>(*this, {code_point(l2), code_point(to_merge_0), code_point(to_merge_1)}));
 
     seen_vars_ |= seen_vars_0;
 } 
@@ -1468,11 +1468,11 @@ void wam_compiler::compile_disjunction(const term disj, wam_interim_code &seq)
     // by following TRY_ME_ELSE
     seq.push_back(wam_instruction<RESET_LEVEL>());
 
-    seq.push_back(wam_instruction<TRY_ME_ELSE>(l1));
+    seq.push_back(wam_instruction<TRY_ME_ELSE>(code_point(l1)));
     compile_goal(goal_a, false, seq);
 
     seq.push_back(wam_interim_instruction<INTERIM_LABEL>(to_merge));
-    seq.push_back(wam_instruction<GOTO>(l2));
+    seq.push_back(wam_instruction<GOTO>(code_point(l2)));
     seq.push_back(wam_interim_instruction<INTERIM_LABEL>(l1));
     seq.push_back(wam_instruction<TRUST_ME>());
 
@@ -1480,7 +1480,7 @@ void wam_compiler::compile_disjunction(const term disj, wam_interim_code &seq)
     seen_vars_ = old_seen;
     compile_goal(goal_b, false, seq);
     seq.push_back(wam_interim_instruction<INTERIM_LABEL>(l2));
-    seq.push_back(wam_interim_instruction<INTERIM_MERGE>(*this, {to_merge,l2}));
+    seq.push_back(wam_interim_instruction<INTERIM_MERGE>(*this, {code_point(to_merge),code_point(l2)}));
 
     seen_vars_ |= seen_vars_a;
 }
@@ -1670,7 +1670,7 @@ void wam_compiler::find_vars(const term t0, varset_t &varset)
     varset.reset();
     for (auto t : env_.iterate_over(t0)) {
         if (t.tag().is_ref()) {
-	    varset.set(var_index_[static_cast<common::ref_cell &>(t).unwatch()]);
+	    varset.set(var_index_[reinterpret_cast<common::ref_cell &>(t).unwatch()]);
 	}
     }
 }
@@ -1825,9 +1825,9 @@ void wam_compiler::emit_cp(std::vector<common::int_cell> &labels, size_t index, 
 {
     instrs.push_back(wam_interim_instruction<INTERIM_LABEL>(labels[2*index]));
     if (index == 0) {
-        instrs.push_back(wam_instruction<TRY_ME_ELSE>(labels[2*index+2]));
+        instrs.push_back(wam_instruction<TRY_ME_ELSE>(code_point(labels[2*index+2])));
     } else if (index < n - 1) {
-        instrs.push_back(wam_instruction<RETRY_ME_ELSE>(labels[2*index+2]));
+        instrs.push_back(wam_instruction<RETRY_ME_ELSE>(code_point(labels[2*index+2])));
     } else {
         instrs.push_back(wam_instruction<TRUST_ME>());
     }
@@ -1879,17 +1879,17 @@ void wam_compiler::emit_switch_on_term(const managed_clauses &subsection,
     auto on_con = find_clauses_on_cat(subsection, FIRST_CON);
     auto on_con_cp = on_con.empty() ? code_point::fail() 
 	           : (on_con.size() == 1) ? code_point(labels[2*on_con[0]+1])
-	           : new_label();
+	           : code_point(new_label());
 
     auto on_lst = find_clauses_on_cat(subsection, FIRST_LST);
     auto on_lst_cp = on_lst.empty() ? code_point::fail() 
 	           : (on_lst.size() == 1) ? code_point(labels[2*on_lst[0]+1])
-	           : new_label();
+	           : code_point(new_label());
 
     auto on_str = find_clauses_on_cat(subsection, FIRST_STR);
     auto on_str_cp = on_str.empty() ? code_point::fail() 
 	           : (on_str.size() == 1) ? code_point(labels[2*on_str[0]+1])
-	           : new_label();
+	           : code_point(new_label());
 
     instrs.push_back(wam_instruction<SWITCH_ON_TERM>(on_var_cp, on_con_cp, on_lst_cp, on_str_cp));
 
@@ -1906,9 +1906,9 @@ void wam_compiler::emit_third_level_indexing(
     size_t n = clause_indices.size();
     for (size_t i = 0; i < n; i++) {
 	auto ci = clause_indices[i];
-	if (i == 0) instrs.push_back(wam_instruction<TRY>(labels[2*ci+1]));
-	else if (i < n - 1) instrs.push_back(wam_instruction<RETRY>(labels[2*ci+1]));
-	else instrs.push_back(wam_instruction<TRUST>(labels[2*ci+1]));
+	if (i == 0) instrs.push_back(wam_instruction<TRY>(code_point(labels[2*ci+1])));
+	else if (i < n - 1) instrs.push_back(wam_instruction<RETRY>(code_point(labels[2*ci+1])));
+	else instrs.push_back(wam_instruction<TRUST>(code_point(labels[2*ci+1])));
     }
 }
 
@@ -1924,7 +1924,7 @@ void wam_compiler::emit_second_level_indexing(
 	return;
     }
 
-    const common::int_cell &ic = static_cast<const common::int_cell &>(cp.term_code());
+    auto &ic = reinterpret_cast<const common::int_cell &>(cp.term_code());
     instrs.push_back(wam_interim_instruction<INTERIM_LABEL>(ic));
 
     auto *map = interp_.new_hash_map();
@@ -1971,7 +1971,7 @@ void wam_compiler::emit_second_level_indexing(
 	auto arg = for_third_arg[i];
 	auto &clause_indices = for_third_indices[i];
 	auto &cp = (*map)[arg];
-	const common::int_cell &lbl = static_cast<const common::int_cell &>(cp.term_code());
+	auto &lbl = reinterpret_cast<const common::int_cell &>(cp.term_code());
 	instrs.push_back(wam_interim_instruction<INTERIM_LABEL>(lbl));
 	emit_third_level_indexing(clause_indices, labels, instrs);
     }

@@ -120,8 +120,8 @@ public:
 
         auto *mc = interp.get_current_meta_context<meta_context_remote>();
 
-	interp.set_p(interp.EMPTY_LIST);
-	interp.set_cp(interp.EMPTY_LIST);
+	interp.set_p(code_point(interp.EMPTY_LIST));
+	interp.set_cp(code_point(interp.EMPTY_LIST));
 
 	if (reason == interp::meta_reason_t::META_DELETE) {
 	    interp.release_last_meta_context();
@@ -176,7 +176,7 @@ public:
 	    return false;
 	} else {
 	    interp.allocate_choice_point(code_point::fail());
-	    interp.set_p(interp.EMPTY_LIST);
+	    interp.set_p(code_point(interp.EMPTY_LIST));
 	}
 
 	return interp.unify(qr, r.result());

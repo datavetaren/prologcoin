@@ -192,7 +192,7 @@ bool interpreter::execute(const term query)
 		   end(query),
 		   [&](term t) {
 		     if (t.tag().is_ref()) {
-		           t = static_cast<ref_cell &>(t).unwatch();
+		           t = reinterpret_cast<ref_cell &>(t).unwatch();
 			   const std::string name = to_string(t);
 			   if (!seen.count(name)) {
 			       query_vars_->push_back(binding(name,t));
@@ -350,7 +350,7 @@ void interpreter::fail()
 	        ok = select_clause(bp, 0, empty_clauses, 0);
 	    } else {
 		auto bpterm = bp.term_code();
-		size_t bpval = static_cast<const int_cell &>(bpterm).value();
+		size_t bpval = reinterpret_cast<const int_cell &>(bpterm).value();
 		// Is there another clause to backtrack to?
 		if (bpval != 0) {
 		    size_t pred_id = bpval >> 32;
@@ -363,7 +363,7 @@ void interpreter::fail()
 		    }
 		    auto &clauses = pred.get_clauses(*this, first_arg);
 		    size_t from_clause = bpval & 0xffffffff;
-		    ok = select_clause(qr(), pred_id, clauses, from_clause);
+		    ok = select_clause(code_point(qr()), pred_id, clauses, from_clause);
 		}
 	    }
 	    if (!ok) {
@@ -485,7 +485,7 @@ bool interpreter::select_clause(const code_point &instruction,
 
 	// Avoid copying if it does not match
 	if (!can_unify_args(clause_head(m_clause.clause()),
-			    instruction.term_code())) {
+			    code_point(instruction.term_code()))) {
 	    continue;
 	}
 	
@@ -495,7 +495,7 @@ bool interpreter::select_clause(const code_point &instruction,
 	term copy_head = clause_head(copy_clause);
 	term copy_body = clause_body(copy_clause);
 
-	if (unify_args(copy_head, instruction.term_code())) { // Heads match?
+	if (unify_args(copy_head, code_point(instruction.term_code()))) { // Heads match?
 	    // Update choice point (where to continue on fail...)
 	    if (has_choices) {
 	        auto choice_point = b();
@@ -509,8 +509,8 @@ bool interpreter::select_clause(const code_point &instruction,
 	    }
 
 	    allocate_environment<ENV_NAIVE>();
-	    set_cp(interpreter_base::EMPTY_LIST);
-	    set_p(copy_body);
+	    set_cp(code_point(interpreter_base::EMPTY_LIST));
+	    set_p(code_point(copy_body));
 	    set_qr(copy_head);
 
 	    // We've found a clause to execute. At this point we'll
@@ -528,7 +528,7 @@ bool interpreter::select_clause(const code_point &instruction,
 	}
     }
 
-    set_p(interpreter_base::EMPTY_LIST);
+    set_p(code_point(interpreter_base::EMPTY_LIST));
     // None found.
     return false;
 }
@@ -638,7 +638,7 @@ void interpreter::dispatch()
 	if (!code.is_builtin_recursive()) {
 	    // This enforces eventually a pop up the stack and
 	    // P becomes CP.
-	    set_cp(interpreter_base::EMPTY_LIST);
+	    set_cp(code_point(interpreter_base::EMPTY_LIST));
 	}
 	if (!(code.bn())(*this, arity, args())) {
 	    fail();
@@ -698,7 +698,7 @@ void interpreter::dispatch()
 	allocate_choice_point(ch);
     }
 
-    if (!select_clause(p().term_code(), pred_id, clauses, 0)) {
+    if (!select_clause(code_point(p().term_code()), pred_id, clauses, 0)) {
 	fail();
     }
 }
@@ -707,7 +707,7 @@ void interpreter::dispatch_wam(wam_instruction_base *instruction)
 {
     allocate_environment<ENV_WAM>();
     set_p(instruction);
-    set_cp(interpreter_base::EMPTY_LIST);
+    set_cp(code_point(interpreter_base::EMPTY_LIST));
 }
 
 std::string interpreter::get_result(bool newlines) const
@@ -719,7 +719,7 @@ std::string interpreter::get_result(bool newlines) const
 		  end(qr()),
 		  [&] (term t) {
 		      if (t.tag().is_ref()) {
-			t = static_cast<ref_cell &>(t).unwatch();
+			t = reinterpret_cast<ref_cell &>(t).unwatch();
 			if (!has_name(t)) {
 			    ++count_occurrences[t];
 			}

@@ -315,18 +315,18 @@ static void test_instruction_sequence()
     interp.add(wam_instruction<ALLOCATE>());
     interp.add(wam_instruction<DEALLOCATE>());
     interp.add(wam_instruction<CALL>(con_cell("[]",0), con_cell("f",3), 10));
-    interp.add(wam_instruction<EXECUTE>(con_cell("g",4)));
+    interp.add(wam_instruction<EXECUTE>(code_point(con_cell("g",4))));
     interp.add(wam_instruction<PROCEED>());
-    interp.add(wam_instruction<TRY_ME_ELSE>(int_cell(1)));
-    interp.add(wam_instruction<RETRY_ME_ELSE>(int_cell(2)));
+    interp.add(wam_instruction<TRY_ME_ELSE>(code_point(int_cell(1))));
+    interp.add(wam_instruction<RETRY_ME_ELSE>(code_point(int_cell(2))));
     interp.add(wam_instruction<TRUST_ME>());
-    interp.add(wam_instruction<TRY>(int_cell(3)));
-    interp.add(wam_instruction<RETRY>(int_cell(4)));
-    interp.add(wam_instruction<TRUST>(int_cell(5)));
-    interp.add(wam_instruction<SWITCH_ON_TERM>(int_cell(6),
-					       int_cell(7),
+    interp.add(wam_instruction<TRY>(code_point(int_cell(3))));
+    interp.add(wam_instruction<RETRY>(code_point(int_cell(4))));
+    interp.add(wam_instruction<TRUST>(code_point(int_cell(5))));
+    interp.add(wam_instruction<SWITCH_ON_TERM>(code_point(int_cell(6)),
+					       code_point(int_cell(7)),
 					       code_point::fail(),
-					       int_cell(8)));
+					       code_point(int_cell(8))));
 
     auto *hm1 = interp.new_hash_map();
     hm1->insert(std::make_pair(con_cell("f", 2), int_cell(126)));

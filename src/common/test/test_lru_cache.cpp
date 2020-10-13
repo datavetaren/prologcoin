@@ -1,4 +1,5 @@
 #include <common/lru_cache.hpp>
+#include <common/checked_cast.hpp>
 #include <cassert>
 #include <string>
 #include <iostream>
@@ -35,7 +36,7 @@ static void test_lru_cache_1()
 	if (i < NUM_ELEMENTS - CACHE_SIZE) {
 	    assert(f == nullptr);
 	} else {
-	    assert(*f == i*10);
+	    assert(checked_cast<size_t>(*f) == i*10);
 	}
     }
 }
@@ -71,8 +72,8 @@ static void test_lru_cache_2()
       
     size_t i = 0;
     for (auto &p : evicted) {
-        assert(p.first == i);
-        assert(p.second == i*10);
+        assert(checked_cast<size_t>(p.first) == i);
+        assert(checked_cast<size_t>(p.second) == i*10);
 	i++;
     }
 
@@ -84,8 +85,8 @@ static void test_lru_cache_2()
 
     i = 0;
     for (auto &p : evicted) {
-        assert(p.first == i);
-        assert(p.second == i*10);
+        assert(checked_cast<size_t>(p.first) == i);
+        assert(checked_cast<size_t>(p.second) == i*10);
 	i++;
     }
 }

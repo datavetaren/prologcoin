@@ -750,8 +750,8 @@ namespace prologcoin { namespace interp {
 
 	interp.standard_output().write(out_str);
 
-	interp.set_p(interpreter_base::EMPTY_LIST);
-	interp.set_cp(interpreter_base::EMPTY_LIST);
+	interp.set_p(code_point(interpreter_base::EMPTY_LIST));
+	interp.set_cp(code_point(interpreter_base::EMPTY_LIST));
 
 	return true;
     }
@@ -770,8 +770,8 @@ namespace prologcoin { namespace interp {
 	term out = interp.string_to_list(out_str);
 	bool ok = interp.unify(out, args[0]);
 
-	interp.set_p(interpreter_base::EMPTY_LIST);
-	interp.set_cp(interpreter_base::EMPTY_LIST);
+	interp.set_p(code_point(interpreter_base::EMPTY_LIST));
+	interp.set_cp(code_point(interpreter_base::EMPTY_LIST));
 
 	return ok;
     }

@@ -286,7 +286,7 @@ private:
         { switch (t.tag()) {
   	    case tag_t::RFW:
 	      return ptr_cell(tag_t::REF,
-			      index_term(static_cast<ref_cell &>(t).unwatch(),
+			      index_term(reinterpret_cast<ref_cell &>(t).unwatch(),
 					 cell_index));
 	    case tag_t::REF:
 	    case tag_t::BIG:
@@ -294,7 +294,7 @@ private:
 		return ptr_cell(t.tag(), index_term(t, cell_index));
 		}
 	    case tag_t::CON: {
-		auto f = static_cast<const con_cell &>(t);
+		auto f = reinterpret_cast<const con_cell &>(t);
 		if (f.is_direct()) {
 		    return t;
 		} else {

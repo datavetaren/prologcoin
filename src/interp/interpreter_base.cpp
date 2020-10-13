@@ -12,7 +12,7 @@ namespace prologcoin { namespace interp {
 
 using namespace prologcoin::common;
 
-const common::term code_point::fail_term_ = common::ref_cell(0);
+const common::term code_point::fail_term_ = common::term(common::ref_cell(0));
 const common::con_cell interpreter_base::COMMA = common::con_cell(",",2);
 const common::con_cell interpreter_base::EMPTY_LIST = common::con_cell("[]",0);
 const common::con_cell interpreter_base::IMPLIED_BY = common::con_cell(":-",2);
@@ -101,7 +101,9 @@ void interpreter_base::init()
     register_cp_.reset();
     register_m_ = nullptr;
     num_of_args_ = 0;
-    memset(&register_ai_[0], 0, sizeof(common::term)*MAX_ARGS);
+    for (size_t i = 0; i < MAX_ARGS; i++) {
+       register_ai_[i] = term(0);
+    }
     maximum_cost_ = std::numeric_limits<uint64_t>::max();
 }
 
@@ -414,7 +416,7 @@ void interpreter_base::load_clause(term t, clause_position pos)
 	// This is a head with a module definition
 	term module_term = arg(head, 0);
 	term predicate_term = arg(head, 1);
-	module = static_cast<con_cell &>(module_term);
+	module = reinterpret_cast<con_cell &>(module_term);
 	pn = functor(predicate_term);
 	term body = clause_body(t);
 	if (body == EMPTY_LIST) {

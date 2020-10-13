@@ -79,7 +79,7 @@ public:
            : env_(env) { elem_ = first_of(t); }
 
     inline term_dfs_iterator_templ(Env &env)
-	   : env_(env) { }
+	   : env_(env), elem_(0) { }
 
     inline bool operator == (const term_dfs_iterator_templ &other) const;
     inline bool operator != (const term_dfs_iterator_templ &other) const
@@ -182,8 +182,8 @@ public:
     inline size_t num_bits(big_cell b) const
         { return T::get_heap().num_bits(b); }
     inline bool big_equal(term t1, term t2, uint64_t &cost) const
-        { return T::get_heap().big_equal(static_cast<big_cell &>(t1),
-					 static_cast<big_cell &>(t2),
+        { return T::get_heap().big_equal(reinterpret_cast<big_cell &>(t1),
+					 reinterpret_cast<big_cell &>(t2),
 					 cost);
 	}
     inline int big_compare(term t1, term t2, uint64_t &cost) const
@@ -434,13 +434,14 @@ public:
 template<typename T> class ops_dock : public T
 {
 public:
-    ops_dock() { }
+    ops_dock() : T() { }
     ops_dock(T &t) : T(t) { }
 };
 
 class ops_bridge
 {
 public:
+    inline ops_bridge() : ops_(nullptr) {}
     inline ops_bridge(term_ops &ops) : ops_(&ops) { }
 
     inline term_ops & get_ops() { return *ops_; }
@@ -455,8 +456,7 @@ private:
 class ops_proxy : public ops_dock<ops_bridge> 
 {
 public:
-    inline ops_proxy(term_ops &ops)
-        : ops_dock<ops_bridge>(*this) { set_ops(ops); }
+    inline ops_proxy(term_ops &ops) : ops_dock<ops_bridge>() { set_ops(ops); }
 };
 
 typedef std::unordered_map<term, std::string> naming_map;

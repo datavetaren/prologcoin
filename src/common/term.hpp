@@ -132,7 +132,10 @@ public:
 
     typedef uint64_t value_t;
 
-    inline untagged_cell(const untagged_cell &other) : raw_value_(other.raw_value_) { }
+    inline untagged_cell() = default;
+   
+    inline untagged_cell(const untagged_cell &other) = default;
+
     inline untagged_cell(value_t raw_value) : raw_value_(raw_value) { }
 
     inline value_t raw_value() const { return raw_value_; }
@@ -238,7 +241,7 @@ public:
 
     inline cell(const heap &, const cell other) : untagged_cell(other.raw_value()) { }
 
-    inline cell() : untagged_cell(0) { }
+    inline cell() = default;
 
     inline cell(value_t raw_value) : untagged_cell(raw_value) { }
 
@@ -248,7 +251,7 @@ public:
                         : untagged_cell((static_cast<value_t>(t) & 0x7) |
 				     (v << 3)) { }
 
-    inline cell(const cell &other) : untagged_cell(other) { }
+    inline cell(const cell &other) = default;
 
     inline tag_t tag() const { return tag_t(static_cast<tag_t::kind_t>(raw_value()&0x7));}
 
@@ -281,7 +284,14 @@ protected:
     static std::string hex_str(uint64_t value, bool skip_leading_0s = true);
 };
 
-typedef cell term;
+class term : public cell {
+public:
+   term() : cell(0) { }
+   term(cell c) : cell(c) {}
+   term(const term &other) = default;
+   term(const heap &src, cell c) : cell(src,c) { }
+   term(heap &src, cell c) : cell(src,c) { }   
+};
 
 //
 // Exceptions
@@ -1002,7 +1012,7 @@ public:
 	    if (head.tag() != tag_t::INT) {
 		return false;
 	    }
-	    auto val = static_cast<const int_cell &>(head).value();
+	    auto val = reinterpret_cast<const int_cell &>(head).value();
 	    if (val < 0 || val > 255) {
 		return false;
 	    }
@@ -1025,7 +1035,7 @@ public:
 	    if (head.tag() != tag_t::INT) {
 		return false;
 	    }
-	    auto val = static_cast<const int_cell &>(head).value();
+	    auto val = reinterpret_cast<const int_cell &>(head).value();
 	    if (val < 0 || val > 255) {
 		return false;
 	    }
@@ -1047,7 +1057,7 @@ public:
 	    if (head.tag() != tag_t::INT) {
 		continue;
 	    }
-	    auto val = static_cast<const int_cell &>(head).value();
+	    auto val = reinterpret_cast<const int_cell &>(head).value();
 	    if (val >= 0 && val <= 255) {
 		s += static_cast<char>(val);
 	    }
@@ -1101,12 +1111,12 @@ public:
     {
 	term ds = deref(s);
         if (ds.tag() == tag_t::CON) {
-	    return static_cast<const con_cell &>(ds);
+	    return reinterpret_cast<const con_cell &>(ds);
         }
         if (ds.tag() != tag_t::STR) {
 	    throw expected_str_cell_exception(ds);
         }
-	return functor(static_cast<const str_cell &>(ds));
+	return functor(reinterpret_cast<const str_cell &>(ds));
     }
 
     inline con_cell functor(const str_cell &s) const
@@ -1741,14 +1751,12 @@ namespace std {
 	}
     };
 
-#if 0
     template<> struct hash<prologcoin::common::term> {
         size_t operator()(const prologcoin::common::term& k) const {
-	    auto &c = static_cast<const prologcoin::common::cell &>(*k);
+	    auto &c = reinterpret_cast<const prologcoin::common::cell &>(k);
 	    return hash<uint64_t>()(c.value());
 	}
     };
-#endif
 
 }
 

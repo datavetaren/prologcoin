@@ -317,11 +317,11 @@ class wam_instruction_base;
 class code_point {
 public:
     inline code_point() : wam_code_(nullptr), term_code_(common::ref_cell(0)){}
-    inline code_point(const common::term t) : wam_code_(nullptr), term_code_(t)
+    explicit inline code_point(const common::term t) : wam_code_(nullptr), term_code_(t)
     { static const common::con_cell el = common::con_cell("[]",0); module_ = el; }
-    inline code_point(const common::con_cell l) : wam_code_(nullptr), term_code_(l)
+    explicit inline code_point(const common::con_cell l) : wam_code_(nullptr), term_code_(l)
     { static const common::con_cell el = common::con_cell("[]",0); module_ = el; }
-    inline code_point(const common::int_cell i) : wam_code_(nullptr), term_code_(i)
+    explicit inline code_point(const common::int_cell i) : wam_code_(nullptr), term_code_(i)
     { static const common::con_cell el = common::con_cell("[]",0); module_ = el; }
     inline code_point(const code_point &other) = default;
     inline code_point(wam_instruction_base *i)
@@ -374,9 +374,9 @@ public:
     inline wam_instruction_base * wam_code() const { return wam_code_; }
     inline builtin_fn bn() const { return bn_; }
     inline const common::con_cell & module() const { return module_; }
-    inline const common::cell & term_code() const { return term_code_; }
-    inline const common::int_cell & label() const { return static_cast<const common::int_cell &>(term_code_); }
-    inline const common::con_cell & name() const { return static_cast<const common::con_cell &>(term_code_); }
+    inline const common::term & term_code() const { return term_code_; }
+    inline const common::int_cell & label() const { return reinterpret_cast<const common::int_cell &>(term_code_); }
+    inline const common::con_cell & name() const { return reinterpret_cast<const common::con_cell &>(term_code_); }
 
     inline const qname qn() const { return qname(module(), name()); }
 
@@ -396,14 +396,14 @@ public:
     std::string to_string(const interpreter_base &interp) const;
 
 private:
-    static const common::cell fail_term_;
+    static const common::term fail_term_;
 
     union {
         wam_instruction_base *wam_code_;
         builtin_fn bn_;
     };
     common::con_cell module_;
-    common::cell term_code_;
+    common::term term_code_;
 };
 
 // Saved wrapped environment
@@ -656,7 +656,7 @@ public:
 	    if (mod.tag() != common::tag_t::CON) {
 	        return current_module();
 	    } else {
-	        return static_cast<con_cell &>(mod);
+	        return reinterpret_cast<con_cell &>(mod);
 	    }
 	} else {
 	    return current_module();
@@ -1252,8 +1252,8 @@ protected:
         // some code before returning to the normal continuation point.
 
         interp->ef()->num_extra = 0;
-	interp->set_cp( EMPTY_LIST );
-	interp->set_p( EMPTY_LIST );
+	interp->set_cp( code_point(EMPTY_LIST) );
+	interp->set_p( code_point(EMPTY_LIST) );
     }
 
     static inline void restore_state(interpreter_base *)
@@ -1547,10 +1547,10 @@ protected:
 	        return;
 	    }
 	} else {
-	    set_cp(EMPTY_LIST);
+	    set_cp(code_point(EMPTY_LIST));
 	}
 	set_p(cp());
-	set_cp(EMPTY_LIST);
+	set_cp(code_point(EMPTY_LIST));
     }
     
     inline void proceed_and_deallocate()
@@ -1564,7 +1564,7 @@ protected:
 			  << to_string_cp(cp()) << " e=" << e0() << "\n";
 	    }
 	} else {
-	    set_cp(EMPTY_LIST);
+	    set_cp(code_point(EMPTY_LIST));
 	    if (is_debug()) {
 		std::cout << "interpreter_base::proceed_and_deallocate(): p="
 			  << to_string_cp(p()) << " cp="
@@ -2147,8 +2147,8 @@ inline void interpreter_base::check_frozen()
 	    if (cl != EMPTY_LIST) {
 		allocate_environment<ENV_FROZEN, environment_frozen_t *>();
 		allocate_environment<ENV_NAIVE, environment_naive_t *>();
-		set_cp(EMPTY_LIST);
-		set_p(cl);
+		set_cp(code_point(EMPTY_LIST));
+		set_p(code_point(cl));
 		set_qr(cl);
 	    }
 	    heap_watch(addr, false);
@@ -2157,7 +2157,7 @@ inline void interpreter_base::check_frozen()
 	    // Move index for frozen closure to the oldest one.
 	    term h2 = deref(h);
 	    if (h2.tag().is_ref()) {
-	        auto new_addr = static_cast<common::ref_cell &>(h2).index();
+	        auto new_addr = reinterpret_cast<common::ref_cell &>(h2).index();
 		if (new_addr != addr) {
 	  	    if (is_debug()) {
 		      std::cout << "Move frozen closure: from=" << addr << " to=" << new_addr << std::endl;

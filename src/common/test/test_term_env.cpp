@@ -249,6 +249,7 @@ static void test_dfs_iterator()
     auto it_expected = std::begin(expected);
 
     for (auto tt : env.iterate_over(t)) {
+        std::cout << "Here" << std::endl;
 	std::string actual = env.to_string(tt);
 	std::string expect = *it_expected;
 	++it_expected;

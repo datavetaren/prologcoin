@@ -416,7 +416,7 @@ bool heap::check_term(const term t, std::string *name) const
 	//		  << arity << " greater than 0\n";
 	return false;
       }
-      for(int i = 0; i < arity; i++) {
+      for(size_t i = 0; i < arity; i++) {
 	// TODO: check that the arguments are correct
 	auto arg_index = index+1+i;
 	if(visited.find(arg_index) == visited.end())

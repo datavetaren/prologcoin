@@ -5,6 +5,7 @@
 
 #include <stdint.h>
 #include <memory>
+#include <string.h>
 
 namespace prologcoin { namespace common {
 

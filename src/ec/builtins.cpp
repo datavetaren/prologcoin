@@ -1420,7 +1420,7 @@ bool builtins::musig_start_7(interpreter_base &interp, size_t arity, term args[]
     }
     int64_t num_signers = reinterpret_cast<int_cell &>(args[4]).value();
 
-    if (num_signers <= 0 || num_signers > MAX_SIGNERS) {
+    if (num_signers <= 0 || static_cast<size_t>(num_signers) > MAX_SIGNERS) {
         throw interpreter_exception_wrong_arg_type("musig_start/7: Number of signers must be 1..1024; was " + interp.to_string(args[4]));       
     }
 
@@ -1458,8 +1458,8 @@ bool builtins::musig_set_public_key_3(interpreter_base &interp, size_t arity, te
         throw interpreter_exception_wrong_arg_type("musig_set_public_key/3: Second argument must be an index; was " + interp.to_string(args[1]));
     }
 
-    int64_t val = static_cast<int_cell &>(args[1]).value();
-    if (val < 0 || val >= session->num_signers()) {
+    int64_t val = reinterpret_cast<int_cell &>(args[1]).value();
+    if (val < 0 || static_cast<size_t>(val) >= session->num_signers()) {
         throw interpreter_exception_wrong_arg_type("musig_set_public_key/3: Index is out of range; was " + interp.to_string(args[1]));
     }
 
@@ -1955,7 +1955,7 @@ template<typename XKey> static void execute_path(const std::string &pname, inter
 	        msg << pname << ": Unexpected path component: " << interp.to_string(op);
 	        throw interpreter_exception_wrong_arg_type(msg.str());
 	    }
-	    int64_t val = static_cast<int_cell &>(op).value();
+	    int64_t val = reinterpret_cast<int_cell &>(op).value();
 	    if (val < 0 || val >= extended_key::HARDENED_KEY) {
   	        std::stringstream msg;
 	        msg << pname << ": Hardened child number is outside its valid range: " << interp.to_string(op);
@@ -1970,7 +1970,7 @@ template<typename XKey> static void execute_path(const std::string &pname, inter
 	        throw interpreter_exception_wrong_arg_type(msg.str());
 	    }
 	} else if (op.tag() == tag_t::INT) {
-	    int64_t val = static_cast<int_cell &>(op).value();
+	    int64_t val = reinterpret_cast<int_cell &>(op).value();
 	    if (val < 0 || val >= extended_key::HARDENED_KEY) {
   	        std::stringstream msg;
 	        msg << pname << ": Child number is outside its valid range: " << interp.to_string(op);
@@ -2039,7 +2039,7 @@ bool builtins::master_key_3(interpreter_base &interp, size_t arity, term args[])
 		    msg << pname << ": Seed must be a list of integers; encountered " << interp.to_string(elem);
 		    throw interpreter_exception_wrong_arg_type(msg.str());	      
 		}
-		auto ival = static_cast<int_cell &>(elem);
+		auto ival = reinterpret_cast<int_cell &>(elem);
 		if (ival.value() < 0 || ival.value() > 255) {
 		    std::stringstream msg;
 		    msg << pname << ": Seed must be a list of integers within 0 and 255; encountered " << interp.to_string(elem);
@@ -2098,7 +2098,7 @@ bool builtins::words_2(interpreter_base &interp, size_t arity, term args[]) {
         if (args[0].tag() != tag_t::INT) {
 	    throw interpreter_exception_not_list(pname + ": Number of words must be an integer; was " + interp.to_string(args[0]));
         }
-        int64_t val = static_cast<int_cell &>(args[0]).value();
+        int64_t val = reinterpret_cast<int_cell &>(args[0]).value();
         if (val != 12 && val != 15 && val != 18 && val != 21 && val != 24) {
 	    throw interpreter_exception_not_list(pname + ": Number of words must be 12, 15, 18, 21 or 24; was " + interp.to_string(args[0]));
         }
@@ -2274,7 +2274,7 @@ bool builtins::decrypt(interpreter_base &interp, term input, const uint8_t *key,
 	    + interp.to_string(inner));
     }
 
-    big_cell big = static_cast<big_cell &>(inner);
+    big_cell big = reinterpret_cast<big_cell &>(inner);
     size_t num_bits = interp.num_bits(big);
     if (num_bits % 128 != 0) {
          throw interpreter_exception_wrong_arg_type(
@@ -2378,7 +2378,7 @@ bool builtins::encrypt_4(interpreter_base &interp, size_t arity, term args[]) {
 	    "encrypt/4: Third argument must be an integer; was "
 	    + interp.to_string(args[2]));
     }
-    int64_t iter = static_cast<int_cell &>(args[2]).value();
+    int64_t iter = reinterpret_cast<int_cell &>(args[2]).value();
     if (iter < 1 || iter > 1000000) {
          throw interpreter_exception_wrong_arg_type(
 	    "encrypt/4: Number of iterations must be with 1 and 1000000; was "

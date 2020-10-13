@@ -105,7 +105,7 @@ static void test_wallet_tx()
 	     cont = w.env().is_dotted_pair(lst);
 	     while (w.env().is_dotted_pair(lst)) {
 	         auto c = w.env().arg(lst,0);
-	         auto key = static_cast<int_cell &>(c).value();
+	         auto key = reinterpret_cast<int_cell &>(c).value();
 		 std::cout << key << ", ";
 		 start_addr = key + 1;
 	         lst = w.env().arg(lst, 1);

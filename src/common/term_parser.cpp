@@ -419,7 +419,7 @@ protected:
         if (pos.line() == operand_leftmost_pos.line() &&
 	    pos.column()+1 == operand_leftmost_pos.column()) {
 	    if (operand.tag() == tag_t::INT) {
-	        auto intval = static_cast<int_cell &>(operand).value();
+	        auto intval = reinterpret_cast<int_cell &>(operand).value();
 		if (opname[0] == '-') intval = -intval;
 		newterm = int_cell(intval);
 	    }
