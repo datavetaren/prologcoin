@@ -56,33 +56,32 @@ jobs:
     runs-on: windows-latest
     steps:
     - uses: actions/checkout@v2
-#    - name: download boost
-#      shell: powershell
-#      run: |
-#        $uri = 'https://dl.bintray.com/boostorg/release/1.71.0/binaries/boost_1_71_0-msvc-14.2-64.exe'
-#        [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
-#        Invoke-WebRequest -Uri $uri -OutFile C:\boost.exe -UserAgent [Microsoft.PowerShell.Commands.PSUserAgent]::Chrome
-#    - name: install boost
-#      run: C:\boost.exe /sp- /verysilent /supressmsgboxes /norestart |more
-#    - name: libsecp
-#      run: git clone https://github.com/datavetaren/secp256k1-zkp ../secp256k1-zkp
-#    - name: build
-#      shell: cmd
-#      run: make.bat all
-#    - name: zip install
-#      shell: powershell
-#      run: Install-Module 7Zip4PowerShell -Force -Verbose
+    - name: download boost
+      shell: powershell
+      run: |
+        $uri = 'https://dl.bintray.com/boostorg/release/1.71.0/binaries/boost_1_71_0-msvc-14.2-64.exe'
+        [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+        Invoke-WebRequest -Uri $uri -OutFile C:\boost.exe -UserAgent [Microsoft.PowerShell.Commands.PSUserAgent]::Chrome
+    - name: install boost
+      run: C:\boost.exe /sp- /verysilent /supressmsgboxes /norestart |more
+    - name: libsecp
+      run: git clone https://github.com/datavetaren/secp256k1-zkp ../secp256k1-zkp
+    - name: build
+      shell: cmd
+      run: make.bat all
+    - name: zip install
+      shell: powershell
+      run: Install-Module 7Zip4PowerShell -Force -Verbose
     - name: zip
       shell: cmd
       run: |
-        "C:\Program Files\7-Zip\7z.exe"
-#      run: Compress-7Zip cd bin && zip -r prologcoin_windows_10_latest.zip prologcoind prologcoin-data
-#    - name: release
-#      uses: svenstaro/upload-release-action@v2
-#      with:
-#        repo_token: ${{ secrets.GITHUB_TOKEN }}
-#        file: bin/prologcoin_windows_10_latest.zip
-#        asset_name: prologcoin_windows_10_latest.zip
-#        tag: ${{ github.ref }}
-#        overwrite: true
-#        body: "Latest build of Prologcoin"
+        cd bin && "C:\Program Files\7-Zip\7z.exe" prologcoin_windows_10_latest.zip a -r prologcoind prologcoin-data
+    - name: release
+      uses: svenstaro/upload-release-action@v2
+      with:
+        repo_token: ${{ secrets.GITHUB_TOKEN }}
+        file: bin/prologcoin_windows_10_latest.zip
+        asset_name: prologcoin_windows_10_latest.zip
+        tag: ${{ github.ref }}
+        overwrite: true
+        body: "Latest build of Prologcoin"
