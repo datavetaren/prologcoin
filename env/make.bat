@@ -2,8 +2,8 @@
 
 REM -- Change settings here -------------------------------------------
 
-REM To set a specific VC: SET CHOOSEVC=VS110 (VS120, VS130, ...)
-SET CHOOSEVC=
+REM To set a specific VC: SET CHOOSEVC=2017, 2019, ...
+SET CHOOSEVC=2019
 
 REM Set 32-bit or 64-bit version
 SET BIT=64
@@ -35,22 +35,22 @@ GOTO :MAIN
 )
 
 SETLOCAL ENABLEDELAYEDEXPANSION
-set VCHOME=
-call :SELECTVC "%CHOOSEVC%" VCHOME VCNAME
-ECHO !VCHOME! >%TEMP%\vchome.txt
+set VCVARSDIR=
+call :SELECTVC "%CHOOSEVC%" VCVARSDIR VCNAME
+ECHO !VCVARSDIR! >%TEMP%\vcvarsdir.txt
 ECHO !VCNAME! >%TEMP%\vcname.txt
 ENDLOCAL
 
-FOR /f "delims=" %%A IN (%TEMP%\vchome.txt) DO SET VCHOME=%%A
+FOR /f "delims=" %%A IN (%TEMP%\vcvarsdir.txt) DO SET VCVARSDIR=%%A
 FOR /f "delims=" %%A IN (%TEMP%\vcname.txt) DO SET VCNAME=%%A
-CALL :trim VCHOME %VCHOME%
+CALL :trim VCVARSDIR %VCVARSDIR%
 CALL :trim VCNAME %VCNAME%
 
 IF %BIT%==32 (
-    CALL "%VCHOME%..\..\vc\bin\vcvars32.bat"
+    CALL "%VCVARSDIR%\vcvars32.bat" >NUL
 )
 IF %BIT%==64 (
-    CALL "%VCHOME%..\..\vc\bin\x86_amd64\vcvarsx86_amd64.bat"
+    CALL "%VCVARSDIR%\vcvarsx86_amd64.bat" >NUL
 )
 
 GOTO:MAIN
@@ -62,38 +62,33 @@ FOR /f "tokens=1*" %%a IN ("!params!") DO ENDLOCAL & SET %1=%%b
 GOTO :EOF
 
 :CHECKVC
-SET _VCLIST=%2
-SET _VCLIST=%_VCLIST:"=%
-IF DEFINED %1 (
-   IF NOT "!_VCLIST!"=="" SET _VCLIST=!_VCLIST!,
-   SET _VCLIST=!_VCLIST!%1
+SET DIRCHK=%1
+SET NAME=%2
+SET PATTERN=%3
+IF "%PATTERN%"=="" SET PATTERN=xyzzyxyzzy
+SET PATTERN=%PATTERN:"=%
+set FOUND="notfound"
+set XNAME="notfound"
+IF EXIST "!DIRCHK!" (
+   IF NOT "!DIRCHK:%PATTERN%=!"=="!DIRCHK!" (
+       SET FOUND="!DIRCHK!"
+       SET XNAME=!NAME!
+   )
 )
-SET %3=!_VCLIST!
+set FOUND=%FOUND:"=%
+set %4=!FOUND!
+set %5=!XNAME!
 GOTO:EOF
 
 :SELECTVC
 set CHOOSEVC=%1
-set CHOOSEVC=%CHOOSEVC:"=%
-set VCLIST=
-call :CHECKVC VS160COMNTOOLS "!VCLIST!" VCLIST
-call :CHECKVC VS150COMNTOOLS "!VCLIST!" VCLIST
-call :CHECKVC VS140COMNTOOLS "!VCLIST!" VCLIST
-call :CHECKVC VS130COMNTOOLS "!VCLIST!" VCLIST
-call :CHECKVC VS120COMNTOOLS "!VCLIST!" VCLIST
-call :CHECKVC VS110COMNTOOLS "!VCLIST!" VCLIST
-
-SET VCARG=
-FOR %%X IN (%VCLIST%) DO (
-   IF "%%X"=="!CHOOSEVC!COMNTOOLS" SET VCARG=%%X
+set VCDIR=notfound
+set VCNAME=notfound
+IF "!VCDIR!"=="notfound" call :CHECKVC "%PROGRAMFILES(x86)%\Microsoft Visual Studio\2019\Professional\VC\Auxiliary\Build\" VS2019 "%CHOOSEVC%" VCDIR VCNAME
+IF "!VCDIR!"=="notfound" call :CHECKVC "%PROGRAMFILES(x86)%\Microsoft Visual Studio\2017\Professional\VC\Auxiliary\Build\" VS2017 "%CHOOSEVC%" VCDIR VCNAME
 )
-
-IF "!VCARG!"=="" (
-  FOR %%X IN (!VCLIST!) DO (
-     IF "!VCARG!"=="" SET VCARG=%%X
-  )
-)
-set %2=!%VCARG%!
-set %3=!VCARG!
+set %2=!VCDIR!
+set %3=!VCNAME!
 
 GOTO :EOF
 
@@ -542,17 +537,11 @@ SET /P CLTXT=<%TEMP%\cl.txt
 IF "!VCVER!"=="" IF NOT "!CLTXT:14.2=!"=="!CLTXT!" (
    SET VCVER=14.2
 )
-IF "!VCVER!"=="" IF NOT "!CLTXT:Microsoft Visual Studio 14.0=!"=="!CLTXT!" (
+IF "!VCVER!"=="" IF NOT "!CLTXT:14.1=!"=="!CLTXT!" (
+   SET VCVER=14.1
+)
+IF "!VCVER!"=="" IF NOT "!CLTXT:14.0=!"=="!CLTXT!" (
    SET VCVER=14.0
-)
-IF "!VCVER!"=="" IF NOT "!CLTXT:Microsoft Visual Studio 13.0=!"=="!CLTXT!" (
-   SET VCVER=13.0
-)
-IF "!VCVER!"=="" IF NOT "!CLTXT:Microsoft Visual Studio 12.0=!"=="!CLTXT!" (
-   SET VCVER=12.0
-)
-IF "!VCVER!"=="" IF NOT "!CLTXT:Microsoft Visual Studio 11.0=!"=="!CLTXT!" (
-   SET VCVER=11.0
 )
 SET %1=!VCVER!
 
@@ -570,11 +559,13 @@ REM
 
 SET VCVER=%1
 
-SET BOOSTVER=boost_1_62_0
+SET BOOSTVER=boost_1_72_0
 
 SET BOOST=
 
-IF EXIST "%PROGRAMFILES%\boost\!BOOSTVER!" (
+IF EXIST "C:\local\!BOOSTVER!" (
+    SET BOOST=C:\local\!BOOSTVER!
+) ELSE IF EXIST "%PROGRAMFILES%\boost\!BOOSTVER!" (
     SET BOOST=%PROGRAMFILES%\boost\!BOOSTVER!
 )
 

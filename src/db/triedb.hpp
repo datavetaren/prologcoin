@@ -13,6 +13,7 @@
 #include <iostream>
 #include <bitset>
 #include <algorithm>
+#include <set>
 #include "../common/lru_cache.hpp"
 #include "../common/bits.hpp"
 #include "util.hpp"

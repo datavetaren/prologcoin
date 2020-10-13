@@ -112,7 +112,7 @@ inline static void siphash_1(const siphash_keys &keys, const uint64_t nonce, uin
 #define SIP_ROT21(x) _mm256_or_si256(_mm256_slli_epi64(x,21),_mm256_srli_epi64(x,43))
 #define SIP_ROT32(x) _mm256_shuffle_epi32((x), _MM_SHUFFLE(2, 3, 0, 1))
 
-#elif defined __SSE2__
+#elif defined __SSE2__ || defined _M_AMD64 || defined _M_X64
 
 #define SIP_ADD(a, b) _mm_add_epi64(a, b)
 #define SIP_XOR(a, b) _mm_xor_si128(a, b)
@@ -233,7 +233,7 @@ static inline void siphash_8(const siphash_keys &keys, uint64_t in1, uint64_t in
   */
 }
 
-#elif defined __SSE2__
+#elif defined __SSE2__ || defined _M_AMD64 || defined _M_X64
 
 // 2-way sipHash-2-4 specialized to precomputed key and 8 byte nonces
 static inline void siphash_2(const siphash_keys &keys, uint64_t in1, uint64_t in2, uint64_t &out1, uint64_t &out2) {
