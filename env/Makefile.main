@@ -16,6 +16,11 @@ CP := cp -f
 AR := ar 
 ARFLAGS :=
 AROUT := -cr
+DBG :=
+UNAME := $(shell uname -s)
+ifeq ($(UNAME),Linux)
+   DBG := gdb -batch -return-child-result -ex run
+endif
 
 GCCLIBPATH := $(shell g++ -Xlinker -v  2>&1 |sed -n 's/^[[:space:]]*\(\/.*\)/\1/p')
 GCCLIBDIRS := $(strip $(foreach d,$(GCCLIBPATH),$(filter -L%, $(d))))
@@ -149,7 +154,7 @@ $(BIN)/script/$(SUBDIR)/%$(EXE_EXT) : $(OUT)/$(SUBDIR)/script/%$(OBJ_EXT)
 
 $(BIN)/test/$(SUBDIR)/%$(EXE_EXT).ok : $(BIN)/test/$(SUBDIR)/%$(EXE_EXT)
 	@$(call echon, $(yellow) $(bold) $<$(off)$(white)) 
-	@( $< $(ARGS) >$<.log 2>&1) || ($(CP) $<.log /tmp/err.log; exit 1) || ($(call printfile, /tmp/err.log))
+	@($(DBG) $< $(ARGS) >$<.log 2>&1) || ($(CP) $<.log /tmp/err.log; exit 1) || ($(call printfile, /tmp/err.log))
 	@touch $@
 	@(echo $(green)$(bold) [OK]$(off)$(white))
 
