@@ -63,7 +63,7 @@ jobs:
         [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
         Invoke-WebRequest -Uri $uri -OutFile boost.exe -UserAgent [Microsoft.PowerShell.Commands.PSUserAgent]::Chrome
     - name: install boost
-      run: boost_1_72_0-msvc-14.2-64.exe /sp- /verysilent /supressmsgboxes /norestart |more
+      run: boost.exe /sp- /verysilent /supressmsgboxes /norestart |more
     - name: libsecp
       run: git clone https://github.com/datavetaren/secp256k1-zkp ../secp256k1-zkp
     - name: build
