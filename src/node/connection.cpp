@@ -41,7 +41,7 @@ connection::~connection()
     socket_.cancel(ec);
     socket_.shutdown(boost::asio::ip::tcp::socket::shutdown_both, ec);
     socket_.close(ec);
-    socket_.release(ec);
+    // socket_.release(ec);
 }
 
 void connection::start()
