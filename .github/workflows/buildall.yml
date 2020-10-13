@@ -7,26 +7,45 @@ on:
     branches: [ master ]
 
 jobs:
-  build:
-
-    runs-on: macos-10.15
-
+  build-mac:
+    runs-on: macos-latest
     steps:
     - uses: actions/checkout@v2
     - name: boost
       run: brew install boost
     - name: libsecp
       run: git clone https://github.com/datavetaren/secp256k1-zkp ../secp256k1-zkp
-    - name: doall
+    - name: build
       run: make all
     - name: zip
-      run: cd bin && zip -r prologcoin_macosx_latest.zip prologcoind prologcoin-data
+      run: cd bin && zip -r prologcoin_macosx_catalina_latest.zip prologcoind prologcoin-data
     - name: release
       uses: svenstaro/upload-release-action@v2
       with:
         repo_token: ${{ secrets.GITHUB_TOKEN }}
-        file: bin/prologcoin_macosx_latest.zip
-        asset_name: prologcoin-macosx-latest.zip
+        file: bin/prologcoin_macosx_catalina_latest.zip
+        asset_name: prologcoin_macosx_catalina_latest.zip
+        tag: ${{ github.ref }}
+        overwrite: true
+        body: "Latest build of Prologcoin"
+  build-linux:
+    runs-on: ubuntu-18.04
+    steps:
+    - uses: actions/checkout@v2
+    - name: boost
+      run: sudo apt-get install libboost-all-dev
+    - name: libsecp
+      run: git clone https://github.com/datavetaren/secp256k1-zkp ../secp256k1-zkp
+    - name: build
+      run: make all
+    - name: zip
+      run: cd bin && zip -r prologcoin_linux_ubuntu_18_latest.zip prologcoind prologcoin-data
+    - name: release
+      uses: svenstaro/upload-release-action@v2
+      with:
+        repo_token: ${{ secrets.GITHUB_TOKEN }}
+        file: bin/prologcoin_ubuntu_18_latest.zip
+        asset_name: prologcoin_ubuntu_18_latest.zip
         tag: ${{ github.ref }}
         overwrite: true
         body: "Latest build of Prologcoin"
