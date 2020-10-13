@@ -46,8 +46,8 @@ jobs:
       uses: svenstaro/upload-release-action@v2
       with:
         repo_token: ${{ secrets.GITHUB_TOKEN }}
-        file: bin/prologcoin_ubuntu_18_latest.zip
-        asset_name: prologcoin_ubuntu_18_latest.zip
+        file: bin/prologcoin_linux_ubuntu_18_latest.zip
+        asset_name: prologcoin_linux_ubuntu_18_latest.zip
         tag: ${{ github.ref }}
         overwrite: true
         body: "Latest build of Prologcoin"
