@@ -45,7 +45,9 @@ void locale::set_from_platform()
     for (auto ch : grp) {
 	grouping_.push_back((int)ch);
     }
-    grouping_.back() *= -1;
+    if (!grouping_.empty()) {
+	grouping_.back() *= -1;
+    }
 }
 
 }}
