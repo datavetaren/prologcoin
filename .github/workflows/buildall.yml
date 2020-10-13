@@ -61,9 +61,9 @@ jobs:
       run: |
         $uri = 'https://dl.bintray.com/boostorg/release/1.71.0/binaries/boost_1_71_0-msvc-14.2-64.exe'
         [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
-        Invoke-WebRequest -Uri $uri -OutFile boost.exe -UserAgent [Microsoft.PowerShell.Commands.PSUserAgent]::Chrome
+        Invoke-WebRequest -Uri $uri -OutFile C:\boost.exe -UserAgent [Microsoft.PowerShell.Commands.PSUserAgent]::Chrome
     - name: install boost
-      run: boost.exe /sp- /verysilent /supressmsgboxes /norestart |more
+      run: C:\boost.exe /sp- /verysilent /supressmsgboxes /norestart |more
     - name: libsecp
       run: git clone https://github.com/datavetaren/secp256k1-zkp ../secp256k1-zkp
     - name: build
