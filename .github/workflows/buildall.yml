@@ -67,6 +67,7 @@ jobs:
     - name: libsecp
       run: git clone https://github.com/datavetaren/secp256k1-zkp ../secp256k1-zkp
     - name: build
+      shell: cmd
       run: make.bat all
     - name: zip
       run: cd bin && zip -r prologcoin_windows_10_latest.zip prologcoind prologcoin-data
