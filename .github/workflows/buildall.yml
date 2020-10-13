@@ -74,7 +74,7 @@ jobs:
 #      run: Install-Module 7Zip4PowerShell -Force -Verbose
     - name: zip
       shell: cmd
-      run: "C:\Program Files\7-Zip\7z.exe"
+      run: "C:\\Program Files\\7-Zip\\7z.exe"
 #      run: Compress-7Zip cd bin && zip -r prologcoin_windows_10_latest.zip prologcoind prologcoin-data
 #    - name: release
 #      uses: svenstaro/upload-release-action@v2
