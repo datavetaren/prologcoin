@@ -62,6 +62,7 @@ jobs:
         [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
         Invoke-WebRequest -Uri $uri -OutFile C:\boost.zip -UserAgent [Microsoft.PowerShell.Commands.PSUserAgent]::Chrome
     - name: install boost
+      shell: cmd
       run: |
         cd C: && cd \ && "C:\Program Files\7-Zip\7z.exe" x -tzip C:\boost.zip
     - name: libsecp
