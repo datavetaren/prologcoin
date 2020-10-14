@@ -27,7 +27,7 @@ jobs:
         asset_name: prologcoin_macosx_catalina_latest.zip
         tag: ${{ github.ref }}
         overwrite: true
-       body: "Latest build of Prologcoin"
+        body: "Latest build of Prologcoin"
   build-linux:
     runs-on: ubuntu-18.04
     steps:
