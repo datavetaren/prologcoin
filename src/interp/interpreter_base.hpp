@@ -104,6 +104,7 @@ public:
       term_id_.clear();
   }
 
+  bool matching_clauses(interpreter_base &interp, common::term head);
   bool remove_clauses(interpreter_base &interp, common::term head, bool all);
 
   size_t id() const { return id_; }
@@ -111,6 +112,7 @@ public:
   size_t performance_count() const { return performance_count_; }
 
 private:
+    bool matched_indexed_clause(interpreter_base &interp, common::term head);
     managed_clause remove_indexed_clause(interpreter_base &interp, common::term head);
     friend class interpreter_base;
   
@@ -861,6 +863,7 @@ public:
 	}
     }
 
+    void import_predicate(const qname &qn);
     void use_module(con_cell module);
   
     void save_program(con_cell module, std::ostream &out);
@@ -899,7 +902,15 @@ public:
 	}
     }
 
-    inline const predicate * internal_get_predicate(const qname &qn) {
+    inline const predicate * internal_get_predicate(const qname &qn) const {
+	auto it = program_db_.find(qn);
+	if (it == program_db_.end()) {
+	    return nullptr;
+	}
+	return &(it->second);
+    }
+
+    inline predicate * internal_get_predicate(const qname &qn) {
 	auto it = program_db_.find(qn);
 	if (it == program_db_.end()) {
 	    return nullptr;
@@ -911,6 +922,10 @@ public:
         {
 	    auto it = program_db_.find(qn);
 	    if (it != program_db_.end()) {
+		auto &pred = it->second;
+		if (pred.empty()) {
+		    load_predicate_fn_(*this, qn);
+		}
 		return it->second;
 	    }
 
@@ -958,14 +973,21 @@ public:
     inline bool has_updated_predicates() const {
         return has_updated_predicates_;
     }
-    inline void add_updated_predicate(const qname &qn) {
+
+    inline void add_updated_predicate_pre(const qname &qn) {
+	if (updated_predicate_pre_fn_) {
+	    updated_predicate_pre_fn_(*this, qn);
+	}
+    }
+    
+    inline void add_updated_predicate_post(const qname &qn) {
         size_t already_updated = updated_predicates_.count(qn) != 0;
         updated_predicates_.insert(qn);
 	has_updated_predicates_ = true;
 	module_meta_db_[qn.first].changed();
 	if (!already_updated) {
-	    if (updated_predicate_fn_ != nullptr) {
-	        updated_predicate_fn_(*this, qn);
+	    if (updated_predicate_post_fn_ != nullptr) {
+	        updated_predicate_post_fn_(*this, qn);
 	    }
 	}
     }
@@ -1809,13 +1831,17 @@ private:
 
 private:
     typedef void (*updated_predicate_fn)(interpreter_base &interp, const qname &qn);
-    updated_predicate_fn updated_predicate_fn_;
+    
+    updated_predicate_fn updated_predicate_pre_fn_;
+    updated_predicate_fn updated_predicate_post_fn_;
 
 protected:
     void clear_password();
 
-    inline void setup_updated_predicate_function(updated_predicate_fn fn) {
-        updated_predicate_fn_ = fn;
+    inline void setup_updated_predicate_function(updated_predicate_fn pre_fn,
+						 updated_predicate_fn post_fn) {
+        updated_predicate_pre_fn_ = pre_fn;
+        updated_predicate_post_fn_ = post_fn;	
     }
 
     inline void setup_load_predicate_function(load_predicate_fn fn) {
@@ -1983,6 +2009,21 @@ inline void predicate::add_clause(interpreter_base &interp, common::term clause0
     clear_cache();
 }
 
+inline bool predicate::matched_indexed_clause(interpreter_base &interp, common::term head) {
+    auto arg_index = interp.arg_index(interp.clause_first_arg(head));
+    auto &idx = indexed_[arg_index];
+    for (auto it = idx.begin(); it != idx.end();) {
+        auto idx_clause = (*it).clause();
+        auto idx_clause_head = interp.clause_head(idx_clause);
+        if (interp.can_unify(idx_clause_head, head)) {
+	    return true;
+        } else {
+            ++it;
+        }
+    }
+    return false;
+}
+
 inline managed_clause predicate::remove_indexed_clause(interpreter_base &interp, common::term head)
 {
     auto arg_index = interp.arg_index(interp.clause_first_arg(head));
@@ -2000,6 +2041,30 @@ inline managed_clause predicate::remove_indexed_clause(interpreter_base &interp,
         }
     }
     return managed_clause(common::term(), 0, 0);
+}
+
+inline bool predicate::matching_clauses(interpreter_base &interp, common::term head) {
+    auto arg = interp.clause_first_arg(head);
+    if (with_vars_ || arg.tag().is_ref()) {
+	for (auto it = clauses_.begin(); it != clauses_.end();) {
+            performance_count_++;
+	    auto mclause = *it;
+	    if (mclause.is_erased()) {
+	        ++it;
+	        continue;
+	    }
+	    auto clause = mclause.clause();
+	    auto clause_head = interp.clause_head(clause);
+	    if (interp.can_unify(clause_head, head)) {
+		return true;
+	    } else {
+	        ++it;
+	    }
+	}
+	return false;
+    } else {
+	return matched_indexed_clause(interp, head);
+    }
 }
 
 inline bool predicate::remove_clauses(interpreter_base &interp, common::term head, bool all)

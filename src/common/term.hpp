@@ -1229,6 +1229,10 @@ public:
 	return hdr.num_bits();
     }
 
+    inline size_t num_bytes(const big_cell &big) const {
+	return (num_bits(big) + 7) / 8;
+    }
+
     inline size_t num_cells(const big_cell &big) const {
 	auto &hdr = reinterpret_cast<const big_header &>(get(big.index()));
 	return hdr.num_cells();

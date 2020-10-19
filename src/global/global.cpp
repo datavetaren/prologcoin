@@ -17,6 +17,19 @@ global::global(const std::string &data_dir)
     interp_->init();
 }
 
+bool global::set_tip(const meta_id &id)
+{
+    auto entry = blockchain_.get_meta_entry(id);
+    if (!entry) {
+	return false;
+    }
+    blockchain_.set_tip(*entry);
+    interp_ = nullptr;
+    interp_ = std::unique_ptr<global_interpreter>(new global_interpreter(*this));
+    interp_->init();
+    return true;
+}
+	
 void global::erase_db(const std::string &data_dir)
 {
     auto dir_path = boost::filesystem::path(data_dir) / "db";
@@ -123,11 +136,12 @@ size_t global::current_height() const {
 
 void global::increment_height()
 {
+    get_blockchain().advance();
     interp().commit_heap();
     interp().commit_closures();
     interp().commit_symbols();
     interp().commit_program();
-    get_blockchain().increment_height();
+    get_blockchain().update_tip();
 }
     
 }}

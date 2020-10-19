@@ -60,8 +60,13 @@ public:
     void commit_symbols();
     void commit_program();
     void commit_closures();
-  
-    static void updated_predicate(interpreter_base &interp, const interp::qname &qn);
+
+    size_t num_predicates();
+    size_t num_symbols();
+    size_t num_frozen_closures();
+
+    static void updated_predicate_pre(interpreter_base &interp, const interp::qname &qn);
+    static void updated_predicate_post(interpreter_base &interp, const interp::qname &qn);    
     static void load_predicate(interpreter_base &interp, const interp::qname &qn);
     static size_t unique_predicate_id(interpreter_base &interp, const common::con_cell module_name);
     virtual term get_frozen_closure(size_t addr) override;
@@ -71,10 +76,22 @@ public:
 				     size_t max_clousres,
 	     std::vector<std::pair<size_t, term> > &closures) override;
 
-    inline void updated_predicate(const interp::qname &qn) {
+    inline void updated_predicate_pre(const interp::qname &qn) {
 	auto p = internal_get_predicate(qn);
 	if (p) {
+	    if (p->empty()) {
+		new_predicates_++;
+	    }
 	    old_predicates_.push_back(*p);
+	} else {
+	    new_predicates_++;
+	}
+    }
+
+    inline void updated_predicate_post(const interp::qname &qn) {
+	auto p = internal_get_predicate(qn);
+	if (p->empty()) {
+	    new_predicates_--;
 	}
         updated_predicates_.push_back(qn);
     }
@@ -216,10 +233,14 @@ private:
  
     std::vector<interp::qname> updated_predicates_;
     std::vector<interp::predicate> old_predicates_;
+    int new_predicates_;
+    int new_frozen_closures_;
 
     // Use common::term() to indiciate removal of closure
     std::map<size_t, common::term> modified_closures_;
 
+    size_t old_heap_size_;
+    
     size_t next_atom_id_;
     size_t start_next_atom_id_;
     std::vector<std::pair<size_t, std::string> > new_atoms_;

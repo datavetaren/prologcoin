@@ -1,4 +1,5 @@
 #include <boost/filesystem.hpp>
+#include <boost/algorithm/string/predicate.hpp>
 #include "../common/blake2.hpp"
 #include "../common/checked_cast.hpp"
 #include "blockchain.hpp"
@@ -85,28 +86,6 @@ void blockchain::init()
 
     db_root_id tip_id;
 
-    if (meta_db().is_empty()) {
-	// Create a new genesis
-	auto id = blocks_db().new_root();
-	tip_.set_root_id_blocks(id);
-	id = heap_db().new_root();
-	tip_.set_root_id_heap(id);
-	id = closures_db().new_root();
-	tip_.set_root_id_closures(id);
-	id = symbols_db().new_root();
-	tip_.set_root_id_symbols(id);
-	id = program_db().new_root();
-	tip_.set_root_id_program(id);
-	id = meta_db().new_root();
-	tip_.set_root_id_meta(id);
-
-	const size_t custom_data_size = meta_entry::serialization_size();
-	uint8_t custom_data[custom_data_size];
-	tip_.write(custom_data);
-	meta_db().update(tip_.get_root_id_meta(),
-			 0, custom_data, custom_data_size);
-    } 
-
     // Read in meta records
     meta_entry best;
     for (size_t height = 0;;height++) {
@@ -126,10 +105,11 @@ void blockchain::init()
 	    entry.read(custom_data);
 	    entry.set_height(height);
 	    entry.set_root_id_meta(id);
-	    if (!entry.get_id().is_zero()) {   
+	    if (!entry.get_id().is_zero()) {
 		chains_.insert(std::make_pair(entry.get_id(), entry));
+		at_height_[entry.get_height()].insert(entry.get_id());
+		best = entry;
 	    }
-	    best = entry;
 	}
     }
 
@@ -157,6 +137,35 @@ void blockchain::init()
     }
 }
 
+static bool is_match(const meta_id &id, const uint8_t *prefix, size_t prefix_len) {
+    if (prefix_len > id.hash_size()) {
+	return false;
+    }
+    return memcmp(id.hash(), prefix, prefix_len) == 0;
+}
+
+std::set<meta_id> blockchain::find_entries(size_t height, const uint8_t *prefix, size_t prefix_len)
+{
+    std::set<meta_id> matched;
+    size_t NONE = std::numeric_limits<size_t>::max();
+    size_t h = height;
+    if (h == NONE) {
+	h = 0;
+    }
+    for (; !at_height_[h].empty(); h++) {
+	auto &ids = at_height_[h];
+	for (auto &id : ids) {
+	    if (is_match(id, prefix, prefix_len)) {
+		matched.insert(id);
+	    }
+	}
+	if (height != NONE) {
+	    break;
+	}
+    }
+    return matched;
+}
+
 void blockchain::flush_db() {
     blocks_db().flush();
     heap_db().flush();
@@ -166,23 +175,36 @@ void blockchain::flush_db() {
     meta_db().flush();
 }
 
-void blockchain::increment_height() {
+void blockchain::advance() {
     flush_db();
-    update_meta_id();
-    const size_t data_size = meta_entry::serialization_size();
-    uint8_t data[ data_size ];
-    tip().write(data);
-    meta_db().update(tip().get_root_id_meta(),
-		     tip().get_height(),
-		     data, data_size);
-    chains_.insert(std::make_pair(tip().get_id(), tip()));
 
-    auto next_meta = meta_db().new_root(tip().get_root_id_meta());
-    auto next_blocks = blocks_db().new_root(tip().get_root_id_blocks());
-    auto next_heap = heap_db().new_root(tip().get_root_id_heap());
-    auto next_closures = closures_db().new_root(tip().get_root_id_closures());
-    auto next_symbols = symbols_db().new_root(tip().get_root_id_symbols());
-    auto next_program = program_db().new_root(tip().get_root_id_program());
+    db::root_id next_meta;
+    db::root_id next_blocks;
+    db::root_id next_heap;
+    db::root_id next_closures;
+    db::root_id next_symbols;
+    db::root_id next_program;
+
+    bool genesis = false;
+    
+    if (tip().get_root_id_meta().is_zero()) {
+	next_meta = meta_db().new_root();
+	next_blocks = blocks_db().new_root();
+	next_heap = heap_db().new_root();
+	next_closures = closures_db().new_root();
+	next_symbols = symbols_db().new_root();
+	next_program = program_db().new_root();
+	genesis = true;
+    } else {
+	next_meta = meta_db().new_root(tip().get_root_id_meta());
+	next_blocks = blocks_db().new_root(tip().get_root_id_blocks());
+	next_heap = heap_db().new_root(tip().get_root_id_heap());
+	next_closures = closures_db().new_root(tip().get_root_id_closures());
+	next_symbols = symbols_db().new_root(tip().get_root_id_symbols());
+	next_program = program_db().new_root(tip().get_root_id_program());
+    }
+
+    size_t new_height = genesis ? 0 : tip().get_height() + 1;
 
     meta_entry new_tip(tip());
     meta_id new_id;
@@ -191,7 +213,7 @@ void blockchain::increment_height() {
     new_tip.set_previous_id(tip().get_id());
     new_tip.set_timestamp(utime::now());
     new_tip.set_nonce(0);
-    new_tip.set_height(tip().get_height()+1);
+    new_tip.set_height(new_height);
     new_tip.set_root_id_meta(next_meta);
     new_tip.set_root_id_blocks(next_blocks);
     new_tip.set_root_id_heap(next_heap);
@@ -200,12 +222,25 @@ void blockchain::increment_height() {
     new_tip.set_root_id_program(next_program);
 
     tip_ = new_tip;
+}
+	
+void blockchain::update_tip() {
+    update_meta_id();
 
-    // This won't have the right global id, but that's ok for now
+    auto find_it = chains_.find(tip().get_id());
+    if (find_it != chains_.end()) {
+	tip_ = find_it->second;
+	return;
+    }
+    
+    const size_t data_size = meta_entry::serialization_size();
+    uint8_t data[ data_size ];
     tip().write(data);
     meta_db().update(tip().get_root_id_meta(),
 		     tip().get_height(),
 		     data, data_size);
+    chains_.insert(std::make_pair(tip().get_id(), tip()));
+    at_height_[tip().get_height()].insert(tip().get_id());
 }
 
 }}

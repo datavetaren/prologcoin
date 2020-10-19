@@ -60,6 +60,14 @@ public:
     static bool funds_1(interpreter_base &interp, size_t arity, term args[]);
 
     // Commit to global state
+    static bool gstat_1(interpreter_base &interp, size_t arity, term args[]);
+    static bool chain_0(interpreter_base &interp, size_t arity, term args[]);
+    static bool chain_2(interpreter_base &interp, size_t arity, term args[]);
+    static bool chain_3(interpreter_base &interp, size_t arity, term args[]);
+    static bool advance_0(interpreter_base &interp, size_t arity, term args[]);
+    static bool discard_0(interpreter_base &interp, size_t arity, term args[]);
+    static bool switch_1(interpreter_base &interp, size_t arity, term args[]);
+
     static void preprocess_hashes(local_interpreter &interp, term t);
     static bool commit(local_interpreter &interp, buffer_t &buf, term t, bool naming);
     static bool commit_2(interpreter_base &interp, size_t arity, term args[]);

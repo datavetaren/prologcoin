@@ -220,6 +220,11 @@ public:
         { return T::get_heap().new_str0(functor); }
     inline term new_big(size_t nbits)
         { return T::get_heap().new_big(nbits); }
+    inline term new_big(const uint8_t *data, size_t num_bytes)
+        { auto b = T::get_heap().new_big(num_bytes*8);
+	  set_big(b, data, num_bytes);
+	  return b;
+	}
 
     inline void new_term_copy_cell(term t)
         { T::get_heap().new_cell0(t); }

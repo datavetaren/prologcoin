@@ -15,7 +15,14 @@ global_interpreter::global_interpreter(global &g)
       current_block_index_(static_cast<size_t>(-2)),
       current_block_(nullptr),
       block_flusher_(),
-      block_cache_(global::BLOCK_CACHE_SIZE / heap_block::MAX_SIZE / sizeof(cell), block_flusher_)
+      block_cache_(global::BLOCK_CACHE_SIZE / heap_block::MAX_SIZE / sizeof(cell), block_flusher_),
+      new_predicates_(0),
+      new_frozen_closures_(0),
+      old_heap_size_(0),
+      next_atom_id_(0),
+      start_next_atom_id_(0),
+      next_predicate_id_(0),
+      start_next_predicate_id_(0)
 {
 }
 
@@ -27,7 +34,7 @@ void global_interpreter::init()
     init_from_symbols_db();
     init_from_program_db();
 
-    setup_updated_predicate_function(updated_predicate);
+    setup_updated_predicate_function(updated_predicate_pre, updated_predicate_post);
     setup_load_predicate_function(load_predicate);
     setup_unique_predicate_id_function(unique_predicate_id);
     heap_setup_new_atom_function( call_new_atom, this );
@@ -42,6 +49,12 @@ void global_interpreter::init()
     setup_consensus_lib(*this);
 
     setup_builtins();
+
+    // Clear updated/old predicates (side effect for initializing interpreter)
+    updated_predicates_.clear();
+    old_predicates_.clear();
+    new_predicates_ = 0;
+    old_heap_size_ = heap_size();
 }
 
 void global_interpreter::total_reset()
@@ -63,11 +76,16 @@ void global_interpreter::total_reset()
     init();
 }
 
-void global_interpreter::updated_predicate(interpreter_base &interp, const interp::qname &qn) {
+void global_interpreter::updated_predicate_pre(interpreter_base &interp, const interp::qname &qn) {
     auto &gi = reinterpret_cast<global_interpreter &>(interp);
-    gi.updated_predicate(qn);
+    gi.updated_predicate_pre(qn);
 }
 
+void global_interpreter::updated_predicate_post(interpreter_base &interp, const interp::qname &qn) {
+    auto &gi = reinterpret_cast<global_interpreter &>(interp);
+    gi.updated_predicate_post(qn);
+}
+	
 void global_interpreter::load_predicate(interpreter_base &interp, const interp::qname &qn) {
     auto &gi = reinterpret_cast<global_interpreter &>(interp);
     gi.load_predicate(qn);
@@ -81,9 +99,29 @@ size_t global_interpreter::unique_predicate_id(interpreter_base &interp, const c
 void global_interpreter::load_predicate(const interp::qname &qn) {
     std::vector<term> clauses;
     if (get_global().db_get_predicate(qn, clauses)) {
-	auto &pred = get_predicate(qn);
+	auto *pred = internal_get_predicate(qn);
 	for (auto clause : clauses) {
-	    pred.add_clause(*this, clause);
+	    pred->add_clause(*this, clause);
+	}
+    } else {
+	// The predicate was not found, but maybe there's an inherited
+	// system predicate available? Of course, the global interpreter
+	// is not allowed to shadow system: predicates, but I'd like to keep
+	// that rule separate from the general infrastructure.
+	// Also note that this rule is quite different from standard Prolog
+	// which only import system predicates at "use_module(...)", but
+	// the global interpreter may have millions of predicates and we
+	// don't want to load them all into memory (only by demand) so that's
+	// why the rule is slightly different for the global interpreter.
+	// Think "use_module(system)" but applied lazily.
+	static const con_cell SYSTEM("system",0);
+	interp::qname imported_qn(SYSTEM, qn.second);
+	if (get_global().db_get_predicate(imported_qn, clauses)) {
+	    auto *pred = internal_get_predicate(qn);
+	    for (auto clause : clauses) {
+		pred->add_clause(*this, clause);
+	    }
+	    import_predicate(qn); // Here's the lazy rule
 	}
     }
 }
@@ -126,8 +164,7 @@ tx1(Hash,args(Signature,PubKey,PubKeyAddr)) :-
 
 reward(PubKeyAddr) :-
     reward(_, Coin),
-    tx(Coin, _, tx1, args(_,_,PubKeyAddr), _),
-    increment_height.
+    tx(Coin, _, tx1, args(_,_,PubKeyAddr), _).
 
 )PROG";
 
@@ -137,6 +174,10 @@ reward(PubKeyAddr) :-
         interp.load_program(lib);
 	auto &tx_5_verify = interp.get_predicate(con_cell("user",0), con_cell("tx",5));
 	assert(!tx_5_verify.empty());
+
+	// The non-existance of tx_5 means we've created a genesis block
+	// So we'll capture the state so it cannot be removed/discarded.
+        reinterpret_cast<global_interpreter &>(interp).get_global().advance();
     }
     interp.compile();
 }
@@ -175,17 +216,17 @@ bool global_interpreter::execute_goal(buffer_t &serialized)
 	}
 
 	if (!execute(goal)) {
-	    discard_changes();
+	    reset();
 	    return false;
 	}
 	serialized.clear();
 	ser.write(serialized, goal);
 	return true;
     } catch (serializer_exception &ex) {
-	discard_changes();
+	reset();
         throw ex;
     } catch (interpreter_exception &ex) {
-	discard_changes();
+	reset();
         throw ex;
     }
 }
@@ -199,6 +240,7 @@ void global_interpreter::execute_cut() {
 void global_interpreter::discard_changes() {
     // Discard program changes
     for (auto &qn : updated_predicates_) {
+	std::cout << "clear predicate " << to_string(qn) << std::endl;
 	clear_predicate(qn);
 	remove_compiled(qn);
     }
@@ -206,6 +248,9 @@ void global_interpreter::discard_changes() {
 
     // Restore old predictaes (if any)
     for (auto &p : old_predicates_) {
+	if (!p.empty()) {
+	    std::cout << "restore predicate " << to_string(p.qualified_name()) << std::endl;
+	}
 	restore_predicate(p);
     }
     old_predicates_.clear();
@@ -234,6 +279,9 @@ void global_interpreter::discard_changes() {
     // Reset symbol counters
     next_atom_id_ = start_next_atom_id_;
     next_predicate_id_ = start_next_predicate_id_;
+    new_predicates_ = 0;
+    trim_heap_safe(old_heap_size_);
+    get_stacks().reset(); // Clear trail and stacks
 }
     
 bool global_builtins::operator_clause_2(interpreter_base &interp0, size_t arity, term args[] )
@@ -263,6 +311,12 @@ void global_interpreter::setup_builtins()
 
 size_t global_interpreter::new_atom(const std::string &atom_name)
 {
+    // Let's see if this symbol is already known
+    auto index = get_global().db_get_symbol_index(atom_name);
+    if (index != 0) {
+	return index;
+    }
+    
     size_t atom_id = next_atom_id_;
     next_atom_id_++;
     set_atom_index(atom_name, atom_id);
@@ -288,22 +342,29 @@ term global_interpreter::get_frozen_closure(size_t addr)
 
 void global_interpreter::clear_frozen_closure(size_t addr)
 {
+    bool is_frozen = get_frozen_closure(addr) != EMPTY_LIST;
+    if (!is_frozen) {
+	return;
+    }
     internal_clear_frozen_closure(addr);
 
     // Check if frozen closure is in modified list, then remove it
     auto it = modified_closures_.find(addr);
     if (it != modified_closures_.end()) {
+	new_frozen_closures_--;
 	modified_closures_.erase(addr);
 	return;
     }
     // We need to remove it from the database, so we annotate for it
     modified_closures_[addr] = term();
+    new_frozen_closures_--;
 }
 
 void global_interpreter::set_frozen_closure(size_t addr, term closure)
 {
     internal_set_frozen_closure(addr, closure);
     modified_closures_[addr] = closure;
+    new_frozen_closures_++;
 }
 
 void global_interpreter::get_frozen_closures(size_t from_addr,
@@ -428,7 +489,19 @@ void global_interpreter::commit_closures()
     }
     modified_closures_.clear();
 }
-    
+
+size_t global_interpreter::num_predicates() {
+    return get_global().db_num_predicates() + new_predicates_;
+}
+
+size_t global_interpreter::num_symbols() {
+    return get_global().db_num_symbols() + new_atoms_.size();
+}
+
+size_t global_interpreter::num_frozen_closures() {
+    return get_global().db_num_frozen_closures() + new_frozen_closures_;
+}
+
 void global_interpreter::commit_heap()
 {
     std::vector<heap_block*> blocks;
@@ -444,6 +517,7 @@ void global_interpreter::commit_heap()
 	block_cache_.insert(block->index(), block);
     }
     modified_blocks_.clear();
+    old_heap_size_ = heap_size();
 }
 
 void global_interpreter::init_from_heap_db()
@@ -509,6 +583,8 @@ void global_interpreter::commit_program()
     }
 
     updated_predicates_.clear();
+    old_predicates_.clear();
+    new_predicates_ = 0;
 }
 
 }}

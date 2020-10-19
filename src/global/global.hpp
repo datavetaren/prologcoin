@@ -45,6 +45,9 @@ public:
 
     global(const std::string &data_dir);
 
+    // Reinitializes interpreter from a different state
+    bool set_tip(const meta_id &id);
+    
     void total_reset();
 
     void go_debug();
@@ -88,6 +91,14 @@ public:
     size_t current_height() const;
     void increment_height();
 
+    void advance() {
+	increment_height();
+    }
+
+    void discard() {
+	interp_->discard_changes();
+    }
+
     blockchain & get_blockchain() {
 	return blockchain_;
     }
@@ -122,7 +133,14 @@ public:
     //
 
     size_t db_num_symbols() {
+	if (blockchain_.symbols_db().is_empty()) {
+	    return 0;
+	}
 	return common::checked_cast<size_t>(blockchain_.symbols_db().num_entries(blockchain_.symbols_root())) / 2;
+    }
+
+    size_t num_symbols() {
+	return interp().num_symbols();
     }
 
     size_t db_symbol_entry_to_custom_data(uint8_t *buffer,
@@ -234,7 +252,25 @@ public:
     }
 
     size_t db_num_predicates() {
+	if (blockchain_.program_db().is_empty()) {
+	    return 0;
+	}
 	return common::checked_cast<size_t>(blockchain_.program_db().num_entries(blockchain_.program_root()));
+    }
+
+    size_t num_predicates() {
+	return interp().num_predicates();
+    }
+
+    size_t db_num_frozen_closures() {
+	if (blockchain_.closures_db().is_empty()) {
+	    return 0;
+	}
+	return common::checked_cast<size_t>(blockchain_.closures_db().num_entries(blockchain_.closures_root()));
+    }
+
+    size_t num_frozen_closures() {
+	return interp().num_frozen_closures();
     }
 
     bool db_get_predicate(const interp::qname &qn,

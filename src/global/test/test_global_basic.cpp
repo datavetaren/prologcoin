@@ -205,6 +205,8 @@ void setup_frozen_closures(std::vector<size_t> &all_frozen_closures)
     }
     std::cout << std::endl;
 #endif
+
+    g.advance();
 }
 
 static void test_global_frozen_closures()

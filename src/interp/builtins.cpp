@@ -1392,11 +1392,18 @@ bool builtins::retract(interpreter_base &interp, const std::string &pname, term 
 	msg << pname << ": Expected a structure or an atom; was " << interp.to_string(head);
         throw interpreter_exception_wrong_arg_type(msg.str());
     }
+
     con_cell p = interp.functor(head);
     auto qn = qname{module,p};
     auto &pred = interp.get_predicate(qn);
-    bool r = pred.remove_clauses(interp, head, all);
-    if (r) interp.add_updated_predicate(qn);
+    bool r = pred.matching_clauses(interp, head);
+    if (r) {
+	interp.add_updated_predicate_pre(qn);
+    }
+    pred.remove_clauses(interp, head, all);
+    if (r) {
+	interp.add_updated_predicate_post(qn);
+    }
     return r;
 }
 

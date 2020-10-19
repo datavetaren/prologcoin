@@ -71,7 +71,8 @@ void interpreter_base::init()
     locale_.total_reset();
     current_module_ = con_cell("system",0);
     persistent_password_ = false;
-    updated_predicate_fn_ = nullptr;
+    updated_predicate_pre_fn_ = nullptr;
+    updated_predicate_post_fn_ = nullptr;
     load_predicate_fn_ = &load_predicate_default;
     unique_predicate_id_fn_ = &unique_predicate_id_default;
 
@@ -428,6 +429,12 @@ void interpreter_base::load_clause(term t, clause_position pos)
 
     auto qn = std::make_pair(module, pn);
 
+    // Required so that global interpreter loads the predicate
+    // into memory.
+    get_predicate(qn);
+    
+    add_updated_predicate_pre(qn);
+    
     auto found = program_db_.find(qn);
     if (found == program_db_.end()) {
         program_db_[qn] = predicate(qn);
@@ -443,7 +450,7 @@ void interpreter_base::load_clause(term t, clause_position pos)
 	module_db_[module].push_back(qn);
     }
 
-    add_updated_predicate(qn);
+    add_updated_predicate_post(qn);
 
     set_code(qn, code_point(module, pn));
     
@@ -808,15 +815,18 @@ void interpreter_base::use_module(con_cell module_name)
 {
     auto &qnames = get_module(module_name);
 
-    auto module = current_module();
-    
     for (auto &qn : qnames) {
-        auto &cp = get_code(qn);
-        qname imported_qn(module, qn.second);
-	set_code(imported_qn, cp);
+	import_predicate(qn);
     }
 }
-    
+
+void interpreter_base::import_predicate(const qname &qn) {
+    auto module = current_module();
+    auto &cp = get_code(qn);
+    qname imported_qn(module, qn.second);
+    set_code(imported_qn, cp);
+}
+
 void interpreter_base::save_program(con_cell module, std::ostream &out)
 {
     std::unordered_set<qname> seen_predicates;

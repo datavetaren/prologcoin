@@ -18,7 +18,8 @@ public:
 
     void flush_db();
 
-    void increment_height();
+    void advance();
+    void update_tip();
 
     inline db::triedb & get_db_instance(std::unique_ptr<db::triedb> &var,
 					const std::string &dir) {
@@ -27,8 +28,6 @@ public:
         }
 	return *var.get();
     }
-
-    void update_meta_id();
 
     inline db::triedb & meta_db() {
         return get_db_instance(db_meta_, db_meta_dir_);
@@ -73,11 +72,54 @@ public:
 	return tip_;
     }
 
+    inline void set_tip(const meta_entry &e) {
+	tip_ = e;
+    }
+
+    std::set<meta_id> find_entries(size_t height, const uint8_t *prefix, size_t prefix_len);
+
+    inline const meta_entry * get_meta_entry(const meta_id &id) {
+	auto it = chains_.find(id);
+	if (it == chains_.end()) {
+	    return nullptr;
+	}
+	return &(it->second);
+    }
+
+    inline const meta_id & previous(const meta_id &id) {
+	static meta_id NONE;
+	auto e = get_meta_entry(id);
+	if (!e) {
+	    return NONE;
+	}
+	return e->get_previous_id();
+    }
+    
+    inline std::set<meta_id> follows(const meta_id &id) {
+	static std::set<meta_id> EMPTY_SET;
+	
+	auto entry = get_meta_entry(id);
+	if (entry == nullptr) {
+	    return EMPTY_SET;
+	}
+	std::set<meta_id> s;
+	for (auto next_id : at_height_[entry->get_height()+1]) {
+	    if (auto next = get_meta_entry(next_id)) {
+		if (next->get_previous_id() == id) {
+		    s.insert(next_id);
+		}
+	    }
+	}
+	return s;
+    }
+
     inline size_t num_symbols() {
 	return symbols_db().num_entries(tip().get_root_id_symbols());
     }
 
 private:
+    void update_meta_id();
+
     std::string data_dir_;
 
     std::string db_meta_dir_;
@@ -95,6 +137,7 @@ private:
     std::unique_ptr<db::triedb> db_program_;
 
     meta_entry tip_;
+    std::unordered_map<size_t, std::set<meta_id> > at_height_;
     std::unordered_map<meta_id, meta_entry> chains_;
 };
 

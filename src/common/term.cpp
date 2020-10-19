@@ -530,15 +530,17 @@ std::string heap::big_to_string(const boost::multiprecision::cpp_int &i, size_t 
     // when number of bits == 82 bytesto make it compatible with the common bitcoin
     // representations (i.e. we expect a leading '1' when the leading 6+ bits
     // are zero)
-    if ((base == 16 || base == 58)) {
-        size_t numeric_nbits = msb(val) + 1;
-	if (nbits > numeric_nbits && nbits - numeric_nbits >= 6) {
-            maxval <<= (nbits-1);
+    if (!val.is_zero()) {
+	if ((base == 16 || base == 58)) {
+	    size_t numeric_nbits = msb(val) + 1;
+	    if (nbits > numeric_nbits && nbits - numeric_nbits >= 6) {
+		maxval <<= (nbits-1);
+	    } else {
+		maxval = val;
+	    }
 	} else {
 	    maxval = val;
 	}
-    } else {
-	maxval = val;
     }
 
     while (maxval) {
