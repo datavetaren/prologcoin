@@ -87,7 +87,6 @@ void interpreter_base::init()
     restore_state_fn_ = &restore_state;
     standard_output_ = nullptr;
     prepare_execution();
-    new_roots_ = false;
 
     // These will be loaded into the system module
     builtins::load(*this);
@@ -106,6 +105,7 @@ void interpreter_base::init()
        register_ai_[i] = term(0);
     }
     maximum_cost_ = std::numeric_limits<uint64_t>::max();
+    heap_limit();
 }
 
 interpreter_base::~interpreter_base()
@@ -167,7 +167,6 @@ void interpreter_base::reset()
     if (!persistent_password_) {
         clear_password();
     }
-    new_roots_ = false;
 }
 
 std::string code_point::to_string(const interpreter_base &interp) const
@@ -184,7 +183,12 @@ std::string code_point::to_string(const interpreter_base &interp) const
 	    s += interp.to_string(module());
 	    s += ":";
         }
-	s += interp.to_string(term_code());
+	auto t = term_code();
+	s += interp.to_string(t);
+	if (t.tag() == common::tag_t::CON) {
+	    auto &c = reinterpret_cast<con_cell &>(t);
+	    s += "/" + boost::lexical_cast<std::string>(c.arity());
+	}
 	return s;
     }
 }
@@ -453,8 +457,8 @@ void interpreter_base::load_clause(term t, clause_position pos)
     add_updated_predicate_post(qn);
 
     set_code(qn, code_point(module, pn));
-    
-    new_roots();
+
+    heap_limit();
 }
 
 void interpreter_base::load_builtin(const qname &qn, builtin b)
@@ -729,7 +733,6 @@ void interpreter_base::prepare_execution()
     register_top_e_ = register_e_;
     set_register_hb(heap_size());
     register_p_.reset();
-    new_roots_ = false;
 }
 
 
@@ -788,7 +791,7 @@ choice_point_t * interpreter_base::reset_to_choice_point(choice_point_t *b)
     set_e(ch->ce);
     set_cp(ch->cp);
     unwind(ch->tr);
-    trim_heap_unsafe(ch->h);
+    trim_heap_safe(ch->h);
     set_b0(ch->b0);
     set_register_hb(heap_size());
     

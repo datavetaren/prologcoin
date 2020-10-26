@@ -304,8 +304,7 @@ public:
 
 class heap_index_out_of_range_exception : public term_exception {
 public:
-    heap_index_out_of_range_exception(size_t index, size_t max_sz)
-	: term_exception( std::string("Heap index ") + boost::lexical_cast<std::string>(index) + " exceeded " + boost::lexical_cast<std::string>(max_sz == 0 ? 0 : max_sz-1)) { }
+    heap_index_out_of_range_exception(size_t index, size_t max_sz);
 };
 
 class expected_con_cell_exception : public term_exception {

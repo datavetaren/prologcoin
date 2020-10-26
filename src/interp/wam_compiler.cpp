@@ -1511,7 +1511,9 @@ void wam_compiler::compile_goal(const term goal, bool first_goal,
     }
 
     common::con_cell module = current_module();
+
     auto f = env_.functor(goal);
+    
     if (f == colon) {
 	module = env_.functor(env_.arg(goal, 0));
 	f = env_.functor(env_.arg(goal, 1));
@@ -1546,7 +1548,7 @@ void wam_compiler::peephole_opt_execute(wam_interim_code &seq)
 	    // Memorize CALL and extract predicate (saved as 'f')
 	    wam_instruction<CALL> *call_instr
 	       = reinterpret_cast<wam_instruction<CALL> *>(*it_0);
-	    auto &f = call_instr->p();
+	    auto f = call_instr->p();
 	    delete *it_0;
 	    delete *it_1;
 	    delete *it_2;
@@ -1562,7 +1564,7 @@ void wam_compiler::peephole_opt_execute(wam_interim_code &seq)
 	    // Memorize CALL and extract predicate (saved as 'f')
 	    wam_instruction<CALL> *call_instr
 	       = reinterpret_cast<wam_instruction<CALL> *>(*it_0);
-	    auto &f = call_instr->p();
+	    auto f = call_instr->p();
 	    delete *it_0;
 	    delete *it_1;
 

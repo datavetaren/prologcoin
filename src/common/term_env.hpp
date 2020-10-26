@@ -874,20 +874,27 @@ public:
       std::vector<term> touched;
       std::map<term, size_t> count_occurrences;
       std::unordered_set<term> seen;
+      std::unordered_set<std::string> used_names;
       stacks_dock<ST>::temp_clear();
       stacks_dock<ST>::temp_push(t0);
 
       while(stacks_dock<ST>::temp_size() > 0) {
-	auto t = stacks_dock<ST>::temp_pop();
+	auto t = heap_dock<HT>::deref(stacks_dock<ST>::temp_pop());
+	if (t.tag().is_ref()) {
+	  if (!this->has_name(t)) {
+	      ++count_occurrences[t];
+	  } else {
+	      used_names.insert(get_name(t));
+	  }
+	  continue;
+	}
+
 	if(seen.find(t) != seen.end()) {
 	  continue;
 	}
 	seen.insert(t);
-	if (t.tag().is_ref()) {
-	  if (!this->has_name(t)) {
-	    ++count_occurrences[t];
-	  }
-	} else if(t.tag() == tag_t::STR) {
+	
+	if(t.tag() == tag_t::STR) {
 	  auto f = heap_dock<HT>::functor(t);
 	  auto num_args = f.arity();
 	  for (size_t i = 0; i < num_args; i++) {
@@ -904,8 +911,16 @@ public:
 	  if (v.second == 1) {
 	      set_name(v.first, "_");
 	  } else { // v.second > 1
-	      std::string name = "G_" + boost::lexical_cast<std::string>(
-						 named_var_count);
+	      // Try to use friendly names A, B, C, D, ...
+	      std::string name;
+	      if (named_var_count < 26) {
+		  name = ('A' + named_var_count);
+		  if (used_names.count(name)) {
+		      name = "G_" + boost::lexical_cast<std::string>(named_var_count);
+		  }
+	      } else {
+		  name = "G_" + boost::lexical_cast<std::string>(named_var_count);
+	      }
 	      named_var_count++;
 	      set_name(v.first, name);
 	  }

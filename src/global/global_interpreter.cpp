@@ -257,7 +257,7 @@ void global_interpreter::discard_changes() {
 
     // Tell that no program changes have occurred so that
     // heap can be properly trimmed.
-    no_new_roots();
+    heap_limit(old_heap_size_);
 
     // Unwind everything on heap (unbind variables, etc.)
     reset();

@@ -218,7 +218,7 @@ bool interpreter::execute(const term query)
     if (!is_persistent_password() && num_instances() == 0 && !has_more()) {
         clear_password();
     }
-
+    
     return b;
 }
 
@@ -549,7 +549,7 @@ void interpreter::dispatch()
 	}
 	if (e0() == top_e()) {
 	    if (is_debug()) {
-	        std::cout << "interpreter::dispatch: pop: e=top: p_is_wam=" << p().has_wam_code() << std::endl;
+	        std::cout << "interpreter::dispatch: pop: e=top: p_is_wam=" << p().has_wam_code() << " num_of_args=" << num_of_args() << std::endl;
 
 	    }
   	    if (!p().has_wam_code() && p().term_code() == interpreter_base::EMPTY_LIST) {

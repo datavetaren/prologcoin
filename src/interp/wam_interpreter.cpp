@@ -26,8 +26,24 @@ size_t wam_code::add(const wam_instruction_base &i)
 	auto f = cp_instr->cp().name();
 	calls_[std::make_pair(module,f)].push_back(offset);
     }
-    
     return sz;
+}
+
+void wam_code::remove_compiled(const qname &qn) 
+{
+    auto it = predicate_map_.find(qn);
+    if (it != predicate_map_.end()) {
+	auto meta_data = it->second;
+	predicate_map_.erase(qn);
+	predicate_rev_map_.erase(meta_data.code_offset);
+	
+	auto &offsets = calls_[qn];
+	for (auto offset : offsets) {
+	    auto *cp_instr = reinterpret_cast<wam_instruction_code_point *>(to_code(offset));
+	    cp_instr->cp().set_wam_code(nullptr);
+	    cp_instr->cp().set_qn(qn);
+	}
+    }
 }
 
 void wam_code::print_code(std::ostream &out)
@@ -70,6 +86,43 @@ wam_interpreter::~wam_interpreter()
     delete compiler_;
     for (auto m : hash_maps_) {
 	delete m;
+    }
+}
+
+std::string wam_interpreter::to_string(const code_point &cp) const
+{
+    using namespace common;
+	
+    if (cp.has_wam_code()) {
+	size_t offset = to_code_addr(cp.wam_code());
+	std::string str = "[" + boost::lexical_cast<std::string>(offset) + "]";
+	auto &t = cp.term_code();
+	if (t.tag() == tag_t::CON || t.tag() == tag_t::STR) {
+	    str += " (" + to_string(t);
+	    size_t arity = 0;
+	    if (t.tag() == tag_t::CON) {
+		arity = reinterpret_cast<const con_cell &>(t).arity();
+	    } else {
+		assert(t.tag() == tag_t::STR);
+		auto f = functor(t);
+		if (f == COLON) {
+		    term rh = arg(t, 1);
+		    if (rh.tag() == tag_t::CON) {
+			arity = reinterpret_cast<const con_cell &>(rh).arity();
+		    }
+		}
+	    }
+	    str += "/" + boost::lexical_cast<std::string>(arity) + ")";
+	} else if (t.tag() == tag_t::INT) {
+	    // Ignore integers. It can be used for certain WAM instructions
+	    // to indicate label entry points.
+	} else {
+	    str += " ??? tag=" + boost::lexical_cast<std::string>(t.tag());
+	    str += " (" + to_string(t) + ")";
+	}
+	return str;
+    } else {
+	return interpreter_base::to_string_cp(cp);
     }
 }
 
@@ -231,6 +284,7 @@ void wam_interpreter::load_code(wam_interim_code &instrs)
     std::unordered_map<size_t, size_t> label_map;
     size_t first_offset = next_offset();
     size_t offset = first_offset;
+    
     // Collect labels
     for (auto *instr : instrs) {
 	if (wam_compiler::is_label_instruction(instr)) {

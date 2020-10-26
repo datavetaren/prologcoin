@@ -442,21 +442,7 @@ public:
 	return is_compiled(std::make_pair(module,p));
     }
 
-    inline void remove_compiled(const qname &pn)
-    {
-	auto it = predicate_map_.find(pn);
-	if (it != predicate_map_.end()) {
-	    auto meta_data = it->second;
-	    predicate_map_.erase(pn);
-	    predicate_rev_map_.erase(meta_data.code_offset);
-
-	    auto &offsets = calls_[pn];
-	    for (auto offset : offsets) {
-		auto *cp_instr = reinterpret_cast<wam_instruction_code_point *>(to_code(offset));
-		cp_instr->cp().set_wam_code(nullptr);
-	    }
-	}
-    }
+    void remove_compiled(const qname &pn);
 
     struct predicate_meta_data {
         inline predicate_meta_data(size_t off, size_t num_x, size_t num_y)
@@ -705,15 +691,7 @@ public:
 	return interpreter_base::to_string(t, opt);
     }
 
-    inline std::string to_string(const code_point &cp) const
-    {
-	if (cp.has_wam_code()) {
-	    size_t offset = to_code_addr(cp.wam_code());
-	    return "[" + boost::lexical_cast<std::string>(offset) + "]";
-	} else {
-	    return interpreter_base::to_string_cp(cp);
-	}
-    }
+    std::string to_string(const code_point &cp) const;
 
     void compile();
     void compile(const qname &pred);
@@ -782,7 +760,6 @@ private:
 	auto meta_data = wami->get_wam_predicate_meta_data(qn);
 	size_t num_x = meta_data.num_x_registers;
 	size_t num_a = qn.second.arity();
-	  
 	auto ef = interp->ef();
 	ef->extra[0] = int_cell(num_x);
 	for (size_t i = 0; i < num_x; i++) {
@@ -1556,7 +1533,7 @@ private:
 	b()->bp = p_else;
 	unwind_trail(b()->tr, trail_size());
 	trim_trail(b()->tr);
-	trim_heap_unsafe(b()->h);
+	trim_heap_safe(b()->h);
 	set_register_hb(heap_size());
     }
 
@@ -1570,7 +1547,7 @@ private:
 	set_cp(b()->cp);
 	unwind_trail(b()->tr, trail_size());
 	trim_trail(b()->tr);
-	trim_heap_unsafe(b()->h);
+	trim_heap_safe(b()->h);
         set_b(b()->b);
 	if (b() != nullptr) {
 	    set_register_hb(b()->h);

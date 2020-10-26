@@ -10,6 +10,10 @@ namespace prologcoin { namespace common {
 size_t heap::id_counter_ = 0;
 #endif
 
+heap_index_out_of_range_exception::heap_index_out_of_range_exception(size_t index, size_t max_sz) : term_exception( std::string("Heap index ") + boost::lexical_cast<std::string>(index) + " exceeded " + boost::lexical_cast<std::string>(max_sz == 0 ? 0 : max_sz-1)) {
+    
+}
+	
 // extern "C" { void DebugBreak(); }
     
 coin_security_exception::coin_security_exception() 

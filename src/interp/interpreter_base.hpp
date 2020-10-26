@@ -395,6 +395,11 @@ public:
     }
     inline void set_term_code(const common::term t) { term_code_ = t; }
 
+    inline void set_qn(const qname &qn) {
+	module_ = qn.first;
+	term_code_ = qn.second;
+    }
+
     std::string to_string(const interpreter_base &interp) const;
 
 private:
@@ -1501,6 +1506,7 @@ protected:
 
         switch (e_kind()) {
 	case ENV_FROZEN: {
+	    std::cout << "deallocate_environemnt: ENV_FROZEN" << std::endl;
   	    restore_state_fn_(this);
 	    environment_frozen_t *ef1 = ef();
 	    set_cp(ef1->cp);
@@ -1960,27 +1966,37 @@ protected:
    	     size_t addr = p.first;
 	     clear_frozen_closure(addr);
 	}
+	// Never shrink the heap beyond the limiter.
+	// The limiter is set as the "safe point." For example,
+	// when program DB is loaded with new clauses, we need to
+	// ensure the heap never trims away that code, so every
+	// time the program DB is modified we need to bump up the
+	// heap limiter. The heap limiter can be trimmed at next
+	// next garbage collection cycle.
+	// size_t orig_size = new_size;
+	if (new_size < heap_limiter_) {
+	    new_size = heap_limiter_;
+	}
+	// std::cout << "trim_heap: new_size=" << new_size << " requested=" << orig_size << " limit=" << heap_limiter_ << std::endl;
         term_env::trim_heap(new_size);
     }
 
-    inline void trim_heap_unsafe(size_t new_size) {
-        // Only trim if we haven't meddled with the program database
-        if (!new_roots_) {
-	    trim_heap_safe(new_size);
-	}
-    }
-
-    inline void new_roots() {
-        new_roots_ = true;
-    }
-
-    inline void no_new_roots() {
-	new_roots_ = false;
-    }   
-  
     void check_frozen();
+
+    void heap_limit() {
+	heap_limiter_ = heap_size();
+    }
+
+    size_t get_heap_limit() const {
+	return heap_limiter_;
+    }
+    
+    void heap_limit(size_t heap_sz) {
+	heap_limiter_ = heap_sz;
+    }
+
 private:
-    bool new_roots_;
+    size_t heap_limiter_;
 };
 
 inline void predicate::add_clause(interpreter_base &interp, common::term clause0, clause_position pos)  {

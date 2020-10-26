@@ -1340,7 +1340,7 @@ bool builtins::password_2(interpreter_base &interp, size_t arity, common::term a
 
     interp.set_persistent_password(is_pers);
 
-    interp.new_roots();
+    interp.heap_limit();
 
     return true;
 }
