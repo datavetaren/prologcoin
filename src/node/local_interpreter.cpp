@@ -329,6 +329,7 @@ bool me_builtins::send_2(interpreter_base &interp0, size_t arity, term args[] )
 bool me_builtins::initial_funds_1(interpreter_base &interp0, size_t arity, term args[] )
 {
     auto &interp = to_local(interp0);
+    interp0.set_debug(true);
     term arg = args[0];
     if (arg.tag() == tag_t::INT) {
 	uint64_t val = static_cast<uint64_t>(reinterpret_cast<int_cell &>(arg).value());
@@ -386,6 +387,21 @@ bool me_builtins::funds_1(interpreter_base &interp0, size_t arity, term args[] )
     term arg = args[0];
     auto funds = static_cast<int64_t>(int_cell::saturate(interp.session().available_funds()));
     return interp.unify(arg, int_cell(funds));
+}
+
+bool me_builtins::nolimit_0(interpreter_base &interp0, size_t arity, term args[] ) {
+    auto &interp = to_local(interp0);
+    auto maxing_it = std::numeric_limits<uint64_t>::max();
+    interp.self().set_maximum_funds(maxing_it);
+    interp.self().set_new_funds_per_second(maxing_it);
+    return true;
+}
+
+bool me_builtins::drop_global_0(interpreter_base &interp0, size_t arity, term args[]) {
+    auto &interp = to_local(interp0);
+    auto &g = interp.self().global();
+    g.total_reset();
+    return true;
 }
 
 bool me_builtins::gstat_1(interpreter_base &interp0, size_t arity, term args[]) {
@@ -929,6 +945,7 @@ bool me_builtins::global_1(interpreter_base &interp0, size_t arity, term args[] 
     // assert(g.is_clean());
 
     term t1 = ser.read(buf);
+    
     return interp.unify(t, t1);
 }
 
@@ -937,9 +954,9 @@ local_interpreter::local_interpreter(in_session_state &session)
 {
     // Redirect standard output (standard std::cout) to an internal
     // stringstream.
-    auto &fs = new_file_stream("<stdout>");
-    fs.open(standard_output_);
-    tell_standard_output(fs);
+    auto fs = new file_stream(*this, 0, "<stdout>");
+    fs->open(standard_output_);
+    tell_standard_output(*fs);
 }
 
 self_node & local_interpreter::self()
@@ -1014,8 +1031,10 @@ void local_interpreter::setup_local_builtins()
     load_builtin(ME, functor("initial_funds",1), &me_builtins::initial_funds_1);
     load_builtin(ME, functor("new_funds_per_second",1), &me_builtins::new_funds_per_second_1);
     load_builtin(ME, con_cell("funds",1), &me_builtins::funds_1);
+    load_builtin(ME, con_cell("nolimit",0), &me_builtins::nolimit_0);
 
     // Control global interpreter
+    load_builtin(ME, functor("drop_global", 0), &me_builtins::drop_global_0);
     // gstat/0/1: Status of global interpreter
     load_builtin(ME, con_cell("gstat", 0), &me_builtins::gstat_1);
     load_builtin(ME, con_cell("gstat", 1), &me_builtins::gstat_1);

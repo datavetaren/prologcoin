@@ -17,6 +17,7 @@
 #include "arithmetics.hpp"
 #include "locale.hpp"
 #include "source_element.hpp"
+#include "interpreter_exception.hpp"
 
 extern "C" void frotz();
 
@@ -173,144 +174,6 @@ namespace std {
 }
 
 namespace prologcoin { namespace interp {
-
-// Syntax exceptions...
-
-// Interpreter exceptions...
-
-class interpreter_exception : public std::runtime_error
-{
-public:
-    interpreter_exception(const std::string &msg)
-	: std::runtime_error(msg) { }
-};
-
-class syntax_exception : public interpreter_exception
-{
-public:
-    syntax_exception(const common::term &t, const std::string &msg)
-	: interpreter_exception(msg), term_(t) { }
-    ~syntax_exception() noexcept(true) { }
-
-    const common::term & get_term() const { return term_; }
-
-private:
-    common::term term_;
-};
-
-class syntax_exception_program_not_a_list : public syntax_exception
-{
-public:
-    syntax_exception_program_not_a_list(const common::term &t)
-	: syntax_exception(t, "Program is not a list") { }
-};
-
-class syntax_exception_not_a_clause : public syntax_exception
-{
-public:
-    syntax_exception_not_a_clause(const common::term &t)
-	: syntax_exception(t, "Not a clause") { }
-};
-
-class syntax_exception_clause_bad_head : public syntax_exception
-{
-public:
-    syntax_exception_clause_bad_head(const common::term &t, const std::string &msg)
-	: syntax_exception(t, msg) { }
-
-};
-
-class syntax_exception_bad_goal : public syntax_exception
-{
-public:
-    syntax_exception_bad_goal(const common::term &t, const std::string &msg)
-	: syntax_exception(t, msg) { }
-};
-
-class interpreter_exception_out_of_funds : public interpreter_exception
-{
-public:
-    interpreter_exception_out_of_funds(const std::string &msg)
-	: interpreter_exception(msg) { }
-};
-
-class interpreter_exception_stack_overflow : public interpreter_exception
-{
-public:
-    interpreter_exception_stack_overflow(const std::string &msg)
-	: interpreter_exception(msg) { }
-};
-
-class interpreter_exception_undefined_predicate : public interpreter_exception
-{
-public:
-    interpreter_exception_undefined_predicate(const std::string &msg)
-	: interpreter_exception(msg) { }
-};
-
-class interpreter_exception_wrong_arg_type : public interpreter_exception
-{
-public:
-      interpreter_exception_wrong_arg_type(const std::string &msg)
-	  : interpreter_exception(msg) { }
-};
-
-class interpreter_exception_missing_arg : public interpreter_exception 
-{
-public:
-      interpreter_exception_missing_arg(const std::string &msg)
-	  : interpreter_exception(msg) { }    
-};
-
-class interpreter_exception_file_not_found : public interpreter_exception
-{
-public:
-      interpreter_exception_file_not_found(const std::string &msg)
-	: interpreter_exception(msg) { }
-};
-
-class interpreter_exception_nothing_told : public interpreter_exception
-{
-public:
-    interpreter_exception_nothing_told(const std::string &msg)
-	: interpreter_exception(msg) { }
-};
-
-class interpreter_exception_argument_not_number : public interpreter_exception
-{
-public:
-    interpreter_exception_argument_not_number(const std::string &msg)
-	: interpreter_exception(msg) { }
-};
-
-class interpreter_exception_not_sufficiently_instantiated : public interpreter_exception
-{
-public:
-    interpreter_exception_not_sufficiently_instantiated(const std::string &msg)
-	: interpreter_exception(msg) { }
-};
-
-class interpreter_exception_not_list : public interpreter_exception
-{
-public:
-    interpreter_exception_not_list(const std::string &msg)
-	: interpreter_exception(msg) { }
-};
-
-class interpreter_exception_unsupported : public interpreter_exception
-{
-public:
-    interpreter_exception_unsupported(const std::string &msg)
-	: interpreter_exception(msg) { }
-};
-
-class interpreter_exception_undefined_function : public interpreter_exception
-{
-public:
-    interpreter_exception_undefined_function(const std::string &msg)
-	: interpreter_exception(msg) { }
-};
-
 class wam_instruction_base;
 
 // Contemplated this be a union, but it's better to ensure
@@ -947,6 +810,21 @@ public:
 	    return pred;
 	}
 
+    virtual size_t num_predicates() const
+    {
+	return program_db_.size();
+    }
+
+    inline size_t num_clauses() const
+    {
+	size_t n = 0;
+	for (auto &p : program_db_) {
+	    auto &predicate = p.second;
+	    n += predicate.clauses().size();
+	}
+	return n;
+    }
+
     inline void restore_predicate(const predicate &p)
     {
 	const qname &qn = p.qualified_name();
@@ -1056,14 +934,9 @@ public:
 			       
     inline builtin & get_builtin(const qname &qn)
     {
-	return get_builtin(qn.first, qn.second);
-    }
-
-    inline builtin & get_builtin(con_cell module, con_cell f)
-    {
 	static builtin empty_bn_;
 
-        auto it = builtins_.find(std::make_pair(module, f));
+        auto it = builtins_.find(qn);
         if (it == builtins_.end()) {
 	    return empty_bn_;
         } else {
@@ -1072,10 +945,7 @@ public:
     }
 
     inline bool is_builtin(const qname &qn) const
-        { return is_builtin(qn.first, qn.second); }
-
-    inline bool is_builtin(con_cell module, con_cell f) const
-        { return builtins_.find(std::make_pair(module, f)) != builtins_.end();}
+    { return builtins_.find(qn) != builtins_.end(); }
 
     inline uint64_t accumulated_cost() const
         { return accumulated_cost_; }
@@ -1092,11 +962,14 @@ public:
 
     inline bool can_unify(term a, term b) {
         using namespace prologcoin::common;
+	size_t old_hb = get_register_hb();
+	set_register_hb(heap_size());
 	size_t current_tr = trail_size();
 	bool r = unify(a, b);
 	if (r) {
 	    unwind(current_tr);
 	}
+	set_register_hb(old_hb);
 	return r;
     }
 
@@ -1324,7 +1197,7 @@ protected:
     inline void cut_direct()
     {
 	set_b(b0());
-	if (b() != nullptr) set_register_hb(b()->h);
+	set_register_hb((b() != nullptr) ? b()->h : top_hb());
 	tidy_trail();
     }
     inline void cut()
@@ -1443,6 +1316,26 @@ protected:
         register_top_b_ = b;
     }
 
+    inline size_t top_hb() const
+    {
+	return register_top_hb_;
+    }
+
+    inline void set_top_hb(size_t hb)
+    {
+	register_top_hb_ = hb;
+    }
+
+    inline size_t top_tr() const
+    {
+	return register_top_tr_;
+    }
+
+    inline void set_top_tr(size_t tr)
+    {
+	register_top_tr_ = tr;
+    }
+
     inline meta_context * m() const { return register_m_; }
     inline void set_m(meta_context *m) { register_m_ = m; }
 
@@ -1497,6 +1390,26 @@ protected:
 
 	return new_s;
     }
+
+    inline size_t program_stack_size() {
+	word_t *new_s;
+
+	// Is the meta context on top?
+	if (base(m()) > base(e0()) && base(m()) > base(b())) {
+	    new_s = base(m()) + m()->size_in_words;
+	} else if (base(e0()) > base(b())) {
+	    auto n = words<term>()*(num_y_fn()(this, true)) + words<environment_base_t>();
+	    new_s = base(e0()) + n;
+	} else {
+	    if (b() == nullptr) {
+	        new_s = stack_;
+  	    } else {
+	        new_s = base(b()) + words<term>()*b()->arity + words<choice_point_t>();
+	    }
+	}
+
+	return (new_s - stack_)*sizeof(word_t);
+    }
   
     template<environment_kind_t K, typename T = typename env_type_from_kind<K>::type> T allocate_environment();
 
@@ -1506,7 +1419,6 @@ protected:
 
         switch (e_kind()) {
 	case ENV_FROZEN: {
-	    std::cout << "deallocate_environemnt: ENV_FROZEN" << std::endl;
   	    restore_state_fn_(this);
 	    environment_frozen_t *ef1 = ef();
 	    set_cp(ef1->cp);
@@ -1692,7 +1604,7 @@ protected:
 	  }
         }
 
-protected:
+public:
     file_stream & new_file_stream(const std::string &path);
     void close_file_stream(size_t id);
     file_stream & get_file_stream(size_t id);
@@ -1702,12 +1614,14 @@ protected:
     bool has_told_standard_outputs();
     void load_builtins_file_io();
 
+protected:
+    void tidy_trail();
+    
 private:
     void load_builtin(const qname &qn, builtin b);
     void load_builtins();
 
     void init();
-    void tidy_trail();
 
     inline choice_point_t * get_last_choice_point()
     {
@@ -1764,6 +1678,8 @@ private:
     choice_point_t *register_b_;
     choice_point_t *register_b0_;
     choice_point_t *register_top_b_;
+    size_t register_top_hb_;
+    size_t register_top_tr_;    
 
     // This is for recursive invocation of the interpreter. These meta
     // frames are stored on stack (like environments and choice points.)
@@ -1883,6 +1799,10 @@ protected:
 	}
     }
 
+    inline size_t internal_num_frozen_closures() const {
+	return frozen_closures_.size();
+    }
+
     virtual void set_frozen_closure(size_t index, term closure) {
 	internal_set_frozen_closure(index, closure);
         frozen_closures_.insert(std::make_pair(index, closure));
@@ -1901,6 +1821,10 @@ protected:
 	return it->second;
     }
 
+    virtual size_t num_frozen_closures() const {
+	return internal_num_frozen_closures();
+    }
+
     virtual void get_frozen_closures(size_t from_addr, size_t to_addr,
 				     size_t max_closures,
 			  std::vector<std::pair<size_t, term> > &closures)
@@ -1912,6 +1836,10 @@ protected:
 	    auto it_end = frozen_closures_.rend();
 	    size_t k = max_closures;
 	    while (k > 0 && it != it_end) {
+		auto heap_address = it->first;
+		if (heap_address < to_addr) {
+		    break;
+		}
 		closures.push_back(*it);
 		k--;
 		++it;

@@ -28,6 +28,72 @@ namespace prologcoin { namespace interp {
 	return get_int(args[0]) * get_int(args[1]);
     }
 
+    term arithmetics_fn::div0_2(interpreter_base &interp, term *args)
+    {
+	auto a = get_int(args[0]);
+	auto b = get_int(args[1]);
+	if (b.is_zero()) {
+	    throw interpreter_exception_division_by_zero(
+			"// /2: attempt to divide by zero");
+	}
+	auto s = a.sign()*b.sign();
+	auto v = a.abs()/b.abs();
+	return int_cell(s*v);
+    }
+
+    term arithmetics_fn::div_2(interpreter_base &interp, term *args) {
+	auto b = get_int(args[1]);
+	if (b.is_zero()) {
+	    throw interpreter_exception_division_by_zero(
+			"div/2: attempt to divide by zero");
+	}
+	auto d = get_int(div0_2(interp, args));
+	auto r = get_int(rem_2(interp, args));
+	if (r.is_negative()) {
+	    --d;
+	}
+	return d;
+    }
+
+    term arithmetics_fn::rem_2(interpreter_base &interp, term *args)
+    {
+	auto a = get_int(args[0]);
+	auto b = get_int(args[1]);
+	if (b.is_zero()) {
+	    throw interpreter_exception_division_by_zero(
+			"rem/2: attempt to divide by zero");
+	}
+	auto r = int_cell((a.abs().value() % b.abs().value()))*a.sign();
+	return int_cell(r);
+    }
+	
+    term arithmetics_fn::mod_2(interpreter_base &interp, term *args)
+    {
+	auto a = get_int(args[0]);
+	auto b = get_int(args[1]);
+	if (b.is_zero()) {
+	    throw interpreter_exception_division_by_zero(
+			"mod/2: attempt to divide by zero");
+	}
+	if (a.is_negative()) {
+	    if (b.is_negative()) {
+		return rem_2(interp, args);
+	    } else {
+		auto r = get_int(rem_2(interp, args));
+		if (r.is_zero()) return r;
+		return r + b;
+	    }
+	} else {
+	    if (b.is_negative()) {
+		auto r = get_int(rem_2(interp, args));
+		if (r.is_zero()) return r;
+		return r + b;
+	    } else {
+		return rem_2(interp, args);
+	    }
+	}
+    }
+
     void arithmetics::total_reset() {
 	fn_map_.clear();
 	args_.clear();
@@ -48,6 +114,10 @@ namespace prologcoin { namespace interp {
         load_fn("+", 2, &arithmetics_fn::plus_2);
         load_fn("-", 2, &arithmetics_fn::minus_2);
         load_fn("*", 2, &arithmetics_fn::times_2);
+	load_fn("mod", 2, &arithmetics_fn::mod_2);
+	load_fn("rem", 2, &arithmetics_fn::rem_2);
+	load_fn("div", 2, &arithmetics_fn::div_2);
+	load_fn("//", 2, &arithmetics_fn::div0_2);
     }
 
     void arithmetics::unload()

@@ -820,9 +820,10 @@ private:
 	}
     }
 
+protected:
     inline void tidy_trail()
     {
-        size_t i = (b() != nullptr) ? b()->tr: 0;
+        size_t i = (b() != nullptr) ? b()->tr : top_tr();
 	size_t tr = trail_size();
 	size_t bb = to_stack_addr(base(b()));
 
@@ -838,6 +839,7 @@ private:
 	trim_trail(tr);
     }
 
+private:
     inline void unwind_trail(size_t a1, size_t a2)
     {
         unwind_frozen_closures(a1, a2);
@@ -1459,8 +1461,8 @@ private:
 
     inline void execute(code_point &p1, size_t arity)
     {
-        set_num_of_args(arity);
 	set_b0(b());
+        set_num_of_args(arity);
 	set_p(p1);
     }
 
@@ -1549,9 +1551,7 @@ private:
 	trim_trail(b()->tr);
 	trim_heap_safe(b()->h);
         set_b(b()->b);
-	if (b() != nullptr) {
-	    set_register_hb(b()->h);
-	}
+	set_register_hb((b() != nullptr) ? b()->h : top_hb());
     }
 
     inline void try_me_else(code_point &L)
@@ -1665,6 +1665,7 @@ private:
     {
         if (b() > b0()) {
 	    set_b(b0());
+	    set_register_hb((b() != nullptr) ? b()->h : top_hb());
 	    tidy_trail();
 	}
 	goto_next_instruction();
@@ -1682,7 +1683,7 @@ private:
 	     to_stack(reinterpret_cast<common::int_cell &>(y(yn)).value()));
 	if (b() > b0) {
 	    set_b(b0);
-	    if (b() != nullptr) set_register_hb(b()->h);
+	    set_register_hb((b() != nullptr) ? b()->h : top_hb());	    
 	    tidy_trail();
 	}
 	goto_next_instruction();

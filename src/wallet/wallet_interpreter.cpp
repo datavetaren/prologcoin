@@ -16,6 +16,7 @@ wallet_interpreter::wallet_interpreter(wallet &w, const std::string &wallet_file
 
 void wallet_interpreter::init()
 {
+    set_debug_enabled();
     load_builtins_file_io();
     ec::builtins::load(*this);
     coin::builtins::load(*this);

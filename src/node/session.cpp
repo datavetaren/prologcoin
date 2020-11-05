@@ -94,11 +94,17 @@ void in_session_state::local_reset()
 
 void in_session_state::add_funds(uint64_t dfunds)
 {
-    available_funds_ += dfunds;
-    auto max_funds = self().get_maximum_funds();
-    if (available_funds_ > max_funds) {
-	available_funds_ = max_funds;
+    size_t max_funds = self().get_maximum_funds();
+    if (max_funds == std::numeric_limits<uint64_t>::max()) {
+	available_funds_ = max_funds;	
+	return;
     }
+    size_t limit = max_funds - dfunds;
+    if (available_funds_ >= limit) {
+	available_funds_ = max_funds;
+	return;
+    }
+    available_funds_ += dfunds;
 }
 
 void in_session_state::heartbeat()
@@ -110,8 +116,13 @@ void in_session_state::heartbeat()
 	dt = max_dt;
     }
     auto sec = dt / 1000000;
-    auto new_funds = self().new_funds_per_second() * sec;
-
+    auto new_funds_per_sec = self().new_funds_per_second();
+    uint64_t new_funds = 0;
+    if (new_funds_per_sec != std::numeric_limits<uint64_t>::max()) {
+	new_funds = self().new_funds_per_second() * sec;
+    } else {
+	new_funds = std::numeric_limits<uint64_t>::max();
+    }
     add_funds(new_funds);
 
     heartbeat_ = utime::now();

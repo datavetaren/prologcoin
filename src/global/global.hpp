@@ -251,7 +251,7 @@ public:
 	return true;
     }
 
-    size_t db_num_predicates() {
+    size_t db_num_predicates() const {
 	if (blockchain_.program_db().is_empty()) {
 	    return 0;
 	}
@@ -262,7 +262,7 @@ public:
 	return interp().num_predicates();
     }
 
-    size_t db_num_frozen_closures() {
+    size_t db_num_frozen_closures() const {
 	if (blockchain_.closures_db().is_empty()) {
 	    return 0;
 	}

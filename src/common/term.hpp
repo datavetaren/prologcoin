@@ -524,6 +524,11 @@ public:
 	return *this;
     }
 
+    inline int_cell & operator -- () {
+	set_value(value() - 1);
+	return *this;
+    }    
+
     inline int_cell operator - (const int_cell other ) const {
 	return bin_op( std::minus<T>(), *this, other );
     }
@@ -562,6 +567,30 @@ public:
 
     inline bool operator <= (const int_cell &other) const {
 	return value() <= other.value();
+    }
+
+    inline int_cell negate() const {
+	return int_cell(saturate(-value()));
+    }
+
+    inline int_cell abs() const {
+        if (is_negative()) {
+	    return int_cell(saturate(-value()));
+	} else {
+	    return *this;
+	}
+    }
+
+    inline int_cell sign() const {
+	return is_negative() ? int_cell(-1) : int_cell(1);
+    }
+    
+    inline bool is_negative() const {
+	return value() < 0;
+    }
+
+    inline bool is_zero() const {
+	return value() == 0;
     }
 
     static inline const int_cell max() {
@@ -1447,10 +1476,7 @@ public:
 	// This is a simple way of returning new identifiers for atoms
 	// but it is not deterministic. For the global Prolog interpreter
 	// we need to query the database.
-	size_t new_index = h.atom_name_to_index_table_.size();
-	h.atom_name_to_index_table_[name] = new_index;
-	h.atom_index_to_name_table_[new_index] = name;
-	return new_index;
+	return h.atom_name_to_index_table_.size();
     }
 
     inline void set_atom_index(const std::string &name, size_t index)

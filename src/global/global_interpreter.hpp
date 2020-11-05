@@ -50,6 +50,7 @@ public:
     void total_reset();
 
     global & get_global() { return global_; }
+    const global & get_global() const { return global_; }
 
     void init_from_heap_db();
     void init_from_symbols_db();  
@@ -61,9 +62,9 @@ public:
     void commit_program();
     void commit_closures();
 
-    size_t num_predicates();
+    virtual size_t num_predicates() const override;
     size_t num_symbols();
-    size_t num_frozen_closures();
+    virtual size_t num_frozen_closures() const override;
 
     static void updated_predicate_pre(interpreter_base &interp, const interp::qname &qn);
     static void updated_predicate_post(interpreter_base &interp, const interp::qname &qn);    

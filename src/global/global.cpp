@@ -45,6 +45,7 @@ void global::total_reset() {
     erase_db(data_dir_);
     blockchain_.init();
     interp_ = std::unique_ptr<global_interpreter>(new global_interpreter(*this));
+    interp_->init();
 }
 
 bool global::db_get_predicate(const qname &qn,

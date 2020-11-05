@@ -14,6 +14,8 @@ term_serializer::~term_serializer()
 
 void term_serializer::write(buffer_t &bytes, const term t)
 {
+    term_index_.clear();
+    
     write_all_header(bytes, t);
 
     size_t offset = bytes.size();
@@ -78,7 +80,7 @@ void term_serializer::write_all_header(buffer_t &bytes,const term t)
         switch (t1.tag()) {
         case tag_t::CON: case tag_t::STR: {
             con_cell f = env_.functor(t1);
-            if (!f.is_direct() && !is_indexed(f)) {
+            if (!f.is_direct() && !is_indexed(f.to_atom())) {
                 std::string name = env_.atom_name(f);
                 write_con_cell(bytes, bytes.size(), f);
                 write_encoded_string(bytes, name);
@@ -205,6 +207,9 @@ term term_serializer::read(const buffer_t &bytes, size_t n,
 			   size_t &old_header_size,
 			   size_t &new_header_size)
 {
+    term_index_.clear();
+    new_to_old_.clear();
+    
     std::vector<size_t> ptr_terms;
     std::map<size_t, size_t> old_new_index;
 
@@ -253,10 +258,10 @@ term term_serializer::read(const buffer_t &bytes, size_t n,
 	    if (con.is_direct()) {
 	      new_index = env_.new_cell0(c);
 	    } else {
-		if (!is_indexed(c)) {
-		    throw serializer_exception_missing_index(c);
+		if (!is_indexed(con.to_atom())) {
+		    throw serializer_exception_missing_index(con.to_atom());
 		}
-		auto newcon = con_cell(index_term(c,0), con.arity());
+		auto newcon = con_cell(index_term(con.to_atom(),0), con.arity());
 		new_index  = env_.new_cell0(newcon);
 		new_to_old_[newcon] = c;
 	    }
@@ -407,7 +412,10 @@ void term_serializer::read_index(const buffer_t &bytes, size_t &offset, cell c)
 
     switch (c.tag()) {
     case tag_t::CON:
-	index_term(c, env_.resolve_atom_index(name));
+	{
+	auto &cc = reinterpret_cast<con_cell &>(c);
+	index_term(cc.to_atom(), env_.resolve_atom_index(name));
+	}
 	break;
     case tag_t::REF: {
 	auto t = env_.new_ref();

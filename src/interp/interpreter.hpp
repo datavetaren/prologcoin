@@ -281,6 +281,13 @@ public:
     inline bool is_wam_enabled() const
     { return wam_enabled_; }
 
+    inline bool is_auto_wam() const
+    { return auto_wam_; }
+
+    // Auto compile to WAM if not compiled
+    inline void set_auto_wam(bool enabled)
+    { auto_wam_ = enabled; }
+
     std::string get_result(bool newlines = true) const;
     term get_result_term(const std::string &varname) const;
     term get_result_term() const;
@@ -299,6 +306,7 @@ protected:
     }
   
 private:
+    static bool compile_0(interpreter_base &interp, size_t arity, common::term args[]);    
     static bool consult_1(interpreter_base &interp, size_t arity, common::term args[]);
   
     static bool new_instance_meta(interpreter_base &interp, const meta_reason_t &reason);
@@ -322,9 +330,11 @@ private:
         { query_vars_ = qv; }
 
     bool wam_enabled_;
+    bool auto_wam_;
     std::vector<binding> *query_vars_;
     size_t num_instances_;
     bool retain_state_between_queries_;
+    std::vector<size_t> last_hb_;
 
     friend struct new_instance_context;
     friend class test_wam_interpreter;

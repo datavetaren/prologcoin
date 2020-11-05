@@ -4,8 +4,24 @@
 #define _interp_arithmetics_hpp
 
 #include "../common/term.hpp"
+#include "interpreter_exception.hpp"
 
 namespace prologcoin { namespace interp {
+
+class arithmetic_exception : public interpreter_exception 
+{
+public:
+    arithmetic_exception(const std::string &msg)
+	  : interpreter_exception(msg) { }    
+};
+
+class interpreter_exception_division_by_zero : public arithmetic_exception
+{
+public:
+    interpreter_exception_division_by_zero(const std::string &msg)
+	: arithmetic_exception(msg) { }
+};
+	
     class interpreter_base;
 
     class arithmetics_fn {
@@ -13,6 +29,10 @@ namespace prologcoin { namespace interp {
 	static common::term plus_2(interpreter_base &interp, common::term *args);
 	static common::term minus_2(interpreter_base &interp, common::term *args);
 	static common::term times_2(interpreter_base &interp, common::term *args);
+	static common::term mod_2(interpreter_base &interp, common::term *args);
+	static common::term rem_2(interpreter_base &interp, common::term *args);
+	static common::term div0_2(interpreter_base &interp, common::term *args);
+	static common::term div_2(interpreter_base &interp, common::term *args);			
     private:
 	static common::int_cell get_int(const common::term &t);
     };

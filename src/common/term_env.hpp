@@ -330,7 +330,7 @@ public:
 	temp_trail_.clear();
 	register_hb_ = 0;
     }
-    
+
 private:
     std::vector<term> stack_;
     std::vector<size_t> trail_;
@@ -385,6 +385,26 @@ public:
 	    push_trail(index);
 	}
       }
+  inline void tidy_trail(size_t from, size_t to)
+  {
+      size_t i = from;
+      auto hb = T::get_register_hb();
+      while (i < to) {
+   	  if (trail_get(i) < hb) {
+   	      // This variable recording happened before the choice point.
+	      // We can't touch it.
+	      i++;
+          } else {
+	      // Remove this trail point, move one trail point we haven't
+	      // visited to this location.
+  	      trail_set(i, trail_get(to-1));
+	      to--;
+          }
+      }
+
+      // We're done. Trim the trail to the new end
+      trim_trail(to);
+  }
 
   inline size_t temp_size()
      { return T::get_temp().size(); }
@@ -605,26 +625,6 @@ public:
 	  size_t index = stacks_dock<ST>::trail_get(i);
           heap_dock<HT>::heap_set(index, ref_cell(index));
       }
-  }
-
-  inline void tidy_trail(size_t from, size_t to)
-  {
-      size_t i = from;
-      while (i < to) {
-   	  if (stacks_dock<ST>::trail_get(i) < stacks_dock<ST>::get_register_hb()) {
-   	      // This variable recording happened before the choice point.
-	      // We can't touch it.
-	      i++;
-          } else {
-	      // Remove this trail point, move one trail point we haven't
-	      // visited to this location.
-  	      stacks_dock<ST>::trail_set(i, stacks_dock<ST>::trail_get(to-1));
-	      to--;
-          }
-      }
-
-      // We're done. Trim the trail to the new end
-      stacks_dock<ST>::trim_trail(to);
   }
 
   inline void clear_trail() {

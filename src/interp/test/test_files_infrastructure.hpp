@@ -84,6 +84,8 @@ static inline void process_meta(interpreter &interp, std::string &comments,
 	    interp.set_debug(false);
 	} else if (cmd == "debug enabled") {
 	    interp.set_debug_enabled();
+	} else if (cmd == "stdlib") {
+	    interp.setup_standard_lib();
 	} else if (cmd == "fileio on") {
 	    interp.enable_file_io();
 	} else if (cmd == "WAM-only") {

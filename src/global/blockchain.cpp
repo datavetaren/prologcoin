@@ -82,6 +82,17 @@ void blockchain::update_meta_id()
 
 void blockchain::init()
 {
+    db_meta_ = nullptr;
+    db_blocks_ = nullptr;
+    db_heap_ = nullptr;
+    db_closures_ = nullptr;
+    db_symbols_ = nullptr;
+    db_program_ = nullptr;
+    
+    tip_ = meta_entry();
+    at_height_.clear();
+    chains_.clear();
+    
     // We let the tip be a simple txt file to make it easy to edit and check
 
     db_root_id tip_id;

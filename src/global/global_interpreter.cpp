@@ -24,6 +24,7 @@ global_interpreter::global_interpreter(global &g)
       next_predicate_id_(0),
       start_next_predicate_id_(0)
 {
+    set_auto_wam(true);
 }
 
 void global_interpreter::init()
@@ -43,8 +44,9 @@ void global_interpreter::init()
     setup_standard_lib();
     set_retain_state_between_queries(true);
 
-    // TODO: Remove this
+    // TODO: Remove this two lines
     load_builtins_file_io();
+    set_debug_enabled();
 
     setup_consensus_lib(*this);
 
@@ -184,6 +186,11 @@ reward(PubKeyAddr) :-
   
 bool global_interpreter::execute_goal(term t) {
     bool r = execute(t);
+    // If no choicepoints, then clean up the trail
+    if (!has_more()) {
+	set_register_hb(0);
+	tidy_trail();
+    }
     return r;
 }
 
@@ -193,7 +200,7 @@ bool global_interpreter::execute_goal(buffer_t &serialized)
 
     try {
         term goal = ser.read(serialized);
-
+	
 	if (naming_) {
 	    std::unordered_set<std::string> seen;
 	    // Scan all vars in goal, and set initial bindings
@@ -215,7 +222,7 @@ bool global_interpreter::execute_goal(buffer_t &serialized)
 		   } );
 	}
 
-	if (!execute(goal)) {
+	if (!execute_goal(goal)) {
 	    reset();
 	    return false;
 	}
@@ -316,7 +323,7 @@ size_t global_interpreter::new_atom(const std::string &atom_name)
     if (index != 0) {
 	return index;
     }
-    
+
     size_t atom_id = next_atom_id_;
     next_atom_id_++;
     set_atom_index(atom_name, atom_id);
@@ -388,8 +395,14 @@ void global_interpreter::get_frozen_closures(size_t from_addr,
     size_t last_addr = from_addr;
     while (!it1.at_end() && k > 0) {
 	auto &leaf = *it1;
-	if (leaf.key() >= to_addr) {
-	    break;
+	if (reversed) {
+	    if (leaf.key() < to_addr) {
+		break;
+	    }
+	} else {
+	    if (leaf.key() >= to_addr) {
+		break;
+	    }
 	}
 	prev_last_addr = last_addr;
 	last_addr = leaf.key();
@@ -441,6 +454,9 @@ void global_interpreter::get_frozen_closures(size_t from_addr,
 	// At this point we check modified closures from last_addr
 	auto mod = modified_closures_.lower_bound(last_addr);
 	while (mod != modified_closures_.end() && k > 0) {
+	    if (mod->first >= to_addr) {
+		break;
+	    }
 	    if (mod->second != none) {
 		closures.push_back(*mod);
 		k--;
@@ -451,11 +467,12 @@ void global_interpreter::get_frozen_closures(size_t from_addr,
 	auto mod0 = modified_closures_.lower_bound(last_addr-1);
 	std::map<size_t, term>::reverse_iterator mod(mod0);
 	while (mod != modified_closures_.rend() && k > 0) {
-	    if (mod->first < last_addr) {
-		if (mod->second != none) {
-		    closures.push_back(*mod);
-		    k--;
-		}
+	    if (mod->first < to_addr) {
+		break;
+	    }
+	    if (mod->second != none) {
+		closures.push_back(*mod);
+		k--;
 	    }
 	    ++mod;
 	}
@@ -488,9 +505,10 @@ void global_interpreter::commit_closures()
 	}
     }
     modified_closures_.clear();
+    new_frozen_closures_ = 0;
 }
 
-size_t global_interpreter::num_predicates() {
+size_t global_interpreter::num_predicates() const {
     return get_global().db_num_predicates() + new_predicates_;
 }
 
@@ -498,7 +516,7 @@ size_t global_interpreter::num_symbols() {
     return get_global().db_num_symbols() + new_atoms_.size();
 }
 
-size_t global_interpreter::num_frozen_closures() {
+size_t global_interpreter::num_frozen_closures() const {
     return get_global().db_num_frozen_closures() + new_frozen_closures_;
 }
 
@@ -578,7 +596,7 @@ void global_interpreter::commit_program()
 	std::vector<term> clauses;
 	for (auto &mc : mclauses) {
 	    clauses.push_back(mc.clause());
-	} 
+	}
 	get_global().db_set_predicate(qn, clauses);
     }
 

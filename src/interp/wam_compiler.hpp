@@ -427,19 +427,9 @@ private:
         return interp_.is_builtin(qn);
     }
 
-    inline bool is_builtin(common::con_cell module, common::con_cell f) const
-    {
-	return interp_.is_builtin(module, f);
-    }
-
     inline builtin & get_builtin(const qname &qn) const
     {
         return interp_.get_builtin(qn);
-    }
-
-    inline builtin & get_builtin(common::con_cell module, common::con_cell f) const
-    {
-	return interp_.get_builtin(module, f);
     }
 
     void compile_query_ref(reg lhsreg, common::ref_cell rhsvar,

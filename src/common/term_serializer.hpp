@@ -270,7 +270,8 @@ private:
         { if (c.is_direct()) {
 	      write_cell(bytes, offset, c);
 	  } else {
-	      write_cell(bytes, offset, remapped_term(c, cell_count(offset)));
+	      auto remap = remapped_term(c, cell_count(offset));
+	      write_cell(bytes, offset, remap);
 	  }
 	}
 
@@ -298,7 +299,8 @@ private:
 		if (f.is_direct()) {
 		    return t;
 		} else {
-		    return con_cell(index_term(f, cell_index), f.arity());
+		    auto cc = con_cell(index_term(f.to_atom(), cell_index), f.arity());
+		    return cc;
 		}
 	        }
 	    case tag_t::INT: return t;

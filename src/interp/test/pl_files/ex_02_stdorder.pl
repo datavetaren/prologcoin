@@ -7,6 +7,9 @@ lt(A, B, C) :- A @< B, C = 1.
 ?- lt(10, 20, Q1).
 % Expect: Q1 = 1
 
+?- lt(-10, 20, Q1B).
+% Expect: Q1B = 1
+
 ?- lt(10, foo, Q2).
 % Expect: Q2 = 1
 
@@ -34,6 +37,9 @@ gt(A, B, C) :- A @> B, C = 1.
 ?- gt(20, 10, Q8).
 % Expect: Q8 = 1
 
+?- gt(20, -10, Q8B).
+% Expect: Q8B = 1    
+
 ?- gt(foo, 10, Q9).
 % Expect: Q9 = 1
 
@@ -57,6 +63,9 @@ le(A, B, C) :- A @=< B, C = 1.
 
 ?- le(10, 20, Q14).
 % Expect: Q14 = 1
+
+?- le(-10, 20, Q14B).
+% Expect: Q14B = 1
 
 ?- le(foo, foo, Q15).
 % Expect: Q15 = 1
@@ -87,6 +96,9 @@ ge(A, B, C) :- A @>= B, C = 1.
 
 ?- ge(20, 10, Q22).
 % Expect: Q22 = 1
+
+?- ge(10, -20, Q22B).
+% Expect: Q22B = 1    
 
 ?- ge(foo, 10, Q23).
 % Expect: Q23 = 1
@@ -120,6 +132,9 @@ eq(A, B, C) :- A == B, C = 1.
 
 ?- eq(A, A, Q31).
 % Expect: Q31 = 1
+
+?- eq(-1, -1, Q31B).
+% Expect: Q31B = 1    
 
 % ----------------------------------------------------
 %  Standard term order \== (not equals)

@@ -22,7 +22,7 @@ public:
     void update_tip();
 
     inline db::triedb & get_db_instance(std::unique_ptr<db::triedb> &var,
-					const std::string &dir) {
+					const std::string &dir) const {
         if (var.get() == nullptr) {
 	    var = std::unique_ptr<db::triedb>(new db::triedb(dir));
         }
@@ -41,12 +41,19 @@ public:
     inline db::triedb & closures_db() {
         return get_db_instance(db_closures_, db_closures_dir_);
     }
+    inline const db::triedb & closures_db() const {
+        return get_db_instance(db_closures_, db_closures_dir_);
+    }    
     inline db::triedb & symbols_db() {
         return get_db_instance(db_symbols_, db_symbols_dir_);      
     }
+
     inline db::triedb & program_db() {
         return get_db_instance(db_program_, db_program_dir_);
     }
+    inline const db::triedb & program_db() const {
+        return get_db_instance(db_program_, db_program_dir_);
+    }    
 
     inline db_root_id heap_root() const {
 	return tip_.get_root_id_heap();
@@ -129,12 +136,12 @@ private:
     std::string db_symbols_dir_;  
     std::string db_program_dir_;
 
-    std::unique_ptr<db::triedb> db_meta_;
-    std::unique_ptr<db::triedb> db_blocks_;
-    std::unique_ptr<db::triedb> db_heap_;
-    std::unique_ptr<db::triedb> db_closures_;
-    std::unique_ptr<db::triedb> db_symbols_;
-    std::unique_ptr<db::triedb> db_program_;
+    mutable std::unique_ptr<db::triedb> db_meta_;
+    mutable std::unique_ptr<db::triedb> db_blocks_;
+    mutable std::unique_ptr<db::triedb> db_heap_;
+    mutable std::unique_ptr<db::triedb> db_closures_;
+    mutable std::unique_ptr<db::triedb> db_symbols_;
+    mutable std::unique_ptr<db::triedb> db_program_;
 
     meta_entry tip_;
     std::unordered_map<size_t, std::set<meta_id> > at_height_;

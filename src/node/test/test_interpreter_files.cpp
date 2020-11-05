@@ -56,6 +56,7 @@ int main( int argc, char *argv[] )
     auto state = node.new_in_session(nullptr, true);
     auto &interp = state->interp();
     interp.ensure_initialized();
+    interp.told_standard_output(); // Use normal std::cout as output
 
     test_interpreter_files(dir, interp, [](const std::string &){return false;}, name);
 

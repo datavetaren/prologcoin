@@ -7,6 +7,7 @@ namespace prologcoin { namespace interp {
 interpreter::interpreter() 
 {
     wam_enabled_ = true;
+    auto_wam_ = false;
     query_vars_ = nullptr;
     num_instances_ = 0;
     retain_state_between_queries_ = false;
@@ -81,7 +82,7 @@ last([X|Xs],Last) :- last(Xs,Last).
 %
 
 length(Xs, N) :- '$length'(Xs,N,0).
-'$length'([], N, N).
+'$length'([], N, N) :- !.
 '$length'([_|Xs], N, I) :- I1 is I + 1, '$length'(Xs, N, I1).
 
 )PROG";
@@ -99,6 +100,7 @@ length(Xs, N) :- '$length'(Xs,N,0).
 	assert(!member_2_verify.empty());
     }
     load_builtin(con_cell("consult", 1), consult_1);
+    load_builtin(con_cell("compile", 0), compile_0);
     compile();
     set_current_module(con_cell("user",0));
     use_module(con_cell("system",0));
@@ -112,6 +114,8 @@ struct new_instance_context : public meta_context {
 	  old_num_of_args(reinterpret_cast<interpreter &>(i).num_of_args()),
 	  old_top_fail(reinterpret_cast<interpreter &>(i).is_top_fail()),
 	  old_complete(reinterpret_cast<interpreter &>(i).is_complete()),
+	  old_top_hb(i.top_hb()),
+	  old_top_tr(i.top_tr()),
 	  old_query_vars(reinterpret_cast<interpreter &>(i).query_vars_ptr())
     {
 	memcpy(&old_ai[0], i.args(), sizeof(common::term)*i.num_of_args());
@@ -122,6 +126,8 @@ struct new_instance_context : public meta_context {
     size_t old_num_of_args;
     bool old_top_fail;
     bool old_complete;
+    size_t old_top_hb;
+    size_t old_top_tr;
     std::vector<interpreter::binding> *old_query_vars;
     common::term old_ai[interpreter_base::MAX_ARGS];
 };
@@ -155,6 +161,8 @@ bool interpreter::new_instance_meta(interpreter_base &interp0, const meta_reason
 	interp.set_num_of_args(context->old_num_of_args);
 	interp.set_top_fail(context->old_top_fail);
 	interp.set_complete(context->old_complete);
+	interp.set_top_hb(context->old_top_hb);
+	interp.set_top_tr(context->old_top_tr);
 	memcpy(interp.args(), &context->old_ai[0], sizeof(common::term)*interp.num_of_args());
 	interp.release_last_meta_context();
     }
@@ -247,6 +255,8 @@ bool interpreter::cont()
 		}
 	    }
 	}
+	set_register_hb((b() != nullptr) ? b()->h : top_hb());
+	tidy_trail();
     } catch (std::runtime_error &) {
         reset();
 	throw;
@@ -368,7 +378,7 @@ void interpreter::fail()
 	    }
 	    if (!ok) {
 		set_b(ch->b);
-		if (b() != nullptr) set_register_hb(b()->h);
+		set_register_hb((b() != nullptr) ? b()->h : top_hb());
 	    }
 	}
     }
@@ -416,6 +426,7 @@ bool interpreter::unify_args(term head, const code_point &p)
 	}
 	
 	set_register_hb(old_register_hb);
+	term_env::tidy_trail(start_trail, trail_size());
 
 	return !fail;
     }
@@ -655,14 +666,16 @@ void interpreter::dispatch()
 
     bool is_updated = has_updated_predicates() && is_updated_predicate(qn);
     
-    if (is_wam_enabled() && code.has_wam_code()) {
-        // If the predicate has been updated, then may need to recompile it
-        if (is_updated) {
+    if (is_wam_enabled()) {
+	if (!code.has_wam_code() && is_auto_wam()) {
+	    compile(qn);
+	} else if (is_updated) {
    	    recompile_if_needed(qn);
         }
-      
-        dispatch_wam(code.wam_code());
-	return;
+	if (code.has_wam_code()) {
+	    dispatch_wam(code.wam_code());
+	    return;
+	}
     }
 
     auto first_arg = get_first_arg();
@@ -676,7 +689,7 @@ void interpreter::dispatch()
 	}
 
 	msg << atom_name(f) << "/" << f.arity();
-	abort(interpreter_exception_undefined_predicate(msg.str()));
+	throw interpreter_exception_undefined_predicate(msg.str());
 	return;
     }
 
@@ -803,6 +816,13 @@ void interpreter::print_result(std::ostream &out) const
     out << get_result();
 }
 
+bool interpreter::compile_0(interpreter_base &interp0, size_t arity, common::term args[])
+{
+    auto &interp = reinterpret_cast<interpreter &>(interp0);
+    interp.compile();
+    return true;
+}
+
 bool interpreter::consult_1(interpreter_base &interp0, size_t arity, common::term args[])
 {
     using namespace prologcoin::common;
@@ -819,7 +839,7 @@ bool interpreter::consult_1(interpreter_base &interp0, size_t arity, common::ter
         throw interpreter_exception_wrong_arg_type("Atom or string expected; was " + interp.to_string(args[0]));
     }
 
-    std::ifstream infile(filename + ".pl");
+    std::ifstream infile(interp.get_full_path(filename + ".pl"));
     if (!infile.good()) {
 	throw interpreter_exception_file_not_found("Couldn't open file '" + filename + "'");
     }

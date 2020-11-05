@@ -58,8 +58,10 @@ public:
     static bool maximum_funds_1(interpreter_base &interp, size_t arity, term args[]);
     static bool new_funds_per_second_1(interpreter_base &interp, size_t arity, term args[]);
     static bool funds_1(interpreter_base &interp, size_t arity, term args[]);
+    static bool nolimit_0(interpreter_base &interp, size_t arity, term args[]);
 
     // Commit to global state
+    static bool drop_global_0(interpreter_base &interp, size_t arity, term args[]);
     static bool gstat_1(interpreter_base &interp, size_t arity, term args[]);
     static bool chain_0(interpreter_base &interp, size_t arity, term args[]);
     static bool chain_2(interpreter_base &interp, size_t arity, term args[]);

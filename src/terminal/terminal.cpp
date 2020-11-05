@@ -231,37 +231,60 @@ term terminal::read_reply()
     }
 
     auto &ic = reinterpret_cast<int_cell &>(c);
-    if (ic.value() < static_cast<int>(sizeof(cell))) {
-	std::stringstream ss;
-	ss << "Length of reply too small (" << ic.value() << " < "
-	   << sizeof(cell) << std::endl;
-	add_error(ss.str());
-	return term();
-    }
-
-    if (ic.value() > static_cast<int>(MAX_BUFFER_SIZE)) {
-	std::stringstream ss;
-	ss << "Length of reply too big (" << ic.value() << " > " << MAX_BUFFER_SIZE;
-	add_error(ss.str());
-	return term();
-    }
-
     n = ic.value();
+
+    std::string err;
+    
+    if (n < static_cast<int>(sizeof(cell))) {
+	std::stringstream ss;
+	ss << "Length of reply too small (" << n << " < "
+	   << sizeof(cell) << ")";
+	err = ss.str();
+    }
+
+    if (n > static_cast<int>(MAX_BUFFER_SIZE)) {
+	std::stringstream ss;
+	ss << "Length of reply too big (" << ic.value() << " > " << MAX_BUFFER_SIZE << ")";
+	err = ss.str();
+    }
+
+    size_t bufsize = n;
+    if (n > MAX_BUFFER_SIZE) {
+	bufsize = n;
+    }
+    
     off = 0;
+    buffer_.resize(bufsize);
 
-    buffer_.resize(n);
-
-    while (off < n) {
+    size_t to_read = n;
+    
+    while (to_read > 0) {
 	boost::system::error_code ec;
+	size_t n1 = n;
+	if (!err.empty()) {
+	    n1 = MAX_BUFFER_SIZE;
+	}
 	size_t r = socket_.read_some(boost::asio::buffer(&buffer_[off],
-						 n - off), ec);
+						 n1 - off), ec);
 	if (ec) {
+	    if (!err.empty()) {
+		add_error(err);
+	    }
 	    std::stringstream ss;
 	    ss << "Error while reading: " << ec.message();
 	    add_error(ss.str());
 	    return term();
+	} else {
+	    to_read -= r;
 	}
-	off += r;
+	if (err.empty()) {
+	    off += r;
+	}
+    }
+
+    if (!err.empty()) {
+	add_error(err);
+	return term();
     }
 
     term t = ser.read(buffer_);

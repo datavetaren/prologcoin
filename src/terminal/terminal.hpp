@@ -44,7 +44,9 @@ private:
     using term_serializer = common::term_serializer;
 
 public:
-    static const size_t MAX_BUFFER_SIZE = 65536;
+    // Maximum buffer is 16 MB
+    static const size_t MAX_BUFFER_SIZE = 16*1024*1024;
+    static const size_t TOO_BIG_REPLY = 10*MAX_BUFFER_SIZE;
     static const unsigned short DEFAULT_PORT = 8783;
   
     terminal(unsigned short port, const std::string &addr = "127.0.0.1");

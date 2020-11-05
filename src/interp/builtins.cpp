@@ -40,6 +40,67 @@ bool builtins::debug_check_0(interpreter_base &interp, size_t arity, common::ter
 }	
 
 //
+// program_state/0
+//
+bool builtins::program_state_0(interpreter_base &interp, size_t arity, common::term args[]) {
+    std::cout << "Heap size       : " << interp.heap_size() << std::endl;
+    std::cout << "Program stack   : " << interp.program_stack_size() << std::endl;
+    std::cout << "Stack size      : " << interp.stack_size() << std::endl;
+    std::cout << "Trail size      : " << interp.trail_size() << std::endl;
+    std::cout << "Temp size       : " << interp.temp_size() << std::endl;
+    std::cout << "Temp trail size : " << interp.temp_trail_size() << std::endl;
+    std::cout << "Frozen          : " << interp.num_frozen_closures() << std::endl;
+    std::cout << "Num predicates  : " << interp.num_predicates() << std::endl;
+    std::cout << "Num clauses     : " << interp.num_clauses() << std::endl;
+    std::cout << "Heap base       : " << interp.get_register_hb() << std::endl;
+    std::cout << "Top base        : " << interp.top_hb() << std::endl;
+    if (interp.b() != nullptr) {
+	std::cout << "Choice point    : " << interp.to_stack_relative_addr(reinterpret_cast<word_t *>(interp.b())) << std::endl;
+    } else {
+	std::cout << "Choice point    : nullptr" << std::endl;
+    }
+    if (interp.b0() != nullptr) {
+	std::cout << "Choice point 0  : " << interp.to_stack_relative_addr(reinterpret_cast<word_t *>(interp.b0())) << std::endl;
+    } else {
+	std::cout << "Choice point 0  : nullptr" << std::endl;
+    }
+    return true;
+}
+
+//
+// program_state/1
+//
+bool builtins::program_state_1(interpreter_base &interp, size_t arity, common::term args[]) {
+    auto heap_size = int_cell(checked_cast<int64_t>(interp.heap_size()));
+    auto program_stack_size = int_cell(checked_cast<int64_t>(interp.program_stack_size()));
+    auto stack_size = int_cell(checked_cast<int64_t>(interp.stack_size()));
+    auto trail_size = int_cell(checked_cast<int64_t>(interp.trail_size()));
+    auto temp_size = int_cell(checked_cast<int64_t>(interp.temp_size()));
+    auto temp_trail_size = int_cell(checked_cast<int64_t>(interp.temp_trail_size()));
+    auto num_frozen_closures = int_cell(checked_cast<int64_t>(interp.num_frozen_closures()));
+    auto num_predicates = int_cell(checked_cast<int64_t>(interp.num_predicates()));
+    auto num_clauses = int_cell(checked_cast<int64_t>(interp.num_clauses()));
+
+    term lst = interp.EMPTY_LIST;
+    auto push_it = [&](const std::string &name, term val) {
+	auto f = interp.functor(name, 1);
+	lst = interp.new_dotted_pair( interp.new_term(f, { val }), lst);
+    };
+
+    push_it( "num_clauses", num_clauses);
+    push_it( "num_predicates", num_predicates);
+    push_it( "num_frozen_closures", num_frozen_closures);
+    push_it( "temp_trail_size", temp_trail_size);
+    push_it( "temp_size", temp_size);
+    push_it( "trail_size", trail_size);
+    push_it( "stack_size", stack_size);
+    push_it( "program_stack_size", program_stack_size);
+    push_it( "heap_size", heap_size);
+
+    return interp.unify( args[0], lst);
+}
+	
+//
 // Simple
 //
 
@@ -1185,10 +1246,10 @@ bool builtins::frozenk_3(interpreter_base &interp, size_t arity, common::term ar
     }
 
     size_t start_heap_addr = start == -1 ? interp.heap_size() : checked_cast<size_t>(start);
-    size_t end_heap_addr = interp.heap_size();
+    size_t end_heap_addr = start == -1 ? 0 : interp.heap_size();
 
     // Extract the K heap positions frozen closures starting from address
-
+    
     term lst = interpreter_base::EMPTY_LIST;
     term last = lst;
     std::vector<std::pair<size_t, term> > closures;

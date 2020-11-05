@@ -314,6 +314,9 @@ const con_cell heap::COIN = con_cell("$coin",2);
 
 void heap::trim(size_t new_size)
 {
+    if (size() == 0) {
+	return;
+    }
     size_t heap_end = new_size > 0 ? new_size - 1 : 0;
     size_t block_index = find_block_index(heap_end);
     auto &block = find_block(heap_end);
@@ -444,7 +447,10 @@ size_t heap::resolve_atom_index(const std::string &name) const
     if (it != atom_name_to_index_table_.end()) {
 	return it->second;
     }
-    return new_atom_fn_(*this, new_atom_fn_context_, name);
+    auto new_index = new_atom_fn_(*this, new_atom_fn_context_, name);
+    atom_name_to_index_table_[name] = new_index;
+    atom_index_to_name_table_[new_index] = name;
+    return new_index;
 }
 
 bool heap::is_name(con_cell c, const std::string &name) const

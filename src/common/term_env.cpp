@@ -207,7 +207,12 @@ bool term_utils::unify(term a, term b, uint64_t &cost)
       return false;
     }
 
+    // This will cleanup the trail even if the unify was
+    // successful (i.e. disregard trailing those variables
+    // that'll never get unbound.)
     set_register_hb(old_register_hb);
+    tidy_trail(start_trail, trail_size());
+    
     return true;
 }
 
@@ -438,11 +443,25 @@ int term_utils::standard_order(term a, term b, uint64_t &cost)
 	    return cmp;
 	  }
 	case tag_t::REF:
-	case tag_t::RFW:	  
+	case tag_t::RFW:
+	  {
+	    trim_stack(d);
+	    auto &ap = reinterpret_cast<ptr_cell &>(a);
+	    auto &bp = reinterpret_cast<ptr_cell &>(b);
+	    if (ap.index() < bp.index()) {
+		cost = cost_tmp;
+	        return -1;
+	    } else {
+		cost = cost_tmp;
+  	        return 1;
+	    }
+	  }
 	case tag_t::INT:
 	  {
 	    trim_stack(d);
-	    if (a.value() < b.value()) {
+	    auto &ai = reinterpret_cast<int_cell &>(a);
+	    auto &bi = reinterpret_cast<int_cell &>(b);
+	    if (ai.value() < bi.value()) {
 		cost = cost_tmp;
 	        return -1;
 	    } else {

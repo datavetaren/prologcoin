@@ -106,6 +106,8 @@ void interpreter_base::init()
     }
     maximum_cost_ = std::numeric_limits<uint64_t>::max();
     heap_limit();
+    register_top_hb_ = heap_size();
+    register_top_tr_ = trail_size();
 }
 
 interpreter_base::~interpreter_base()
@@ -152,7 +154,7 @@ void interpreter_base::reset()
         while (b() != top_b()) {
 	    reset_to_choice_point(b());
 	    set_b(b()->b);
-	    if (b() != nullptr) set_register_hb(b()->h);
+	    set_register_hb((b() != nullptr) ? b()->h : top_hb());
 	}
 	if (top_b() != nullptr) {
 	    reset_to_choice_point(top_b());	  
@@ -167,6 +169,11 @@ void interpreter_base::reset()
     if (!persistent_password_) {
         clear_password();
     }
+
+    // Try to cleanup all bindings that happened to variables at the top-level
+    // (e.g. the entry variables for the query.)
+    set_register_hb(0);
+    tidy_trail();
 }
 
 std::string code_point::to_string(const interpreter_base &interp) const
@@ -195,10 +202,15 @@ std::string code_point::to_string(const interpreter_base &interp) const
 
 void interpreter_base::close_all_files()
 {
+    std::vector<size_t> ids;
     for (auto f : open_files_) {
-    	delete f.second;
+	if (f.second->get_id() >= 3) {
+	    ids.push_back(f.second->get_id());
+	}
     }
-    open_files_.clear();
+    for (auto id : ids) {
+	close_file_stream(id);
+    }
 }
 
 void interpreter_base::reset_files()
@@ -356,8 +368,12 @@ term interpreter_base::rewrite_freeze_body(term freezeVar, term freezeBody)
     term freeze_clause = new_str(op_clause);
     set_arg(freeze_clause, 0, head);
     set_arg(freeze_clause, 1, freezeBody);
-
-    get_predicate(qname).add_clause(*this, freeze_clause);
+    
+    auto old_module = current_module();
+    set_current_module(freeze_module);
+    load_clause(freeze_clause, LAST_CLAUSE);
+    set_current_module(old_module);
+    // get_predicate(qname).add_clause(*this, freeze_clause);
 
     auto closure_head = new_str(qname.second);
     for (size_t i = 0; i < vars_list.size(); i++) {
@@ -475,6 +491,8 @@ void interpreter_base::set_debug_enabled()
 {
     load_builtin(functor("debug_on",0), &builtins::debug_on_0);
     load_builtin(functor("debug_check",0), &builtins::debug_check_0);
+    load_builtin(functor("program_state",0), &builtins::program_state_0);
+    load_builtin(functor("program_state",1), &builtins::program_state_1);
 }
 
 void interpreter_base::enable_file_io()
@@ -533,8 +551,6 @@ qname interpreter_base::gen_predicate(const common::con_cell module, size_t arit
     common::con_cell p = functor(atom_name, arity);
     qname pn(module, p);
     program_predicates_.push_back(pn);
-    updated_predicates_.insert(pn);
-    has_updated_predicates_ = true;
 
     if (module_db_set_[module].count(pn) == 0) {
         module_db_set_[module].insert(pn);
@@ -732,13 +748,15 @@ void interpreter_base::prepare_execution()
     register_b0_ = register_b_;
     register_top_e_ = register_e_;
     set_register_hb(heap_size());
+    set_top_hb(heap_size());
+    set_top_tr(trail_size());
     register_p_.reset();
 }
 
 
 void interpreter_base::tidy_trail()
 {
-    size_t from = (b() == nullptr) ? 0 : b()->tr;
+    size_t from = (b() == nullptr) ? top_tr() : b()->tr;
     size_t to = trail_size();
     term_env::tidy_trail(from, to);
 }
@@ -828,6 +846,10 @@ void interpreter_base::import_predicate(const qname &qn) {
     auto &cp = get_code(qn);
     qname imported_qn(module, qn.second);
     set_code(imported_qn, cp);
+    if (cp.is_builtin()) {
+	builtin &b = get_builtin(qn);
+	load_builtin(imported_qn, b);
+    }
 }
 
 void interpreter_base::save_program(con_cell module, std::ostream &out)

@@ -1267,7 +1267,8 @@ bool wam_compiler::clause_needs_environment(const term clause)
 	    goal = env_.arg(goal, 1);
 	    f = env_.functor(goal);
 	}
-	bool isbn = is_builtin(module, f);
+	qname qn(module, f);
+	bool isbn = is_builtin(qn);
 	if (!isbn) {
 	    if (has_calls) {
 		// Multiple calls! We need an environment.
@@ -1278,7 +1279,7 @@ bool wam_compiler::clause_needs_environment(const term clause)
 	} else if (module == interp_.current_module() && f == cut_op) {
 	    return true;
 	} else {
-	    auto &bn = get_builtin(module, f);
+	    auto &bn = get_builtin(qn);
 	    if (bn.is_recursive()) {
 		return true;
 	    }
@@ -1306,7 +1307,8 @@ void wam_compiler::compile_builtin(common::con_cell module,
     static const common::con_cell bn_true = common::con_cell("true",0);
 
     if (module != interp_.current_module() || f != bn_true) {
-	auto &bn = get_builtin(module, f);
+	qname qn(module, f);
+	auto &bn = get_builtin(qn);
 	if (bn.is_recursive()) {
 	    seq.push_back(wam_instruction<BUILTIN_R>(module, f, bn.fn(), 0));
 	} else {
@@ -1518,7 +1520,8 @@ void wam_compiler::compile_goal(const term goal, bool first_goal,
 	module = env_.functor(env_.arg(goal, 0));
 	f = env_.functor(env_.arg(goal, 1));
     }
-    bool isbn = is_builtin(module, f);
+    qname qn(module, f);
+    bool isbn = is_builtin(qn);
     compile_query_or_program(goal, COMPILE_QUERY, seq);
     if (isbn) {
 	compile_builtin(module, f, first_goal, seq);

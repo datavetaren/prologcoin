@@ -85,6 +85,42 @@ static void test_term_serializer_bignum()
     assert(str1 == str2);
 }
 
+static void test_term_serializer_clause()
+{
+    header( "test_term_serializer_clause()" );
+
+    term_env env;
+    term t = env.parse("setup_numbers(N, M) :- T is N*M, write(generate_numbers), nl, generate_numbers(T, Xs), write(split_numbers), nl, split_numbers(Xs, M, Ys), write('sort chunks'), nl, findall(Y, (member(X, Ys), sort(X, Y)), Cs), write('store numbers'), nl, store_numbers(Cs, 0).");
+    auto str1 = env.to_string(t);
+
+    std::cout << "WRITE TERM: " << str1 << "\n";
+
+    term_serializer ser(env);
+    term_serializer::buffer_t buf;
+    ser.write(buf, t);
+
+    ser.print_buffer(buf, buf.size());
+
+    term_env env2;
+    term_serializer ser2(env2);
+
+    term t2;
+    try {
+	t2 = ser2.read(buf);
+    } catch (serializer_exception &ex) {
+	std::cout << "EXCEPTION WHEN READING: " << ex.what() << "\n";
+	std::cout << "Here's the data...\n";
+	ser.print_buffer(buf, buf.size());
+	assert("No exception expected" == nullptr);
+    }
+    auto str2 = env2.to_string(t2);
+
+    std::cout << "READ TERM:  " << str2 << "\n";
+    
+    assert(str1 == str2);
+}
+
+
 namespace prologcoin { namespace common { namespace test {
 
 class test_term_serializer {
@@ -290,6 +326,7 @@ int main( int argc, char *argv[] )
 {
     test_term_serializer_simple();
     test_term_serializer_bignum();
+    test_term_serializer_clause();
     test_term_serializer_exceptions();
 
     return 0;
