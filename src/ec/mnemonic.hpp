@@ -26,7 +26,7 @@ public:
     bool is_valid_word(common::term word);
   
 private:
-    void ensure_reverse_word_map();
+    static void ensure_reverse_word_map();
     bool check_checksum();
     void add_checksum();
     common::term_env &env_;

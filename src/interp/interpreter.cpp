@@ -7,7 +7,6 @@ namespace prologcoin { namespace interp {
 interpreter::interpreter() 
 {
     wam_enabled_ = true;
-    auto_wam_ = false;
     query_vars_ = nullptr;
     num_instances_ = 0;
     retain_state_between_queries_ = false;
@@ -173,11 +172,12 @@ bool interpreter::execute(const term query)
 {
     using namespace prologcoin::common;
 
-    bool new_inst = false;
-
+    while (num_instances() > 0 && !has_more()) {
+	delete_instance();
+    }
+    
     if (has_more()) {
 	new_instance();
-	new_inst = true;
     } else {
         // Overriding last instance
         if (!retain_state_between_queries_) {
@@ -199,6 +199,7 @@ bool interpreter::execute(const term query)
     std::for_each( begin(query),
 		   end(query),
 		   [&](term t) {
+
 		     if (t.tag().is_ref()) {
 		           t = reinterpret_cast<ref_cell &>(t).unwatch();
 			   const std::string name = to_string(t);
@@ -217,15 +218,11 @@ bool interpreter::execute(const term query)
 
     bool b = cont();
 
-    set_qr(query);
-
-    if (new_inst && b && !has_more()) {
-	delete_instance();
-    }
-
     if (!is_persistent_password() && num_instances() == 0 && !has_more()) {
-        clear_password();
+        clear_secret();
     }
+
+    set_qr(query);
     
     return b;
 }
@@ -255,7 +252,7 @@ bool interpreter::cont()
 		}
 	    }
 	}
-	set_register_hb((b() != nullptr) ? b()->h : top_hb());
+	set_register_hb(b());
 	tidy_trail();
     } catch (std::runtime_error &) {
         reset();
@@ -265,7 +262,7 @@ bool interpreter::cont()
     bool r = !is_top_fail();
 
     if (!is_persistent_password() && num_instances() == 0 && !r) {
-        clear_password();
+        clear_secret();
     }
     
     return r;
@@ -378,7 +375,7 @@ void interpreter::fail()
 	    }
 	    if (!ok) {
 		set_b(ch->b);
-		set_register_hb((b() != nullptr) ? b()->h : top_hb());
+		set_register_hb(b());
 	    }
 	}
     }
@@ -501,7 +498,9 @@ bool interpreter::select_clause(const code_point &instruction,
 	}
 	
 	size_t current_heap = heap_size();
-	auto copy_clause = copy(m_clause.clause()); // Instantiate it
+	// No need to copy the names when instantiating a new clause from
+	// the program database, as it's the caller's names that matter.
+	auto copy_clause = copy_without_names(m_clause.clause()); // Instantiate it
 
 	term copy_head = clause_head(copy_clause);
 	term copy_body = clause_body(copy_clause);
@@ -665,10 +664,10 @@ void interpreter::dispatch()
     }
 
     bool is_updated = has_updated_predicates() && is_updated_predicate(qn);
-    
+
     if (is_wam_enabled()) {
 	if (!code.has_wam_code() && is_auto_wam()) {
-	    compile(qn);
+	    auto_compile(qn);
 	} else if (is_updated) {
    	    recompile_if_needed(qn);
         }
@@ -727,35 +726,10 @@ std::string interpreter::get_result(bool newlines) const
 {
     using namespace prologcoin::common;
 
-    std::map<term, size_t> count_occurrences;
-    std::for_each(begin(qr()),
-		  end(qr()),
-		  [&] (term t) {
-		      if (t.tag().is_ref()) {
-			t = reinterpret_cast<ref_cell &>(t).unwatch();
-			if (!has_name(t)) {
-			    ++count_occurrences[t];
-			}
-		    }
-		  }
-		  );
-
     interpreter &ii = const_cast<interpreter &>(*this);
-
-    // Those vars with a singleton occurrence will be named
-    // '_'.
-    size_t named_var_count = 0;
-    for (auto v : count_occurrences) {
-        if (v.second == 1) {
-            ii.set_name(v.first, "_");
-	} else { // v.second > 1
-  	    std::string name = "G_" + boost::lexical_cast<std::string>(
-		       named_var_count);
-	    named_var_count++;
-	    ii.set_name(v.first, name);
-	}
-    }
-
+    std::vector<term> touched;
+    ii.prettify_var_names(qr(), touched);
+    
     std::vector<std::string> result;
 
     bool first = true;
@@ -779,8 +753,8 @@ std::string interpreter::get_result(bool newlines) const
 	}
     }
 
-    for (auto v : count_occurrences) {
-        ii.clear_name(v.first);
+    for (auto t : touched) {
+        ii.clear_name(t);
     }
 
     if (first) {

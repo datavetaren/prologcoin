@@ -2,6 +2,7 @@
 #include "interpreter_base.hpp"
 #include "wam_interpreter.hpp"
 #include "../common/checked_cast.hpp"
+#include "../common/utime.hpp"
 #include <stdarg.h>
 #include <boost/algorithm/string.hpp>
 #include <memory>
@@ -17,8 +18,8 @@ using namespace prologcoin::common;
 
 bool builtins::profile_0(interpreter_base &interp, size_t arity, common::term args[])
 {
-	interp.print_profile();
-	return true;
+    interp.print_profile();
+    return true;
 }
 
 //
@@ -26,11 +27,21 @@ bool builtins::profile_0(interpreter_base &interp, size_t arity, common::term ar
 //
 bool builtins::debug_on_0(interpreter_base &interp, size_t arity, common::term args[])
 {
-	interp.set_debug(true);
-	return true;
+    interp.set_debug(true);
+    return true;
 }
 
+
 //
+// debug_off/0
+//
+bool builtins::debug_off_0(interpreter_base &interp, size_t arity, common::term args[])
+{
+    interp.set_debug(false);
+    return true;
+}
+
+	//
 // debug_check/0
 //
 bool builtins::debug_check_0(interpreter_base &interp, size_t arity, common::term args[])
@@ -974,7 +985,7 @@ bool builtins::operator_disprove(interpreter_base &interp, size_t arity, common:
 }
 
 bool builtins::operator_disprove_meta(interpreter_base &interp,
-					  const meta_reason_t &reason)
+		    	              const meta_reason_t &reason)
 {
     if (reason == interp::meta_reason_t::META_DELETE) {
         interp.unwind_to_top_choice_point();
@@ -1344,10 +1355,10 @@ bool builtins::defrost_3(interpreter_base &interp, size_t arity, common::term ar
 
 bool builtins::password_2(interpreter_base &interp, size_t arity, common::term args[])
 {
-    static con_cell SYSTEM("system",0);
+    static con_cell SECRET("$secret",0);
     static con_cell PASSWD("$passwd",1);
     if (args[0].tag() == tag_t::REF) {
-        auto &pred = interp.get_predicate(SYSTEM, PASSWD);
+        auto &pred = interp.get_predicate(SECRET, PASSWD);
 	if (pred.empty()) {
 	    return false;
 	}
@@ -1393,7 +1404,7 @@ bool builtins::password_2(interpreter_base &interp, size_t arity, common::term a
 	throw interpreter_exception_wrong_arg_type(msg.str());
     }
 
-    auto &pred = interp.get_predicate(qname(SYSTEM, PASSWD));
+    auto &pred = interp.get_predicate(qname(SECRET, PASSWD));
     term clause = interp.new_term(PASSWD);
     interp.set_arg(clause, 0, args[0]);
     pred.clear();
@@ -1404,6 +1415,72 @@ bool builtins::password_2(interpreter_base &interp, size_t arity, common::term a
     interp.heap_limit();
 
     return true;
+}
+
+bool builtins::now_2(interpreter_base &interp, size_t arity, common::term args[]) {
+    if (arity == 0) {
+	std::cout << utime::now().str() << std::endl;
+	return true;
+    }
+
+    if (arity == 1) {
+	return interp.unify(args[0], interp.string_to_list(utime::now().str()));
+    }
+
+    // Arity == 2
+    
+    if (args[0].tag() != tag_t::CON) {
+	std::string name = "now/" + boost::lexical_cast<std::string>(arity);
+	throw interpreter_exception_wrong_arg_type(name + ": First argument mst be an atom 'date', 'seconds', 'millis' or 'micros')");
+    }
+    static con_cell DATE("date",0);
+    static con_cell SECONDS("seconds",0);
+    static con_cell MILLIS("millis",0);
+    static con_cell MICROS("micros",0);
+    
+    con_cell format("date",0);
+    if (arity > 1) {
+	if (args[0] == DATE ||
+	    args[0] == SECONDS ||
+	    args[0] == MILLIS ||
+	    args[0] == MICROS) {
+	    format = reinterpret_cast<con_cell &>(args[0]);
+	} else {
+	    std::string name = "now/" + boost::lexical_cast<std::string>(arity);
+	    throw interpreter_exception_wrong_arg_type(name + ": Wrong format, should be 'date', 'secopnds', 'millis' or 'micros'; was " + interp.to_string(args[0]));
+	}
+    }
+
+    utime now = utime::now();
+    
+    if (format == DATE) {
+	return interp.unify(interp.string_to_list(now.str()), args[1]);
+    } else if (format == SECONDS) {
+	return interp.unify(int_cell(static_cast<int64_t>(now.in_ss())), args[1]);
+    } else if (format == MILLIS) {
+	return interp.unify(int_cell(static_cast<int64_t>(now.in_ms())), args[1]);
+    } else {
+	// MICROS
+	return interp.unify(int_cell(static_cast<int64_t>(now.in_us())), args[1]);
+    }
+}
+
+uint64_t builtins::tic_millis = 0;
+
+bool builtins::tic_0(interpreter_base &interp, size_t arity, common::term args[]) {
+    tic_millis = utime::now().in_ms();
+    return true;
+}
+
+bool builtins::toc_1(interpreter_base &interp, size_t arity, common::term args[]) {
+    uint64_t toc_millis = utime::now().in_ms();
+    int64_t delta = static_cast<int64_t>(toc_millis - tic_millis);
+    if (arity == 0) {
+	std::cout << "Elapsed time: " << delta << " milliseconds." << std::endl;
+	return true;
+    } else {
+	return interp.unify(args[0], int_cell(delta));
+    }
 }
 
 // Modifying program database
@@ -1437,6 +1514,7 @@ bool builtins::retractall_1(interpreter_base &interp, size_t arity, common::term
 
 bool builtins::retract(interpreter_base &interp, const std::string &pname, term head, bool all) {
     static const common::con_cell COLON(":", 2);
+
     con_cell module = interp.current_module();
     if (head.tag() == tag_t::STR && interp.functor(head) == COLON) {
         auto module_term = interp.arg(head, 0);
@@ -1459,11 +1537,11 @@ bool builtins::retract(interpreter_base &interp, const std::string &pname, term 
     auto &pred = interp.get_predicate(qn);
     bool r = pred.matching_clauses(interp, head);
     if (r) {
-	interp.add_updated_predicate_pre(qn);
+	interp.updated_predicate_pre(qn);
     }
     pred.remove_clauses(interp, head, all);
     if (r) {
-	interp.add_updated_predicate_post(qn);
+	interp.updated_predicate_post(qn);
     }
     return r;
 }
@@ -1631,6 +1709,12 @@ void builtins::load(interpreter_base &interp) {
     i.load_builtin(con_cell("defrost",3), builtin(&builtins::defrost_3));
     i.load_builtin(i.functor("password",1), builtin(&builtins::password_2));
     i.load_builtin(i.functor("password",2), builtin(&builtins::password_2));
+    i.load_builtin(con_cell("now",0), builtin(&builtins::now_2));
+    i.load_builtin(con_cell("now",1), builtin(&builtins::now_2));
+    i.load_builtin(con_cell("now",2), builtin(&builtins::now_2));
+    i.load_builtin(con_cell("tic",0), builtin(&builtins::tic_0));
+    i.load_builtin(con_cell("toc",0), builtin(&builtins::toc_1));
+    i.load_builtin(con_cell("toc",1), builtin(&builtins::toc_1));
 
     // Program database
     i.load_builtin(con_cell("show",0), builtin(&builtins::show_0));

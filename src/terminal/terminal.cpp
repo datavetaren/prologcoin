@@ -46,6 +46,7 @@ term terminal::parse(const std::string &cmd)
 bool terminal::reset()
 {
     auto &e = env_;
+    e.clear_names();
     if (!send_query(e.new_term(con_cell("command",1),
 			       {con_cell("reset",0)}))) {
 	return false;
@@ -483,7 +484,7 @@ bool terminal::process_query_reply()
 	has_more_ = in_query_state == con_cell("more",0);
 
 	// Append any text output from fourth argument.
-	// This never errors becaus list_to_string() never errors, it
+	// This never errors because list_to_string() never errors, it
 	// just skips illegal items.
 	auto text_out_term = e.arg(result_term,3);
 	auto text_out = e.list_to_string(text_out_term);
@@ -515,7 +516,8 @@ bool terminal::process_query_reply()
 	    return true;
 	}
 
-	auto touched = e.prettify_var_names(vars);
+	std::vector<term> touched;
+	e.prettify_var_names(vars, touched);
 
 	// Collect var values so that if we get
 	std::vector<std::pair<std::string, term> > var_value_list;

@@ -28,8 +28,10 @@ public:
     static bool list_load_2(interpreter_base &interp, size_t arity, term args[] );
 
     static bool operator_clause_2(interpreter_base &interp, size_t arity, term args[]);
-  
+
+    static bool operator_at_impl(interpreter_base &interp, size_t arity, term args[], bool silent);
     static bool operator_at_2(interpreter_base &interp, size_t arity, term args[]);
+    static bool operator_at_silent_2(interpreter_base &interp, size_t arity, term args[]);    
     static bool operator_at_2_meta(interpreter_base &interp, const meta_reason_t &reason);
 
     // Version & name...
@@ -73,7 +75,9 @@ public:
     static void preprocess_hashes(local_interpreter &interp, term t);
     static bool commit(local_interpreter &interp, buffer_t &buf, term t, bool naming);
     static bool commit_2(interpreter_base &interp, size_t arity, term args[]);
+    static bool global_impl(interpreter_base &interp, size_t arity, term args[], bool silent);
     static bool global_1(interpreter_base &interp, size_t arity, term args[]);
+    static bool global_silent_1(interpreter_base &interp, size_t arity, term args[]);
 };
 
 class local_interpreter_exception : public interp::interpreter_exception {

@@ -515,7 +515,7 @@ int term_utils::standard_order(term a, term b, uint64_t &cost)
 }
 
 term term_utils::copy(term c, naming_map &names,
-		      heap &src, naming_map &src_names, uint64_t &cost)
+		      heap &src, naming_map *src_names, uint64_t &cost)
 {
     std::unordered_map<term, term> term_map;
     std::unordered_map<con_cell, con_cell> con_map;
@@ -559,9 +559,11 @@ term term_utils::copy(term c, naming_map &names,
 	  {
 	    cell v = new_ref();
 	    term_map[c] = v;
-	    auto vn = src_names.find(c);
-	    if (vn != src_names.end()) {
-		names[v] = vn->second;
+	    if (src_names) {
+		auto vn = src_names->get_name(c);
+		if (!vn.empty()) {
+		    names.set_name(v, vn);
+		}
 	    }
 	    temp_push(v);
             temp_push(int_cell(0));

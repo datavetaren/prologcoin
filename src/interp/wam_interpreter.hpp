@@ -398,10 +398,18 @@ public:
     { total_reset(); }
 
     void total_reset() {
-	if (instrs_) delete [] instrs_;
+	if (instrs_) {
+	    memset(instrs_, 0, sizeof(code_t)*instrs_capacity_);
+	    delete [] instrs_;
+	}
 	instrs_capacity_ = 1024;
 	instrs_size_ = 0;
 	instrs_ = new code_t[instrs_capacity_];
+        reallocation_count_ = 0;
+	last_reallocation_count_ = std::numeric_limits<size_t>::max();
+	predicate_map_.clear();
+	predicate_rev_map_.clear();
+	calls_.clear();
     }
 
     inline size_t next_offset() const
@@ -430,6 +438,7 @@ public:
 
     void check_code();
     void print_code(std::ostream &out);
+    void print_code(std::ostream &out, size_t from, size_t to);
 
     inline bool is_compiled(const qname &qn) const
     {
@@ -445,13 +454,15 @@ public:
     void remove_compiled(const qname &pn);
 
     struct predicate_meta_data {
-        inline predicate_meta_data(size_t off, size_t num_x, size_t num_y)
+        inline predicate_meta_data(size_t off, size_t end, size_t num_x, size_t num_y)
 	  : code_offset(off),
+	    end_offset(end),
 	    num_x_registers(num_x),
             num_y_registers(num_y) { }
         predicate_meta_data() = default;
 
         size_t code_offset;
+	size_t end_offset;
         size_t num_x_registers;
         size_t num_y_registers;
     };
@@ -475,12 +486,14 @@ public:
 protected:
     void set_wam_predicate(const qname &qn,
 			   wam_instruction_base *instr,
+			   wam_instruction_base *end_instr,
 			   size_t num_x_registers,
 			   size_t num_y_registers)
 
     {
 	size_t predicate_offset = to_code_addr(instr);
-	predicate_map_[qn] = predicate_meta_data(predicate_offset, num_x_registers, num_y_registers);
+	size_t end_offset = to_code_addr(end_instr);
+	predicate_map_[qn] = predicate_meta_data(predicate_offset, end_offset, num_x_registers, num_y_registers);
 	predicate_rev_map_[predicate_offset] = qn;
 
 	auto &offsets = calls_[qn];
@@ -516,25 +529,31 @@ private:
 	return data;
     }
 
-     void ensure_capacity(size_t cap)
+    void ensure_capacity(size_t cap)
     {
         if (cap > instrs_capacity_) {
    	    size_t new_cap = 2*std::max(cap, instrs_size_);
 	    code_t *new_instrs = new code_t[new_cap];
+
 	    memcpy(new_instrs, instrs_, sizeof(code_t)*instrs_size_);
-	    instrs_capacity_ = new_cap;
 	    code_t *old_instrs = instrs_;
 	    instrs_ = new_instrs;
 
 	    update(old_instrs, new_instrs);
 
+	    memset(old_instrs, 0, sizeof(code_t)*instrs_capacity_);
 	    delete old_instrs;
+
+	    instrs_capacity_ = new_cap;
 
 	    reallocation_count_++;
         }
     }
 
-    void update(code_t *old_base, code_t *new_base);
+protected:
+    virtual void update(code_t *old_base, code_t *new_base);
+
+private:
 
     wam_interpreter &interp_;
     size_t instrs_size_;
@@ -660,7 +679,6 @@ public:
 
     void total_reset();
 
-
     typedef common::term term;
 
     inline wam_hash_map * new_hash_map()
@@ -670,6 +688,11 @@ public:
 	return map;
     }
 
+    virtual void updated_predicate_post(const qname &qn) override {
+	interpreter_base::updated_predicate_post(qn);
+	remove_compiled(qn);
+    }
+    
     inline void remove_compiled(const qname &pn)
     {
 	wam_code::remove_compiled(pn);
@@ -693,25 +716,43 @@ public:
 
     std::string to_string(const code_point &cp) const;
 
+    inline bool was_compiled(const qname &qn) const
+    {
+	auto &pred = get_predicate(qn);
+	return pred.was_compiled();
+    }
     void compile();
     void compile(const qname &pred);
     void compile(common::con_cell module, common::con_cell name);
     void compile(common::con_cell name);
     void recompile();
     void recompile_if_needed(const qname &qn);
+    void auto_compile(const qname &qn);
+    void print_code(std::ostream &out);
+    void print_code(std::ostream &out, size_t from, size_t to);    
+    void print_code(std::ostream &out, const qname &qn);
+
+    inline bool is_auto_wam() const
+    { return auto_wam_; }
+
+    // Auto compile to WAM if not compiled
+    inline void set_auto_wam(bool enabled)
+    { auto_wam_ = enabled; }
 
 protected:
     void load_code(wam_interim_code &code);
+
+    virtual void update(code_t *old_base, code_t *new_base) override;
+    
     void bind_code_point(std::unordered_map<size_t, size_t> &label_map,
 			 code_point &cp);
 
     inline bool backtrack_wam()
     {
+	fail_ = false;
 	backtrack();
 	return !fail_;
     }
-
-    int cnt = 0;
 
     bool cont_wam();
 
@@ -720,6 +761,7 @@ protected:
     }
 
 private:
+    bool auto_wam_;
     bool fail_;
     wam_compiler *compiler_;
 
@@ -871,6 +913,8 @@ private:
 
     term register_xn_[1024];
 
+    code_point tmp_;
+    
   public:
     inline void next_instruction(code_point &p)
     {
@@ -1342,13 +1386,13 @@ private:
 	}
     }
 
-    inline void unify_local_value_y(uint32_t xn)
+    inline void unify_local_value_y(uint32_t yn)
     {
         bool fail = false;
 	switch (mode_) {
-  	case READ: fail = !unify(x(xn), heap_get(register_s_)); break;
+  	case READ: fail = !unify(y(yn), heap_get(register_s_)); break;
 	case WRITE: {
-	  term t = deref(x(xn));
+	  term t = deref(y(yn));
 	  if (t.tag().is_ref()) {
 	      auto ref = reinterpret_cast<common::ref_cell &>(t);
 	      if (is_stack(ref)) {
@@ -1443,6 +1487,12 @@ private:
 
     inline void call(code_point &p1, size_t arity, uint32_t num_stack)
     {
+	if (!p1.has_wam_code() && is_auto_wam()) {
+	    tmp_ = p1;
+	    auto_compile(p1.qn());
+	    p1 = tmp_;
+	    tmp_ = code_point();
+	}
         set_cp(p());
 	next_instruction(cp());
         set_p(p1);
@@ -1521,6 +1571,7 @@ private:
 	    // After a call is done we check for frozen closures
 	    check_frozen();
 	}
+	
 	return r;
     }
 
@@ -1551,7 +1602,7 @@ private:
 	trim_trail(b()->tr);
 	trim_heap_safe(b()->h);
         set_b(b()->b);
-	set_register_hb((b() != nullptr) ? b()->h : top_hb());
+	set_register_hb(b());
     }
 
     inline void try_me_else(code_point &L)
@@ -1665,7 +1716,7 @@ private:
     {
         if (b() > b0()) {
 	    set_b(b0());
-	    set_register_hb((b() != nullptr) ? b()->h : top_hb());
+	    set_register_hb(b());
 	    tidy_trail();
 	}
 	goto_next_instruction();
@@ -1679,11 +1730,13 @@ private:
 
     inline void cut(uint32_t yn)
     {
-        auto b0 = reinterpret_cast<choice_point_t *>(
-	     to_stack(reinterpret_cast<common::int_cell &>(y(yn)).value()));
-	if (b() > b0) {
+	auto yval = reinterpret_cast<common::int_cell &>(y(yn));
+	// I had to add volatile here to avoid a clang bug (with -O3).
+        auto volatile b0 = reinterpret_cast<choice_point_t *>(to_stack(yval.value()));
+	auto b1 = b();
+	if (b1 > b0) {
 	    set_b(b0);
-	    set_register_hb((b() != nullptr) ? b()->h : top_hb());	    
+	    set_register_hb(b0);
 	    tidy_trail();
 	}
 	goto_next_instruction();
@@ -1712,23 +1765,6 @@ private:
 
     friend class test_wam_interpreter;
 };
-
-inline void wam_code::update(code_t *old_base, code_t *new_base)
-{
-    wam_instruction_base *instr = reinterpret_cast<wam_instruction_base *>(new_base);
-    for (size_t i = 0; i < instrs_size_;) {
-	instr->update(old_base, new_base);
-	instr = interp_.next_instruction(instr);
-	i = static_cast<size_t>(reinterpret_cast<code_t *>(instr) - new_base);
-    }
-
-    for (auto &p : interp_.code_db())
-    {
-	code_point &code_p = p.second;
-	update_ptr(code_p, old_base, new_base);
-    }
-
-}
 
 template<> class wam_instruction<PUT_VARIABLE_X> : public wam_instruction_binary_reg {
 public:

@@ -1789,6 +1789,62 @@ namespace std {
 
 }
 
-#endif
+namespace prologcoin { namespace common {
 
+// For term naming
+class naming_map {
+public:
+    void clear_names() {
+	used_names_.clear();
+	term_2_name_.clear();
+    }
+    size_t count_name(const std::string &name) const {
+	auto it = used_names_.find(name);
+	if (it == used_names_.end()) {
+	    return 0;
+	}
+	return it->second;
+    }
+    const std::string & get_name(term t) const {
+	static std::string empty;
+	auto it = term_2_name_.find(t);
+	if (it == term_2_name_.end()) {
+	    return empty;
+	}
+	return it->second;
+    }
+    void set_name(term t, const std::string &name) {
+	used_names_[name]++;
+	term_2_name_[t] = name;
+    }
+    void clear_name(term t) {
+	auto it = term_2_name_.find(t);
+	if (it == term_2_name_.end()) {
+	    return;
+	}
+	term_2_name_.erase(it);
+	auto it2 = used_names_.find(it->second);
+	if (--it2->second == 0) {
+	    used_names_.erase(it2);
+	}
+    }
+    bool has_name(term t) const {
+	auto it = term_2_name_.find(t);
+	if (it == term_2_name_.end()) {
+	    return false;
+	}
+	return true;
+    }
+    size_t size() const {
+	return term_2_name_.size();
+    }
+    
+private:
+    std::unordered_map<std::string, size_t> used_names_;
+    std::unordered_map<term, std::string> term_2_name_;
+};
+
+} }
+
+#endif
 

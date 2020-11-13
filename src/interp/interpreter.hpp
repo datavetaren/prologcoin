@@ -68,8 +68,8 @@ public:
 			       common::term query, const std::string &where,
 			       remote_continue_fn_t remote_cont,
 			       remote_delete_fn_t remote_del)
-      : meta_context(interp, fn), interp_(interp), query_(query), where_(where),
-        remote_continue_(remote_cont), remote_delete_(remote_del) { }
+	: meta_context(interp, fn), interp_(interp), silent_(false), query_(query), where_(where),
+	  remote_continue_(remote_cont), remote_delete_(remote_del) { }
 
     const std::string & where() const {
         return where_;
@@ -83,9 +83,18 @@ public:
     bool do_remote_delete() {
         return remote_delete_(interp_, where_);
     }
+
+    bool is_silent() const {
+	return silent_;
+    }
+
+    void set_silent(bool silent) {
+	silent_ = silent;
+    }
     
 private:
     interpreter_base &interp_;
+    bool silent_;
     common::term query_;
     std::string where_;
     remote_continue_fn_t remote_continue_;
@@ -111,6 +120,7 @@ public:
 			   remote_continue_fn_t remote_continue_fn,
 			   remote_delete_fn_t remote_delete_fn)
       : interp_(interp),
+	silent_(false),
 	remote_execute_(remote_execute_fn),
         remote_continue_(remote_continue_fn),
         remote_delete_(remote_delete_fn) { }
@@ -179,7 +189,12 @@ public:
 	    interp.set_p(code_point(interp.EMPTY_LIST));
 	}
 
-	return interp.unify(qr, r.result());
+	auto context = interp.get_current_meta_context<meta_context_remote>();
+	if (context->is_silent()) {
+	    return true;
+	} else {
+	    return interp.unify(qr, r.result());
+	}
     }
 			 
     bool start(common::term query, const std::string where) {
@@ -190,16 +205,26 @@ public:
 	}
 
 	if (result.has_more()) {
-	    interp_.new_meta_context<meta_context_remote>(&callback, query, where, remote_continue_, remote_delete_);
+	    auto context = interp_.new_meta_context<meta_context_remote>(&callback, query, where, remote_continue_, remote_delete_);
+	    context->set_silent(is_silent());
 	    interp_.set_top_b(interp_.b());
 	    interp_.allocate_choice_point(code_point::fail());
 	}
 	return interp_.unify(result.result(), query);
     }
+
+    bool is_silent() const {
+	return silent_;
+    }
+    
+    void set_silent(bool silent) {
+	silent_ = silent;
+    }
     
 private:
     interpreter_base &interp_;
 
+    bool silent_;
     remote_execute_fn_t remote_execute_;
     remote_continue_fn_t remote_continue_;
     remote_delete_fn_t remote_delete_;
@@ -281,13 +306,6 @@ public:
     inline bool is_wam_enabled() const
     { return wam_enabled_; }
 
-    inline bool is_auto_wam() const
-    { return auto_wam_; }
-
-    // Auto compile to WAM if not compiled
-    inline void set_auto_wam(bool enabled)
-    { auto_wam_ = enabled; }
-
     std::string get_result(bool newlines = true) const;
     term get_result_term(const std::string &varname) const;
     term get_result_term() const;
@@ -330,7 +348,6 @@ private:
         { query_vars_ = qv; }
 
     bool wam_enabled_;
-    bool auto_wam_;
     std::vector<binding> *query_vars_;
     size_t num_instances_;
     bool retain_state_between_queries_;

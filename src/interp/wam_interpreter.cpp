@@ -46,10 +46,31 @@ void wam_code::remove_compiled(const qname &qn)
     }
 }
 
+void wam_code::update(code_t *old_base, code_t *new_base)
+{
+    wam_instruction_base *instr = reinterpret_cast<wam_instruction_base *>(new_base);
+    for (size_t i = 0; i < instrs_size_;) {
+	instr->update(old_base, new_base);
+	instr = interp_.next_instruction(instr);
+	i = static_cast<size_t>(reinterpret_cast<code_t *>(instr) - new_base);
+    }
+
+    for (auto &p : interp_.code_db())
+    {
+	code_point &code_p = p.second;
+	update_ptr(code_p, old_base, new_base);
+    }
+}
+
 void wam_code::print_code(std::ostream &out)
 {
+    print_code(out, 0, instrs_size_);
+}
+	
+void wam_code::print_code(std::ostream &out, size_t from, size_t to)
+{
     static const common::con_cell default_module("[]",0);
-    for (size_t i = 0; i < instrs_size_;) {
+    for (size_t i = from; i < to;) {
 	if (predicate_rev_map_.count(i)) {
 	    auto name = predicate_rev_map_[i];
 	    if (name.first == default_module) {
@@ -76,7 +97,7 @@ void wam_code::print_code(std::ostream &out)
     }
 }
 
-wam_interpreter::wam_interpreter() : wam_code(*this), compiler_(nullptr)
+wam_interpreter::wam_interpreter() : wam_code(*this), auto_wam_(false), compiler_(nullptr)
 {
     total_reset();
 }
@@ -89,6 +110,53 @@ wam_interpreter::~wam_interpreter()
     }
 }
 
+void wam_interpreter::update(code_t *old_base, code_t *new_base)
+{
+    wam_code::update(old_base, new_base);
+
+    struct visit : public stack_frame_visitor {
+	visit(wam_interpreter &interp, code_t *old_base0, code_t *new_base0) :
+	    interp_(interp), old_base_(old_base0), new_base_(new_base0) { }
+	
+	virtual void visit_naive_environment(environment_naive_t *e) override {
+	    visit_env(e);
+	}
+	virtual void visit_wam_environment(environment_t *e) override {
+	    visit_env(e);
+	}
+	virtual void visit_frozen_environment(environment_frozen_t *e) override {
+	    visit_env(e);
+	    update(e->p);
+	}
+	virtual void visit_choice_point(choice_point_t *cp) override {
+	    update(cp->cp);
+	    update(cp->bp);
+	}
+	virtual void visit_meta_context(meta_context *m) override {
+	    update(m->old_p);
+	    update(m->old_cp);	    
+	}
+	inline void visit_env(environment_base_t *e) {
+	    update(e->cp);
+	}
+
+	inline void update(code_point &cp) {
+	    update_ptr(cp, old_base_, new_base_);
+	}
+
+	wam_interpreter &interp_;
+	code_t *old_base_;
+	code_t *new_base_;	
+    };
+
+    visit v(*this, old_base, new_base);
+    foreach_stack_frame(v);
+
+    update_ptr(p(), old_base, new_base);
+    update_ptr(cp(), old_base, new_base);
+    update_ptr(tmp_, old_base, new_base);
+}
+	
 std::string wam_interpreter::to_string(const code_point &cp) const
 {
     using namespace common;
@@ -138,6 +206,8 @@ void wam_interpreter::total_reset()
     register_s_ = 0;
     memset(register_xn_, 0, sizeof(register_xn_));
     if (compiler_) delete compiler_;
+    for (auto *m : hash_maps_) delete m;
+    hash_maps_.clear();
     compiler_ = new wam_compiler(*this);
 }
 
@@ -147,13 +217,13 @@ bool wam_interpreter::cont_wam()
     while (p().has_wam_code() && !is_top_fail()) {
 	if (auto instr = p().wam_code()) {
 	    if (is_debug()) {
-		std::cout << "[WAM debug]: tr=" << trail_size() << " [" << std::setw(5)
-			  << to_code_addr(instr) << "]: e=" << e0() << " ";
-		instr->print(std::cout, *this);
-		std::cout << "\n";
+		std::stringstream ss;
+		ss << "[WAM debug]: tr=" << trail_size() << " [" << std::setw(5)
+		   << instr << " " << to_code_addr(instr) << "]: e=" << e0() << " ";
+		instr->print(ss, *this);
+		std::cout << ss.str() << "\n";
 	    }
 	    instr->invoke(*this);
-	    cnt++;
 	}
     }
     if (is_debug()) {
@@ -179,15 +249,18 @@ void wam_interpreter::compile(const qname &qn)
     size_t xn_size = compiler_->get_num_x_registers(instrs);
     size_t yn_size = compiler_->get_environment_size_of(instrs);    
     size_t first_offset = next_offset();
-
+    
     load_code(instrs);
 
     auto *next_instr = to_code(first_offset);
-    set_wam_predicate(qn, next_instr, xn_size, yn_size);
+    auto *end_instr = to_code(next_offset());
+    set_wam_predicate(qn, next_instr, end_instr, xn_size, yn_size);
     code_point cp(next_instr);
     set_code(qn, cp);
 
     trim_heap_safe(heap_sz);
+
+    get_predicate(qn).set_was_compiled(true);
 }
 
 void wam_interpreter::compile(common::con_cell module, common::con_cell name)
@@ -217,7 +290,7 @@ void wam_interpreter::recompile()
 {
     std::vector<qname> recompiled;
     for (auto &qn : get_updated_predicates()) {
-        if (is_compiled(qn)) {
+        if (was_compiled(qn)) {
 	    remove_compiled(qn);
 	    compile(qn);
 	    recompiled.push_back(qn);
@@ -230,7 +303,7 @@ void wam_interpreter::recompile()
 
 void wam_interpreter::recompile_if_needed(const qname &qn)
 {
-    if (!is_compiled(qn)) {
+    if (!was_compiled(qn)) {
         return;
     }
     if (is_updated_predicate(qn)) {
@@ -238,6 +311,37 @@ void wam_interpreter::recompile_if_needed(const qname &qn)
 	compile(qn);
 	clear_updated_predicate(qn);
     }
+}
+
+void wam_interpreter::auto_compile(const qname &qn)
+{
+    auto &pred = get_predicate(qn);
+    if (pred.ok_to_compile()) {
+	auto num_clauses = pred.num_clauses();
+	if (num_clauses <= 10) {
+	    compile(qn);
+	} else {
+	    pred.set_ok_to_compile(false);
+	    remove_compiled(qn);
+	    clear_updated_predicate(qn);
+	}
+    }
+}
+
+void wam_interpreter::print_code(std::ostream &out)
+{
+    wam_code::print_code(out);
+}
+
+void wam_interpreter::print_code(std::ostream &out, size_t from, size_t to)
+{
+    wam_code::print_code(out, from, to);
+}
+
+void wam_interpreter::print_code(std::ostream &out, const qname &qn)
+{
+    auto &meta_data = get_wam_predicate_meta_data(qn);
+    print_code(out,meta_data.code_offset,meta_data.end_offset);
 }
     
 void wam_interpreter::bind_code_point(std::unordered_map<size_t, size_t> &label_map, code_point &cp)

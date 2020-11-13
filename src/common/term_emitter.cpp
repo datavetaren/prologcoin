@@ -27,9 +27,6 @@ void term_emitter::init()
     empty_list_ = con_cell("[]", 0);
     var_naming_ = nullptr;
     var_naming_owned_ = false;
-    var_names_ = nullptr; 
-    printed_naming_ = nullptr;
-    disambiguation_count_ = nullptr;
     set_max_column(78);
 }
 
@@ -38,9 +35,6 @@ term_emitter::~term_emitter()
     if (var_naming_owned_ && var_naming_) {
         delete var_naming_;
     }
-    if (var_names_) delete var_names_;
-    if (printed_naming_) delete printed_naming_;
-    if (disambiguation_count_) delete disambiguation_count_;
 }
 
 void term_emitter::reset()
@@ -64,38 +58,23 @@ void term_emitter::print(cell c)
 
 void term_emitter::clear_printed_names()
 {  
-    if (printed_naming_) printed_naming_->clear();
-    if (disambiguation_count_) disambiguation_count_->clear();
+    printed_naming_.clear();
 }
 
-void term_emitter::set_var_naming(const std::unordered_map<term, std::string> &var_naming)
+void term_emitter::set_var_naming(const naming_map *var_naming)
 {
-    var_naming_ = const_cast<std::unordered_map<term, std::string> *>(&var_naming);
+    var_naming_ = const_cast<naming_map *>(var_naming);
     var_naming_owned_ = false;
-    if (printed_naming_ == nullptr) printed_naming_ = new std::unordered_map<term, std::string>;
-    if (disambiguation_count_ == nullptr) disambiguation_count_ = new std::unordered_map<std::string,size_t>;
-    if (var_names_) {
-        var_names_->clear();
-    } else {
-        var_names_ = new std::unordered_set<std::string>;
-    }
     clear_printed_names();
-    for (auto &e : var_naming) {
-        var_names_->insert(e.second);
-    }
 }
 
-void term_emitter::set_var_name(const term &c, const std::string &name)
+void term_emitter::set_var_name(term t, const std::string &name)
 {
     if (var_naming_ == nullptr) {
-        var_naming_ = new std::unordered_map<term, std::string>;
+        var_naming_ = new naming_map();
 	var_naming_owned_ = true;
-	var_names_ = new std::unordered_set<std::string>;
-	printed_naming_ = new std::unordered_map<term, std::string>;
-	disambiguation_count_ = new std::unordered_map<std::string, size_t>;
     }
-    (*var_naming_)[c] = name;
-    var_names_->insert(name);
+    var_naming_->set_name(t, name);
 }
 
 void term_emitter::nl()
@@ -859,36 +838,27 @@ void term_emitter::emit_ref(const term_emitter::elem &e)
     auto ref = static_cast<const ref_cell &>(e.cell_).unwatch();
     
     if (var_naming_ != nullptr) {
-        auto it = printed_naming_->find(ref);
-	if (it != printed_naming_->end()) {
+        auto it = printed_naming_.find(ref);
+	if (it != printed_naming_.end()) {
 	    const std::string &name = it->second;
 	    emit_token(name);
 	    return;
 	}
 
-	auto it2 = var_naming_->find(ref);
-	if (it2 != var_naming_->end()) {
-	    const std::string &name = it2->second;
-	    if (!name.empty() && name[0] == '_') {
+	auto &name = var_naming_->get_name(ref);
+	if (!name.empty()) {
+	    if (name[0] == '_') {
 	        emit_token(name);
 	        return;
 	    }
 	    std::string printed_name = name;
-	    // Check if name is in use
-	    size_t cnt = (*disambiguation_count_)[name];
-	    if (cnt > 0) {
-	        bool cont = false;
-	        do {
-		    printed_name = name + boost::lexical_cast<std::string>(cnt);
-		    cont = var_names_->count(printed_name);
-		    if (cont) cnt++;
-		    ++(*disambiguation_count_)[name];
-		} while (cont);
-	        (*printed_naming_)[ref] = printed_name;
-	    } else {
-	        (*printed_naming_)[ref] = printed_name;
-	        ++(*disambiguation_count_)[name];
+
+	    while (printed_names_.find(printed_name) != printed_names_.end()) {
+		size_t &cnt = printed_names_[printed_name];
+		printed_name = name + boost::lexical_cast<std::string>(cnt);
+		cnt++;
 	    }
+            printed_naming_[ref] = printed_name;
 	    emit_token(printed_name);
 	    return;
 	}
@@ -971,9 +941,8 @@ void term_emitter::print_from_stack(size_t top)
 	  	  emit_ref(e);
 		  continue;
 	      } else {
-	          auto it = var_naming_->find(e.cell_);
-	          if (it != var_naming_->end()) {
-	   	      const std::string &name = it->second;
+	          const std::string &name = var_naming_->get_name(e.cell_);
+	          if (!name.empty()) {
 		      emit_token(name);
 		      continue;
 	          }

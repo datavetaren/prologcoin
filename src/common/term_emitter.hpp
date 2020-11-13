@@ -54,9 +54,9 @@ public:
 	options_ = opt;
     }
 
-    void set_var_naming(const std::unordered_map<term, std::string> &var_naming);
+    void set_var_naming(const naming_map *var_naming);
 
-    void set_var_name(const term &cell, const std::string &name);
+    void set_var_name(term t, const std::string &name);
 
     void reset();
     void print(cell c);
@@ -191,10 +191,9 @@ private:
     con_cell dotted_pair_;
     con_cell empty_list_;
 
-    std::unordered_map<term, std::string> *var_naming_;
-    std::unordered_map<term, std::string> *printed_naming_;
-    std::unordered_map<std::string, size_t> *disambiguation_count_;
-    std::unordered_set<std::string> *var_names_;
+    naming_map *var_naming_;
+    std::unordered_map<term, std::string> printed_naming_;
+    std::unordered_map<std::string, size_t> printed_names_;
     bool var_naming_owned_;
 
     emitter_options options_;

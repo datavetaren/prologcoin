@@ -24,7 +24,7 @@ check_program_state :-
     member(temp_size(0), S),
     member(temp_trail_size(0), S),
     member(num_frozen_closures(0), S),
-    member(num_predicates(34), S),
+    member(num_predicates(33), S),
     member(num_clauses(307), S).
 
 ?- sort_and_check(256), check_program_state.

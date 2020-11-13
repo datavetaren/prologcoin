@@ -56,6 +56,8 @@ void interpreter_base::total_reset()
     module_meta_db_.clear();
     if (stack_) delete [] stack_;
     stack_ = nullptr;
+    for (auto e : managed_data_) delete e.second;
+    managed_data_.clear();
 
     init();
     reset_files();
@@ -71,10 +73,6 @@ void interpreter_base::init()
     locale_.total_reset();
     current_module_ = con_cell("system",0);
     persistent_password_ = false;
-    updated_predicate_pre_fn_ = nullptr;
-    updated_predicate_post_fn_ = nullptr;
-    load_predicate_fn_ = &load_predicate_default;
-    unique_predicate_id_fn_ = &unique_predicate_id_default;
 
     debug_ = false;
     track_cost_ = false;
@@ -129,6 +127,114 @@ interpreter_base::~interpreter_base()
     program_predicates_.clear();
 }
 
+void interpreter_base::foreach_stack_frame(interpreter_base::stack_frame_visitor &callb)
+{
+    enum entry_kind_t {
+	ENTRY_ENV_NAIVE,
+	ENTRY_ENV_WAM,
+	ENTRY_ENV_FROZEN,
+	ENTRY_CHOICE_POINT,
+	ENTRY_META_CONTEXT
+    };
+    struct entry_t {
+	entry_kind_t kind;
+	union {
+	    void *ptr;
+	    environment_base_t *env_base;
+	    environment_naive_t *env_naive;
+	    environment_t *env_wam;
+	    environment_frozen_t *env_frozen;
+	    choice_point_t *choice;
+	    meta_context *meta;
+	};
+	entry_t(environment_saved_t sv) {
+	    switch (sv.kind()) {
+	    case ENV_NAIVE:
+		kind = ENTRY_ENV_NAIVE;
+		env_naive = reinterpret_cast<environment_naive_t *>(sv.ce0());
+		break;
+	    case ENV_WAM:
+		kind = ENTRY_ENV_WAM;
+		env_wam = reinterpret_cast<environment_t *>(sv.ce0());
+		break;
+	    case ENV_FROZEN:
+		kind = ENTRY_ENV_FROZEN;
+		env_frozen = reinterpret_cast<environment_frozen_t *>(sv.ce0());
+		break;		
+	    }
+	}
+	entry_t(environment_naive_t *e1) : kind(ENTRY_ENV_NAIVE), env_naive(e1) { }
+	entry_t(environment_t *e1) : kind(ENTRY_ENV_WAM), env_wam(e1) { }
+	entry_t(environment_frozen_t *e1) : kind(ENTRY_ENV_FROZEN), env_frozen(e1) { }
+	entry_t(choice_point_t *cp) : kind(ENTRY_CHOICE_POINT), choice(cp) { }
+	entry_t(meta_context *m) : kind(ENTRY_META_CONTEXT), meta(m) { }
+    };
+    
+    std::unordered_set<void *> visited;
+    std::stack<entry_t> worklist;
+
+    if (e0()) {
+	switch (e_kind()) {
+	case ENV_NAIVE: worklist.push(entry_t(ee())); break;
+	case ENV_WAM: worklist.push(entry_t(e())); break;
+	case ENV_FROZEN: worklist.push(entry_t(ef())); break;
+	}
+    }
+    if (b()) worklist.push(entry_t(b()));
+    if (b0()) worklist.push(entry_t(b0()));
+    if (m()) worklist.push(entry_t(m()));
+
+    while (!worklist.empty()) {
+	auto ent = worklist.top();
+	worklist.pop();
+	if (ent.ptr == nullptr) {
+	    continue;
+	}
+	if (visited.count(ent.ptr)) {
+	    continue;
+	}
+	visited.insert(ent.ptr);
+	switch (ent.kind) {
+	    case ENTRY_ENV_NAIVE:
+	        callb.visit_naive_environment(ent.env_naive);
+		break;
+	    case ENTRY_ENV_WAM:
+	        callb.visit_wam_environment(ent.env_wam);
+		break;
+	    case ENTRY_ENV_FROZEN:
+		callb.visit_frozen_environment(ent.env_frozen);
+		break;
+   	    case ENTRY_CHOICE_POINT:
+		callb.visit_choice_point(ent.choice);
+		break;
+	    case ENTRY_META_CONTEXT:
+	        callb.visit_meta_context(ent.meta);
+		break;
+	}
+	switch (ent.kind) {
+	    case ENTRY_ENV_FROZEN:
+	    case ENTRY_ENV_NAIVE:
+		worklist.push(ent.env_naive->b0);
+		// Fall through
+	    case ENTRY_ENV_WAM:
+		worklist.push(entry_t(ent.env_base->ce));
+		break;
+	    case ENTRY_CHOICE_POINT:
+		worklist.push(entry_t(ent.choice->ce));
+		worklist.push(entry_t(ent.choice->m));
+		worklist.push(entry_t(ent.choice->b));
+		worklist.push(entry_t(ent.choice->b0));
+		break;
+	    case ENTRY_META_CONTEXT:
+	        worklist.push(entry_t(ent.meta->old_m));
+	        worklist.push(entry_t(ent.meta->old_b));
+	        worklist.push(entry_t(ent.meta->old_b0));
+	        worklist.push(entry_t(environment_saved_t(ent.meta->old_e, ent.meta->old_e_kind)));
+		break;
+	}
+    }
+}
+	
 void interpreter_base::set_current_module(con_cell mod)
 {
     static con_cell SYSTEM("system",0);
@@ -154,7 +260,7 @@ void interpreter_base::reset()
         while (b() != top_b()) {
 	    reset_to_choice_point(b());
 	    set_b(b()->b);
-	    set_register_hb((b() != nullptr) ? b()->h : top_hb());
+	    set_register_hb(b());
 	}
 	if (top_b() != nullptr) {
 	    reset_to_choice_point(top_b());	  
@@ -167,12 +273,12 @@ void interpreter_base::reset()
     register_e_kind_ = ENV_NAIVE;
 
     if (!persistent_password_) {
-        clear_password();
+        clear_secret();
     }
 
     // Try to cleanup all bindings that happened to variables at the top-level
     // (e.g. the entry variables for the query.)
-    set_register_hb(0);
+    set_register_hb(static_cast<size_t>(0));
     tidy_trail();
 }
 
@@ -453,7 +559,7 @@ void interpreter_base::load_clause(term t, clause_position pos)
     // into memory.
     get_predicate(qn);
     
-    add_updated_predicate_pre(qn);
+    updated_predicate_pre(qn);
     
     auto found = program_db_.find(qn);
     if (found == program_db_.end()) {
@@ -470,9 +576,9 @@ void interpreter_base::load_clause(term t, clause_position pos)
 	module_db_[module].push_back(qn);
     }
 
-    add_updated_predicate_post(qn);
-
     set_code(qn, code_point(module, pn));
+
+    internal_updated_predicate_post(qn);
 
     heap_limit();
 }
@@ -490,6 +596,7 @@ void interpreter_base::load_builtin(const qname &qn, builtin b)
 void interpreter_base::set_debug_enabled()
 {
     load_builtin(functor("debug_on",0), &builtins::debug_on_0);
+    load_builtin(functor("debug_off",0), &builtins::debug_off_0);
     load_builtin(functor("debug_check",0), &builtins::debug_check_0);
     load_builtin(functor("program_state",0), &builtins::program_state_0);
     load_builtin(functor("program_state",1), &builtins::program_state_1);
@@ -512,9 +619,17 @@ const std::string & interpreter_base::get_current_directory() const
 
 std::string interpreter_base::get_full_path(const std::string &path) const
 {
-    boost::filesystem::path p(current_dir_);
-    p /= path;
-    return p.string();
+    if (path.empty()) {
+	return path;
+    }
+    boost::filesystem::path path1(path);
+    if (path1.is_relative()) {
+	boost::filesystem::path abspath(current_dir_);
+	abspath /= path;
+	return abspath.string();
+    } else {
+	return path1.string();
+    }
 }
 
 void interpreter_base::load_builtins_file_io()
@@ -539,7 +654,7 @@ qname interpreter_base::gen_predicate(const common::con_cell module, size_t arit
       'G','H','I','J','K','L','M','N','O','P','Q','R','S','T','U','V',
       'W','X','Y','Z','0','1','2','3','4','5','6','7','8','9','-','+'};
     
-    size_t num = unique_predicate_id_fn_(*this, module);
+    size_t num = unique_predicate_id(module);
     char name[7];
     size_t i;
     for (i = 0; i < 7 && num != 0; i++) {
@@ -665,30 +780,41 @@ void interpreter_base::print_db(std::ostream &out) const
 {
     bool do_nl_p = false;
     for (const auto &qn : program_predicates_) {
-	auto it = program_db_.find(qn);
-	if (it == program_db_.end()) {
-	    continue;
-	}
-	const predicate &pred = it->second;
-	if (do_nl_p) {
-	    out << "\n";
-	}
-	emitter_options opt;
-	opt.set(emitter_option::EMIT_PROGRAM);
-	bool do_nl = false;
-	for (auto &m_clause : pred.get_clauses()) {
-	    if (do_nl) out << "\n";
-	    std::string mod = "";
-	    if (qn.first != USER_MODULE) {
-	        mod = to_string(qn.first)+":";
-	    }
-	    auto str = mod+to_string(m_clause.clause(), opt);
-	    out << str;
-	    do_nl = true;
-	}
-	do_nl_p = true;
+	print_predicate(out, qn, do_nl_p);
     }
     out << "\n";
+}
+
+void interpreter_base::print_predicate(std::ostream &out, const qname &qn) const
+{
+    bool do_nl_p = false;
+    print_predicate(out, qn, do_nl_p);
+}
+
+void interpreter_base::print_predicate(std::ostream &out, const qname &qn, bool &do_nl_p) const
+{
+    auto it = program_db_.find(qn);
+    if (it == program_db_.end()) {
+	return;
+    }
+    const predicate &pred = it->second;
+    if (do_nl_p) {
+	out << "\n";
+    }
+    emitter_options opt;
+    opt.set(emitter_option::EMIT_PROGRAM);
+    bool do_nl = false;
+    for (auto &m_clause : pred.get_clauses()) {
+	if (do_nl) out << "\n";
+	std::string mod = "";
+	if (qn.first != USER_MODULE) {
+	    mod = to_string(qn.first)+":";
+	}
+	auto str = mod+to_string(m_clause.clause(), opt);
+	out << str;
+	do_nl = true;
+    }
+    do_nl_p = true;
 }
 
 void interpreter_base::print_profile() const
@@ -794,7 +920,7 @@ bool interpreter_base::definitely_inequal(const term a, const term b)
 void interpreter_base::unwind_to_top_choice_point()
 {
     if (top_b() == nullptr) {
-        if (!persistent_password_) clear_password();
+        if (!persistent_password_) clear_secret();
         return;
     }
     reset_to_choice_point(top_b());
@@ -888,7 +1014,7 @@ void interpreter_base::save_comment(const term_tokenizer::token &comment, std::o
 void interpreter_base::save_clause(term t, std::ostream &out)
 {
     term_emitter emit(out, *this);
-    emit.set_var_naming(var_naming());
+    emit.set_var_naming(&var_naming());
     emit.options().set(emitter_option::EMIT_PROGRAM);
     emit.print(t);
     emit.nl();
@@ -897,7 +1023,7 @@ void interpreter_base::save_clause(term t, std::ostream &out)
 void interpreter_base::save_predicate(const qname &qn, std::ostream &out)
 {
     term_emitter emit(out, *this);
-    emit.set_var_naming(var_naming());    
+    emit.set_var_naming(&var_naming());    
     emit.options().set(emitter_option::EMIT_PROGRAM);
     bool empty = true;
     for (auto &managed : get_predicate(qn).get_clauses()) {
@@ -909,13 +1035,19 @@ void interpreter_base::save_predicate(const qname &qn, std::ostream &out)
     if (!empty) emit.nl();
 }
 
-void interpreter_base::clear_password()
+// The secret area enables us to cache password derivatives, which are
+// automatically cleaned up later. We can use "assert('$secret':blaha(42))"
+// to store temporary things.
+void interpreter_base::clear_secret()
 {
-    static con_cell SYSTEM("system",0);
-    static con_cell PASSWD("$passwd",1);
-    auto &pred = get_predicate(qname(SYSTEM, PASSWD));
-    pred.clear();
-    // std::cout << "clear_password(): current_module=" << to_string(current_module()) << std::endl;
+    static con_cell SECRET("$secret",0);
+    // Iterate through $secret module and clear all predicates
+
+    auto &qnames = get_module(SECRET);
+    for (auto &qn : qnames) {
+	auto &pred = get_predicate(qn);
+	pred.clear();
+    }
 }
 
 }}

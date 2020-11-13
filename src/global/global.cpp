@@ -49,7 +49,12 @@ void global::total_reset() {
 }
 
 bool global::db_get_predicate(const qname &qn,
-			      std::vector<term> &clauses) { 
+			      std::vector<term> &clauses) {
+
+    if (blockchain_.program_root().is_zero()) {
+	return false;
+    }
+    
     // Max 10 collisions
     size_t i;
     const uint8_t *p = nullptr;

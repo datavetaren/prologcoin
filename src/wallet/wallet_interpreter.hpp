@@ -20,18 +20,22 @@ public:
     void execute_at(term query, term_env &query_src, const std::string &where);
     void continue_at(term_env &query_src, const std::string &where);
     void delete_instance_at(term_env &query_src, const std::string &where);
+
+    wallet & get_wallet() { return wallet_; }
   
 private:
     void init();
     void setup_local_builtins();
     void setup_wallet_impl();
 
-    wallet & get_wallet() { return wallet_; }
-
     static bool create_2(interpreter_base &interp, size_t arity, term args[]);
     static bool save_0(interpreter_base &interp, size_t arity, term args[]);
+    static bool load_0(interpreter_base &interp, size_t arity, term args[]);    
     static bool file_1(interpreter_base &interp, size_t arity, term args[]);
+    static bool auto_save_1(interpreter_base &interp, size_t arity, term args[]);
+    static bool operator_at_impl(interpreter_base &interp, size_t arity, term args[], bool silent);
     static bool operator_at_2(interpreter_base &interp, size_t arity, term args[]);
+    static bool operator_at_silent_2(interpreter_base &interp, size_t arity, term args[]);    
   
     std::string file_path_;
     wallet &wallet_;

@@ -1,6 +1,7 @@
 #include <iostream>
 #include <fstream>
 #include <boost/filesystem.hpp>
+#include <boost/algorithm/string.hpp>
 #include "wallet.hpp"
 #include "../common/utime.hpp"
 #include "../ec/keys.hpp"
@@ -16,7 +17,23 @@ void wallet::erase(const std::string &wallet_file) {
     boost::filesystem::remove(wallet_file);
 }
 
-wallet::wallet(const std::string &wallet_file) : wallet_file_(wallet_file), interp_(*this, wallet_file), killed_(false), terminal_(nullptr)
+void wallet::erase_all_test_wallets(const std::string &dir) {
+    boost::filesystem::directory_iterator at_end;
+    for (boost::filesystem::directory_iterator it(dir); it != at_end; ++it){
+	if (!boost::filesystem::is_regular_file(it->status())) {
+	    continue;
+	}
+	auto filename = it->path().filename().string();
+	if (boost::starts_with(filename, "test_wallet") &&
+	    boost::ends_with(filename, ".pl")) {
+	    auto path = it->path().string();
+	    std::cout << "Erasing " << path << std::endl;
+	    erase(path);
+	}
+    }
+}
+
+wallet::wallet(const std::string &wallet_file) : wallet_file_(wallet_file), new_file_(true), auto_save_(true), interp_(*this, wallet_file), killed_(false), terminal_(nullptr)
 {
 }
 
@@ -25,32 +42,43 @@ wallet::~wallet()
     killed_ = true;
 }
 
+void wallet::set_current_directory(const std::string &dir)
+{
+    interp_.set_current_directory(dir);
+}
+	
 void wallet::total_reset()
 {
     interp_.total_reset();
 }
-
+	
 const std::string & wallet::get_file() const {
     return wallet_file_;
 }
 
 void wallet::set_file(const std::string &file) {
     wallet_file_ = file;
+    new_file_ = true;
 }
 
 void wallet::load()
 {
-    if (!wallet_file_.empty() && boost::filesystem::exists(wallet_file_)) {
-        std::ifstream ifs(wallet_file_);
+    auto fullpath = interp().get_full_path(wallet_file_);
+    if (!fullpath.empty() && boost::filesystem::exists(fullpath)) {
+        std::ifstream ifs(fullpath);
 	auto old_module = interp_.current_module();
 	interp_.set_current_module(con_cell("wallet",0));
 	interp_.load_program(ifs);
 	interp_.set_current_module(old_module);
     }
+    new_file_ = false;
 }
 
 void wallet::check_dirty()
 {
+    if (!is_auto_save()) {
+	return;
+    }
     auto &meta = interp_.get_module_meta(con_cell("wallet",0));
     if (meta.has_changed()) {
         save();
@@ -62,7 +90,14 @@ void wallet::save()
     if (wallet_file_.empty()) {
         return;
     }
-    std::ofstream ofs(wallet_file_);
+    auto fullpath = interp().get_full_path(wallet_file_);
+    // Check if wallet is non empty first
+    auto &mod = interp().get_module(con_cell("wallet",0));
+    if (mod.empty()) {
+	// No need to save something empty
+	return;
+    }
+    std::ofstream ofs(fullpath);
     interp_.save_program(con_cell("wallet",0),ofs);
 }
 
@@ -74,7 +109,7 @@ void wallet::connect_node(terminal *node_term)
 
 void wallet::node_pulse()
 {
-    if (terminal_ != nullptr) {
+    if (terminal_) {
         terminal_->node_pulse();
     }
 }
@@ -86,6 +121,7 @@ void wallet::print()
 
 void wallet::reset()
 {
+    if (terminal_) terminal_->reset();
     interp_.reset();
 }
 
@@ -121,8 +157,14 @@ std::string wallet::execute(const std::string &cmd)
     // Execute arbitrary Prolog command
     try {
         term t = interp_.parse(cmd);
-	if (execute(t)) {
-	    return interp_.get_result();
+	bool ok = false;
+	if ((ok = execute(t))) {
+	    auto r = interp_.get_result();
+	    if (ok && new_file_) {
+		interp_.total_reset();
+		load();
+	    }
+	    return r;
 	} else {
 	    return "fail.";
 	}
@@ -169,6 +211,7 @@ term wallet::get_result_term(const std::string &varname)
 remote_return_t wallet::execute_at(term query, term_env &query_src, const std::string &where)
 {
     uint64_t cost = 0;
+    terminal_->env().clear_names();
     term query_term = terminal_->env().copy(query, env(), cost);
 
     bool old = terminal_->is_result_to_text();
@@ -246,11 +289,17 @@ numkeys(0).
     ec::mnemonic mn(interp_);
     mn.from_sentence(sentence); // Already checked before this call
     mn.compute_key(hd, "TREZOR"); // Be compatible with TREZOR
-    std::string master_privkey_source = "master_privkey(Master) :- system:password(Password), ec:encrypt(WordList, Password, 2048, " + encrypted_str +"), ec:master_key(WordList, Master, _).";
 
-    std::string master_pubkey_source = "master_pubkey(58'" + hd.master_public().to_string() + ").";
+    std::stringstream ss;
+    ss << "master_privkey(Master) :- current_predicate('$secret':master/1), '$secret':master(Master)." << std::endl;
+    ss << "master_privkey(Master) :- system:password(Password), ec:encrypt(WordList, Password, 2048, " + encrypted_str +"), ec:master_key(WordList, Master, _), assert('$secret':master(Master))." << std::endl << std::endl;
 
-    std::string total_program = master_privkey_source + nl2 + master_pubkey_source + nl2 + template_source;
+    ss << "master_pubkey(58'" + hd.master_public().to_string() + ").";
+    ss << std::endl << std::endl;
+
+    ss << template_source;
+
+    std::string total_program = ss.str();
     interp_.load_program(total_program);
 
     save();

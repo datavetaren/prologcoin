@@ -62,6 +62,7 @@ typedef std::pair<common::con_cell, common::con_cell> qname;
         static bool profile_0(interpreter_base &interp, size_t arity, common::term args []);
 
 	static bool debug_on_0(interpreter_base &interp, size_t arity, common::term args []);
+	static bool debug_off_0(interpreter_base &interp, size_t arity, common::term args []);	
 	static bool debug_check_0(interpreter_base &interp, size_t arity, common::term args[]);
 	static bool program_state_0(interpreter_base &interp, size_t arity, common::term args[]);
 	static bool program_state_1(interpreter_base &interp, size_t arity, common::term args[]);	
@@ -251,6 +252,11 @@ typedef std::pair<common::con_cell, common::con_cell> qname;
         // external hacks.
         static bool password_2(interpreter_base &interp, size_t arity, common::term args[] );
 
+	static bool now_2(interpreter_base &interp, size_t arity, common::term args[]);
+	static bool tic_0(interpreter_base &interp, size_t arity, common::term args[]);
+	static bool toc_1(interpreter_base &interp, size_t arity, common::term args[]);
+	static uint64_t tic_millis;
+	
         // load
         static void load(interpreter_base &interp);
     };

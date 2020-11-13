@@ -26,6 +26,7 @@ void wallet_interpreter::init()
     setup_wallet_impl();
     // Make wallet inherit everything from wallet_impl
     use_module(functor("wallet_impl",0));
+    set_auto_wam(true);
 }
 
 void wallet_interpreter::total_reset()
@@ -39,8 +40,11 @@ void wallet_interpreter::setup_local_builtins()
 {
     static const con_cell M("wallet",0);
     load_builtin(M, con_cell("@",2), &wallet_interpreter::operator_at_2);
+    load_builtin(M, con_cell("@-",2), &wallet_interpreter::operator_at_silent_2);
     load_builtin(M, con_cell("create",2), &wallet_interpreter::create_2);
     load_builtin(M, con_cell("save",0), &wallet_interpreter::save_0);
+    load_builtin(M, functor("auto_save",1), &wallet_interpreter::auto_save_1);
+    load_builtin(M, con_cell("load",0), &wallet_interpreter::load_0);
     load_builtin(M, con_cell("file",1), &wallet_interpreter::file_1);
 }
 
@@ -66,9 +70,9 @@ newkey(PublicKey, Address) :-
 % Sync N heap references (to frozen closures)
 %
 sync(N) :-
-    lastheap(H),
+    wallet:lastheap(H),
     H1 is H + 1,
-    ((frozenk(H1, N, HeapAddrs), frozen(HeapAddrs, Closures)) @ global) @ node,
+    wallet:'@'(((frozenk(H1, N, HeapAddrs), frozen(HeapAddrs, Closures)) @ global), node),
     (last(HeapAddrs, LastH) ->
         retract(wallet:lastheap(_)), assert(wallet:lastheap(LastH)) ; true),
     forall('$member2'(Closure, HeapAddress, Closures, HeapAddrs),
@@ -211,7 +215,7 @@ retract_utxos([HeapAddr|HeapAddrs]) :-
     wallet:utxo(HeapAddress, TxType, _, Data),
     '$open_utxo_tx'(TxType, HeapAddress, Data, Hash, Coin, Sign, Commands).
 
-'$open_utxo_tx'(tx1, HeapAddress, PubKeyAddress, Hash, Coin, sign(tx1,Signature,PubKeyAddress), Commands) :-
+'$open_utxo_tx'(tx1, HeapAddress, PubKeyAddress, Hash, Coin, sign(tx1,Signature,PubKeyAddress),Commands) :-
     cache:valid_address(PubKeyAddress, Count),
     wallet:pubkey(Count, PubKey),
     Commands = [defrost(HeapAddress, Closure,
@@ -248,10 +252,11 @@ retract_utxos([HeapAddr|HeapAddrs]) :-
         std::cout << "Error while loading internal wallet_impl source:" << std::endl;      
         std::cout << term_parser::report_string(*this, ex) << std::endl;
     }
+    compile();
     set_current_module(old_module);
 }
 
-bool wallet_interpreter::operator_at_2(interpreter_base &interp, size_t arity, term args[]) {
+bool wallet_interpreter::operator_at_impl(interpreter_base &interp, size_t arity, term args[], bool silent) {
     static con_cell NODE("node", 0);
     auto query = args[0];
     auto where_term = args[1];
@@ -271,8 +276,16 @@ bool wallet_interpreter::operator_at_2(interpreter_base &interp, size_t arity, t
 	   {return LL(interp).get_wallet().continue_at(interp, where);},
 	[](interpreter_base &interp, const std::string &where)
 	   {return LL(interp).get_wallet().delete_instance_at(interp, where);});
-
+    proxy.set_silent(silent);
     return proxy.start(query, where);
+}
+	
+bool wallet_interpreter::operator_at_2(interpreter_base &interp, size_t arity, term args[]) {
+    return operator_at_impl(interp, arity, args, false);
+}
+
+bool wallet_interpreter::operator_at_silent_2(interpreter_base &interp, size_t arity, term args[]) {
+    return operator_at_impl(interp, arity, args, true);
 }
 
 bool wallet_interpreter::save_0(interpreter_base &interp, size_t arity, term args[])
@@ -282,6 +295,34 @@ bool wallet_interpreter::save_0(interpreter_base &interp, size_t arity, term arg
     return true;
 }
 
+bool wallet_interpreter::auto_save_1(interpreter_base &interp, size_t arity, term args[])
+{
+    auto &w = reinterpret_cast<wallet_interpreter &>(interp).get_wallet();
+
+    static con_cell on("on",0);
+    static con_cell off("off",0);    
+    
+    if (args[0].tag().is_ref()) {
+	con_cell c = w.is_auto_save() ? on : off;
+	return interp.unify(args[0], c);
+    } else if (args[0] == on) {
+	w.set_auto_save(true);
+	return true;
+    } else if (args[0] == off) {
+	w.set_auto_save(false);
+	return true;
+    } else {
+	return false;
+    }
+}
+
+bool wallet_interpreter::load_0(interpreter_base &interp, size_t arity, term args[])
+{
+    auto &w = reinterpret_cast<wallet_interpreter &>(interp).get_wallet();
+    w.load();
+    return true;
+}
+	
 bool wallet_interpreter::file_1(interpreter_base &interp, size_t arity, term args[])
 {
     auto &w = reinterpret_cast<wallet_interpreter &>(interp).get_wallet();
@@ -308,6 +349,7 @@ bool wallet_interpreter::file_1(interpreter_base &interp, size_t arity, term arg
 	    new_path = p;
 	}
 	new_file = new_path.string();
+	w.save(); // Save current wallet before switching to new file
 	w.set_file(new_file);
 	return true;
     }

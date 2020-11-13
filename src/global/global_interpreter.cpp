@@ -35,9 +35,6 @@ void global_interpreter::init()
     init_from_symbols_db();
     init_from_program_db();
 
-    setup_updated_predicate_function(updated_predicate_pre, updated_predicate_post);
-    setup_load_predicate_function(load_predicate);
-    setup_unique_predicate_id_function(unique_predicate_id);
     heap_setup_new_atom_function( call_new_atom, this );
     heap_setup_modified_block_function( call_modified_heap_block, this );
 
@@ -76,26 +73,6 @@ void global_interpreter::total_reset()
     global::erase_db(get_global().data_dir());
     interpreter::total_reset();
     init();
-}
-
-void global_interpreter::updated_predicate_pre(interpreter_base &interp, const interp::qname &qn) {
-    auto &gi = reinterpret_cast<global_interpreter &>(interp);
-    gi.updated_predicate_pre(qn);
-}
-
-void global_interpreter::updated_predicate_post(interpreter_base &interp, const interp::qname &qn) {
-    auto &gi = reinterpret_cast<global_interpreter &>(interp);
-    gi.updated_predicate_post(qn);
-}
-	
-void global_interpreter::load_predicate(interpreter_base &interp, const interp::qname &qn) {
-    auto &gi = reinterpret_cast<global_interpreter &>(interp);
-    gi.load_predicate(qn);
-}
-
-size_t global_interpreter::unique_predicate_id(interpreter_base &interp, const con_cell module) {
-    auto &gi = reinterpret_cast<global_interpreter &>(interp);
-    return gi.unique_predicate_id(module);
 }
 
 void global_interpreter::load_predicate(const interp::qname &qn) {
@@ -188,20 +165,20 @@ bool global_interpreter::execute_goal(term t) {
     bool r = execute(t);
     // If no choicepoints, then clean up the trail
     if (!has_more()) {
-	set_register_hb(0);
+	set_register_hb(static_cast<size_t>(0));
 	tidy_trail();
     }
     return r;
 }
 
-bool global_interpreter::execute_goal(buffer_t &serialized)
+bool global_interpreter::execute_goal(buffer_t &serialized, bool silent)
 {
     term_serializer ser(*this);
 
     try {
         term goal = ser.read(serialized);
 	
-	if (naming_) {
+	if (naming_ && !silent) {
 	    std::unordered_set<std::string> seen;
 	    // Scan all vars in goal, and set initial bindings
 	    std::for_each( begin(goal),
@@ -226,8 +203,10 @@ bool global_interpreter::execute_goal(buffer_t &serialized)
 	    reset();
 	    return false;
 	}
-	serialized.clear();
-	ser.write(serialized, goal);
+	if (!silent) {
+	    serialized.clear();
+	    ser.write(serialized, goal);
+	}
 	return true;
     } catch (serializer_exception &ex) {
 	reset();
@@ -546,7 +525,8 @@ void global_interpreter::init_from_heap_db()
         return;
     }
     auto root = get_global().get_blockchain().heap_root();
-    if (get_global().get_blockchain().heap_db().num_entries(root) == 0) {
+    if (root.is_zero() ||
+	get_global().get_blockchain().heap_db().num_entries(root) == 0) {
 	new_heap();
 	return;
     }

@@ -68,8 +68,8 @@ public:
     inline bool execute_goal(term t) {
         return interp_->execute_goal(t);
     }
-    inline bool execute_goal(buffer_t &buf) {
-        return interp_->execute_goal(buf);
+    inline bool execute_goal(buffer_t &buf, bool silent) {
+        return interp_->execute_goal(buf, silent);
     }
     inline void execute_cut() {
         interp_->execute_cut();
@@ -136,6 +136,9 @@ public:
 	if (blockchain_.symbols_db().is_empty()) {
 	    return 0;
 	}
+	if (blockchain_.symbols_root().is_zero()) {
+	    return 0;
+	}
 	return common::checked_cast<size_t>(blockchain_.symbols_db().num_entries(blockchain_.symbols_root())) / 2;
     }
 
@@ -190,6 +193,9 @@ public:
     }
 
     size_t db_get_symbol_index(const std::string &name) {
+	if (blockchain_.symbols_root().is_zero()) {
+	    return 0;
+	}
 	// Maximum 10 hash collisions before we give up
 	for (size_t i = 0; i < 10; i++) {
 	    common::fast_hash h;
@@ -253,6 +259,9 @@ public:
 
     size_t db_num_predicates() const {
 	if (blockchain_.program_db().is_empty()) {
+	    return 0;
+	}
+	if (blockchain_.program_root().is_zero()) {
 	    return 0;
 	}
 	return common::checked_cast<size_t>(blockchain_.program_db().num_entries(blockchain_.program_root()));

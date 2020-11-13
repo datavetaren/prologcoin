@@ -1,3 +1,9 @@
+xcrun xctrace record --template 'Time Profiler' --output 'mytrace.trace' --launch -- ../../bin/test/interp/test_interpreter_files ex_99
+
+open /Applications/Xcode.app/Contents/Applications/Instruments.app mytrace.trace
+
+---- old -----
+
 instruments -t /Applications/Xcode.app/Contents/Applications/Instruments.app/Contents/Resources/templates/Time\ Profiler.tracetemplate -D mytrace ../../bin/test/interp/test_interpreter_files ex_99
 
 open /Applications/Xcode.app/Contents/Applications/Instruments.app mytrace.trace

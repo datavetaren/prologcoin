@@ -25,20 +25,26 @@ public:
 
     // For testing purposes
     static void erase(const std::string &wallet_file);
+    static void erase_all_test_wallets(const std::string &dir);
   
     // Wallet file is some Prolog source code (.pl) representing a wallet.
     wallet(const std::string &wallet_file = "");
     ~wallet();
 
+    void set_current_directory(const std::string &dir);
+
     void total_reset();
 
     inline common::term_env & env() { return interp_; }
-    inline interp::interpreter & interp() { return interp_; }
+    inline wallet_interpreter & interp() { return interp_; }
 
     const std::string & get_file() const;
     void set_file(const std::string &wallet_file);
+    bool using_new_file() const { return new_file_; }
     void load();
     void save();
+    void set_auto_save(bool on) { auto_save_ = on; }
+    bool is_auto_save() const { return auto_save_; }
     void create(const std::string &passwd, common::term sentence);
     void check_dirty();
 
@@ -64,6 +70,8 @@ public:
   
 private:
     std::string wallet_file_;
+    bool new_file_;
+    bool auto_save_;
     wallet_interpreter interp_;
     bool killed_;
 

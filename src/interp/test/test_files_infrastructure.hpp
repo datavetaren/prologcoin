@@ -245,6 +245,8 @@ static inline bool test_interpreter_file(const std::string &filepath,
 	do {
 
 	while (!infile->eof()) {
+	    hook( "before parse" );
+	    
 	    term t = parser->parse();
 
 	    std::string comments = parser->get_comments_string();
@@ -402,7 +404,11 @@ static inline bool test_interpreter_file(const std::string &filepath,
 		}
 		predicates.clear();
 		frozen_predicates.clear();
-		interp.clear_updated_predicates();
+		if (!interp.is_auto_wam()) {
+		    // Never do this during auto WAM compilation as this can interfere
+		    // with recompilation of modified predicates
+		    interp.clear_updated_predicates();
+		}
 
 		interp.set_register_hb(interp.heap_size());
 		for (size_t i = 0; i < expected.size(); i++) {
@@ -413,6 +419,8 @@ static inline bool test_interpreter_file(const std::string &filepath,
 		interp.set_register_hb(interp.heap_size());
 		interp.clear_all_frozen_closures();
 	    }
+
+	    hook( "post command" );
 	}
 
 	infile->close();

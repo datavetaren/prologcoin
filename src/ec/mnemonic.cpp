@@ -87,6 +87,7 @@ void mnemonic::ensure_reverse_word_map()
 bool mnemonic::from_sentence(term words)
 {
     ensure_reverse_word_map();
+
     size_t off = 0;
     memset(bytes_, 0, 32+1);
     ent_ = 0;

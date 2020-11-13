@@ -114,7 +114,7 @@ void file_stream::ensure_emitter()
 	emitter_ = new term_emitter(*out_, env_, env_);
 	emitter_->options().clear(emitter_option::EMIT_QUOTED);
 	emitter_->options().clear(emitter_option::EMIT_NEWLINE);
-        emitter_->set_var_naming(env_.var_naming());
+        emitter_->set_var_naming(&env_.var_naming());
     }
 }
 

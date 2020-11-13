@@ -10,6 +10,7 @@
 #include "../../interp/test/test_files_infrastructure.hpp"
 
 using namespace prologcoin::common;
+using namespace prologcoin::interp;
 using namespace prologcoin::terminal;
 using namespace prologcoin::node;
 using namespace prologcoin::wallet;
@@ -75,20 +76,28 @@ int main( int argc, char *argv[] )
 
     // Connect a wallet to it (with no file path, so information isn't saved anywhere.)
     wallet w;
+    w.set_current_directory(test_dir);
     w.connect_node(&term);
     w.load();
 
-    auto hook = [&](const std::string &cmd) {
-	if (cmd == "global reset") {
-	    std::cout << "### Global reset ###" << std::endl;
-	    self.global().total_reset();
+    test_interpreter_files(dir, w.interp(), [&](const std::string &cmd) {
+	if (cmd == "post command") {
+	    w.check_dirty();
+	} else if (cmd == "before parse") {
+	    if (w.using_new_file()) {
+		std::cout << "Total reset!" << std::endl;
+		w.total_reset();
+		w.set_current_directory(test_dir);
+		w.load();
+		return true;
+	    }
+	} else if (cmd == "erase all test wallets") {
+	    w.erase_all_test_wallets(test_dir);
 	    return true;
 	}
 	return false;
-    };
-
-    test_interpreter_files(dir, w.interp(), hook, name);
-
+    }, name);
+    
     self.stop();
     self.join();
 

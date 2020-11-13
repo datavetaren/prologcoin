@@ -6,7 +6,7 @@ What needs to be done:
   thought that we could create a separate DB for orphans, but that's
   just too complicated. Better to store everything for all branches.)
 
-* Better global interpreter management. We might want to skip the
+[FIXED] * Better global interpreter management. We might want to skip the
   "commit" vs "@" operator. It's better make "@" to just modify the
   environment. We then add an option to backtrack (to last known
   state) and another option to increment to the next state (increment height.)

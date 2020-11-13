@@ -109,7 +109,7 @@ program_state_check :-
 
 % Let's roll back to last previous state.
 ?- chain(5, [Id]), switch(Id), chain, program_state @ global.
-% Expect: true
+% Expect: true/*
 
 % Let's run the last command again from this state
 
@@ -120,7 +120,7 @@ program_state_check :-
 
 % Let's go further back in time and retry
 ?- chain(4, [Id]), switch(Id), chain.
-% Expect: true
+% Expect: true/*
 
 ?- wait_some2, final_check.
 % Expect: true
@@ -129,7 +129,7 @@ program_state_check :-
 
 % And even further back
 ?- chain(3, [Id]), switch(Id), chain.
-% Expect: true
+% Expect: true/*
 
 ?- feed_sorters(512, 1024), wait_some, wait_some2, final_check.
 % Expect: true

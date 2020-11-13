@@ -484,8 +484,6 @@ public:
     inline ops_proxy(term_ops &ops) : ops_dock<ops_bridge>() { set_ops(ops); }
 };
 
-typedef std::unordered_map<term, std::string> naming_map;
-
 class term_utils : public heap_proxy, stacks_proxy, ops_proxy {
 public:
     term_utils(heap &h, stacks &s, term_ops &o) : heap_proxy(h), stacks_proxy(s), ops_proxy(o), dont_copy_big_(false) { }
@@ -493,7 +491,7 @@ public:
     bool unify(term a, term b, uint64_t &cost);
     term copy(const term t, naming_map &names, uint64_t &cost);
     term copy(const term t, naming_map &names,
-	      heap &src, naming_map &src_names, uint64_t &cost);
+	      heap &src, naming_map *src_names, uint64_t &cost);
     bool equal(term a, term b, uint64_t &cost);
     uint64_t hash(term t);
     uint64_t cost(term t);
@@ -603,21 +601,16 @@ public:
 
   inline naming_map & var_naming()
      { return var_naming_; }
+  inline void clear_names()
+     { var_naming_.clear_names(); }
   inline void clear_name(const term t)
-     { var_naming_.erase(t); }
+     { var_naming_.clear_name(t); }
   inline bool has_name(const term t) const
-     { return var_naming_.find(t) != var_naming_.end(); }
+     { return var_naming_.has_name(t); }
   inline void set_name(const term t, const std::string &name)
-     { var_naming_[t] = name; }
+     { var_naming_.set_name(t, name); }
   inline const std::string & get_name(const term t) const
-     { auto it = var_naming_.find(t);
-       if (it == var_naming_.end()) {
-	   static const std::string empty;
-	   return empty;
-       } else {
-	   return it->second;
-       }
-     }
+     { return var_naming_.get_name(t); }
 
   inline void unwind_trail(size_t from, size_t to)
   {
@@ -637,17 +630,24 @@ public:
       return utils.unify(a, b, cost);
   }
 
+  inline term copy_without_names(term t, uint64_t &cost)
+  {
+      term_utils utils(heap_dock<HT>::get_heap(), stacks_dock<ST>::get_stacks(), ops_dock<OT>::get_ops());
+      return utils.copy(t, var_naming(), heap_dock<HT>::get_heap(),
+			nullptr, cost);
+  }
+    
   inline term copy(term t, uint64_t &cost)
   {
       term_utils utils(heap_dock<HT>::get_heap(), stacks_dock<ST>::get_stacks(), ops_dock<OT>::get_ops());
       return utils.copy(t, var_naming(), heap_dock<HT>::get_heap(),
-			var_naming(), cost);
+			&var_naming(), cost);
   }
 
   inline term copy(term t, term_env_dock<HT,ST,OT> &src, uint64_t &cost)
   {
       term_utils utils(heap_dock<HT>::get_heap(), stacks_dock<ST>::get_stacks(), ops_dock<OT>::get_ops());
-      return utils.copy(t, var_naming(), src.get_heap(), src.var_naming(), cost);
+      return utils.copy(t, var_naming(), src.get_heap(), &src.var_naming(), cost);
   }
 
   inline term copy_except_big(term t, uint64_t &cost)
@@ -655,7 +655,7 @@ public:
       term_utils utils(heap_dock<HT>::get_heap(), stacks_dock<ST>::get_stacks(), ops_dock<OT>::get_ops());
       utils.set_dont_copy_big(true);
       return utils.copy(t, var_naming(), heap_dock<HT>::get_heap(),
-			var_naming(), cost);
+			nullptr, cost);
   }
 
   inline std::string list_to_string(term t, term_env_dock<HT,ST,OT> &src)
@@ -763,7 +763,7 @@ public:
       // so we can pretty print the variable names.
       parser.for_each_var_name( [this](const term ref,
 				    const std::string &name)
-			     { this->var_naming_[ref] = name; } );
+          { this->var_naming_.set_name(ref, name); } );
       return r;
   }
  
@@ -786,7 +786,7 @@ public:
       term_emitter emitter(ss, heap_dock<HT>::get_heap(),
 			   ops_dock<OT>::get_ops());
       emitter.set_options(opt);
-      emitter.set_var_naming(var_naming_);
+      emitter.set_var_naming(&var_naming_);
       emitter.print(t1);
       return ss.str();
   }
@@ -869,9 +869,8 @@ public:
       return vars;
   }
 
-  std::vector<term> prettify_var_names(const term t0)
+  void prettify_var_names(const term t0, std::vector<term> &touched)
   {
-      std::vector<term> touched;
       std::map<term, size_t> count_occurrences;
       std::unordered_set<term> seen;
       std::unordered_set<std::string> used_names;
@@ -925,7 +924,6 @@ public:
 	      set_name(v.first, name);
 	  }
       }
-      return touched;
   }
 
   inline std::vector<std::string> get_expected(const term_parse_exception &ex)
@@ -970,7 +968,7 @@ public:
   }
 
 private:
-  std::unordered_map<term, std::string> var_naming_;
+  naming_map var_naming_;
 };
 
 template<typename HT, typename ST, typename OT>

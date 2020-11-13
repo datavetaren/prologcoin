@@ -2060,6 +2060,7 @@ std::vector<managed_clauses> wam_compiler::partition_clauses(
     bool has_last_clause = false;
     managed_clause last_clause;
     for (auto &m_clause : clauses) {
+	if (m_clause.is_erased()) continue;
         auto head = clause_head(m_clause.clause());
 	auto f = env_.functor(head);
 	if (f.arity() < 1) {

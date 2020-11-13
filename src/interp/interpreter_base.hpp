@@ -73,12 +73,12 @@ class predicate {
 public:
   inline predicate() = default;
   inline predicate(const predicate &other) = default;
-  inline predicate(const qname &qn) : qname_(qn), with_vars_(false) { }
+  inline predicate(const qname &qn) : qname_(qn), id_(0), with_vars_(false), num_clauses_(0),was_compiled_(false),ok_to_compile_(true), performance_count_(0) { }
   inline const qname & qualified_name() const { return qname_; }
 
   inline const std::vector<managed_clause> & clauses() const { return clauses_; }
 
-  inline bool empty() const { return clauses_.empty(); }
+  inline bool empty() const { return num_clauses_ == 0; }
   
   void add_clause(interpreter_base &interp,
 		  common::term clause,
@@ -91,18 +91,44 @@ public:
   inline const std::vector<managed_clause> & get_clauses() const
       { return clauses_; }
 
+  inline size_t num_clauses() const {
+      size_t n = 0;
+      for (auto &mclause : get_clauses()) {
+	  if (mclause.is_erased()) continue;
+	  n++;
+      }
+      return n;
+  }
+
   inline void clear()
   {
       clauses_.clear();
       indexed_.clear();
       with_vars_ = false;
       clear_cache();
+      num_clauses_ = 0;
   }
 
   inline void clear_cache()
   {
       filtered_.clear();
       term_id_.clear();
+  }
+
+  inline bool was_compiled() const {
+      return was_compiled_;
+  }
+    
+  inline void set_was_compiled(bool on) {
+      was_compiled_ = on;
+  }
+
+  inline bool ok_to_compile() const {
+      return ok_to_compile_;
+  }
+
+  inline void set_ok_to_compile(bool on) {
+      ok_to_compile_ = on;
   }
 
   bool matching_clauses(interpreter_base &interp, common::term head);
@@ -126,7 +152,9 @@ private:
     mutable std::vector<std::vector<managed_clause> > filtered_;
     mutable std::unordered_map<common::term, size_t> term_id_;
     bool with_vars_;
-
+    size_t num_clauses_;
+    bool was_compiled_;
+    bool ok_to_compile_;
     mutable size_t performance_count_;
 };
 
@@ -380,6 +408,8 @@ public:
     }
 };
 
+struct meta_context;
+	
 typedef bool (*meta_fn)(interpreter_base &, const meta_reason_t &reason);
 struct meta_context {
     meta_context(interpreter_base &i, meta_fn fn);
@@ -459,7 +489,7 @@ public:
         term_env::heap_set_size(sz);
 	set_register_hb(sz);
     }
-  
+
     inline con_cell current_module() const { return current_module_; }
     void set_current_module(con_cell m);
   
@@ -792,7 +822,7 @@ public:
 	    if (it != program_db_.end()) {
 		auto &pred = it->second;
 		if (pred.empty()) {
-		    load_predicate_fn_(*this, qn);
+		    load_predicate(qn);
 		}
 		return it->second;
 	    }
@@ -805,7 +835,7 @@ public:
 
 	    // Enables a client to fill the predicate with clauses
 	    // (from a database)
-	    load_predicate_fn_(*this, qn);
+	    load_predicate(qn);
 
 	    return pred;
 	}
@@ -857,22 +887,18 @@ public:
         return has_updated_predicates_;
     }
 
-    inline void add_updated_predicate_pre(const qname &qn) {
-	if (updated_predicate_pre_fn_) {
-	    updated_predicate_pre_fn_(*this, qn);
-	}
+    virtual void updated_predicate_pre(const qname &qn) { }
+    virtual void updated_predicate_post(const qname &qn) { }
+    virtual void load_predicate(const qname &qn) { }
+    virtual size_t unique_predicate_id(const con_cell module) {
+	return program_predicates_.size() + 1;
     }
-    
-    inline void add_updated_predicate_post(const qname &qn) {
-        size_t already_updated = updated_predicates_.count(qn) != 0;
+
+    void internal_updated_predicate_post(const qname &qn) {
         updated_predicates_.insert(qn);
 	has_updated_predicates_ = true;
 	module_meta_db_[qn.first].changed();
-	if (!already_updated) {
-	    if (updated_predicate_post_fn_ != nullptr) {
-	        updated_predicate_post_fn_(*this, qn);
-	    }
-	}
+	updated_predicate_post(qn);
     }
   
     inline const std::unordered_set<qname> & get_updated_predicates() const
@@ -899,6 +925,8 @@ public:
 
     void print_db() const;
     void print_db(std::ostream &out) const;
+    void print_predicate(std::ostream &out, const qname &qn) const;
+    void print_predicate(std::ostream &out, const qname &qn, bool &do_nl_p) const;
     void print_profile() const;
     void print_profile(std::ostream &out) const;
 
@@ -990,6 +1018,13 @@ public:
     inline term copy(term t)
        { uint64_t cost = 0;
          term c = common::term_env::copy(t, cost);
+	 add_accumulated_cost(cost);
+	 return c;
+       }
+
+    inline term copy_without_names(term t)
+       { uint64_t cost = 0;
+         term c = common::term_env::copy_without_names(t, cost);
 	 add_accumulated_cost(cost);
 	 return c;
        }
@@ -1189,6 +1224,21 @@ protected:
 	return register_cp_;
     }
 
+    inline void set_register_hb(choice_point_t *cp) {
+	bool is_null = reinterpret_cast<void *>(cp) == nullptr;
+	if (is_null) {
+	    set_register_hb(top_hb());
+	} else {
+	    set_register_hb(cp->h);
+	}
+    }
+
+public:
+    inline void set_register_hb(size_t h) {
+	term_env::set_register_hb(h);
+    }
+protected:
+
     inline bool has_late_choice_point() 
     {
         return b() > b0();
@@ -1197,7 +1247,7 @@ protected:
     inline void cut_direct()
     {
 	set_b(b0());
-	set_register_hb((b() != nullptr) ? b()->h : top_hb());
+	set_register_hb(b());
 	tidy_trail();
     }
     inline void cut()
@@ -1359,6 +1409,16 @@ protected:
     {
         return complete_;
     }
+
+    struct stack_frame_visitor {
+	virtual void visit_naive_environment(environment_naive_t *e) { }
+	virtual void visit_wam_environment(environment_t *e) { }
+	virtual void visit_frozen_environment(environment_frozen_t *e) { }
+	virtual void visit_choice_point(choice_point_t *cp) { }
+	virtual void visit_meta_context(meta_context *m) { }
+    };
+
+    void foreach_stack_frame(stack_frame_visitor &cb);
 
     // Allocate on stack so that we don't overwrite any data of a previous
     // stack frame.
@@ -1696,18 +1756,6 @@ private:
     term register_qr_;     // Current query 
     con_cell register_pr_; // Current predicate (for profiling)
 
-    static void load_predicate_default(interpreter_base & /*interp*/, const qname & /*qn*/) {
-    }
-    typedef void (*load_predicate_fn)(interpreter_base &interp, const qname &qn);
-    load_predicate_fn load_predicate_fn_;
-
-    static size_t unique_predicate_id_default(interpreter_base &interp, 
-					      const common::con_cell /*module*/ ) {
-	return interp.program_predicates_.size() + 1;
-    }
-    typedef size_t (*unique_predicate_id_fn)(interpreter_base &interp, const common::con_cell module);
-    unique_predicate_id_fn unique_predicate_id_fn_;
-
 public:
     static const con_cell COMMA;
     static const con_cell EMPTY_LIST;
@@ -1751,28 +1799,8 @@ private:
     bool is_persistent_password() const { return persistent_password_; }
     void set_persistent_password(bool p) { persistent_password_ = p; }
 
-private:
-    typedef void (*updated_predicate_fn)(interpreter_base &interp, const qname &qn);
-    
-    updated_predicate_fn updated_predicate_pre_fn_;
-    updated_predicate_fn updated_predicate_post_fn_;
-
 protected:
-    void clear_password();
-
-    inline void setup_updated_predicate_function(updated_predicate_fn pre_fn,
-						 updated_predicate_fn post_fn) {
-        updated_predicate_pre_fn_ = pre_fn;
-        updated_predicate_post_fn_ = post_fn;	
-    }
-
-    inline void setup_load_predicate_function(load_predicate_fn fn) {
-	load_predicate_fn_ = fn;
-    }
-
-    inline void setup_unique_predicate_id_function(unique_predicate_id_fn fn) {
-	unique_predicate_id_fn_ = fn;
-    }
+    void clear_secret();
 
 private:
     std::map<size_t, term> frozen_closures_;
@@ -1951,6 +1979,7 @@ inline void predicate::add_clause(interpreter_base &interp, common::term clause0
 	}
     }
     clear_cache();
+    num_clauses_++;
 }
 
 inline bool predicate::matched_indexed_clause(interpreter_base &interp, common::term head) {
@@ -1974,12 +2003,12 @@ inline managed_clause predicate::remove_indexed_clause(interpreter_base &interp,
     auto &idx = indexed_[arg_index];
     for (auto it = idx.begin(); it != idx.end();) {
         performance_count_++;
-        auto managed_clause (*it);
-        auto idx_clause = (*it).clause();
+        auto &mclause = (*it);
+        auto idx_clause = mclause.clause();
         auto idx_clause_head = interp.clause_head(idx_clause);
         if (interp.can_unify(idx_clause_head, head)) {
             it = idx.erase(it);
-	    return managed_clause;
+	    return mclause;
         } else {
             ++it;
         }
@@ -2033,6 +2062,7 @@ inline bool predicate::remove_clauses(interpreter_base &interp, common::term hea
 		}
 		it = clauses_.erase(it);
 		remove_indexed_clause(interp, clause_head);
+		num_clauses_--;
 		if (!all) break;
 	    } else {
 	        ++it;
@@ -2047,6 +2077,7 @@ inline bool predicate::remove_clauses(interpreter_base &interp, common::term hea
 	    if (mclause.clause() != common::term()) {
 	        found = true;
 	        clauses_[mclause.ordinal()].erase();
+		num_clauses_--;
 	    } else {
 	        cont = false;
 	    }

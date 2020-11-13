@@ -174,7 +174,7 @@ static void test_copy_term()
     std::string s = "foo(X, 42, X, bar(Y)).";
     auto t1 = env.parse(s);
 
-    env.var_naming().clear();
+    env.var_naming().clear_names();
 
     std::string s1 = env.to_string(t1);
     std::string sx = "foo(A, 42, A, bar(B))";

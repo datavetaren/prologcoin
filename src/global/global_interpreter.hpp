@@ -65,11 +65,6 @@ public:
     virtual size_t num_predicates() const override;
     size_t num_symbols();
     virtual size_t num_frozen_closures() const override;
-
-    static void updated_predicate_pre(interpreter_base &interp, const interp::qname &qn);
-    static void updated_predicate_post(interpreter_base &interp, const interp::qname &qn);    
-    static void load_predicate(interpreter_base &interp, const interp::qname &qn);
-    static size_t unique_predicate_id(interpreter_base &interp, const common::con_cell module_name);
     virtual term get_frozen_closure(size_t addr) override;
     virtual void clear_frozen_closure(size_t addr) override;
     virtual void set_frozen_closure(size_t addr, term closure) override;
@@ -77,7 +72,7 @@ public:
 				     size_t max_clousres,
 	     std::vector<std::pair<size_t, term> > &closures) override;
 
-    inline void updated_predicate_pre(const interp::qname &qn) {
+    virtual void updated_predicate_pre(const interp::qname &qn) override {
 	auto p = internal_get_predicate(qn);
 	if (p) {
 	    if (p->empty()) {
@@ -89,7 +84,8 @@ public:
 	}
     }
 
-    inline void updated_predicate_post(const interp::qname &qn) {
+    virtual void updated_predicate_post(const interp::qname &qn) override {
+	interpreter::updated_predicate_post(qn);
 	auto p = internal_get_predicate(qn);
 	if (p->empty()) {
 	    new_predicates_--;
@@ -97,9 +93,8 @@ public:
         updated_predicates_.push_back(qn);
     }
 
-    void load_predicate(const interp::qname &qn);
-
-    size_t unique_predicate_id(const common::con_cell module);
+    virtual void load_predicate(const interp::qname &qn) override;
+    virtual size_t unique_predicate_id(const common::con_cell module) override;
   
     inline void set_current_block(common::heap_block *b, size_t block_index) {
         current_block_ = b;
@@ -120,7 +115,7 @@ public:
     inline void set_naming(bool b) { naming_ = b; }
   
     bool execute_goal(term t);
-    bool execute_goal(buffer_t &serialized);
+    bool execute_goal(buffer_t &serialized, bool silent);
     void execute_cut();
   
     inline bool is_empty_stack() const {

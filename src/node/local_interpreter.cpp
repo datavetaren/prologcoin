@@ -58,9 +58,7 @@ bool me_builtins::list_load_2(interpreter_base &interp0, size_t arity, term args
     return true;
 }
 
-    
-bool me_builtins::operator_at_2(interpreter_base &interp0, size_t arity, term args[] )
-{
+bool me_builtins::operator_at_impl(interpreter_base &interp0, size_t arity, term args[], bool silent) {
     auto &interp = to_local(interp0);
 
     interp.root_check("@", 2);
@@ -91,10 +89,22 @@ bool me_builtins::operator_at_2(interpreter_base &interp0, size_t arity, term ar
 	   {return LL(interp).self().continue_at(interp, where);},
 	[](interpreter_base &interp, const std::string &where)
 	   {return LL(interp).self().delete_instance_at(interp, where);});
+    proxy.set_silent(silent);
 
     return proxy.start(query, where);
 }
 
+    
+bool me_builtins::operator_at_2(interpreter_base &interp0, size_t arity, term args[] )
+{
+    return operator_at_impl(interp0, arity, args, false);
+}
+
+bool me_builtins::operator_at_silent_2(interpreter_base &interp0, size_t arity, term args[] )
+{
+    return operator_at_impl(interp0, arity, args, true);
+}
+	
 bool me_builtins::id_1(interpreter_base &interp0, size_t arity, term args[] )
 {
     auto &interp = to_local(interp0);
@@ -879,7 +889,7 @@ bool me_builtins::commit(local_interpreter &interp, term_serializer::buffer_t &b
     buf.clear();
     ser.write(buf, t);
 
-    if (!g.execute_goal(buf)) {
+    if (!g.execute_goal(buf, true)) {
 	g.discard();
 	return false;
     }
@@ -921,7 +931,7 @@ bool me_builtins::commit_2(interpreter_base &interp0, size_t arity, term args[])
     return true;
 }
 
-bool me_builtins::global_1(interpreter_base &interp0, size_t arity, term args[] )
+bool me_builtins::global_impl(interpreter_base &interp0, size_t arity, term args[], bool silent)
 {
     auto &interp = to_local(interp0);
 
@@ -937,16 +947,29 @@ bool me_builtins::global_1(interpreter_base &interp0, size_t arity, term args[] 
     buf.clear();
     ser.write(buf, t);
 
-    if (!g.execute_goal(buf)) {
+    if (!g.execute_goal(buf, silent)) {
 	g.reset();
 	return false;
     }
 
     // assert(g.is_clean());
 
-    term t1 = ser.read(buf);
-    
-    return interp.unify(t, t1);
+    if (silent) {
+	return true;
+    } else {
+	term t1 = ser.read(buf);
+	return interp.unify(t, t1);
+    }
+}
+
+bool me_builtins::global_1(interpreter_base &interp0, size_t arity, term args[] )
+{
+    return global_impl(interp0, arity, args, false);
+}
+
+bool me_builtins::global_silent_1(interpreter_base &interp0, size_t arity, term args[] )
+{
+    return global_impl(interp0, arity, args, true);
 }
 
 local_interpreter::local_interpreter(in_session_state &session)
@@ -1005,6 +1028,7 @@ void local_interpreter::ensure_initialized()
 void local_interpreter::setup_local_builtins()
 {
     load_builtin(con_cell("@",2), &me_builtins::operator_at_2);
+    load_builtin(con_cell("@-",2), &me_builtins::operator_at_silent_2);
 
     // [...] syntax to load programs.
     load_builtin(con_cell(".", 2), &me_builtins::list_load_2);
