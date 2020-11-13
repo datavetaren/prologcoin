@@ -105,10 +105,32 @@ tmp:send1(Count, EndCount) :-
     Count1 is Count + 1,
     tmp:send1(Count1, EndCount).
 
-?- tic, password("foobar1"), tmp:send(500), toc.
+?- tic, password("foobar1"), tmp:send(100), toc.
 % Expect: true/*
 
+%
+% Switch to wallet 2 and see if we have the expected funds
+%
 
+?- file("test_wallet2.pl").
+% Expect: true/*
 
+%
+% The global state has advanced, so we need to sync.
+%
+?- sync, sync.
+% Expect: true/*
+
+% Print balance
+?- balance(X2).
+% Expect: true/*
+
+expected_balance(0,0) :- !.
+expected_balance(Exp,N) :- N1 is N - 1, expected_balance(Exp1,N1),
+			Exp is 1000000 + N1 + Exp1.
+
+% Check balance
+?- balance(X3), expected_balance(X3,100).
+% Expect: true/*
 
 
