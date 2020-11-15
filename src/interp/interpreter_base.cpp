@@ -1079,27 +1079,27 @@ void interpreter_base::dump_stack() {
     if(kind == ENV_NAIVE) {
       std::cout << "Naive env: " << frame_ptr << "\n";
     } else if (kind == ENV_WAM) {
-      std::cout << "Wam env: " << frame_ptr << "\n";
-      size_t numy = env_num_y_fn()(this, cur_e);
-      std::cout << "Num Y: " << numy << "\n";
-      auto wamenv = reinterpret_cast<environment_t*>(cur_e);
-      // For some reason the first y register is a pointer to the stack.
-      for(int i = 0; i < numy; i++) {
-	common::term yi = wamenv->yn[i];
-	std::cout << "y[" << i << "]: " << yi.tag().str();
-	if(yi.tag() == common::tag_t::REF ||
-	   yi.tag() == common::tag_t::RFW) {
-	  std::cout << yi.raw_value() << ", " <<
-	    reinterpret_cast<ptr_cell&>(yi).index() << "ptr: " <<
-	    (void*)(((size_t)(reinterpret_cast<ptr_cell&>(yi).index())) << 3);
-	} else if (yi.tag() == common::tag_t::STR) {
-	  std::cout << " " << reinterpret_cast<ptr_cell&>(yi).index() <<
-	    ", " << to_string(yi);
-	} else if (yi.tag() == common::tag_t::CON) {
-	  std::cout << ", " << to_string(yi);
+        std::cout << "Wam env: " << frame_ptr << "\n";
+	size_t numy = env_num_y_fn()(this, cur_e);
+	std::cout << "Num Y: " << numy << "\n";
+	auto wamenv = reinterpret_cast<environment_t*>(cur_e);
+	// For some reason the first y register is a pointer to the stack.
+	for(int i = 0; i < numy; i++) {
+	  common::term yi = wamenv->yn[i];
+	  std::cout << "y[" << i << "]: " << yi.tag().str();
+	  if(yi.tag() == common::tag_t::REF ||
+	     yi.tag() == common::tag_t::RFW) {
+	    std::cout << yi.raw_value() << ", " <<
+	      reinterpret_cast<ptr_cell&>(yi).index() << "ptr: " <<
+	      (void*)(((size_t)(reinterpret_cast<ptr_cell&>(yi).index())) << 3);
+	  } else if (yi.tag() == common::tag_t::STR) {
+	    std::cout << " " << reinterpret_cast<ptr_cell&>(yi).index() <<
+	      ", " << to_string(yi);
+	  } else if (yi.tag() == common::tag_t::CON) {
+	    std::cout << ", " << to_string(yi);
+	  }
+	  std::cout << "\n";
 	}
-	std::cout << "\n";
-      }
     } else { // FROZEN
       std::cout << "Frozen env: " << frame_ptr << "\n";
     }

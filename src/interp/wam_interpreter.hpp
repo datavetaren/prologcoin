@@ -7,6 +7,7 @@
 #include <vector>
 #include <iomanip>
 #include <map>
+#include <set>
 #include "interpreter_base.hpp"
 
 namespace prologcoin { namespace interp {
@@ -765,6 +766,9 @@ private:
     bool fail_;
     wam_compiler *compiler_;
 
+    // Set with all offsets
+    std::set <size_t> label_offsets;
+
     template<wam_instruction_type I> friend class wam_instruction;
 
     static inline size_t num_y(interpreter_base *interp, bool use_previous)
@@ -789,6 +793,20 @@ private:
 	return at_call->reg();
     }
 
+    static inline size_t top_num_y(interpreter_base *interp) {
+      auto wami = reinterpret_cast<wam_interpreter *>(interp);
+      auto current_instr = wami->p().wam_code();
+      size_t current_offset = wami->to_code_addr(current_instr);
+      auto beginning = *(--(wami->label_offsets.lower_bound(current_offset)));
+      std::cout << "Number of instructions to scan: " << (current_offset-beginning)/8 << "\n";
+      std::cout << "Current offset: " << current_offset << "\n";
+      std::cout << "Beginning: " << beginning << "\n";
+      for(int i = beginning; i <= current_offset; --i) {
+      }
+
+      return 0;
+    }
+
     static inline size_t env_num_y(interpreter_base *interp, environment_base_t *env)
     {
       auto wami = reinterpret_cast<wam_interpreter *>(interp);
@@ -798,16 +816,20 @@ private:
       if(kind == ENV_WAM) {
         auto prev_env = reinterpret_cast<environment_t *>(saved_env.ce0());
         auto p = top ? wami->cp() : env->cp;
+        if (top) {
+          return wami->top_num_y(interp);
+        }
+
         auto cp = prev_env->cp;
         if(cp.has_wam_code()) {
-        auto after_call = cp.wam_code();
-	auto at_call = reinterpret_cast<wam_instruction_code_point_reg *>(
-		  reinterpret_cast<code_t *>(after_call) -
-		  sizeof(wam_instruction_code_point_reg)/sizeof(code_t));
-	return at_call->reg();
-	} else {
-	  return interpreter_base::env_num_y(interp, env);
-	}
+          auto after_call = cp.wam_code();
+          auto at_call = reinterpret_cast<wam_instruction_code_point_reg *>(
+                  reinterpret_cast<code_t *>(after_call) -
+                  sizeof(wam_instruction_code_point_reg)/sizeof(code_t));
+          return at_call->reg();
+        } else {
+          return interpreter_base::env_num_y(interp, env);
+        }
       } else {
         return 0;
       }

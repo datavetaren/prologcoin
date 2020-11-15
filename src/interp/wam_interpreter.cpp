@@ -404,6 +404,7 @@ void wam_interpreter::load_code(wam_interim_code &instrs)
 	    auto *lbl_instr = static_cast<wam_interim_instruction<INTERIM_LABEL> *>(instr);
 	    size_t lbl = static_cast<size_t>(lbl_instr->label().value());
 	    label_map.insert(std::make_pair(lbl, offset));
+	    label_offsets.insert(offset);
 	} else {
 	    add(*instr);
 	    size_t sz = instr->size();
