@@ -795,16 +795,51 @@ private:
 
     static inline size_t top_num_y(interpreter_base *interp) {
       auto wami = reinterpret_cast<wam_interpreter *>(interp);
-      auto current_instr = wami->p().wam_code();
-      size_t current_offset = wami->to_code_addr(current_instr);
-      auto beginning = *(--(wami->label_offsets.lower_bound(current_offset)));
-      std::cout << "Number of instructions to scan: " << (current_offset-beginning)/8 << "\n";
-      std::cout << "Current offset: " << current_offset << "\n";
-      std::cout << "Beginning: " << beginning << "\n";
-      for(int i = beginning; i <= current_offset; --i) {
+      auto instr = wami->p().wam_code();
+      size_t offset = wami->to_code_addr(instr);
+      auto beginning_offset = *(--(wami->label_offsets.lower_bound(offset)));
+      int i = 0;
+      int max_y = 0;
+      for(auto current_instr = wami->to_code(beginning_offset); current_instr <= instr;) {
+	std::cout << "Instr " << i << ": ";
+	current_instr->print(std::cout, *wami);
+	std::cout << "\n";
+	current_instr = wami->next_instruction(current_instr);
+	i = i + 1;
+	switch(current_instr->type()) {
+	case PUT_VARIABLE_Y:
+	case PUT_VALUE_Y:
+	case PUT_UNSAFE_VALUE_Y:
+	case GET_VALUE_Y: {
+	  auto bin_reg = reinterpret_cast<wam_instruction_binary_reg *>(current_instr);
+	  auto yn = bin_reg->reg_1();
+	  max_y = yn > max_y ? yn : max_y;
+	  break;
+	}
+	case PUT_STRUCTURE_Y:
+	case GET_STRUCTURE_Y: {
+	  auto con_reg = reinterpret_cast<wam_instruction_con_reg *>(current_instr);
+	  auto yn = con_reg->reg();
+	  max_y = yn > max_y ? yn : max_y;
+	  break;
+	}
+	case PUT_LIST_Y:
+	case GET_LIST_Y:
+	case SET_VARIABLE_Y:
+	case SET_VALUE_Y:
+	case SET_LOCAL_VALUE_Y:
+	case UNIFY_LOCAL_VALUE_Y: {
+	  auto un_reg = reinterpret_cast<wam_instruction_unary_reg *>(current_instr);
+	  auto yn = un_reg->reg();
+	  max_y = yn > max_y ? yn : max_y;
+	  break;
+	}
+	default:
+	  break;
+	}
       }
-
-      return 0;
+      std::cout << "NUM Y: " << max_y << "\n";
+      return max_y;
     }
 
     static inline size_t env_num_y(interpreter_base *interp, environment_base_t *env)

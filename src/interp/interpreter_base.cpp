@@ -1085,7 +1085,7 @@ void interpreter_base::dump_stack() {
 	auto wamenv = reinterpret_cast<environment_t*>(cur_e);
 	// For some reason the first y register is a pointer to the stack.
 	for(int i = 0; i < numy; i++) {
-	  common::term yi = wamenv->yn[i];
+	  common::term yi = (wamenv == nullptr) ? e()->yn[i] : wamenv->yn[i];
 	  std::cout << "y[" << i << "]: " << yi.tag().str();
 	  if(yi.tag() == common::tag_t::REF ||
 	     yi.tag() == common::tag_t::RFW) {
