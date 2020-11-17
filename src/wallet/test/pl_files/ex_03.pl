@@ -99,7 +99,7 @@ tmp:send1(Count, EndCount) :-
     tmp:wallet2(AddrN, PubAddr) @ node,
     % write('sending '), write(Count), write(' to '), write(PubAddr), nl,
     Value is 1000000 + Count,
-    spend_tx(PubAddr, Value, 1234, Tx, OldUtxos), retract_utxos(OldUtxos),
+    spend_one(PubAddr, Value, 1234, Tx, OldUtxos), retract_utxos(OldUtxos),
     commit(Tx) @- node,
     sync,
     Count1 is Count + 1,
@@ -131,6 +131,97 @@ expected_balance(Exp,N) :- N1 is N - 1, expected_balance(Exp1,N1),
 
 % Check balance
 ?- balance(X3), expected_balance(X3,100).
+% Expect: true/*
+
+?- file("test_wallet3.pl").
+% Expect: true/*
+
+%
+% This is wallet 3
+%
+
+?- create("foobar3", [wealth,excuse,alien,enough,puzzle,borrow,attitude,post,air,decorate,offer,betray,stock,clump,skirt,lava,marble,walnut,rely,they,craft,resist,brain,often]).
+% Expect: true/*
+
+%
+% Create some keys in wallet 3 och store the addresses at node.
+%
+tmp:create_addrs3(N,N) :- !.
+tmp:create_addrs3(N, End) :-
+    newkey(PubKey, PubAddr), assert(tmp:wallet3(N, PubAddr)) @ node,
+    N1 is N + 1,
+    tmp:create_addrs3(N1, End).
+
+?- tmp:create_addrs3(0, 10).
+% Expect: true/*
+
+%
+% Next step is to create one transaction with many outputs. (Aggregate what
+% we did for wallet 2.) So go back to wallet 1 (that has so much money.)
+%
+
+?- file("test_wallet1.pl").
+% Expect: true/*
+
+%
+% Create 1 transaction with 100 outputs to wallet 3 (using the 10 addresses.)
+%
+
+tmp:amounts(N, N, []) :- !.
+tmp:amounts(Count, EndCount, [Value|Amounts]) :-
+    Value is 1000000 + Count,
+    Count1 is Count + 1,
+    tmp:amounts(Count1, EndCount, Amounts).
+
+tmp:send3(Count) :-
+    tmp:send3b(0, Count, [], Tx), commit(Tx) @- node, advance @ node.
+
+tmp:send3b(EndCount, EndCount, Addresses, Tx) :-
+    !,
+    length(Addresses, N),
+    tmp:amounts(0, N, Amounts),
+    reverse(Addresses, AddressesRev),
+    spend_many(AddressesRev, Amounts, 1234, Tx, OldUtxos),
+    retract_utxos(OldUtxos).
+tmp:send3b(Count, EndCount, Addresses, Tx) :-
+    AddrN is Count mod 10,
+    tmp:wallet3(AddrN, PubAddr) @ node,
+    Count1 is Count + 1,
+    tmp:send3b(Count1, EndCount, [PubAddr|Addresses], Tx).
+
+%
+% Send to wallet 3, 100 outputs (10 addresses)
+%
+?- tic, password("foobar1"), tmp:send3(100), toc.
+% Expect: true/*
+
+%
+% Switch to wallet 3. And sync.
+%
+
+?- file("test_wallet3.pl").
+% Expect: true/*
+
+%
+% The global state has advanced, so we need to sync.
+%
+?- sync, sync, sync.
+% Expect: true/*
+
+% Print balance
+?- balance(X4).
+% Expect: true/*
+
+% Print balance
+?- balance(X4).
+% Expect: true/*
+
+expected_balance3(0,0) :- !.
+expected_balance3(Exp,N) :- N1 is N - 1, expected_balance3(Exp1,N1),
+			Exp is 1000000 + N1 + Exp1.
+
+% Check balance
+?- balance(X5), expected_balance3(X5,100).
 % Expect: true/*
 
 

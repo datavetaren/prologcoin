@@ -148,43 +148,82 @@ resync :-
 balance(Balance) :-
     (current_predicate(wallet:utxo/4) ->
        findall(utxo(Value,HeapAddr), wallet:utxo(HeapAddr,_,Value,_), Values),
-       '$sum'(Values, 0, Balance)
+       '$sum_utxo'(Values, 0, Balance)
      ; Balance = 0
     ).
 
 %
 % Spending logic
 %
-spend_tx(Address, Funds, Fee, FinalTx, ConsumedUtxos) :-
+spend_one(Address, Amount, Fee, FinalTx, ConsumedUtxos) :-
+    spend_many([Address], [Amount], Fee, FinalTx, ConsumedUtxos).
+
+%
+% spend_many is the generic predicate that can be used to 
+% spend to many addresses with different amounts.
+%
+
+spend_many(Addresses, Amounts, Fee, FinalTx, ConsumedUtxos) :-
     '$cache_addresses',
-    findall(utxo(Value,HeapAddress), wallet:utxo(HeapAddress,_,Value,_),
-            Utxos),
-    sort(Utxos, SortedUtxos), % Sorted on value
-    Sum is Funds + Fee,
-    '$choose'(SortedUtxos, Sum, ChosenUtxos),
-    '$sum'(ChosenUtxos, 0, ChosenSum),
-    Rest is ChosenSum - Sum,
+    % --- Get all available UTXOs from wallet,
+    findall(utxo(Value,HeapAddress), wallet:utxo(HeapAddress,_,Value,_),Utxos),
+    % --- Sort all UTXOs on value 
+    sort(Utxos, SortedUtxos),
+    % --- Compute the total sum of funds that will be spent (excluding fee.)
+    '$sum'(Amounts, AmountToSpend),
+    % --- The total sum of funds that will be spent including fee.
+    TotalAmount is AmountToSpend + Fee,
+    % --- Find the UTXOs that we'd like to spend.
+    '$choose'(SortedUtxos, TotalAmount, ChosenUtxos),
+    % --- Compute its sum
+    '$sum_utxo'(ChosenUtxos, 0, ChosenSum),
+    % --- Rest is the remainder that will go back to self
+    Rest is ChosenSum - TotalAmount,
+    % --- Compute the list of instructions to open these UTXOs
+    % --- Signs are the created signatures
     '$open_utxos'(ChosenUtxos, Hash, Coins, Signs, Commands),
+    % --- Append a join instruction (if more than one UTXO)
     (Coins = [SumCoin] ->
        Commands1 = Commands 
      ; append(Commands, [cjoin(Coins, SumCoin)], Commands1)),
+    % --- Create txs for all the provided addresses (and funds.)
+    findall(tx(_, _, tx1, args(_,_,Address),_),
+            member(Address, Addresses), Txs),
+    % --- Collect all coin arguments for these txs into SendCoins
+    '$get_coins'(Txs, SendCoins),
+    % --- Do we get change?
     (Rest > 0 ->
+         % --- Yes, create a new change address
          newkey(_, ChangeAddr),
-         append(Commands1, [csplit(SumCoin, [Funds,Fee,Rest],
-                                   [FundsCoin,_,RestCoin]),
-                            tx(FundsCoin, _, tx1, args(_,_,Address), _),
-                            tx(RestCoin, _, tx1, args(_,_,ChangeAddr),_)],
+         % --- All the different funds
+         AllAmounts = [Fee,Rest|Amounts],
+         % --- Note that SendCoins will be unified with the above
+         append(Commands1,[csplit(SumCoin, AllAmounts,
+                                  [_Fee,RestCoin|SendCoins]),
+                           tx(RestCoin, _, tx1, args(_,_,ChangeAddr),_)|Txs],
+
                 Commands2)
-    ; append(Commands1, [csplit(SumCoin, [Funds,Fee],[FundsCoin,_]),
-                         tx(FundsCoin, _, tx1, args(_,_,Address),_)],
-             Commands2)
+       ; AllAmounts = [Fee|Amounts],
+         append(Commands1, [csplit(SumCoin, AllAmounts, [_Fee|SendCoins])|Txs],
+                Commands2)
     ),
+    % --- At this point Commands2 are all the combined instructions we need
+    % --- Convert list to commas
     '$list_to_commas'(Commands2, Command),
+    % --- The combined command as a self hash predicate (i.e. the script)
     Script = (p(Hash) :- Command),
+    % --- Compute the hash for this script
     ec:hash(Script, HashValue),
+    % --- Get the required signatures to "run" this script
+    % --- (without them, the commitment would fail to the global sate.)
+    % --- One signature per opened UTXO
     '$signatures'(Signs, HashValue, SignAssigns),
+    % --- Prepend these signature statements to the script
     append(SignAssigns, [Script], Commands3),
+    % --- Commands3 is the final instruction list, convert it to commas
     '$list_to_commas'(Commands3, FinalTx),
+    % --- Return list of consumed utxos (so the user can remove them from
+    % --- his wallet.)
     findall(H, member(utxo(_,H), ChosenUtxos), ConsumedUtxos).
 
 retract_utxos([]).
@@ -231,10 +270,19 @@ retract_utxos([HeapAddr|HeapAddrs]) :-
 '$choose'([Utxo|Utxos], Funds, ChosenUtxos) :-
    '$choose'(Utxos, Funds, ChosenUtxos).
 
-'$sum'([], Sum, Sum).
-'$sum'([utxo(Value,_)|Rest], In, Out) :-
-    '$sum'(Rest, In, Out0),
+'$sum_utxo'([], Sum, Sum).
+'$sum_utxo'([utxo(Value,_)|Rest], In, Out) :-
+    '$sum_utxo'(Rest, In, Out0),
     Out is Out0 + Value.
+
+'$get_coins'([], []).
+'$get_coins'([tx(Coin,_,_,_,_)|Txs], [Coin|Coins]) :-
+    '$get_coins'(Txs,Coins).
+
+'$sum'([], 0).
+'$sum'([X|Xs], Sum) :-
+    '$sum'(Xs, Sum0),
+    Sum is Sum0 + X.
 
 )PROG";
 

@@ -48,7 +48,7 @@ member(X, Xs) :- '$member0'(Xs, X).
 %
 
 reverse(Xs, Ys) :-
-    reverse0(Xs, [], Ys).
+    '$reverse0'(Xs, [], Ys).
 
 '$reverse0'([], Ys, Ys).
 '$reverse0'([X|Xs], Acc, Ys) :-
