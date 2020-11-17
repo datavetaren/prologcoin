@@ -3,6 +3,7 @@
 #include "wam_interpreter.hpp"
 #include "../common/checked_cast.hpp"
 #include "../common/utime.hpp"
+#include "../common/term_serializer.hpp"
 #include <stdarg.h>
 #include <boost/algorithm/string.hpp>
 #include <memory>
@@ -109,6 +110,22 @@ bool builtins::program_state_1(interpreter_base &interp, size_t arity, common::t
     push_it( "heap_size", heap_size);
 
     return interp.unify( args[0], lst);
+}
+
+//
+// term_size/2
+//
+bool builtins::term_size_2(interpreter_base &interp, size_t arity, common::term args[]) {
+    term_serializer ser(interp);
+    term_serializer::buffer_t buf;
+    ser.write(buf, args[0]);
+    size_t sz = buf.size();
+    if (arity == 1) {
+	std::cout << "Size is " << sz << " bytes." << std::endl;
+	return true;
+    } else {
+	return interp.unify(args[1], int_cell(static_cast<int64_t>(sz)));
+    }
 }
 	
 //
@@ -1715,6 +1732,8 @@ void builtins::load(interpreter_base &interp) {
     i.load_builtin(con_cell("tic",0), builtin(&builtins::tic_0));
     i.load_builtin(con_cell("toc",0), builtin(&builtins::toc_1));
     i.load_builtin(con_cell("toc",1), builtin(&builtins::toc_1));
+    i.load_builtin(interp.functor("term_size", 1), &builtins::term_size_2);
+    i.load_builtin(interp.functor("term_size", 2), &builtins::term_size_2);
 
     // Program database
     i.load_builtin(con_cell("show",0), builtin(&builtins::show_0));

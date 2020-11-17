@@ -630,18 +630,20 @@ protected:
     if (check_mode_) return sym();
 
     std::string lexeme = args[0].token().lexeme();
-    bool first = true;
 
-    term lst;
+    term lst = empty_list_;
+    term prev_lst = lst;
     for (auto ch : lexeme) {
 	str_cell p = heap_.new_str0(dotted_pair_);
-	if (first) { lst = p; first = false; }
 	heap_.new_cell0(int_cell(ch));
-    }
-    if (!first) {
 	heap_.new_cell0(empty_list_);
-    } else {
-	lst = empty_list_;
+	if (prev_lst == empty_list_) {
+	    lst = p;
+	    prev_lst = lst;
+	} else {
+	    heap_.set_arg(prev_lst, 1, p);
+	    prev_lst = p;
+	}
     }
     if (track_positions()) {
         return sym(lst, make_pos(args[0].token().pos(),0),args[0].leftmost_pos());

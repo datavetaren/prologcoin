@@ -212,10 +212,6 @@ tmp:send3b(Count, EndCount, Addresses, Tx) :-
 ?- balance(X4).
 % Expect: true/*
 
-% Print balance
-?- balance(X4).
-% Expect: true/*
-
 expected_balance3(0,0) :- !.
 expected_balance3(Exp,N) :- N1 is N - 1, expected_balance3(Exp1,N1),
 			Exp is 1000000 + N1 + Exp1.
@@ -224,4 +220,79 @@ expected_balance3(Exp,N) :- N1 is N - 1, expected_balance3(Exp1,N1),
 ?- balance(X5), expected_balance3(X5,100).
 % Expect: true/*
 
+%
+% Here comes the interesting test. We'll now transfer from wallet 3
+% to wallet 4 and build 100 transactions for that. This will be stored
+% in one block and we can clock how long it'll take to validate that block
+% (by going back one step, and then replay.)
+%
 
+%
+% Wallet 4
+%
+?- file("test_wallet4.pl").
+% Expect: true/*
+
+?- create("foobar4", [gift,model,laugh,perfect,zone,fee,radar,height,income,valid,long,witness,jeans,muffin,install,random,candy,iron,reveal,oxygen,uncover,turn,tenant,fence]).
+% Expect: true/*
+
+%
+% Create some keys in wallet 4 och store the addresses at node.
+%
+tmp:create_addrs4(N,N) :- !.
+tmp:create_addrs4(N, End) :-
+    newkey(PubKey, PubAddr), assert(tmp:wallet4(N, PubAddr)) @ node,
+    N1 is N + 1,
+    tmp:create_addrs4(N1, End).
+
+?- tmp:create_addrs4(0, 10).
+% Expect: true/*
+
+%
+% Go back to wallet 3
+%
+?- file("test_wallet3.pl").
+% Expect: true/*
+
+tmp:send4(Count) :-
+    tmp:send4b(0, Count, [], TxList),
+    tmp:list_to_commas(TxList, Tx),
+    write('Size of transactions: '), term_size(Tx, N), write(N), write(' bytes.'), nl,
+    commit(Tx) @- node.
+
+tmp:list_to_commas([X], C) :- !, C = X.
+tmp:list_to_commas([X|Xs], C) :-
+    C = (X, Y), tmp:list_to_commas(Xs, Y).
+
+tmp:send4b(EndCount, EndCount, Tx, Tx) :- !.
+tmp:send4b(Count, EndCount, TxIn, TxOut) :-
+    AddrN is Count mod 10,
+    tmp:wallet4(AddrN, PubAddr) @ node,
+    Value is 100000 + Count,
+    spend_one(PubAddr, Value, 1234, Tx, OldUtxos), retract_utxos(OldUtxos),
+    append([Tx], TxIn, TxIn1),
+    Count1 is Count + 1,
+    tmp:send4b(Count1, EndCount, TxIn1, TxOut).
+
+?- tic, password("foobar3"), tmp:send4(100), toc.
+% Expect: true/*
+
+%
+% Go to wallet 4 again
+%
+?- file("test_wallet4.pl").
+% Expect: true/*
+?- sync, sync, sync, sync, sync.
+% Expect: true/*
+
+% Print balance
+?- balance(X6).
+% Expect: true/*
+
+expected_balance4(0,0) :- !.
+expected_balance4(Exp,N) :- N1 is N - 1, expected_balance4(Exp1,N1),
+			Exp is 100000 + N1 + Exp1.
+
+% Check balance
+?- balance(X7), expected_balance4(X7,100).
+% Expect: true/*
