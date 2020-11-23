@@ -37,8 +37,12 @@ public:
 
     void stop();
 
-    inline void set_query(const term t)
-    { set_term(env_->new_term(common::con_cell("query",1), {t})); }
+    inline void set_query(const term t, bool silent)
+    {
+	auto silent_con = silent ? common::con_cell("true",0)
+	                         : common::con_cell("false",0);
+	set_term(env_->new_term(common::con_cell("query",2), {t, silent_con}));
+    }
     inline void set_command(const term t)
     { set_term(env_->new_term(common::con_cell("command",1),{t})); }
 

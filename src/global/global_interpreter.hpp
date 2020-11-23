@@ -113,7 +113,8 @@ public:
     static void setup_consensus_lib(interpreter &interp);
   
     inline void set_naming(bool b) { naming_ = b; }
-  
+
+    void preprocess_hashes(term t);
     bool execute_goal(term t);
     bool execute_goal(buffer_t &serialized, bool silent);
     void execute_cut();

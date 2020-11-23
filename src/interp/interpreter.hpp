@@ -58,7 +58,7 @@ private:
 // different way (e.g. the node vs the wallet) we'll at least provide the
 // common framework for it here.
 //
-typedef std::function<remote_return_t (interpreter_base &, common::term, const std::string &)> remote_execute_fn_t;
+typedef std::function<remote_return_t (interpreter_base &, common::term, const std::string &, bool)> remote_execute_fn_t;
 typedef std::function<remote_return_t (interpreter_base &, const std::string &)> remote_continue_fn_t;
 typedef std::function<bool (interpreter_base &, const std::string &)> remote_delete_fn_t;
   
@@ -198,7 +198,7 @@ public:
     }
 			 
     bool start(common::term query, const std::string where) {
-        auto result = remote_execute_(interp_, query, where);
+        auto result = remote_execute_(interp_, query, where, silent_);
 
 	if (result.failed()) {
 	    return false;
@@ -210,7 +210,11 @@ public:
 	    interp_.set_top_b(interp_.b());
 	    interp_.allocate_choice_point(code_point::fail());
 	}
-	return interp_.unify(result.result(), query);
+	if (silent_) {
+	    return true;
+	} else {
+	    return interp_.unify(result.result(), query);
+	}
     }
 
     bool is_silent() const {

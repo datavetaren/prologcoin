@@ -303,7 +303,8 @@ void connection::trigger_now()
 
 in_connection::in_connection(self_node &self)
     : connection(self, CONNECTION_IN, env_),
-      session_(nullptr)
+      session_(nullptr),
+      silent_(false)
 {
     setup_commands();
     prepare_receive();
@@ -505,7 +506,7 @@ void in_connection::command_local_reset(const term cmd)
 
 void in_connection::command_next(const term cmd)
 {
-    process_execution(cmd, true);
+    process_execution(cmd, true, silent_);
 }
 
 void in_connection::process_command(const term cmd)
@@ -534,15 +535,17 @@ void in_connection::process_query()
     auto f = e.functor(t);
     if (f == con_cell("command",1)) {
 	process_command(e.arg(t,0));
-    } else if (f == con_cell("query",1)) {
+    } else if (f == con_cell("query",2)) {
 	if (session_ == nullptr) {
 	    reply_error(e.functor("no_running_session",0));
 	} else {
 	    term qr;
 	    try {
+		bool silent = e.arg(t,1) == con_cell("true",0);
+		set_silent(silent);
 		uint64_t cost = 0;
 		qr = session_->env().copy(e.arg(t,0), e, cost);
-		process_execution(qr, false);
+		process_execution(qr, false, silent);
 	    } catch (std::exception &ex) {
 		reply_exception(ex.what());
 	    }
@@ -571,7 +574,7 @@ std::string in_connection::to_error_message(const term_parse_exception &ex)
     return to_error_message(env_.to_error_messages(ex));
 }
 
-void in_connection::process_execution(const term cmd, bool in_query)
+void in_connection::process_execution(const term cmd, bool in_query, bool silent)
 {
     auto &e = env_;
     try {
@@ -609,15 +612,25 @@ void in_connection::process_execution(const term cmd, bool in_query)
 		// air.
 		auto disabled = e.disable_coin_security();
 
-		term closure = session_->query_closure();
-		term closure_copy = e.copy(closure, session_->env(), cost);
-		term result = e.arg(closure_copy, 0);
-		term vars_term = e.arg(closure_copy, 1);
+		term result;
+		if (silent) {
+		    result = e.new_term(e.functor("result",5),
+					{con_cell("true",0),
+					 common::term_env::EMPTY_LIST,
+					 get_state_atom(),
+					 standard_out,
+					 int_cell(last_cost) } );
+		} else {
+		    term closure = session_->query_closure();
+		    term closure_copy = e.copy(closure, session_->env(), cost);
+		    result = e.arg(closure_copy, 0);
+		    term vars_term = e.arg(closure_copy, 1);
 
-		result = e.new_term(e.functor("result",5),
-				    {result, vars_term, get_state_atom(),
-				     standard_out,
-				     int_cell(last_cost) } );
+		    result = e.new_term(e.functor("result",5),
+					{result, vars_term, get_state_atom(),
+					 standard_out,
+					 int_cell(last_cost) } );
+		}
 		reply_ok(result);
 	    }
 	}

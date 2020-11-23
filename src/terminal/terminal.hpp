@@ -73,9 +73,9 @@ public:
     term parse(const std::string &str);
 
     inline bool execute(const std::string &str)
-    { term t = parse(str); if (t != term()) return execute(t); else return false; }
+    { term t = parse(str); if (t != term()) return execute(t,false); else return false; }
 
-    inline bool execute(term t) { return execute_query(t); }
+    inline bool execute(term t, bool silent) { return execute_query(t, silent); }
 
     inline bool has_more() const { return has_more_; }
     inline bool at_end() const { return at_end_; }
@@ -112,7 +112,7 @@ private:
     bool send_buffer(common::term_serializer::buffer_t &buf, size_t n);
     bool send_length(size_t n);
     common::term read_reply();
-    bool execute_query(const term query);
+    bool execute_query(const term query, bool silent);
     bool execute_in_query(const std::string &cmd);
     void handle_error(const std::string &msg);
     bool process_query_reply();

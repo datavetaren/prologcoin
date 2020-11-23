@@ -194,7 +194,7 @@ void interactive_prompt::execute(term t)
 	    }
 	}
     } else {
-        node_terminal_->execute(t);
+        node_terminal_->execute(t, false);
     }
 }
 

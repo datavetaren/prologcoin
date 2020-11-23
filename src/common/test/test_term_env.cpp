@@ -165,6 +165,35 @@ static void test_unify_append()
     assert(rs1 == expected);
 }
 
+static void test_bignum()
+{
+    header( "test_bignum()" );
+
+    term_env env;
+
+    std::string s1 = "16'ffffffffffffffff.";
+    auto t1 = env.parse(s1);
+
+    boost::multiprecision::cpp_int i;
+    size_t num_bits = 0;
+    env.get_big(t1, i, num_bits);
+
+    std::cout << "Num bits = " << num_bits << std::endl;
+					      
+    // Let's see it doens't throw an exception if casted to uint64_t
+    uint64_t u64 = static_cast<uint64_t>(i);
+    std::cout << "Casted to unsigned int 64 bits: " << u64 << std::endl;
+
+    assert(static_cast<uint64_t>(-1) == u64);
+
+    i++;
+
+    uint64_t u64_plus_1 = static_cast<uint64_t>(i);
+    std::cout << "Value + 1: " << u64_plus_1 << std::endl;
+
+    assert(u64_plus_1 == 0);
+}
+
 static void test_copy_term()
 {
     header( "test_copy_term()" );
@@ -322,6 +351,7 @@ static void test_list_string()
     assert(back == str);
 }
 
+
 int main( int argc, char *argv[] )
 {
     test_simple_env();
@@ -329,6 +359,7 @@ int main( int argc, char *argv[] )
     test_unification();
     test_failed_unification();
     test_unify_append();
+    test_bignum();
     test_copy_term();
     test_copy_term_bignum();
     test_dfs_iterator();

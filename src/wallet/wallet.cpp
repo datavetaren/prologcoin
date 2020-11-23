@@ -208,7 +208,7 @@ term wallet::get_result_term(const std::string &varname)
     return interp_.get_result_term(varname);
 }    
     
-remote_return_t wallet::execute_at(term query, term_env &query_src, const std::string &where)
+remote_return_t wallet::execute_at(term query, term_env &query_src, const std::string &where, bool silent)
 {
     uint64_t cost = 0;
     terminal_->env().clear_names();
@@ -217,7 +217,7 @@ remote_return_t wallet::execute_at(term query, term_env &query_src, const std::s
     bool old = terminal_->is_result_to_text();
     try {
 	terminal_->set_result_to_text(false);
-	if (!terminal_->execute(query_term)) {
+	if (!terminal_->execute(query_term, silent)) {
 	    terminal_->set_result_to_text(old);
 	    return remote_return_t();
 	}

@@ -40,7 +40,7 @@
 ?- newkey(A,B), assert(tmp:monieee(B)).
 % Expect: true/*
 
-?- tmp:monieee(Addr), (reward(Addr) @ global) @ node.
+?- tmp:monieee(Addr), commit(reward(Addr)) @ node.
 % Expect: true/*
 
 ?- sync.
@@ -174,7 +174,7 @@ tmp:amounts(Count, EndCount, [Value|Amounts]) :-
     tmp:amounts(Count1, EndCount, Amounts).
 
 tmp:send3(Count) :-
-    tmp:send3b(0, Count, [], Tx), commit(Tx) @- node, advance @ node.
+    tmp:send3b(0, Count, [], Tx), commit(Tx) @- node.
 
 tmp:send3b(EndCount, EndCount, Addresses, Tx) :-
     !,
@@ -258,7 +258,9 @@ tmp:send4(Count) :-
     tmp:send4b(0, Count, [], TxList),
     tmp:list_to_commas(TxList, Tx),
     write('Size of transactions: '), term_size(Tx, N), write(N), write(' bytes.'), nl,
-    commit(Tx) @- node.
+    setup_commit([version(1), nonce(0), time(0)]) @- node,
+    commit(Tx) @- node,
+    gstat @ node.
 
 tmp:list_to_commas([X], C) :- !, C = X.
 tmp:list_to_commas([X|Xs], C) :-
@@ -296,3 +298,41 @@ expected_balance4(Exp,N) :- N1 is N - 1, expected_balance4(Exp1,N1),
 % Check balance
 ?- balance(X7), expected_balance4(X7,100).
 % Expect: true/*
+
+%
+% Memorize the current id
+%
+?- current(Id) @ node, assert(tmp:myid(Id)).
+% Expect: true/*
+
+%
+% Let's go back to previous state
+%
+    
+?- height(H) @ node, assert(tmp:myheight(H)), H1 is H - 1, (chain(H1, [Prev]), switch(Prev), chain) @ node.
+% Expect: true/*
+
+%
+% Prepare committing it again
+%
+?- tmp:myid(Id), (meta(Id, Params), setup_commit(Params)) @ node.
+% Expect: true/*
+
+%
+% Let's rerun the last goals
+%
+?- tmp:myid(Id), tic, (goals(Id, Goals), commit(Goals)) @- node, toc.  
+% Expect: true/*
+
+%
+% Print chain
+%
+?- chain @ node.
+% Expect: true/*
+
+%
+% Make sure blockchain hasn't forked
+%
+?- height(H) @ node, tmp:myheight(H), chain(H, [Id]) @ node.
+% Expect: true/*
+

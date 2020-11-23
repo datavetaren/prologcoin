@@ -168,6 +168,8 @@ public:
 
     inline const std::string & name() const { return name_; }
 
+    inline void set_silent(bool b) { silent_ = b; }
+
 private:
     std::string to_error_message(const std::vector<std::string> &msgs);
     std::string to_error_message(const common::token_exception &ex);
@@ -191,7 +193,7 @@ private:
     void process_command(const term cmd);
     void process_query();
     void process_query_reply();
-    void process_execution(const term cmd, bool in_query);
+    void process_execution(const term cmd, bool in_query, bool silent);
 
     void reply_exception(const std::string &msg);
     void reply_error(const common::term t);
@@ -204,6 +206,7 @@ private:
     in_session_state *session_;
     term_env env_;
     std::string name_;
+    bool silent_;
 };
 
 //

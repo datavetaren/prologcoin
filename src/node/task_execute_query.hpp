@@ -21,6 +21,9 @@ public:
     task_execute_query(out_connection &out, new_instance i);
     task_execute_query(out_connection &out, delete_instance i);
 
+    inline void set_silent(bool silent) { silent_ = silent; }
+    inline bool is_silent() const { return silent_; }
+    
     void wait_for_result();
     inline term get_result() const { return result_; }
     inline bool failed() const { return result_ == term(); }
@@ -40,6 +43,7 @@ private:
     bool result_consumed_;
     boost::mutex result_cv_lock_;
     boost::condition_variable result_cv_;
+    bool silent_;
 };
 
 }}

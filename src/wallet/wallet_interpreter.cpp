@@ -73,6 +73,7 @@ sync(N) :-
     wallet:lastheap(H),
     H1 is H + 1,
     wallet:'@'(((frozenk(H1, N, HeapAddrs), frozen(HeapAddrs, Closures)) @ global), node),
+    wallet:'@'(discard, node),
     (last(HeapAddrs, LastH) ->
         retract(wallet:lastheap(_)), assert(wallet:lastheap(LastH)) ; true),
     forall('$member2'(Closure, HeapAddress, Closures, HeapAddrs),
@@ -318,12 +319,13 @@ bool wallet_interpreter::operator_at_impl(interpreter_base &interp, size_t arity
 #define LL(x) reinterpret_cast<wallet_interpreter &>(interp)
 	
     interp::remote_execution_proxy proxy(interp,
-        [](interpreter_base &interp, term query, const std::string &where)
-	   {return LL(interp).get_wallet().execute_at(query, interp, where);},
+	[](interpreter_base &interp, term query, const std::string &where, bool silent)
+	   {return LL(interp).get_wallet().execute_at(query, interp, where, silent);},
         [](interpreter_base &interp, const std::string &where)
 	   {return LL(interp).get_wallet().continue_at(interp, where);},
 	[](interpreter_base &interp, const std::string &where)
 	   {return LL(interp).get_wallet().delete_instance_at(interp, where);});
+
     proxy.set_silent(silent);
     return proxy.start(query, where);
 }

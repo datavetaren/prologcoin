@@ -47,7 +47,11 @@ public:
 
     // Reinitializes interpreter from a different state
     bool set_tip(const meta_id &id);
-    
+
+    const meta_id & tip_id() const {
+	return blockchain_.tip().get_id();
+    }
+
     void total_reset();
 
     void go_debug();
@@ -68,9 +72,18 @@ public:
     inline bool execute_goal(term t) {
         return interp_->execute_goal(t);
     }
+
     inline bool execute_goal(buffer_t &buf, bool silent) {
         return interp_->execute_goal(buf, silent);
     }
+    
+    inline bool execute_goal_silent(const buffer_t &buf) {
+        return interp_->execute_goal(const_cast<buffer_t &>(buf), true);
+    }
+
+    void setup_commit(const buffer_t &buf);
+    bool execute_commit(const buffer_t &buf);
+
     inline void execute_cut() {
         interp_->execute_cut();
     }
@@ -313,6 +326,18 @@ public:
 					 buffer, sizeof(buffer));
     }
 
+    //
+    // Goal block (these corresponds to "blocks" in traditional
+    // cryptocurrencies.) I renamed them to goals to match the
+    // terminology in Prolog. These are the things that we append
+    // to the query.
+    //
+    
+    term db_get_goal_block(common::term_env &dst, const meta_id &id);
+    term db_get_goal_block(common::term_env &dst, const meta_entry &e);
+    void db_set_goal_block(size_t height, const buffer_t &buf);
+
+    term db_get_meta(common::term_env &dst, const meta_id &id);
 
 private:
     void custom_data_to_heap_block(const uint8_t *custom_data,
@@ -344,6 +369,10 @@ private:
     std::string data_dir_;
     blockchain blockchain_;
     std::unique_ptr<global_interpreter> interp_;
+    uint64_t commit_version_;
+    uint64_t commit_nonce_;
+    common::utime commit_time_;
+    buffer_t commit_goals_;
 };
 
 }}

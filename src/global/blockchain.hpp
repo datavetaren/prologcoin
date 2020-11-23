@@ -10,6 +10,8 @@ namespace prologcoin { namespace global {
 
 class blockchain {
 public:
+    static const uint64_t VERSION = 1;
+    
     blockchain(const std::string &data_dir);
 
     void init();
@@ -18,6 +20,16 @@ public:
 
     void flush_db();
 
+    void set_version(uint64_t ver) {
+	version_ = ver;
+    }
+    void set_nonce(uint64_t nonce) {
+	nonce_ = nonce;
+    }
+    void set_time(common::utime &t) {
+	time_ = t;
+    }
+    
     void advance();
     void update_tip();
 
@@ -32,8 +44,8 @@ public:
     inline db::triedb & meta_db() {
         return get_db_instance(db_meta_, db_meta_dir_);
     }
-    inline db::triedb & blocks_db() {
-	return get_db_instance(db_blocks_, db_blocks_dir_);
+    inline db::triedb & goal_blocks_db() {
+	return get_db_instance(db_goal_blocks_, db_goal_blocks_dir_);
     }
     inline db::triedb & heap_db() {
 	return get_db_instance(db_heap_, db_heap_dir_);
@@ -69,6 +81,10 @@ public:
 
     inline db_root_id program_root() const {
 	return tip_.get_root_id_program();
+    }
+
+    inline db_root_id goal_blocks_root() const {
+	return tip_.get_root_id_goal_blocks();
     }
 
     inline meta_entry & tip() {
@@ -130,14 +146,14 @@ private:
     std::string data_dir_;
 
     std::string db_meta_dir_;
-    std::string db_blocks_dir_;
+    std::string db_goal_blocks_dir_;
     std::string db_heap_dir_;
     std::string db_closures_dir_;
     std::string db_symbols_dir_;  
     std::string db_program_dir_;
 
     mutable std::unique_ptr<db::triedb> db_meta_;
-    mutable std::unique_ptr<db::triedb> db_blocks_;
+    mutable std::unique_ptr<db::triedb> db_goal_blocks_;
     mutable std::unique_ptr<db::triedb> db_heap_;
     mutable std::unique_ptr<db::triedb> db_closures_;
     mutable std::unique_ptr<db::triedb> db_symbols_;
@@ -146,6 +162,10 @@ private:
     meta_entry tip_;
     std::unordered_map<size_t, std::set<meta_id> > at_height_;
     std::unordered_map<meta_id, meta_entry> chains_;
+
+    uint64_t version_;
+    uint64_t nonce_;
+    common::utime time_;
 };
 
 }}

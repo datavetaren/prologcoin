@@ -42,7 +42,7 @@ void task_address_verifier::process()
 					     e.new_term(con_cell("comment", 1),
 							{e.new_ref()})})
 		        })
-	     }));
+	     }), false);
     } else if (get_state() == RECEIVED) {
 	pattern p(e);
 

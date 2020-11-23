@@ -173,7 +173,7 @@ public:
 
     task_execute_query * schedule_execute_new_instance(const std::string &where);    
     task_execute_query * schedule_execute_delete_instance(const std::string &where);    
-    task_execute_query * schedule_execute_query(term query, term_env &query_src, const std::string &where);
+    task_execute_query * schedule_execute_query(term query, term_env &query_src, const std::string &where, bool silent);
     task_execute_query * schedule_execute_next(const std::string &where);
 
     interp::remote_return_t schedule_execute_wait_for_result(task_execute_query *task, term_env &query_src);
@@ -181,7 +181,8 @@ public:
     bool new_instance_at(term_env &query_src, const std::string &where);
     bool delete_instance_at(term_env &query_src, const std::string &where);
     interp::remote_return_t execute_at(term query, term_env &query_src,
-				       const std::string &where);
+				       const std::string &where,
+				       bool silent);
 
     interp::remote_return_t continue_at(term_env &query_src,
 					const std::string &where);

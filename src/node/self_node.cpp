@@ -201,7 +201,7 @@ task_execute_query * self_node::schedule_execute_delete_instance(const std::stri
     return task;
 }
 
-task_execute_query * self_node::schedule_execute_query(term query, term_env &query_src, const std::string &where)
+task_execute_query * self_node::schedule_execute_query(term query, term_env &query_src, const std::string &where, bool silent)
 {
     boost::lock_guard<boost::recursive_mutex> guard(lock_);
     auto *out = find_out_connection(where);
@@ -209,6 +209,7 @@ task_execute_query * self_node::schedule_execute_query(term query, term_env &que
 	return nullptr;
     }
     auto *task = new task_execute_query(*out, query, query_src);
+    task->set_silent(silent);
     out->schedule(task);
     return task;
 }
@@ -245,9 +246,9 @@ interp::remote_return_t self_node::schedule_execute_wait_for_result(task_execute
     return interp::remote_return_t(result_copy, has_more, at_end, cost);
 }
 
-interp::remote_return_t self_node::execute_at(term query, term_env &query_src, const std::string &where)
+interp::remote_return_t self_node::execute_at(term query, term_env &query_src, const std::string &where, bool silent)
 {
-    auto *task = schedule_execute_query(query, query_src, where);
+    auto *task = schedule_execute_query(query, query_src, where, silent);
     if (task == nullptr) {
 	// TODO: Throw an exception instead
         return interp::remote_return_t();

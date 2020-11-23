@@ -100,7 +100,7 @@ public:
 	  pow_proof_(),
 	  pow_difficulty_(pow::flt1648(1)),
 	  root_id_meta_(),
-	  root_id_blocks_(),
+	  root_id_goal_blocks_(),
 	  root_id_heap_(),
 	  root_id_closures_(),
 	  root_id_symbols_(),
@@ -127,6 +127,9 @@ public:
 
     uint64_t get_version() const {
 	return version_;
+    }
+    void set_version(uint64_t v) {
+	version_ = v;
     }
 
     uint32_t get_height() const {
@@ -178,11 +181,11 @@ public:
 	root_id_meta_ = id;
     }
 
-    const db_root_id get_root_id_blocks() const {
-	return root_id_blocks_;
+    const db_root_id get_root_id_goal_blocks() const {
+	return root_id_goal_blocks_;
     }
-    void set_root_id_blocks(const db_root_id id) {
-	root_id_blocks_ = id;
+    void set_root_id_goal_blocks(const db_root_id id) {
+	root_id_goal_blocks_ = id;
     }
 
     const db_root_id get_root_id_heap() const {
@@ -237,7 +240,7 @@ public:
 	timestamp_.read(p); p += timestamp_.serialization_size();
 	pow_difficulty_.read(p); p += pow_difficulty_.serialization_size();
 	pow_proof_.read(p); p += pow::pow_proof::TOTAL_SIZE_BYTES;
-	root_id_blocks_ = db_root_id(db::read_uint64(p)); p += sizeof(uint64_t);
+	root_id_goal_blocks_ = db_root_id(db::read_uint64(p)); p += sizeof(uint64_t);
 	root_id_heap_ = db_root_id(db::read_uint64(p)); p += sizeof(uint64_t);
 	root_id_closures_ = db_root_id(db::read_uint64(p)); p += sizeof(uint64_t);
 	root_id_symbols_ = db_root_id(db::read_uint64(p)); p += sizeof(uint64_t);
@@ -253,7 +256,7 @@ public:
 	timestamp_.write(p); p += timestamp_.serialization_size();
 	pow_difficulty_.write(p); p += pow_difficulty_.serialization_size();
 	pow_proof_.write(p); p += pow::pow_proof::TOTAL_SIZE_BYTES;
-	db::write_uint64(p, root_id_blocks_.value()); p += sizeof(uint64_t);
+	db::write_uint64(p, root_id_goal_blocks_.value()); p += sizeof(uint64_t);
 	db::write_uint64(p, root_id_heap_.value()); p += sizeof(uint64_t);
 	db::write_uint64(p, root_id_closures_.value()); p += sizeof(uint64_t);
 	db::write_uint64(p, root_id_symbols_.value()); p += sizeof(uint64_t);
@@ -270,7 +273,7 @@ private:
     pow::pow_proof pow_proof_;
     pow::pow_difficulty pow_difficulty_;
     db_root_id root_id_meta_; // Local id for where this entry is stored
-    db_root_id root_id_blocks_;
+    db_root_id root_id_goal_blocks_;
     db_root_id root_id_heap_;
     db_root_id root_id_closures_;
     db_root_id root_id_symbols_;

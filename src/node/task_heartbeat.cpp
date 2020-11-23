@@ -29,9 +29,12 @@ void task_heartbeat::process()
 	break;
     case SEND:
 	set_term(
-	      e.new_term(con_cell("query",1),
+	      e.new_term(con_cell("query",2),
 		    {e.new_term(colon,
-				{me, e.functor("heartbeat",0)})}));
+				{me, e.functor("heartbeat",0)}),
+		     con_cell("true",0) // Silent
+		    })
+	      );
 	break;
     case KILLED:
 	break;

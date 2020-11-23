@@ -17,7 +17,7 @@ public:
 
     void total_reset();
 
-    void execute_at(term query, term_env &query_src, const std::string &where);
+    void execute_at(term query, term_env &query_src, const std::string &where, bool silent);
     void continue_at(term_env &query_src, const std::string &where);
     void delete_instance_at(term_env &query_src, const std::string &where);
 

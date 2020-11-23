@@ -39,3 +39,4 @@
 ?- save.
 % Expect: true/*
 
+

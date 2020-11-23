@@ -12,7 +12,11 @@ namespace prologcoin { namespace global {
 global::global(const std::string &data_dir)
     : data_dir_(data_dir),
       blockchain_(data_dir),
-      interp_(nullptr) {
+      interp_(nullptr),
+      commit_version_(blockchain::VERSION),
+      commit_nonce_(0),
+      commit_time_(),
+      commit_goals_() {
     interp_ = std::unique_ptr<global_interpreter>(new global_interpreter(*this));
     interp_->init();
 }
@@ -136,18 +140,141 @@ bool global::db_set_predicate(const qname &qn,
     return true;
 }
 
+term global::db_get_goal_block(term_env &dst, const meta_id &root_id) {
+    auto *e = blockchain_.get_meta_entry(root_id);
+    if (e == nullptr) {
+	return common::heap::EMPTY_LIST;
+    }
+    return db_get_goal_block(dst, *e);
+}
+	
+term global::db_get_goal_block(term_env &dst, const meta_entry &e) {
+    size_t height = e.get_height();
+    auto leaf = blockchain_.goal_blocks_db().find(e.get_root_id_goal_blocks(), height);
+    if (leaf == nullptr) {
+	return common::heap::EMPTY_LIST;
+    }
+    term_serializer::buffer_t buf(&leaf->custom_data()[0],
+				  &leaf->custom_data()[leaf->custom_data_size()]);
+    
+    term_serializer ser(dst);
+    try {
+        term blk = ser.read(buf);
+	return blk;
+    } catch (serializer_exception &ex) {
+	if (&dst == &(*interp_)) reset();
+	throw ex;
+    }
+}
+
+void global::db_set_goal_block(size_t height, const term_serializer::buffer_t &buf)
+{
+    blockchain_.goal_blocks_db().update(blockchain_.goal_blocks_root(), height,
+					&buf[0], buf.size());
+}
+
+static term to_number(term_env &dst, uint64_t v)
+{
+    static uint64_t limit = int_cell::max().value();
+    if (v > limit) {
+	boost::multiprecision::cpp_int i = v;
+	term big = dst.new_big(64);
+	dst.set_big(big, i);
+	return big;
+    } else {
+	return int_cell(static_cast<int64_t>(v));
+    }
+}
+
+term global::db_get_meta(term_env &dst, const meta_id &root_id) {
+    auto *e = blockchain_.get_meta_entry(root_id);
+    if (e == nullptr) {
+	return common::heap::EMPTY_LIST;
+    }
+    term lst = common::heap::EMPTY_LIST;
+    auto ver = dst.new_term( con_cell("version",1), { int_cell(static_cast<int64_t>(e->get_version())) });
+    auto nonce = dst.new_term( con_cell("nonce",1), { to_number(dst, e->get_nonce()) });
+    auto time = dst.new_term( con_cell("time",1), { int_cell(static_cast<int64_t>(e->get_timestamp().in_ss())) });
+    lst = dst.new_dotted_pair(time, lst);
+    lst = dst.new_dotted_pair(nonce, lst);
+    lst = dst.new_dotted_pair(ver, lst);
+
+    return lst;
+}
+
 size_t global::current_height() const {
     return blockchain_.tip().get_height();
 }
 
 void global::increment_height()
 {
+    get_blockchain().set_version(commit_version_);
+    get_blockchain().set_nonce(commit_nonce_);
+    get_blockchain().set_time(commit_time_);
     get_blockchain().advance();
     interp().commit_heap();
     interp().commit_closures();
     interp().commit_symbols();
     interp().commit_program();
+    if (!commit_goals_.empty()) {
+	db_set_goal_block(current_height(), commit_goals_);
+	commit_goals_.clear();
+    }
     get_blockchain().update_tip();
+}
+
+void global::setup_commit(const term_serializer::buffer_t &buf) {
+    term_env env;
+    term_serializer ser(env);
+    term lst = ser.read(buf);
+    while (env.is_dotted_pair(lst)) {
+	auto el = env.arg(lst, 0);
+	if (env.functor(el) == con_cell("version",1)) {
+	    auto val = env.arg(el, 0);
+	    if (val.tag() != tag_t::INT) {
+		throw global_db_exception( "version must be an integer; was " + env.to_string(val));
+	    }
+	    commit_version_ = static_cast<uint64_t>(reinterpret_cast<int_cell &>(val).value());
+	} else if (env.functor(el) == con_cell("nonce",1)) {
+	    auto val = env.arg(el, 0);
+	    if (val.tag() != tag_t::INT &&
+		val.tag() != tag_t::BIG) {
+		throw global_db_exception( "nonce must be a number; was " + env.to_string(val));
+	    }
+	    if (val.tag() == tag_t::INT) {
+		commit_nonce_ = static_cast<uint64_t>(reinterpret_cast<int_cell &>(val).value());
+	    } else {
+		assert(val.tag() == tag_t::BIG);
+		boost::multiprecision::cpp_int i;
+		size_t num_bits = 0;
+		env.get_big(val, i, num_bits);
+		if (num_bits > 64) {
+		    throw global_db_exception( "Number too big, bigger than 64 bits; was " + env.to_string(val));
+		}
+		commit_nonce_ = static_cast<uint64_t>(i);
+	    }
+	} else if (env.functor(el) == con_cell("time",1)) {
+	    auto val = env.arg(el, 0);
+	    if (val.tag() != tag_t::INT) {
+		throw global_db_exception("time must be an integer; was " + env.to_string(val));
+	    }
+	    auto timestamp = reinterpret_cast<int_cell &>(val).value();
+	    commit_time_ = utime(static_cast<uint64_t>(timestamp));
+	}
+	lst = env.arg(lst, 1);
+    }
+}
+
+bool global::execute_commit(const term_serializer::buffer_t &buf) {
+    if (!execute_goal_silent(buf)) {
+	discard();
+	return false;
+    }
+    execute_cut();
+    assert(is_clean());
+    commit_goals_ = buf;
+    advance();
+    return true;
 }
     
 }}

@@ -415,16 +415,17 @@ void terminal::node_pulse()
 				   {ME, e.functor("check_mail",0)})});
     bool old = is_result_to_text();
     set_result_to_text(false);
-    execute(query_pulse);
+    execute(query_pulse,false);
     set_result_to_text(old);
 }
 
-bool terminal::execute_query(const term query)
+bool terminal::execute_query(const term query, bool silent)
 {
     uint64_t cost = 0;
     auto &e = env_;
     term s_query = e.copy(query, env_, cost);
-    auto q = e.new_term(e.functor("query",1), {s_query});
+    con_cell silent_con = silent ? con_cell("true",0) : con_cell("false",0);
+    auto q = e.new_term(e.functor("query",2), {s_query, silent_con});
     if (!send_query(q)) {
 	return false;
     }

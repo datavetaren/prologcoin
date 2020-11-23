@@ -160,8 +160,54 @@ reward(PubKeyAddr) :-
     }
     interp.compile();
 }
-  
+
+void global_interpreter::preprocess_hashes(term t) {
+    static const con_cell P("p", 1);
+
+    static const common::con_cell op_comma(",", 2);
+    static const common::con_cell op_semi(";", 2);
+    static const common::con_cell op_imply("->", 2);
+    static const common::con_cell op_clause(":-", 2);    
+
+    if (t.tag() != common::tag_t::STR) {
+        return;
+    }
+    
+    auto f = functor(t);
+
+    // Scan for :- and subsitute the hash for body
+    if (f == op_clause) {
+        auto head = arg(t, 0);
+	if (head.tag() == tag_t::STR && functor(head) == P) {
+	    auto hash_var = arg(head, 0);
+	    if (hash_var.tag().is_ref()) {
+	        uint8_t hash[ec::builtins::RAW_HASH_SIZE];
+	        if (!ec::builtins::get_hashed_2_term(*this, t, hash)) {
+		    return;
+	        }
+		term hash_term = new_big(ec::builtins::RAW_HASH_SIZE*8);
+		set_big(hash_term, hash, ec::builtins::RAW_HASH_SIZE);
+		if (!unify(hash_var, hash_term)) {
+		    return;
+		}
+	    }
+	}
+    }
+
+    if (f == op_comma || f == op_semi || f == op_imply || f == op_clause) {
+        preprocess_hashes(arg(t, 0));
+	preprocess_hashes(arg(t, 1));
+    }
+}
+	
 bool global_interpreter::execute_goal(term t) {
+    // Check if term is a clause:
+    // p(X) :- Body
+    // Then we compute the hash of Body (with X unbound) and bind X to the
+    // hashed value. Then we apply commit on Body.
+    //
+    preprocess_hashes(t);
+
     bool r = execute(t);
     // If no choicepoints, then clean up the trail
     if (!has_more()) {
@@ -226,7 +272,6 @@ void global_interpreter::execute_cut() {
 void global_interpreter::discard_changes() {
     // Discard program changes
     for (auto &qn : updated_predicates_) {
-	std::cout << "clear predicate " << to_string(qn) << std::endl;
 	clear_predicate(qn);
 	remove_compiled(qn);
     }
@@ -234,9 +279,6 @@ void global_interpreter::discard_changes() {
 
     // Restore old predictaes (if any)
     for (auto &p : old_predicates_) {
-	if (!p.empty()) {
-	    std::cout << "restore predicate " << to_string(p.qualified_name()) << std::endl;
-	}
 	restore_predicate(p);
     }
     old_predicates_.clear();
@@ -267,6 +309,7 @@ void global_interpreter::discard_changes() {
     next_predicate_id_ = start_next_predicate_id_;
     new_predicates_ = 0;
     trim_heap_safe(old_heap_size_);
+    current_block_ = get_head_block();
     get_stacks().reset(); // Clear trail and stacks
 }
     

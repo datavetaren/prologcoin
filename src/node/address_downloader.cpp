@@ -67,7 +67,8 @@ void task_address_downloader::process()
         set_query(e.new_term(local_interpreter::COLON,
 	         {local_interpreter::ME,
 		 e.new_term(con_cell("peers", 2),
-			    {int_cell(num_to_download),e.new_ref()})}));
+			    {int_cell(num_to_download),e.new_ref()})}),
+		  false);
     } else if (get_state() == RECEIVED) {
 	auto const me = local_interpreter::ME;
 	auto const colon = local_interpreter::COLON;

@@ -30,11 +30,12 @@ void task_publish::process()
 	break;
     case SEND:
 	set_term(
-	      e.new_term(con_cell("query",1),
+	      e.new_term(con_cell("query",2),
 		    {e.new_term(colon, {me,
-		     e.new_term(e.functor("add_address",2),
-				{e.EMPTY_LIST,
-				 int_cell(self().port())})})
+					e.new_term(e.functor("add_address",2),
+					   {e.EMPTY_LIST,
+					    int_cell(self().port())})}),
+		     con_cell("true",0)
 		    }
 		    ));
 	break;

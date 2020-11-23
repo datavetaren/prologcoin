@@ -73,7 +73,7 @@ void task_info::process()
         }
     case SEND:
 	set_term(
-          e.new_term(con_cell("query",1),
+          e.new_term(con_cell("query",2),
 	    {e.new_term(comma, {
 			   e.new_term(colon,
 				 {me, e.new_term(version_1,{e.new_ref()})
@@ -81,7 +81,8 @@ void task_info::process()
 			   e.new_term(colon,
 				 {me, e.new_term(comment_1,
 						 {e.new_ref()})
-					 })})
+				 })}),
+	     con_cell("false",0) // Silent = false
 	    }));
 	break;
     case KILLED:

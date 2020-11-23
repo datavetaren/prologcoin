@@ -83,9 +83,9 @@ bool me_builtins::operator_at_impl(interpreter_base &interp0, size_t arity, term
 #define LL(interp) reinterpret_cast<local_interpreter &>(interp)
     
     remote_execution_proxy proxy(interp,
-        [](interpreter_base &interp, term query, const std::string &where)
-	   {return LL(interp).self().execute_at(query, interp, where);},
-	[](interpreter_base &interp, const std::string &where)
+	[](interpreter_base &interp, term query, const std::string &where, bool silent)
+	   {return LL(interp).self().execute_at(query, interp, where, silent);},
+        [](interpreter_base &interp, const std::string &where)
 	   {return LL(interp).self().continue_at(interp, where);},
 	[](interpreter_base &interp, const std::string &where)
 	   {return LL(interp).self().delete_instance_at(interp, where);});
@@ -832,43 +832,75 @@ bool me_builtins::switch_1(interpreter_base &interp0, size_t arity, term args[])
     return true;
 }
 
-void me_builtins::preprocess_hashes(local_interpreter &interp, term t) {
-    static const con_cell P("p", 1);
+bool me_builtins::current_1(interpreter_base &interp0, size_t arity, term args[]) {
+    auto &interp = to_local(interp0);
+    auto &g = interp.self().global();
+    auto &id = g.tip_id();
+    return interp.unify(args[0], to_term(interp0, id));
+}
 
-    static const common::con_cell op_comma(",", 2);
-    static const common::con_cell op_semi(";", 2);
-    static const common::con_cell op_imply("->", 2);
-    static const common::con_cell op_clause(":-", 2);    
+bool me_builtins::height_1(interpreter_base &interp0, size_t arity, term args[]) {
+    auto &interp = to_local(interp0);
+    auto &g = interp.self().global();
+    return interp.unify(args[0], int_cell(static_cast<int64_t>(g.current_height())));
+}
 
-    if (t.tag() != common::tag_t::STR) {
-        return;
+bool me_builtins::goals_2(interpreter_base &interp0, size_t arity, term args[]) {
+    auto &interp = to_local(interp0);
+    auto &g = interp.self().global();
+
+    if (args[0].tag() != tag_t::BIG) {
+	interp.abort(interpreter_exception_wrong_arg_type("goals/2: Expected first argument to be a big number; was " + interp.to_string(args[0])));
     }
+
+    auto &big = reinterpret_cast<big_cell &>(args[0]);
+    if (interp0.num_bytes(big) != global::meta_id::HASH_SIZE) {
+	interp.abort(interpreter_exception_wrong_arg_type("goals/2: First argument should be 32 bytes; was " + boost::lexical_cast<std::string>(interp0.num_bytes(big)) + " bytes"));
+    }
+
+    uint8_t hash[global::meta_id::HASH_SIZE];
+    interp0.get_big(big, hash, global::meta_id::HASH_SIZE);
+    global::meta_id id(hash);
     
-    auto f = interp.functor(t);
+    term result = g.db_get_goal_block(interp0, id);
 
-    // Scan for :- and subsitute the hash for body
-    if (f == op_clause) {
-        auto head = interp.arg(t, 0);
-	if (head.tag() == tag_t::STR && interp.functor(head) == P) {
-	    auto hash_var = interp.arg(head, 0);
-	    if (hash_var.tag().is_ref()) {
-	        uint8_t hash[ec::builtins::RAW_HASH_SIZE];
-	        if (!ec::builtins::get_hashed_2_term(interp, t, hash)) {
-		    return;
-	        }
-		term hash_term = interp.new_big(ec::builtins::RAW_HASH_SIZE*8);
-		interp.set_big(hash_term, hash, ec::builtins::RAW_HASH_SIZE);
-		if (!interp.unify(hash_var, hash_term)) {
-		    return;
-		}
-	    }
-	}
+    return interp.unify(result, args[1]);
+}
+
+bool me_builtins::meta_2(interpreter_base &interp0, size_t arity, term args[]) {
+    auto &interp = to_local(interp0);
+    auto &g = interp.self().global();
+
+    if (args[0].tag() != tag_t::BIG) {
+	interp.abort(interpreter_exception_wrong_arg_type("meta/2: Expected first argument to be a big number; was " + interp.to_string(args[0])));
     }
 
-    if (f == op_comma || f == op_semi || f == op_imply || f == op_clause) {
-        preprocess_hashes(interp, interp.arg(t, 0));
-	preprocess_hashes(interp, interp.arg(t, 1));
+    auto &big = reinterpret_cast<big_cell &>(args[0]);
+    if (interp0.num_bytes(big) != global::meta_id::HASH_SIZE) {
+	interp.abort(interpreter_exception_wrong_arg_type("meta/2: First argument should be 32 bytes; was " + boost::lexical_cast<std::string>(interp0.num_bytes(big)) + " bytes"));
     }
+
+    uint8_t hash[global::meta_id::HASH_SIZE];
+    interp0.get_big(big, hash, global::meta_id::HASH_SIZE);
+    global::meta_id id(hash);
+    
+    term result = g.db_get_meta(interp0, id);
+
+    return interp.unify(result, args[1]);
+}
+
+bool me_builtins::setup_commit_1(interpreter_base &interp0, size_t arity, term args[]) {
+    auto &interp = to_local(interp0);
+    
+    global::global &g = interp.self().global();
+
+    term_serializer::buffer_t buf;
+    term_serializer ser(interp);
+    ser.write(buf, args[0]);
+    
+    g.setup_commit(buf);
+
+    return true;
 }
 
 bool me_builtins::commit(local_interpreter &interp, term_serializer::buffer_t &buf, term t, bool naming)
@@ -877,28 +909,14 @@ bool me_builtins::commit(local_interpreter &interp, term_serializer::buffer_t &b
 
     g.set_naming(naming);
 
-    // Check if term is a clause:
-    // p(X) :- Body
-    // Then we compute the hash of Body (with X unbound) and bind X to the
-    // hashed value. Then we apply commit on Body.
-    //
-    preprocess_hashes(interp, t);
-
     // First serialize
     term_serializer ser(interp);
     buf.clear();
     ser.write(buf, t);
 
-    if (!g.execute_goal(buf, true)) {
-	g.discard();
+    if (!g.execute_commit(buf)) {
 	return false;
     }
-	
-    g.execute_cut();
-
-    assert(g.is_clean());
-
-    g.advance();
 
     return true;
 }
@@ -1072,8 +1090,17 @@ void local_interpreter::setup_local_builtins()
     load_builtin(ME, con_cell("discard", 0), &me_builtins::discard_0);
     // switch/1: Go to a different state
     load_builtin(ME, con_cell("switch", 1), &me_builtins::switch_1);
+    // height/1: Current height
+    load_builtin(ME, con_cell("height", 1), &me_builtins::height_1);
+    // current/1: Current id
+    load_builtin(ME, con_cell("current",1), &me_builtins::current_1);
+    // goals/2: Retrieve a local goals block
+    load_builtin(ME, con_cell("goals", 2), &me_builtins::goals_2);
+    // meta/2: Retrive meta information about a block
+    load_builtin(ME, con_cell("meta", 2), &me_builtins::meta_2);
     
     // Commit to the global interpreter
+    load_builtin(ME, functor("setup_commit", 1), &me_builtins::setup_commit_1);
     load_builtin(ME, con_cell("commit", 1), &me_builtins::commit_2);
     load_builtin(ME, con_cell("commit", 2), &me_builtins::commit_2);
 

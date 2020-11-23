@@ -71,8 +71,12 @@ public:
     static bool advance_0(interpreter_base &interp, size_t arity, term args[]);
     static bool discard_0(interpreter_base &interp, size_t arity, term args[]);
     static bool switch_1(interpreter_base &interp, size_t arity, term args[]);
+    static bool height_1(interpreter_base &interp, size_t arity, term args[]);
+    static bool goals_2(interpreter_base &interp, size_t arity, term args[]);
+    static bool meta_2(interpreter_base &interp, size_t arity, term args[]);
+    static bool current_1(interpreter_base &interp, size_t arity, term args[]);
 
-    static void preprocess_hashes(local_interpreter &interp, term t);
+    static bool setup_commit_1(interpreter_base &interp, size_t arity, term args[]);
     static bool commit(local_interpreter &interp, buffer_t &buf, term t, bool naming);
     static bool commit_2(interpreter_base &interp, size_t arity, term args[]);
     static bool global_impl(interpreter_base &interp, size_t arity, term args[], bool silent);

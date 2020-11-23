@@ -11,7 +11,7 @@ namespace prologcoin { namespace global {
 blockchain::blockchain(const std::string &data_dir) :
     data_dir_(data_dir),
     db_meta_dir_((boost::filesystem::path(data_dir_) / "db" / "meta").string()),
-    db_blocks_dir_((boost::filesystem::path(data_dir_) / "db" / "blocks").string()),
+    db_goal_blocks_dir_((boost::filesystem::path(data_dir_) / "db" / "goals").string()),
     db_heap_dir_((boost::filesystem::path(data_dir_) / "db" / "heap").string()),
     db_closures_dir_((boost::filesystem::path(data_dir_) / "db" / "closures").string()),
     db_symbols_dir_((boost::filesystem::path(data_dir_) / "db" / "symbols").string()),
@@ -28,8 +28,6 @@ void blockchain::update_meta_id()
     
     // Hash all root hashes from state databases
     auto &t = tip_;
-    std::tie(hash, hash_size) = blocks_db().get_root_hash(t.get_root_id_blocks());
-    blake2b_update(&s, hash, hash_size);
     std::tie(hash, hash_size) = heap_db().get_root_hash(t.get_root_id_heap());
     blake2b_update(&s, hash, hash_size);
     std::tie(hash, hash_size) = closures_db().get_root_hash(t.get_root_id_closures());
@@ -46,8 +44,6 @@ void blockchain::update_meta_id()
     uint8_t data[64];
 
     // Hash all number of entries for each daatbase
-    db::write_uint64(data, checked_cast<uint64_t>(blocks_db().num_entries(t.get_root_id_blocks())));
-    blake2b_update(&s, data, sizeof(uint64_t));
     db::write_uint64(data, checked_cast<uint64_t>(heap_db().num_entries(t.get_root_id_heap())));
     blake2b_update(&s, data, sizeof(uint64_t));
     db::write_uint64(data, checked_cast<uint64_t>(closures_db().num_entries(t.get_root_id_closures())));
@@ -83,7 +79,7 @@ void blockchain::update_meta_id()
 void blockchain::init()
 {
     db_meta_ = nullptr;
-    db_blocks_ = nullptr;
+    db_goal_blocks_ = nullptr;
     db_heap_ = nullptr;
     db_closures_ = nullptr;
     db_symbols_ = nullptr;
@@ -146,6 +142,10 @@ void blockchain::init()
 	    tip_ = it->second;
 	}
     }
+
+    version_ = VERSION;
+    nonce_ = 0;
+    time_ = utime();
 }
 
 static bool is_match(const meta_id &id, const uint8_t *prefix, size_t prefix_len) {
@@ -178,7 +178,7 @@ std::set<meta_id> blockchain::find_entries(size_t height, const uint8_t *prefix,
 }
 
 void blockchain::flush_db() {
-    blocks_db().flush();
+    goal_blocks_db().flush();
     heap_db().flush();
     closures_db().flush();
     symbols_db().flush();
@@ -190,7 +190,7 @@ void blockchain::advance() {
     flush_db();
 
     db::root_id next_meta;
-    db::root_id next_blocks;
+    db::root_id next_goal_blocks;
     db::root_id next_heap;
     db::root_id next_closures;
     db::root_id next_symbols;
@@ -200,7 +200,7 @@ void blockchain::advance() {
     
     if (tip().get_root_id_meta().is_zero()) {
 	next_meta = meta_db().new_root();
-	next_blocks = blocks_db().new_root();
+	next_goal_blocks = goal_blocks_db().new_root();
 	next_heap = heap_db().new_root();
 	next_closures = closures_db().new_root();
 	next_symbols = symbols_db().new_root();
@@ -208,7 +208,7 @@ void blockchain::advance() {
 	genesis = true;
     } else {
 	next_meta = meta_db().new_root(tip().get_root_id_meta());
-	next_blocks = blocks_db().new_root(tip().get_root_id_blocks());
+	next_goal_blocks = goal_blocks_db().new_root(tip().get_root_id_goal_blocks());
 	next_heap = heap_db().new_root(tip().get_root_id_heap());
 	next_closures = closures_db().new_root(tip().get_root_id_closures());
 	next_symbols = symbols_db().new_root(tip().get_root_id_symbols());
@@ -222,11 +222,12 @@ void blockchain::advance() {
     new_tip.set_id(new_id); // Will be recomputed, just setting it to zero
                             // to avoid confusion.
     new_tip.set_previous_id(tip().get_id());
-    new_tip.set_timestamp(utime::now());
-    new_tip.set_nonce(0);
+    new_tip.set_version(version_);
+    new_tip.set_timestamp(time_);
+    new_tip.set_nonce(nonce_);
     new_tip.set_height(new_height);
     new_tip.set_root_id_meta(next_meta);
-    new_tip.set_root_id_blocks(next_blocks);
+    new_tip.set_root_id_goal_blocks(next_goal_blocks);
     new_tip.set_root_id_heap(next_heap);
     new_tip.set_root_id_closures(next_closures);
     new_tip.set_root_id_symbols(next_symbols);
