@@ -84,13 +84,21 @@ public:
 
 	std::cout << "Waiting for full connections..." << std::endl;
 	size_t num_peers = nodes_.size() - 1;
+	uint64_t elapsed_time = 0;
 	for (auto *node : nodes_) {
+	    std::cout << "Waiting for node " << node->name() << std::endl;
 	    size_t cnt = 0;
 	    while (cnt != num_peers) {
 		cnt = 0;
 		node->for_each_standard_out_connection([&cnt](out_connection *) {cnt++;});
 		utime::sleep(utime::us(node->get_fast_timer_interval_microseconds()));
+		elapsed_time += node->get_fast_timer_interval_microseconds();
+
+		if (elapsed_time > 120*(1000*1000)) {
+		    throw std::runtime_error("Timeout expired; Failed to setup connections.");
+		}
 	    }
+	    std::cout << "Succeeded with node " << node->name() << std::endl;
 	}
 	std::cout << "Established full connections." << std::endl;
     }
