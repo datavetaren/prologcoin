@@ -90,7 +90,7 @@ endef
 
 CPP_FILES := $(wildcard $(SRC)/$(SUBDIR)/*.cpp)
 OBJ_FILES := $(addprefix $(OUT)/, $(CPP_FILES:$(SRC)/%.cpp=%$(OBJ_EXT)))
-OBJ_FILES0 := $(filter-out $(OUT)/main$(OBJ_EXT), $(OBJ_FILES))
+OBJ_FILES0 := $(filter-out $(OUT)/main/main$(OBJ_EXT), $(OBJ_FILES))
 TEST_CPP_FILES := $(wildcard $(SRC)/$(SUBDIR)/test/*.cpp)
 TEST_OBJ_FILES := $(addprefix $(OUT)/$(SUBDIR)/test/, $(TEST_CPP_FILES:$(SRC)/$(SUBDIR)/test/%.cpp=%$(OBJ_EXT)))
 TEST_EXE_FILES := $(addprefix $(BIN)/test/$(SUBDIR)/, $(TEST_CPP_FILES:$(SRC)/$(SUBDIR)/test/%.cpp=%$(EXE_EXT)))
@@ -172,6 +172,7 @@ $(BIN)/test/$(SUBDIR)/%$(EXE_EXT).val.ok : $(BIN)/test/$(SUBDIR)/%$(EXE_EXT)
 	@(echo $(green)$(bold) [OK]$(off)$(white))
 
 $(OUT)/$(SUBDIR)/test/%$(OBJ_EXT) : $(SRC)/$(SUBDIR)/test/%.cpp
+	@mkdir -p $(OUT)/$(SUBDIR)/test
 	@$(call echon, $(green) $(bold)  $(notdir $<) $(off) $(white)) 
 	@mkdir -p /tmp
 	@rm -f /tmp/err.log

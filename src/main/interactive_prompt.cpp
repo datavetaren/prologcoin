@@ -4,6 +4,7 @@
 #include "../common/term_serializer.hpp"
 #include "../node/self_node.hpp"
 #include "interactive_prompt.hpp"
+#include "meta_interpreter.hpp"
 
 namespace prologcoin { namespace main {
 
@@ -15,7 +16,10 @@ interactive_prompt::interactive_prompt()
   : prompt_("?- "),
     stopped_(false),
     ctrl_c_(false),
-    in_wallet_(false)
+    in_wallet_(false),
+    node_terminal_(nullptr),
+    wallet_(nullptr),
+    meta_(nullptr)
 {
     readline_.set_tick(true);
     readline_.set_accept_ctrl_c(true);
@@ -40,11 +44,20 @@ void interactive_prompt::connect_wallet(wallet *w)
     in_wallet_ = true;
 }
 
+void interactive_prompt::connect_meta(meta_interpreter *meta)
+{
+    meta_ = meta;
+}
+	
 void interactive_prompt::pulse()
 {
+    if (meta_) {
+	meta_->pulse();
+    }
     if (in_wallet_) {
         wallet_->node_pulse();
-    } else {
+    }
+    if (node_terminal_) {
         node_terminal_->node_pulse();
     }
 }
@@ -52,22 +65,35 @@ void interactive_prompt::pulse()
 std::string interactive_prompt::flush_text()
 {
     std::string t = text_;
-    t += node_terminal_->flush_text();
+    if (meta_) {
+	t += meta_->flush_text();
+    }
+    if (node_terminal_) {
+	t += node_terminal_->flush_text();
+    }
     text_.clear();
     return t;
 }
 
 void interactive_prompt::reset()
 {
+    if (meta_) {
+	meta_->reset();
+    }
     if (in_wallet_) {
         wallet_->reset();
-    } else {
+    }
+    if (node_terminal_) {
         node_terminal_->reset();
     }
 }
 
 bool interactive_prompt::has_more()
 {
+    if (meta_) {
+	return meta_->has_more();
+    }
+
     if (in_wallet_) {
         return wallet_->has_more();
     } else {
@@ -78,6 +104,24 @@ bool interactive_prompt::has_more()
 bool interactive_prompt::next()
 {
     bool r = false;
+
+    if (meta_) {
+	if ((r = meta_->next())) {
+	    if (has_more()) {
+	        add_text_output_no_nl(meta_->get_result());
+		add_text_output_no_nl(" ");
+	    } else {
+	        add_text_output(meta_->get_result());
+	    }
+	} else {
+	    add_text_output("false.");
+	}
+	if (!r) {
+	    reset();
+	}
+	return r;
+    }
+    
     if (in_wallet_) {
         if ((r = wallet_->next())) {
 	    if (has_more()) {
@@ -100,7 +144,7 @@ bool interactive_prompt::next()
 
 void interactive_prompt::add_error(const std::string &msg)
 {
-    if (in_wallet_) {
+    if (meta_ || in_wallet_) {
         add_text_output("[ERROR]: " + msg);
     } else {
         node_terminal_->add_error(msg);
@@ -173,6 +217,10 @@ void interactive_prompt::halt()
 
 term interactive_prompt::parse(const std::string &str)
 {
+    if (meta_) {
+	return meta_->env().parse(str);
+    }
+
     if (in_wallet_) {
         return wallet_->env().parse(str);
     } else {
@@ -182,6 +230,20 @@ term interactive_prompt::parse(const std::string &str)
 
 void interactive_prompt::execute(term t)
 {
+    if (meta_) {
+	if (!meta_->execute(t)) {
+	    add_text_output("false.");
+	} else {
+	    if (has_more()) {
+	        add_text_output_no_nl(meta_->get_result());
+		add_text_output_no_nl(" ");		
+	    } else {
+	        add_text_output(meta_->get_result());
+	    }
+	}
+	return;
+    }
+    
     if (in_wallet_) {
         if (!wallet_->execute(t)) {
 	    add_text_output("false.");
@@ -228,7 +290,7 @@ void interactive_prompt::run()
 	    if (has_more()) {
 		if (cmd != ";" && !cmd.empty()) {
 		    add_error("Unknown command. Only ';' or ENTER is allowed.");
-		    if (!in_wallet_) node_terminal_->set_has_more();
+		    if (!meta_ && !in_wallet_) node_terminal_->set_has_more();
 		    continue;
 		}
 		if (cmd.empty()) {

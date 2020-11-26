@@ -291,6 +291,10 @@ void interpreter::delete_instance()
 
 bool interpreter::next()
 {
+    while (num_instances() > 0 && !has_more()) {
+	delete_instance();
+    }
+    
     term old_qr = qr();
 
     reset_accumulated_cost();

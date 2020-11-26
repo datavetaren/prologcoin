@@ -4,10 +4,12 @@
 #include "interactive_prompt.hpp"
 #include "../common/readline.hpp"
 #include "../wallet/wallet.hpp"
+#include "meta_interpreter.hpp"
 
 using namespace prologcoin::common;
 using namespace prologcoin::node;
 using namespace prologcoin::wallet;
+using namespace prologcoin::main;
 
 static std::string program_name;
 static std::string home_dir;
@@ -15,11 +17,12 @@ unsigned short port = self_node::DEFAULT_PORT;
 static std::string name;
 static std::string dir;
 static bool is_wallet = false;
+static bool is_meta = false;
 
 static void help()
 {
     std::cout << std::endl;
-    std::cout << "Usage: " << program_name << " --interactive(-wallet) [--port <number>]" << std::endl;
+    std::cout << "Usage: " << program_name << " --interactive(-wallet/-meta) [--port <number>]" << std::endl;
     std::cout << "  --interactive (non-interactive currently unavailable)" << std::endl;
     std::cout << "  --interactive-wallet (will start both the node and a walet " << std::endl;
     std::cout << "                        connecting to that node.)" << std::endl;
@@ -32,19 +35,34 @@ static void help()
     std::cout << std::endl;
 }
 
+static void meta()
+{
+    meta_interpreter meta(dir);
+
+    prologcoin::main::interactive_prompt prompt;
+    prompt.connect_meta(&meta);
+    prompt.run();
+
+    std::cout << "Shutting down..." << std::endl;
+}
+
 static void start()
 {
     std::cout << std::endl;
 
-    self_node node(dir, port);
-
-    if (!name.empty()) {
-	node.set_name(name);
-    }
-
     std::cout << "[" << program_name << " v" << self_node::VERSION_MAJOR << "." << self_node::VERSION_MINOR << "]" << std::endl;
     std::cout << "Data directory: " << dir << std::endl;
     std::cout << std::endl;
+    
+    if (is_meta) {
+	meta();
+	return;
+    }
+
+    self_node node(dir, port);
+    if (!name.empty()) {
+	node.set_name(name);
+    }
 
     node.start();
 
@@ -135,14 +153,16 @@ int main(int argc, char *argv[])
 
     std::string interactive_opt = get_option(args, "--interactive");
     std::string interactive_wallet_opt = get_option(args, "--interactive-wallet");
+    std::string interactive_meta_opt = get_option(args, "--interactive-meta");
     
-    if (interactive_wallet_opt.empty() && interactive_opt.empty()) {
-	std::cout << std::endl << program_name << ": --interactive or --interactive-wallet is missing (see --help.)" << std::endl << std::endl;
+    if (interactive_meta_opt.empty() && interactive_wallet_opt.empty() && interactive_opt.empty()) {
+	std::cout << std::endl << program_name << ": --interactive, --interactive-wallet or --interactive-meta is missing (see --help.)" << std::endl << std::endl;
 	return 0;
     }
 
+    is_meta = !interactive_meta_opt.empty();
     is_wallet = !interactive_wallet_opt.empty();
-
+    
     std::string port_opt = get_option(args, "--port");
     if (!port_opt.empty()) {
 	try {
