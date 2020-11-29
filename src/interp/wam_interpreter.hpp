@@ -799,11 +799,11 @@ private:
       size_t offset = wami->to_code_addr(instr);
       auto beginning_offset = *(--(wami->label_offsets.lower_bound(offset)));
       int i = 0;
-      int max_y = 0;
+      int max_y = -1;
       for(auto current_instr = wami->to_code(beginning_offset); current_instr <= instr;) {
-	std::cout << "Instr " << i << ": ";
-	current_instr->print(std::cout, *wami);
-	std::cout << "\n";
+        //        	std::cout << "Instr " << i << ": ";
+        //                current_instr->print(std::cout, *wami);
+        //        	std::cout << "\n";
 	current_instr = wami->next_instruction(current_instr);
 	i = i + 1;
 	switch(current_instr->type()) {
@@ -838,8 +838,9 @@ private:
 	  break;
 	}
       }
-      std::cout << "NUM Y: " << max_y << "\n";
-      return max_y;
+      // max_y is the highest index, so total number of y registers is max_y + 1
+      auto num_y = max_y + 1;
+      return num_y;
     }
 
     static inline size_t env_num_y(interpreter_base *interp, environment_base_t *env)
@@ -849,12 +850,12 @@ private:
       auto kind = top ? wami->e_kind() : env->ce.kind();
       auto saved_env = top ? wami->e0()->ce : env->ce;
       if(kind == ENV_WAM) {
-        auto prev_env = reinterpret_cast<environment_t *>(saved_env.ce0());
-        auto p = top ? wami->cp() : env->cp;
         if (top) {
           return wami->top_num_y(interp);
         }
 
+        auto prev_env = reinterpret_cast<environment_t *>(saved_env.ce0());
+        auto p = env->cp;
         auto cp = prev_env->cp;
         if(cp.has_wam_code()) {
           auto after_call = cp.wam_code();
@@ -870,31 +871,112 @@ private:
       }
     }
 
+  static inline size_t num_a(wam_interpreter *wami) {
+    code_point &p = wami->p();
+    size_t wam_addr = wami->to_code_addr(p.wam_code());
+    auto qn = wami->get_wam_predicate(wam_addr);
+    return qn.second.arity();
+  }
+
+  static inline void gc_roots(std::vector<common::ptr_cell> &roots,
+                              interpreter_base *interp) {
+    auto wami = reinterpret_cast<wam_interpreter *>(interp);
+    get_register_roots(roots, wami);
+  }
+
+  static inline void add_root(std::vector<common::ptr_cell> &roots,
+                              term t) {
+    if(t.tag() == common::tag_t::REF ||
+       t.tag() == common::tag_t::RFW) {
+      roots.push_back(reinterpret_cast<common::ptr_cell&>(t));
+    }
+  }
+
+  static inline void get_a_roots(std::vector<common::ptr_cell> &roots,
+                                 wam_interpreter *wami) {
+    auto na = num_a(wami);
+    for(size_t i = 0; i < na; i++) {
+      common::term ai = wami->a(i);
+      add_root(roots, ai);
+    }
+  }
+
+  static inline void get_x_roots(std::vector<common::ptr_cell> &roots,
+                                 wam_interpreter *wami) {
+      auto instr = wami->p().wam_code();
+      size_t offset = wami->to_code_addr(instr);
+      auto beginning_offset = *(--(wami->label_offsets.lower_bound(offset)));
+      int i = 0;
+      for(auto current_instr = wami->to_code(beginning_offset); current_instr <= instr;) {
+	//std::cout << "Instr " << i << ": ";
+	//current_instr->print(std::cout, *wami);
+	//std::cout << "\n";
+	current_instr = wami->next_instruction(current_instr);
+	i = i + 1;
+	switch(current_instr->type()) {
+	case PUT_VARIABLE_X:
+	case PUT_VALUE_X:
+	case GET_VALUE_X: {
+	  auto bin_reg = reinterpret_cast<wam_instruction_binary_reg *>(current_instr);
+	  auto xn = bin_reg->reg_1();
+	  add_root(roots, wami->x(xn));
+	  break;
+	}
+	case PUT_STRUCTURE_X:
+	case GET_STRUCTURE_X: {
+	  auto con_reg = reinterpret_cast<wam_instruction_con_reg *>(current_instr);
+	  auto xn = con_reg->reg();
+	  add_root(roots, wami->x(xn));
+	  break;
+	}
+	case PUT_LIST_X:
+	case GET_LIST_X:
+	case SET_VARIABLE_X:
+	case SET_VALUE_X:
+	case SET_LOCAL_VALUE_X:
+	case UNIFY_LOCAL_VALUE_X: {
+	  auto un_reg = reinterpret_cast<wam_instruction_unary_reg *>(current_instr);
+	  auto xn = un_reg->reg();
+	  add_root(roots, wami->x(xn));
+	  break;
+	}
+	default:
+	  break;
+	}
+      }
+    }
+
+    static inline void get_register_roots(std::vector<common::ptr_cell> &roots,
+                                          wam_interpreter *wami) {
+      get_a_roots(roots, wami);
+      get_x_roots(roots, wami);
+    }
+
     static inline void save_state(interpreter_base *interp)
     {
-        // First check if we're in WAM (or not)
-        code_point &p = interp->p();
-        if (!p.has_wam_code()) {
-	    return interpreter_base::save_state(interp);
-        }
-        auto wami = reinterpret_cast<wam_interpreter *>(interp);
-	size_t wam_addr = wami->to_code_addr(p.wam_code());
-	auto qn = wami->get_wam_predicate(wam_addr);
-	auto meta_data = wami->get_wam_predicate_meta_data(qn);
-	size_t num_x = meta_data.num_x_registers;
-	size_t num_a = qn.second.arity();
-	auto ef = interp->ef();
-	ef->extra[0] = int_cell(num_x);
-	for (size_t i = 0; i < num_x; i++) {
-	  ef->extra[i+1] = wami->x(i);
-	}
-	ef->extra[1+num_x] = int_cell(num_a);
-	for (size_t i = 0; i < num_a; i++) {
-	  ef->extra[1+num_x+1+i] = wami->a(i);
-	}
-	ef->num_extra = 2 + num_x + num_a;
-	interp->set_p( code_point(interpreter_base::EMPTY_LIST) );
-	interp->set_cp( code_point(interpreter_base::EMPTY_LIST) );
+      // First check if we're in WAM (or not)
+      code_point &p = interp->p();
+      if (!p.has_wam_code()) {
+        return interpreter_base::save_state(interp);
+      }
+      auto wami = reinterpret_cast<wam_interpreter *>(interp);
+      size_t wam_addr = wami->to_code_addr(p.wam_code());
+      auto qn = wami->get_wam_predicate(wam_addr);
+      auto meta_data = wami->get_wam_predicate_meta_data(qn);
+      size_t num_x = meta_data.num_x_registers;
+      size_t num_a = qn.second.arity();
+      auto ef = interp->ef();
+      ef->extra[0] = int_cell(num_x);
+      for (size_t i = 0; i < num_x; i++) {
+        ef->extra[i+1] = wami->x(i);
+      }
+      ef->extra[1+num_x] = int_cell(num_a);
+      for (size_t i = 0; i < num_a; i++) {
+        ef->extra[1+num_x+1+i] = wami->a(i);
+      }
+      ef->num_extra = 2 + num_x + num_a;
+      interp->set_p( code_point(interpreter_base::EMPTY_LIST) );
+      interp->set_cp( code_point(interpreter_base::EMPTY_LIST) );
     }
 
     static inline void restore_state(interpreter_base *interp)

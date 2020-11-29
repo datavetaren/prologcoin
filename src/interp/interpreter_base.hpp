@@ -1057,9 +1057,12 @@ public:
     inline bool has_meta_context() const
         { return register_m_ != nullptr; }
 
+    std::vector<common::ptr_cell> get_gc_roots();
+    void get_stack_roots(std::vector<common::ptr_cell> &roots);
+
+    void dump_roots();
     void dump_stack();
     void dump_choice_points();
-
 
   
 protected:
@@ -1112,6 +1115,7 @@ protected:
 
     typedef size_t (*num_y_fn_t)(interpreter_base *interp, bool use_previous);
     typedef size_t (*env_num_y_fn_t)(interpreter_base *interp, environment_base_t *env);
+    typedef void (*gc_roots_fn_t)(std::vector<common::ptr_cell> &roots, interpreter_base *interp);
     typedef void (*save_state_fn_t)(interpreter_base *interp);
     typedef void (*restore_state_fn_t)(interpreter_base *interp);
 
@@ -1128,6 +1132,16 @@ protected:
     inline env_num_y_fn_t env_num_y_fn()
     {
         return env_num_y_fn_;
+    }
+
+    inline void set_gc_roots_fn(gc_roots_fn_t gc_roots_fn)
+    {
+      gc_roots_fn_ = gc_roots_fn;
+    }
+
+    inline gc_roots_fn_t gc_roots_fn()
+    {
+      return gc_roots_fn_;
     }
   
     inline void set_env_num_y_fn(env_num_y_fn_t env_num_y_fn)
@@ -1191,6 +1205,10 @@ protected:
     static inline size_t env_num_y(interpreter_base *interp, environment_base_t *env)
     {
       return (sizeof(environment_naive_t)-sizeof(environment_base_t))/sizeof(term);
+    }
+
+    static inline void gc_roots(std::vector<common::ptr_cell> &roots,
+				interpreter_base *interp) {
     }
   
     static inline void save_state(interpreter_base *interp)
@@ -1518,7 +1536,6 @@ protected:
    	    }
 	case ENV_WAM: {
 	  auto frame_ptr = e0();
-	  std::cout << "Deallocate: " << frame_ptr << "\n";
   	    set_cp(e0()->cp);
 	    set_e(e0()->ce);
 	    break;
@@ -1777,6 +1794,7 @@ private:
 
     num_y_fn_t num_y_fn_;
     env_num_y_fn_t env_num_y_fn_;
+    gc_roots_fn_t gc_roots_fn_;
     save_state_fn_t save_state_fn_;
     restore_state_fn_t restore_state_fn_;
 
@@ -2272,7 +2290,7 @@ template<> inline environment_t * interpreter_base::allocate_environment<ENV_WAM
     set_e(new_e, ENV_WAM);
 
     auto ny = num_y_fn()(this, true);
-    std::cout << "New Env: num_y = " << ny << ", new_e: " << new_e << "\n";
+    //    std::cout << "New Env: num_y = " << ny << ", new_e: " << new_e << "\n";
     //    for(size_t i = 0; i < ny; i++) {
     //      y(i) = common::int_cell(0);
     //    }

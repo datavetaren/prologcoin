@@ -1064,6 +1064,58 @@ void interpreter_base::clear_secret()
     }
 }
 
+std::vector<common::ptr_cell> interpreter_base::get_gc_roots() {
+  std::vector<common::ptr_cell> roots;
+  get_stack_roots(roots);
+  gc_roots_fn()(roots, this);
+  return roots;
+}
+
+void interpreter_base::get_stack_roots(std::vector<common::ptr_cell> &roots) {
+  //  std::cout << "get_stack_roots - entry\n";
+  auto frame_ptr = e0();
+  size_t stack_size = frame_ptr == nullptr ? 0 :
+    (size_t)frame_ptr - (size_t)stack_;
+  auto kind = e_kind();
+  environment_base_t *cur_e = nullptr;
+  while(frame_ptr != nullptr || cur_e != nullptr) {
+    if(kind == ENV_NAIVE) {
+      //      std::cout << "Naive env: " << frame_ptr << "\n";
+    } else if (kind == ENV_WAM) {
+	size_t numy = env_num_y_fn()(this, cur_e);
+	auto wamenv = reinterpret_cast<environment_t*>(cur_e);
+	for(int i = 0; i < numy; i++) {
+	  common::term yi = (wamenv == nullptr) ? e()->yn[i] : wamenv->yn[i];
+	  if(yi.tag() == common::tag_t::REF ||
+	     yi.tag() == common::tag_t::RFW) {
+	    //	    std::cout << "Found Root (" << reinterpret_cast<common::ptr_cell&>(yi).index()
+	    //		      << "): " << to_string(yi) << "\n";
+	    roots.push_back(reinterpret_cast<common::ptr_cell&>(yi));
+	  }
+	}
+    } else { // FROZEN
+      //      std::cout << "Frozen env: " << frame_ptr << "\n";
+    }
+    cur_e = frame_ptr;
+    if(frame_ptr != nullptr) {
+      kind = frame_ptr->ce.kind();
+      frame_ptr = frame_ptr->ce.ce0();
+    }
+  }
+  //  std::cout << "get_stack_roots - exit\n";
+}
+
+void interpreter_base::dump_roots()
+{
+  std::vector<common::ptr_cell> roots = get_gc_roots();
+  std::cout << "---- Roots Start ----\n";
+  for(auto &ptr : roots) {
+    std::cout << ptr.raw_value() << ", " << ptr.index() << " value: " << to_string(ptr)
+	      << " ptr: " << (void*)(((size_t)ptr.index())) << 3 << "\n";
+  }
+  std::cout << "---- Roots End ----\n";
+}
+
 void interpreter_base::dump_stack() {
   auto frame_ptr = e0();
   size_t stack_size = frame_ptr == nullptr ? 0 :
@@ -1083,7 +1135,6 @@ void interpreter_base::dump_stack() {
 	size_t numy = env_num_y_fn()(this, cur_e);
 	std::cout << "Num Y: " << numy << "\n";
 	auto wamenv = reinterpret_cast<environment_t*>(cur_e);
-	// For some reason the first y register is a pointer to the stack.
 	for(int i = 0; i < numy; i++) {
 	  common::term yi = (wamenv == nullptr) ? e()->yn[i] : wamenv->yn[i];
 	  std::cout << "y[" << i << "]: " << yi.tag().str();
@@ -1111,7 +1162,6 @@ void interpreter_base::dump_stack() {
   } 
   std::cout << "---- Stack End ---\n";
 }
-
 
 void interpreter_base::dump_choice_points() {
   auto current_b = b();
