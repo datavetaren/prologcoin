@@ -1106,7 +1106,8 @@ bool me_builtins::db_get_5(interpreter_base &interp0, size_t arity, term args[])
     // Build a merkle tree with data until it exceeds limit
     merkle_root mtree;
     while (!it.at_end()) {
-	if (it->key() >= to_key_val) {
+	auto k = checked_cast<int64_t>(it->key());
+	if (k >= to_key_val) {
 	    break;
 	}
 	it.add_current(mtree);
@@ -1177,7 +1178,7 @@ bool me_builtins::db_key_5(interpreter_base &interp0, size_t arity, term args[])
     term tail = lst;
     size_t cnt = 0;
     while (!it.at_end()) {
-        auto key = it->key();
+        auto key = checked_cast<int64_t>(it->key());
 	if (key >= to_key_val) {
 	    break;
 	}

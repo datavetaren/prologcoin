@@ -50,6 +50,7 @@ public:
 	common::utime::sleep(common::utime::ss(5));
 	add_addresses();
 	wait_connections();
+	common::utime::sleep(common::utime::ss(5));	
     }
 
     inline void stop()
