@@ -37,7 +37,7 @@ static void test_basic()
     triedb::erase_all(test_dir);
     triedb db(test_dir);
 
-    std::vector<std::pair<triedb_branch *, size_t> > path;
+    std::vector<std::pair<const triedb_branch *, size_t> > path;
 
     auto at_root = db.new_root();
     for (size_t i = 0; i < TEST_NUM_ENTRIES; i++) {
@@ -60,7 +60,7 @@ static void test_basic()
 
     std::cout << "PATH: ";
     bool first = true;
-    std::pair<triedb_branch *, size_t> *last_e;
+    std::pair<const triedb_branch *, size_t> *last_e;
     for (auto &e : path) {
         last_e = &e;
         auto *br = e.first;

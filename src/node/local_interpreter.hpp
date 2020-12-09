@@ -5,6 +5,7 @@
 
 #include "../interp/interpreter.hpp"
 #include "../common/term_serializer.hpp"
+#include "../global/global.hpp"
 #include <boost/filesystem.hpp>
 
 namespace prologcoin { namespace node {
@@ -63,6 +64,8 @@ public:
     static bool nolimit_0(interpreter_base &interp, size_t arity, term args[]);
 
     // Commit to global state
+    static std::set<global::meta_id> get_meta_ids(interpreter_base &interp, const std::string &name, term prefix_id);
+    static global::meta_id get_meta_id(interpreter_base &interp, const std::string &name, term prefix_id);
     static bool drop_global_0(interpreter_base &interp, size_t arity, term args[]);
     static bool gstat_1(interpreter_base &interp, size_t arity, term args[]);
     static bool chain_0(interpreter_base &interp, size_t arity, term args[]);
@@ -82,7 +85,14 @@ public:
     static bool global_impl(interpreter_base &interp, size_t arity, term args[], bool silent);
     static bool global_1(interpreter_base &interp, size_t arity, term args[]);
     static bool global_silent_1(interpreter_base &interp, size_t arity, term args[]);
-};
+
+    // Fast sync primitives
+    static bool fastsync_1(interpreter_base &interp, size_t arity, term args[]);
+
+    static term build_leaf_term(interpreter_base &interp0, const db::merkle_leaf &br);
+    static term build_tree_term(interpreter_base &interp0, const db::merkle_branch &br);
+    static bool db_get_5(interpreter_base &interp, size_t arity, term args[]);
+    static bool db_key_5(interpreter_base &interp, size_t arity, term args[]); };
 
 class local_interpreter_exception : public interp::interpreter_exception {
 public:

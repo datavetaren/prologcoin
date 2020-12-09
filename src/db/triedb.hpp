@@ -74,6 +74,237 @@ namespace std {
 
 namespace prologcoin { namespace db {
 
+class custom_data_t {
+public:
+    custom_data_t() : data_(nullptr), size_(0) { }
+    custom_data_t(const custom_data_t &other) : custom_data_t(other.data(), other.size()) { }
+    custom_data_t(const uint8_t *data, size_t sz) {
+	if (sz) {
+	    data_ = new uint8_t[sz];
+	    std::copy(data, data+sz, data_);
+	} else {
+	    data_ = nullptr;
+	}
+	size_ = sz;
+    }
+    ~custom_data_t() {
+	delete [] data_;
+    }
+    const uint8_t * data() const {
+	return data_;
+    }
+    const size_t size() const {
+	return size_;
+    }
+    void set_data(const uint8_t *dat, size_t sz) {
+	if (sz != size_) {
+	    delete [] data_;
+	    if (sz) {
+		data_ = new uint8_t[sz];
+		size_ = sz;
+	    } else {
+		data_ = nullptr;
+	    }
+	}
+	if (sz) std::copy(dat, dat+sz, data_);
+    }
+    bool operator == (const custom_data_t &other) const {
+	if (size() != other.size()) {
+	    return false;
+	}
+	return memcmp(data(), other.data(), size()) == 0;
+    }
+    bool operator < (const custom_data_t &other) const {
+	size_t min_sz = std::min(size(), other.size());
+	auto cmp = memcmp(data(), other.data(), min_sz);
+	if (cmp != 0) {
+	    return cmp < 0;
+	}
+	if (size() == other.size()) {
+	    return 0;
+	} else {
+	    return size() < other.size();
+	}
+    }
+protected:
+    uint8_t * data() {
+	return data_;
+    }
+private:
+    uint8_t *data_;
+    size_t size_;
+
+    friend class node_hash;
+};
+	
+class node_hash {
+public:
+    node_hash() { }
+    node_hash(const node_hash &other) : data_(other.data_) { }
+    node_hash(const uint8_t *hash, size_t sz) : data_(hash, sz) { }
+
+    const uint8_t * hash() const { return data_.data(); }
+    size_t hash_size() const { return data_.size(); }
+
+    void set_hash(const uint8_t *hash, size_t sz) {
+	data_.set_data(hash, sz);
+    }
+
+    bool equal_hash(const node_hash &other) const {
+	return data_ == other.data_;
+    }
+
+    bool operator == (const node_hash &other) const {
+	return equal_hash(other);
+    }
+
+    bool operator < (const node_hash &other) const {
+	return data_ < other.data_;
+    }
+
+    const node_hash & hash_with_size() const { return *this; }
+
+protected:
+    uint8_t * hash() { return data_.data(); }
+
+private:
+    custom_data_t data_;
+};
+
+//	
+// This is used for bulk operations, e.g. when inserting/retrieving an
+// entire sub-tree with data. Here the merkle hashes for a node can be
+// inserted before there's any sub-trees to it.
+//
+
+class merkle_node : public node_hash {
+public:
+    enum merkle_node_t {
+	LEAF, BRANCH
+    };
+
+    merkle_node_t type() const {
+	return type_;
+    }
+    size_t size() const {
+	return size_;
+    }
+    size_t position() const {
+	return position_;
+    }
+    virtual ~merkle_node() = default;
+
+    void set_hash(const uint8_t *hash, size_t sz) {
+	subtract_size(hash_size());
+	node_hash::set_hash(hash, sz);
+	add_size(hash_size());
+    }
+
+    void set_position(size_t pos) {
+	position_ = pos;
+    }
+    
+protected:
+    merkle_node(merkle_node_t t) : type_(t), position_(0), size_(0) { }
+
+    void subtract_size(size_t sz) { size_ -= sz; }
+    void add_size(size_t sz) { size_ += sz; }
+    
+private:
+    merkle_node_t type_;
+    size_t position_;
+    size_t size_;
+};
+
+}}
+
+namespace std {
+    template<> struct hash<prologcoin::db::node_hash> {
+	size_t operator () (const prologcoin::db::node_hash &h) const {
+	    assert(h.hash_size() >= 8);
+	    auto *bytes = h.hash();
+	    return static_cast<size_t>(prologcoin::db::read_uint64(bytes));
+	}
+    };
+};
+
+namespace prologcoin { namespace db {
+
+class merkle_branch : public merkle_node {
+public:
+    merkle_branch() : merkle_node(BRANCH) {
+    }
+    
+    std::unique_ptr<merkle_node> * find_child(const node_hash &hash) {
+	auto it = children_.find(hash);
+	if (it == children_.end()) {
+	    return nullptr;
+	}
+	return &(it->second);
+    }
+    size_t num_children() const {
+	return children_.size();
+    }
+
+    // Order children in position order
+    void get_children(std::vector<merkle_node *> &children) const {
+	children.clear();
+	merkle_node * arr[triedb_params::MAX_BRANCH];
+	memset(&arr[0], 0, sizeof(arr));
+	for (auto &child : children_) {
+	    arr[child.second->position()] = (child.second).get();
+	}
+	for (size_t i = 0; i < triedb_params::MAX_BRANCH; i++) {
+	    if (arr[i]) children.push_back(arr[i]);
+	}
+    }
+    
+    std::unique_ptr<merkle_node> & add_child(std::unique_ptr<merkle_node> &node) {
+	const node_hash &nh = *node;
+	if (auto *current = find_child(nh)) {
+	    subtract_size((*current)->size());
+	    add_size(node->size());
+	    *current = std::move(node);
+	    return *current;
+	}
+	add_size(node->size());
+	std::pair<node_hash, std::unique_ptr<merkle_node> > p(nh, std::move(node));
+	bool b;
+        typename decltype(children_)::iterator it;
+	std::tie(it, b) = children_.insert(std::move(p));
+	return it->second;
+    }
+    
+private:
+    std::map<node_hash, std::unique_ptr<merkle_node> > children_;
+};
+
+class merkle_leaf : public merkle_node {
+public:
+    merkle_leaf(uint64_t key) : merkle_node(LEAF), key_(key) { }
+    merkle_leaf(uint64_t key, std::unique_ptr<custom_data_t> &data)
+	: merkle_node(LEAF), key_(key), data_(std::move(data)) { }
+
+    uint64_t key() const {
+	return key_;
+    }
+
+    bool has_data() const {
+	return data_ != nullptr;
+    }
+
+    const custom_data_t & data() const {
+	return *data_;
+    }
+
+private:
+    uint64_t key_;
+    std::unique_ptr<custom_data_t> data_;
+};
+
+class merkle_root : public merkle_branch {
+};
+	
 //
 // root_node (stored in the root file)
 //
@@ -212,7 +443,7 @@ public:
     triedb_key_not_found_exception(const std::string &msg) : triedb_exception(msg) { }
 };    
     
-class triedb_node {
+class triedb_node : public node_hash {
 };
     
 //
@@ -224,62 +455,40 @@ class triedb_node {
 // be 1024 + 20 + 20 bytes = 1064 bytes (note that the heap block itself
 // is stored in the blockdb and not here.)
 //
-class triedb_leaf : public triedb_node {
+class triedb_leaf : public triedb_node, public custom_data_t {
 public:
     static const size_t MAX_SIZE_IN_BYTES = 65536*2;
   
     inline triedb_leaf()
-	: key_(0), hash_size_(0), custom_data_size_(0), hash_(nullptr), custom_data_(nullptr) { }
+	: key_(0) { }
 
-    inline triedb_leaf(uint64_t key, const uint8_t *custom_data, size_t custom_data_size) : key_(key), hash_size_(0), custom_data_size_(custom_data_size), hash_(nullptr), custom_data_(nullptr) {
-	if (custom_data_size_) {
-	    custom_data_ = new uint8_t[custom_data_size_];
-	    memcpy(custom_data_, custom_data, custom_data_size_);
-	}
-    }
+    inline triedb_leaf(const triedb_leaf &other) : triedb_node(other), custom_data_t(other), key_(other.key_) { }
 
-    inline ~triedb_leaf() {
-	if (hash_) delete [] hash_;
-        if (custom_data_) delete [] custom_data_;
+    inline triedb_leaf(uint64_t key, const uint8_t *custom_dat, size_t custom_sz) : custom_data_t(custom_dat, custom_sz), key_(key) {
     }
 
     inline uint64_t key() const {
         return key_;
     }
 
-    const uint8_t * hash() const {
-	return hash_;
-    }
-
-    size_t hash_size() const {
-	return hash_size_;
-    }
-    
-    void set_hash(const uint8_t *h, size_t sz) {
-	if (hash_ == nullptr || hash_size_ != sz) {
-	    if (hash_) delete [] hash_;
-	    hash_ = sz > 0 ? new uint8_t[sz] : nullptr;
-	    hash_size_ = sz;
-	}
-	if (sz > 0) {
-	    memcpy(hash_, h, sz);
-	}
-    }
-  
-    inline size_t custom_data_size() const {
-        return custom_data_size_;
+    inline void set_custom_data(const uint8_t *dat, size_t sz) {
+	custom_data_t::set_data(dat, sz);
     }
 
     inline const uint8_t * custom_data() const {
-        return custom_data_;
+        return custom_data_t::data();
+    }
+    
+    inline size_t custom_data_size() const {
+        return custom_data_t::size();
     }
 
     inline size_t serialization_size() const {
         size_t sz = sizeof(uint32_t) + // Total size
   	            sizeof(uint64_t) + // key
   	            sizeof(uint8_t) + // hash size
-	            hash_size_ + // hash itself
-	            custom_data_size_; // Value of leaf node
+	            hash_size() + // hash itself
+	            custom_data_size(); // Value of leaf node
         return sz;
     }
 
@@ -288,10 +497,6 @@ public:
 
 private:
     uint64_t key_;
-    uint8_t hash_size_;
-    uint32_t custom_data_size_; // Not stored on disk
-    uint8_t *hash_;
-    uint8_t *custom_data_;
 };
 
 //
@@ -301,16 +506,12 @@ class triedb_branch : public triedb_node {
 public:
     static const size_t MAX_SIZE_IN_BYTES = 1024;
 
-    inline triedb_branch() : max_key_bits_(0), hash_size_(0), mask_(0), leaf_(0), ptr_(nullptr), hash_(nullptr) { }
+    inline triedb_branch() : max_key_bits_(0), mask_(0), leaf_(0), ptr_(nullptr) { }
     inline triedb_branch(const triedb_branch &other)
-        : max_key_bits_(other.max_key_bits_), hash_size_(other.hash_size_), mask_(other.mask_), leaf_(other.leaf_), ptr_(nullptr), hash_(nullptr) {
+        : triedb_node(other), max_key_bits_(other.max_key_bits_), mask_(other.mask_), leaf_(other.leaf_), ptr_(nullptr) {
         size_t n = num_children();
         ptr_ = new uint64_t[n];
 	memcpy(ptr_, other.ptr_, sizeof(uint64_t)*n);
-	if (hash_size_ > 0) {
-	    hash_ = new uint8_t[hash_size_];
-	    memcpy(hash_, other.hash_, hash_size_);
-	}
     }
 
     static inline uint32_t compute_max_key_bits(uint64_t key) {
@@ -360,25 +561,6 @@ public:
         mask_ &= ~(1 << sub_index);
     }
 
-    inline const uint8_t * hash() const {
-	return hash_;
-    }
-
-    inline size_t hash_size() const {
-	return hash_size_;
-    }
-
-    inline void set_hash(const uint8_t *h, size_t sz) {
-	if (hash_ == nullptr || hash_size_ != sz) {
-	    if (hash_) delete [] hash_;
-	    hash_ = sz > 0 ? new uint8_t[sz] : nullptr;
-	    hash_size_ = sz;
-	}
-	if (sz > 0) {
-	    memcpy(hash_, h, sz);
-	}
-    }
-
     size_t serialization_size() const {
        size_t sz = sizeof(uint32_t) +  // total size
                    sizeof(uint8_t) +  // max key bits
@@ -386,7 +568,7 @@ public:
                    sizeof(uint32_t) + // mask
                    sizeof(uint32_t) +  // leaf
                    sizeof(uint64_t)*num_children() + // ptrs
-	           hash_size_; // hash itself
+	           hash_size(); // hash itself
        assert(sz < MAX_SIZE_IN_BYTES);
        return sz;
     }
@@ -420,13 +602,9 @@ private:
     // The biggest key in this node
     // We use this to limit the height of the trie (to avoid all prefix 0s)
     uint8_t max_key_bits_; // A key is less than 64 bits
-    uint8_t hash_size_; // Hash size in bytes (can be zero)
     uint32_t mask_;
     uint32_t leaf_;
     uint64_t *ptr_;
-    uint8_t *hash_; // Optional hash (most DBs will use it though
-                    // as we'll quickly want to know the new root
-                    // hash after modifying the DB.)
 };
     
 class triedb : public triedb_params {
@@ -469,30 +647,30 @@ public:
 		const uint8_t *data, size_t data_size);
     void remove(const root_id &at_root, uint64_t key);
 
-    triedb_leaf * find(const root_id &at_root, uint64_t key,
-		       std::vector<std::pair<triedb_branch *, size_t> >
-		           *opt_path = nullptr);
+    const triedb_leaf * find(const root_id &at_root, uint64_t key,
+		       std::vector<std::pair<const triedb_branch *, size_t> >
+		           *opt_path = nullptr) const;
 
-    triedb_iterator begin(const root_id &at_root);
-    triedb_iterator begin(const root_id &at_root, uint64_t key);
-    triedb_iterator end(const root_id &at_root);
+    triedb_iterator begin(const root_id &at_root) const;
+    triedb_iterator begin(const root_id &at_root, uint64_t key) const;
+    triedb_iterator end(const root_id &at_root) const;
 
-    triedb_leaf * get_leaf(triedb_branch *parent, size_t sub_index) {
+    const triedb_leaf * get_leaf(const triedb_branch *parent, size_t sub_index) const {
         auto file_offset = parent->get_child_pointer(sub_index);
 	return get_leaf(file_offset);
     }
 
-    triedb_branch * get_branch(triedb_branch *parent, size_t sub_index) {
+    const triedb_branch * get_branch(const triedb_branch *parent, size_t sub_index) const {
         auto file_offset = parent->get_child_pointer(sub_index);
 	return get_branch(file_offset);
     }
  
-    triedb_branch * get_root_branch(const root_id &at_root) {
+    const triedb_branch * get_root_branch(const root_id &at_root) const {
         auto file_offset = get_root(at_root).ptr();
 	return get_branch(file_offset);
     }
     
-    std::pair<const uint8_t *, size_t> get_root_hash(const root_id &at_root) {
+    std::pair<const uint8_t *, size_t> get_root_hash(const root_id &at_root) const {
 	auto br = get_root_branch(at_root);
 	return std::make_pair(br->hash(), br->hash_size());
     }
@@ -513,15 +691,15 @@ private:
     void insert_or_update(const root_id &at_root, uint64_t key,
 			  const uint8_t *data, size_t data_size, bool do_insert);
   
-    std::pair<triedb_branch *, uint64_t> update_part(triedb_branch *node,
+    std::pair<const triedb_branch *, uint64_t> update_part(const triedb_branch *node,
 						     uint64_t key,
 						     const uint8_t *data,
 						     size_t data_size,
 						     bool do_insert,
 						     bool &new_entry);
 
-    std::pair<triedb_branch *, uint64_t> remove_part(const root_id &at_root,
-						     triedb_branch *node,
+    std::pair<const triedb_branch *, uint64_t> remove_part(const root_id &at_root,
+						     const triedb_branch *node,
 						     uint64_t key);
   
     boost::filesystem::path roots_file_path() const;
@@ -536,19 +714,19 @@ private:
     void set_root(const root_id &at_root, uint64_t offset);
     boost::filesystem::path bucket_dir_location(size_t bucket_index) const;
     boost::filesystem::path bucket_file_path(size_t bucket_index) const;
-    fstream * get_bucket_stream(size_t bucket_index);
-    size_t scan_last_bucket();
-    uint64_t scan_last_offset();
-    fstream * set_file_offset(uint64_t offset);
+    fstream * get_bucket_stream(size_t bucket_index) const;
+    size_t scan_last_bucket() const;
+    uint64_t scan_last_offset() const;
+    fstream * set_file_offset(uint64_t offset) const;
     const triedb_root & get_root(const root_id &id);
   
-    void read_leaf_node(uint64_t offset, triedb_leaf &node);
-    uint64_t append_leaf_node(const triedb_leaf &node);
+    void read_leaf_node(uint64_t offset, triedb_leaf &node) const;
+    uint64_t append_leaf_node(const triedb_leaf &node) const;
   
-    void read_branch_node(uint64_t offset, triedb_branch &node);
-    uint64_t append_branch_node(triedb_branch *node);
+    void read_branch_node(uint64_t offset, triedb_branch &node) const;
+    uint64_t append_branch_node(triedb_branch *node) const;
 
-    inline triedb_leaf * get_leaf(uint64_t file_offset) {
+    inline const triedb_leaf * get_leaf(uint64_t file_offset) const {
         auto *r = leaf_cache_.find(file_offset);
 	if (r == nullptr) {
 	     auto *lf = new triedb_leaf();
@@ -560,7 +738,7 @@ private:
 	}
     }
 
-    inline triedb_branch * get_branch(uint64_t file_offset) {
+    inline const triedb_branch * get_branch(uint64_t file_offset) const {
         auto *r = branch_cache_.find(file_offset);
 	if (r == nullptr) {
 	     auto *br = new triedb_branch();
@@ -596,24 +774,24 @@ private:
     // Bucket index to stream
     typedef common::lru_cache<size_t, fstream *, stream_flusher> stream_cache;
     stream_flusher stream_flusher_;
-    stream_cache stream_cache_;
+    mutable stream_cache stream_cache_;
 
     // Leaf cache
     typedef common::lru_cache<size_t, triedb_leaf *, leaf_flusher> leaf_cache;
     leaf_flusher leaf_flusher_;
-    leaf_cache leaf_cache_;
+    mutable leaf_cache leaf_cache_;
 
     // Branch cache
     typedef common::lru_cache<size_t, triedb_branch *, branch_flusher> branch_cache;
     branch_flusher branch_flusher_;
-    branch_cache branch_cache_;
+    mutable branch_cache branch_cache_;
 
     // Root references
     std::unordered_map<root_id, triedb_root> roots_;
     std::unordered_map<size_t, std::set<root_id> > roots_at_height_;
     fstream *roots_stream_;
   
-    uint64_t last_offset_;
+    mutable uint64_t last_offset_;
 
     bool cache_shutdown_;
 
@@ -626,7 +804,7 @@ public:
         db_(other.db_), root_(other.root_), spine_(other.spine_) {
     }
   
-    inline triedb_iterator(triedb &db, const root_id &at_root)
+    inline triedb_iterator(const triedb &db, const root_id &at_root)
       : db_(db), root_(at_root) {
         if (db.is_empty()) {
 	    return;
@@ -641,19 +819,18 @@ public:
 	}
     }
 
-    inline triedb_iterator(triedb &db, const root_id &at_root, uint64_t key) 
+    inline triedb_iterator(const triedb &db, const root_id &at_root, uint64_t key) 
 	: db_(db), root_(at_root)  {
 	if (!db.is_empty()) {
 	    start_from_key(db.get_root(at_root).ptr(), key);
 	}
     }
 
-    inline triedb_iterator(triedb &db, const root_id &at_root, bool) 
+    inline triedb_iterator(const triedb &db, const root_id &at_root, bool) 
         : db_(db), root_(at_root) {
     }
 
     inline triedb_iterator & operator = (const triedb_iterator &other) {
-        db_ = other.db_;
 	root_ = other.root_;
 	spine_ = other.spine_;
 	return *this;
@@ -698,14 +875,14 @@ public:
         return ! operator == (other);
     }
 
-    inline triedb_leaf & operator * () {
+    inline const triedb_leaf & operator * () const {
         auto parent_ptr = spine_.back().parent_ptr;
         auto sub_index = spine_.back().sub_index;
 	auto parent = db_.get_branch(parent_ptr);
         return *db_.get_leaf(parent, sub_index);
     }
 
-    inline triedb_leaf * operator -> () {
+    inline const triedb_leaf * operator -> () const {
         auto parent_ptr = spine_.back().parent_ptr;
         auto sub_index = spine_.back().sub_index;
 	auto parent = db_.get_branch(parent_ptr);
@@ -719,7 +896,7 @@ public:
 private:
     void leftmost();
     void rightmost();
-    inline size_t get_sub_index(triedb_branch *parent, uint64_t key) {
+    inline size_t get_sub_index(const triedb_branch *parent, uint64_t key) const {
       return (key >> (parent->max_key_bits() - triedb_params::MAX_BRANCH_BITS))
 	        & (triedb_params::MAX_BRANCH-1);
     }
@@ -729,10 +906,11 @@ private:
     void next();
     void previous();
 
+public:
     struct cursor {
-        cursor(triedb_branch *_parent, uint64_t _parent_ptr, size_t _sub_index)
+        cursor(const triedb_branch *_parent, uint64_t _parent_ptr, size_t _sub_index)
 	    : parent(_parent),parent_ptr(_parent_ptr), sub_index(_sub_index) { }
-        triedb_branch *parent;
+        const triedb_branch *parent;
         uint64_t parent_ptr;
         size_t sub_index;
 
@@ -741,7 +919,9 @@ private:
 		   sub_index == other.sub_index;
         }
     };
-    triedb &db_;
+
+private:
+    const triedb &db_;
     root_id root_;
     std::vector<cursor> spine_;
 
@@ -749,26 +929,28 @@ public:
     inline const std::vector<cursor> & path() const {
         return spine_;
     }
+
+    void add_current(merkle_root &root);
 };
 
-inline triedb_iterator triedb::begin(const root_id &at_root) {
+inline triedb_iterator triedb::begin(const root_id &at_root) const {
     return triedb_iterator(*this, at_root);
 }
     
-inline triedb_iterator triedb::begin(const root_id &at_root, uint64_t key) {
+inline triedb_iterator triedb::begin(const root_id &at_root, uint64_t key) const {
     return triedb_iterator(*this, at_root, key);
 }
 
-inline triedb_iterator triedb::end(const root_id &at_root) {
+inline triedb_iterator triedb::end(const root_id &at_root) const {
     return triedb_iterator(*this, at_root, true);
 }
 
 
     
-inline triedb_leaf * triedb::find(const root_id &at_root, uint64_t key,
+inline const triedb_leaf * triedb::find(const root_id &at_root, uint64_t key,
 				  std::vector<
-				    std::pair<triedb_branch *, size_t> >
-				      *path_opt)
+				    std::pair<const triedb_branch *, size_t> >
+				      *path_opt) const
 {
     auto it = begin(at_root, key);
     if (it == end(at_root)) {

@@ -242,7 +242,7 @@ term term_serializer::read(const buffer_t &bytes, size_t n,
 
 	// Process as untagged cells if num_dat > 0
 	if (num_dat > 0) {
-            env_.new_cell0(c, false);
+            env_.new_dat_cell(c);
 	    num_dat--;
 	    offset += sizeof(cell);
 	    continue;

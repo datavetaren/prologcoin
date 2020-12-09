@@ -12,6 +12,7 @@ namespace prologcoin { namespace node {
 
 using namespace prologcoin::common;
 using namespace prologcoin::interp;
+using namespace prologcoin::db;
 
 const con_cell local_interpreter::ME("me", 0);
 const con_cell local_interpreter::COLON(":", 2);
@@ -733,6 +734,52 @@ static term to_term(interpreter_base &interp0, const global::meta_id &id) {
     return interp0.new_big(id.hash(), id.hash_size());
 }
 
+std::set<global::meta_id> me_builtins::get_meta_ids(interpreter_base &interp0, const std::string &name, term id) {
+    auto &interp = reinterpret_cast<local_interpreter &>(interp0);
+    auto &g = interp.self().global();
+    auto &chain = g.get_blockchain();
+
+    uint8_t prefix[global::meta_id::HASH_SIZE];
+    size_t prefix_len = 0;
+    if (id.tag() != tag_t::INT && id.tag() != tag_t::BIG) {
+	interp.abort(interpreter_exception_wrong_arg_type(name + ": (prefix) identifier must be an integer or bignum; was " + interp.to_string(id)));
+    }
+    if (id.tag() == tag_t::INT) {
+	int64_t val = reinterpret_cast<int_cell &>(id).value();
+	uint64_t uval = static_cast<uint64_t>(val);
+	db::write_uint64(prefix, uval);
+	std::reverse(prefix, &prefix[8]);
+	// Skip leading 0s (unless last byte)
+	size_t from = 0;
+	while (from < 7 && prefix[from] == 0) from++;
+	if (from > 0) {
+	    memmove(&prefix[0], &prefix[from], 8-from);
+	    memset(&prefix[8-from], 0, from);
+	}
+	prefix_len = 8-from;
+    } else {
+	auto big = reinterpret_cast<big_cell &>(id);
+	prefix_len = interp.num_bytes(big);
+	if (prefix_len > 32) {
+	    interp.abort(interpreter_exception_wrong_arg_type(name + ": (prefix) identifier is bigger than 32 bytes; was " + interp.to_string(id)));
+	}
+	interp.get_big(big, prefix, prefix_len);
+    }
+
+    return chain.find_entries(prefix, prefix_len);
+}
+
+global::meta_id me_builtins::get_meta_id(interpreter_base &interp0, const std::string &name, term id) {
+    auto ids = get_meta_ids(interp0, name, id);
+    if (ids.empty()) {
+	throw interpreter_exception_wrong_arg_type(name + ": Did not find entry with id.");
+    }
+    if (ids.size() != 1) {
+	throw interpreter_exception_wrong_arg_type(name + ": Id was not unique. Try a bigger number.");
+    }
+    return *ids.begin();
+}
+
 bool me_builtins::chain_3(interpreter_base &interp0, size_t arity, term args[]) {
     auto &interp = to_local(interp0);
     auto &g = interp.self().global();
@@ -812,21 +859,10 @@ bool me_builtins::switch_1(interpreter_base &interp0, size_t arity, term args[])
     auto &interp = to_local(interp0);
     auto &g = interp.self().global();
 
-    if (args[0].tag() != tag_t::BIG) {
-	interp.abort(interpreter_exception_wrong_arg_type("switch/1: Expected first argument to be a big number; was " + interp.to_string(args[0])));
-    }
-
-    auto &big = reinterpret_cast<big_cell &>(args[0]);
-    if (interp0.num_bytes(big) != global::meta_id::HASH_SIZE) {
-	interp.abort(interpreter_exception_wrong_arg_type("switch/1: First argument should be 32 bytes; was " + boost::lexical_cast<std::string>(interp0.num_bytes(big)) + " bytes"));
-    }
-
-    uint8_t hash[global::meta_id::HASH_SIZE];
-    interp0.get_big(big, hash, global::meta_id::HASH_SIZE);
-    global::meta_id id(hash);
+    auto id = get_meta_id(interp0, "switch/1", args[0]);
     
     if (!g.set_tip(id)) {
-	interp.abort(interpreter_exception_wrong_arg_type("switch/1: Did not find entry with id " + hex::to_string(id.hash(), id.hash_size())));
+	throw interpreter_exception_wrong_arg_type("switch/1: Failed to switch.");
     }
 
     return true;
@@ -849,21 +885,8 @@ bool me_builtins::goals_2(interpreter_base &interp0, size_t arity, term args[]) 
     auto &interp = to_local(interp0);
     auto &g = interp.self().global();
 
-    if (args[0].tag() != tag_t::BIG) {
-	interp.abort(interpreter_exception_wrong_arg_type("goals/2: Expected first argument to be a big number; was " + interp.to_string(args[0])));
-    }
-
-    auto &big = reinterpret_cast<big_cell &>(args[0]);
-    if (interp0.num_bytes(big) != global::meta_id::HASH_SIZE) {
-	interp.abort(interpreter_exception_wrong_arg_type("goals/2: First argument should be 32 bytes; was " + boost::lexical_cast<std::string>(interp0.num_bytes(big)) + " bytes"));
-    }
-
-    uint8_t hash[global::meta_id::HASH_SIZE];
-    interp0.get_big(big, hash, global::meta_id::HASH_SIZE);
-    global::meta_id id(hash);
-    
+    auto id = get_meta_id(interp0, "goals/2", args[0]);
     term result = g.db_get_goal_block(interp0, id);
-
     return interp.unify(result, args[1]);
 }
 
@@ -871,21 +894,8 @@ bool me_builtins::meta_2(interpreter_base &interp0, size_t arity, term args[]) {
     auto &interp = to_local(interp0);
     auto &g = interp.self().global();
 
-    if (args[0].tag() != tag_t::BIG) {
-	interp.abort(interpreter_exception_wrong_arg_type("meta/2: Expected first argument to be a big number; was " + interp.to_string(args[0])));
-    }
-
-    auto &big = reinterpret_cast<big_cell &>(args[0]);
-    if (interp0.num_bytes(big) != global::meta_id::HASH_SIZE) {
-	interp.abort(interpreter_exception_wrong_arg_type("meta/2: First argument should be 32 bytes; was " + boost::lexical_cast<std::string>(interp0.num_bytes(big)) + " bytes"));
-    }
-
-    uint8_t hash[global::meta_id::HASH_SIZE];
-    interp0.get_big(big, hash, global::meta_id::HASH_SIZE);
-    global::meta_id id(hash);
-    
+    auto id = get_meta_id(interp0, "meta/2", args[0]);
     term result = g.db_get_meta(interp0, id);
-
     return interp.unify(result, args[1]);
 }
 
@@ -988,6 +998,204 @@ bool me_builtins::global_1(interpreter_base &interp0, size_t arity, term args[] 
 bool me_builtins::global_silent_1(interpreter_base &interp0, size_t arity, term args[] )
 {
     return global_impl(interp0, arity, args, true);
+}
+
+term me_builtins::build_leaf_term(interpreter_base &interp0, const merkle_leaf &lf)
+{
+    auto &interp = to_local(interp0);
+
+    auto key = lf.key();
+
+    auto hash_term = interp.new_big(lf.hash_size()*8);
+    interp.set_big(hash_term, lf.hash(), lf.hash_size());
+    term data_term = interp.EMPTY_LIST;
+    if (lf.has_data()) {
+	auto const &data = lf.data();
+	data_term = interp.new_big(data.size()*8);
+	interp.set_big(data_term, data.data(), data.size());
+    }
+    auto leaf_term = interp.new_term(con_cell("leaf",3),
+				     {int_cell(checked_cast<int64_t>(key)),
+				      hash_term,
+				      data_term});
+    return leaf_term;
+}
+
+term me_builtins::build_tree_term(interpreter_base &interp0, const merkle_branch &br)
+{
+    auto &interp = to_local(interp0);    
+    
+    term tail = interp.EMPTY_LIST;
+    term lst = tail;
+
+    std::vector<merkle_node *> children;
+    br.get_children(children);
+    
+    for (auto &child : children) {
+	auto const &node = *child;
+	term node_term;
+	if (node.type() == merkle_node::BRANCH) {
+	    auto const &sub_br = reinterpret_cast<const merkle_branch &>(node);
+	    node_term = build_tree_term(interp0, sub_br);
+	} else {
+	    auto const &lf = reinterpret_cast<const merkle_leaf &>(node);
+	    node_term = build_leaf_term(interp0, lf);
+	}
+	if (tail == interp.EMPTY_LIST) {
+	    lst = tail = interp.new_dotted_pair(node_term, tail);
+	} else {
+	    term new_tail = interp.new_dotted_pair(node_term, interp.EMPTY_LIST);
+	    interp.set_arg(tail, 1, new_tail);
+	    tail = new_tail;
+	}
+    }
+    auto hash_term = interp.new_big(br.hash_size()*8);
+    interp.set_big(hash_term, br.hash(), br.hash_size());
+    return interp.new_term(con_cell("branch", 2), {hash_term, lst});
+}
+
+//
+//         <id>    <type> <from key> <to key>
+// db_get(<root id>, heap, 10,         2000,                 X)
+//  X will become a tree of data.
+//
+bool me_builtins::db_get_5(interpreter_base &interp0, size_t arity, term args[]) {
+    static con_cell HEAP("heap", 0);
+
+    static const std::string name = "db_get/5";
+    
+    auto &interp = to_local(interp0);
+
+    auto id = get_meta_id(interp, name, args[0]);
+    
+    if (args[1].tag() != tag_t::CON) {
+	throw interpreter_exception_wrong_arg_type(name + ": Second argument must be an atom.");
+    }
+
+    triedb *db = nullptr;
+    root_id root_id;
+
+    auto &chain = interp.self().global().get_blockchain();
+    auto e = chain.get_meta_entry(id);
+    
+    con_cell &cat = reinterpret_cast<con_cell &>(args[1]);
+    if (cat == HEAP) {
+	db = &chain.heap_db();
+	root_id = e->get_root_id_heap();
+    } else {
+	throw interpreter_exception_wrong_arg_type(name + ": Currently only 'heap' is supported.");
+    }
+
+    auto from_key = args[2];
+    if (from_key.tag() != tag_t::INT) {
+	throw interpreter_exception_wrong_arg_type(name + ": Key must be an integer; was " + interp.to_string(from_key));
+    }
+    
+    auto to_key = args[3];
+    if (to_key.tag() != tag_t::INT) {
+	throw interpreter_exception_wrong_arg_type(name + ": Key must be an integer; was " + interp.to_string(to_key));
+    }
+
+    auto from_key_val = reinterpret_cast<int_cell &>(from_key).value();
+    auto to_key_val = reinterpret_cast<int_cell &>(to_key).value();
+
+    auto it = db->begin(root_id, from_key_val);
+
+    size_t limit = 2*triedb_params::MB; // Not more than 2 MB
+    
+    // Build a merkle tree with data until it exceeds limit
+    merkle_root mtree;
+    while (!it.at_end()) {
+	if (it->key() >= to_key_val) {
+	    break;
+	}
+	it.add_current(mtree);
+	++it;
+	if (mtree.size() > limit) {
+	    break;
+	}
+    }
+
+    auto result = build_tree_term(interp, mtree);
+    
+    // Now we have a nice merkle-tree that we'd like to create a
+    // term for.
+
+    return interp.unify(result, args[4]);
+}
+
+//
+//         <id>    <type> <from key> <to key>
+// db_key(<root id>, heap, 10,         2000,                 X)
+//  X will become a tree of data.
+//
+bool me_builtins::db_key_5(interpreter_base &interp0, size_t arity, term args[]) {
+    static con_cell HEAP("heap", 0);
+
+    static const std::string name = "db_key/5";
+    
+    auto &interp = to_local(interp0);
+
+    auto id = get_meta_id(interp, name, args[0]);
+    
+    if (args[1].tag() != tag_t::CON) {
+	throw interpreter_exception_wrong_arg_type(name + ": Second argument must be an atom.");
+    }
+
+    triedb *db = nullptr;
+    root_id root_id;
+
+    auto &chain = interp.self().global().get_blockchain();
+    auto e = chain.get_meta_entry(id);
+    
+    con_cell &cat = reinterpret_cast<con_cell &>(args[1]);
+    if (cat == HEAP) {
+	db = &chain.heap_db();
+	root_id = e->get_root_id_heap();
+    } else {
+	throw interpreter_exception_wrong_arg_type(name + ": Currently only 'heap' is supported.");
+    }
+
+    auto from_key = args[2];
+    if (from_key.tag() != tag_t::INT) {
+	throw interpreter_exception_wrong_arg_type(name + ": Key must be an integer; was " + interp.to_string(from_key));
+    }
+    
+    auto to_key = args[3];
+    if (to_key.tag() != tag_t::INT) {
+	throw interpreter_exception_wrong_arg_type(name + ": Key must be an integer; was " + interp.to_string(to_key));
+    }
+
+    auto from_key_val = reinterpret_cast<int_cell &>(from_key).value();
+    auto to_key_val = reinterpret_cast<int_cell &>(to_key).value();
+
+    auto it = db->begin(root_id, from_key_val);
+
+    size_t limit = 10000; // Not more than 10000 entries
+    
+    term lst = interp.EMPTY_LIST;
+    term tail = lst;
+    size_t cnt = 0;
+    while (!it.at_end()) {
+        auto key = it->key();
+	if (key >= to_key_val) {
+	    break;
+	}
+	if (++cnt > limit) {
+	    break;
+	}
+	auto new_tail = interp.new_dotted_pair(int_cell(checked_cast<int64_t>(key)), interp.EMPTY_LIST);
+	if (tail == interp.EMPTY_LIST) {
+	    lst = new_tail;
+	} else {
+	    interp.set_arg(tail, 1, new_tail);
+	}
+	tail = new_tail;
+	++it;
+    }
+
+    term result = lst;
+    return interp.unify(result, args[4]);
 }
 
 local_interpreter::local_interpreter(in_session_state &session)
@@ -1106,6 +1314,10 @@ void local_interpreter::setup_local_builtins()
 
     // Execute on global interpreter
     load_builtin(ME, con_cell("global", 1), &me_builtins::global_1);
+
+    // Fast sync primitives
+    load_builtin(ME, con_cell("db_get", 5), &me_builtins::db_get_5);
+    load_builtin(ME, con_cell("db_key", 5), &me_builtins::db_key_5);
 }
 
 void local_interpreter::startup_file()

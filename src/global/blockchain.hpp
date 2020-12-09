@@ -100,6 +100,7 @@ public:
     }
 
     std::set<meta_id> find_entries(size_t height, const uint8_t *prefix, size_t prefix_len);
+    std::set<meta_id> find_entries(const uint8_t *prefix, size_t prefix_len);
 
     inline const meta_entry * get_meta_entry(const meta_id &id) {
 	auto it = chains_.find(id);
@@ -161,7 +162,7 @@ private:
 
     meta_entry tip_;
     std::unordered_map<size_t, std::set<meta_id> > at_height_;
-    std::unordered_map<meta_id, meta_entry> chains_;
+    std::map<meta_id, meta_entry> chains_;
 
     uint64_t version_;
     uint64_t nonce_;

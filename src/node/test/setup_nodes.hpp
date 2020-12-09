@@ -47,6 +47,7 @@ public:
 	    std::cout << "Starting node " << std::setw(12) << qname << " at port " << node->port() << std::endl;
 	    node->start();
 	}
+	common::utime::sleep(common::utime::ss(5));
 	add_addresses();
 	wait_connections();
     }

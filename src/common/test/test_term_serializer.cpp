@@ -83,6 +83,64 @@ static void test_term_serializer_bignum()
     std::cout << "READ TERM:  " << str2 << "\n";
     
     assert(str1 == str2);
+
+    // Create a big num that span across heap blocks
+    term_env env3;
+
+    const size_t num_bits3 = 4096*64;
+    const size_t num_bytes3 = num_bits3/8;
+    size_t cnt = 0, p = 251;
+    term big3 = env3.new_big(num_bits3);
+    uint8_t bytes3[num_bytes3];
+    for (size_t i = 0; i < num_bytes3; i++, cnt++) {
+	if (cnt == p) cnt = 0;
+	bytes3[i] = cnt;
+    }
+    env3.set_big(big3, bytes3, num_bytes3);
+    const size_t num_bits4 = 8192*64;
+    const size_t num_bytes4 = num_bits4/8;
+    cnt = 0;
+    term big4 = env3.new_big(num_bits4);
+    uint8_t bytes4[num_bytes4];
+    for (size_t i = 0; i < num_bytes4; i++, cnt++) {
+	if (cnt == p) cnt = 0;
+	bytes4[i] = cnt;
+    }
+    env3.set_big(big4, bytes4, num_bytes4);
+
+    term_serializer::buffer_t buf3;
+    term_serializer ser3(env3);
+    term t3 = env3.new_term( con_cell("f", 2),
+			      {big3, big4});
+    ser3.write(buf3, t3);
+
+    term_env env4;
+    term_serializer ser4(env4);
+    term t4;
+    try {
+	t4 = ser4.read(buf3);
+    } catch (serializer_exception &ex) {
+	std::cout << "EXCEPTION WHEN READING: " << ex.what() << "\n";
+	std::cout << "Here's the data...\n";
+	ser.print_buffer(buf3, buf3.size());
+	assert("No exception expected" == nullptr);	
+    }
+
+    assert(t4.tag() == tag_t::STR);
+    assert(env4.functor(t4) == con_cell("f",2));
+    term big3_cmp = env4.arg(t4,0);
+    term big4_cmp = env4.arg(t4,1);    
+    assert(big3_cmp.tag() == tag_t::BIG);
+    assert(big4_cmp.tag() == tag_t::BIG);
+    uint8_t bytes3_cmp[num_bytes3];
+    env4.get_big(big3_cmp, bytes3_cmp, num_bytes3);
+    assert(memcmp(bytes3, bytes3_cmp, num_bytes3) == 0);
+    uint8_t bytes4_cmp[num_bytes4];
+    env4.get_big(big4_cmp, bytes4_cmp, num_bytes4);
+
+    env4.get_heap().print(std::cout);
+    
+    assert(memcmp(bytes4, bytes4_cmp, num_bytes4) == 0);    
 }
 
 static void test_term_serializer_clause()

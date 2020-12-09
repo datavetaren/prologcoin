@@ -280,6 +280,27 @@ static void test_bignum()
 
     assert(actual2 == expect2);
 
+    // A bignum that spans over heap blocks
+
+    const size_t num_bits = 64*3*heap_block::MAX_SIZE/2;
+    const size_t num_bytes = num_bits/8;
+    
+    big_cell big3 = h.new_big(num_bits);
+    uint8_t big3_bytes[num_bytes];
+    size_t p = 251;
+    size_t cnt = 0;
+    for (size_t i = 0; i < num_bytes; i++, cnt++) {
+	if (cnt == p) cnt = 0;
+	big3_bytes[i] = static_cast<uint8_t>(cnt);
+    }
+    h.set_big(big3, big3_bytes, num_bytes);
+
+    h.print(std::cout, 12, 30);
+
+    uint8_t big3_bytes_cmp[num_bytes];
+    h.get_big(big3, big3_bytes_cmp, num_bytes);
+
+    assert(memcmp(big3_bytes, big3_bytes_cmp, num_bytes) == 0);
 }
 
 int main(int argc, char *argv[])

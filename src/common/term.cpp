@@ -518,7 +518,7 @@ bool heap::is_list(const cell c) const
     return true;
 }
 
-std::string heap::big_to_string(const boost::multiprecision::cpp_int &i, size_t base, size_t nbits)
+std::string heap::big_to_string(const boost::multiprecision::cpp_int &i, size_t base, size_t nbits, size_t limit)
 {
     using namespace boost::multiprecision;
 
@@ -561,19 +561,46 @@ std::string heap::big_to_string(const boost::multiprecision::cpp_int &i, size_t 
 	s += ch;
     }
     std::reverse(s.begin(), s.end());
-    // s += " (" + boost::lexical_cast<std::string>(nbits) + " bits)";
+    if (s.size() > limit) {
+	s = s.substr(0, limit);
+	s += "...(" + boost::lexical_cast<std::string>(nbits) + " bits)";
+    }
     return s;
 }
 
-std::string heap::big_to_string(cell big, size_t base, bool capital) const
+std::string heap::big16_to_string(cell big, size_t limit) const
+{
+    static const char BASE_16[59] = "0123456789abcdef";
+    
+    auto n = num_bytes(reinterpret_cast<big_cell &>(big));
+    std::vector<uint8_t> bytes(n);
+    get_big(big, &bytes[0], n);
+    std::stringstream ss;
+    size_t cnt = 0;
+    for (size_t i = 0; i < n && cnt < limit; i++, cnt += 2) {
+	auto high_nibble = bytes[i] >> 4;
+	auto low_nibble = bytes[i] & 0xf;
+	ss << BASE_16[high_nibble] << BASE_16[low_nibble];
+    }
+    if (cnt == limit) {
+	ss << "...(" << num_bits(reinterpret_cast<big_cell &>(big)) << " bits)";
+    }
+    return ss.str();
+}
+
+std::string heap::big_to_string(cell big, size_t base, bool capital, size_t limit) const
 {
     using namespace boost::multiprecision;
 
-    cpp_int val;
-    size_t nbits = 0;
-    get_big(big, val, nbits);
-
-    std::string s = big_to_string(val, base, nbits);
+    std::string s;
+    if (base == 16) {
+	s = big16_to_string(big, limit);
+    } else {
+	cpp_int val;
+	size_t nbits = 0;
+	get_big(big, val, nbits);
+	s = big_to_string(val, base, nbits, limit);
+    }
     if (capital) {
 	boost::to_upper(s);
     }

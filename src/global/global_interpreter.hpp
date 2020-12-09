@@ -183,7 +183,7 @@ private:
   	    if (get_head_block() == nullptr) {
 	        new_block_index = 0;
 	    } else {
-	        new_block_index = num_blocks() + 1;
+	        new_block_index = num_blocks();
 	    }
   	    auto *new_block = new common::heap_block(*this, new_block_index);
 	    modified_blocks_.insert(std::make_pair(new_block_index, new_block));

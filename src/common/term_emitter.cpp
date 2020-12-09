@@ -885,8 +885,17 @@ void term_emitter::emit_big(const term_emitter::elem &e)
 	// backward compatibility wtih Prolog. But in Prologcoin we'd
 	// like to have a compact representation of binary data.
 	// Especially if we get bitcoin compatibility for private keys.
-	str += "58'";
-	str += heap_.big_to_string(b, 58);
+	size_t clip = std::numeric_limits<size_t>::max();
+	if (heap_.num_bits(b) > 8192) {
+	    str += "16'";
+	    if (options().test(emitter_option::EMIT_INTERACTIVE)) {
+		clip = 64;
+	    }
+	    str += heap_.big_to_string(b, 16, false, clip);
+	} else {
+	    str += "58'";
+	    str += heap_.big_to_string(b, 58, false, clip);
+	}
     }
     emit_token(str);
 }

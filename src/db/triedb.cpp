@@ -89,25 +89,21 @@ void triedb_leaf::read(const uint8_t *buffer) {
 
     // Read hash size (1 byte)
     assert(((p - buffer) + sizeof(uint8_t)) < MAX_SIZE_IN_BYTES);	
-    hash_size_ = *p; p++;
+    auto hash_size = *p; p++;
 
     // Read key
     assert(((p - buffer) + sizeof(uint64_t)) < MAX_SIZE_IN_BYTES);	
     key_ = read_uint64(p); p += sizeof(uint64_t);
 
     // Write hash
-    assert((static_cast<size_t>(p - buffer) + hash_size_) < MAX_SIZE_IN_BYTES);
-    if (hash_ != nullptr) delete [] hash_;
-    hash_ = new uint8_t[hash_size_];
-    memcpy(hash_, p, hash_size_); p += hash_size_;
+    assert((static_cast<size_t>(p - buffer) + hash_size) < MAX_SIZE_IN_BYTES);
+    set_hash(p, hash_size);
+    p += hash_size;
 
     // Remaining is custom data
-    custom_data_size_ = sz - (p - buffer);
-    assert((static_cast<size_t>(p - buffer) + custom_data_size_) < MAX_SIZE_IN_BYTES);
-
-    if (custom_data_ != nullptr) delete [] custom_data_;
-    custom_data_ = new uint8_t [custom_data_size_];
-    memcpy(custom_data_, p, custom_data_size_);
+    auto custom_data_sz = sz - (p - buffer);
+    assert((static_cast<size_t>(p - buffer) + custom_data_sz) < MAX_SIZE_IN_BYTES);
+    set_custom_data(p, custom_data_sz);
 }
 
 void triedb_leaf::write(uint8_t *buffer) const {
@@ -119,20 +115,20 @@ void triedb_leaf::write(uint8_t *buffer) const {
     p += sizeof(uint32_t);
 
     // Write hash size
-    *p = hash_size_; p++;
+    *p = hash_size(); p++;
 
     // Write key
     write_uint64(p, key_); p += sizeof(uint64_t);
 
     // Write hash (if any)
-    if (hash_size_ > 0) {
-	memcpy(p, hash_, hash_size_);
-	p += hash_size_;
+    if (hash_size() > 0) {
+	memcpy(p, hash(), hash_size());
+	p += hash_size();
     }
 
     // Write custom data (if any)
-    if (custom_data_ != nullptr) {
-        memcpy(p, custom_data_, custom_data_size_);
+    if (custom_data() != nullptr) {
+        memcpy(p, custom_data(), custom_data_size());
     }
 }
     
@@ -154,7 +150,7 @@ void triedb_branch::read(const uint8_t *buffer)
     max_key_bits_ = *p; p++;
     // Read hash size (1 byte)
     assert(((p - buffer) + sizeof(uint32_t)) <= sz);
-    hash_size_ = *p; p++;
+    auto hash_sz = *p; p++;
     // Read mask
     assert(((p - buffer) + sizeof(uint32_t)) <= sz);
     mask_ = read_uint32(p); p += sizeof(uint32_t);
@@ -173,11 +169,9 @@ void triedb_branch::read(const uint8_t *buffer)
     }
     assert(static_cast<size_t>(p - buffer) <= sz);
     // Remaining data is hash
-    assert(hash_size_ == sz - (p - buffer));
-    if (hash_size_ > 0) {
-	if (hash_ != nullptr) delete [] hash_;
-        hash_ = new uint8_t[hash_size_];
-        memcpy(hash_, p, hash_size_);
+    assert(hash_sz == sz - (p - buffer));
+    if (hash_sz > 0) {
+	set_hash(p, hash_sz);
     }
 }
 
@@ -191,7 +185,7 @@ void triedb_branch::write(uint8_t *buffer) const
     // Write max key bits (1 byte)
     *p = max_key_bits_; p++;
     // Write hash size (1 byte)
-    *p = hash_size_; p++;
+    *p = checked_cast<uint8_t>(hash_size()); p++;
     // Write mask (32 bits)
     write_uint32(p, mask_); p += sizeof(uint32_t);
     // Write leaf bits (32 bits)
@@ -203,8 +197,8 @@ void triedb_branch::write(uint8_t *buffer) const
         write_uint64(p, ptr_[i]); p += sizeof(uint64_t);
     }
     // Write hash (if any)
-    if (hash_size_) {
-        memcpy(p, hash_, hash_size_);
+    if (hash_size()) {
+        memcpy(p, hash(), hash_size());
     }
 }
 
@@ -408,8 +402,8 @@ void triedb::insert_or_update(const root_id &at_root, uint64_t key, const uint8_
 	}
     }
     uint64_t current_root_ptr = some_root->second.ptr();
-    triedb_branch *current_root = get_branch(current_root_ptr);
-    triedb_branch *new_branch = nullptr;
+    const triedb_branch *current_root = get_branch(current_root_ptr);
+    const triedb_branch *new_branch = nullptr;
     uint64_t new_branch_ptr = 0;
     size_t current_key_bits = current_root->max_key_bits();
     size_t key_bits = triedb_branch::compute_max_key_bits(key);
@@ -431,7 +425,7 @@ void triedb::insert_or_update(const root_id &at_root, uint64_t key, const uint8_
     set_root(at_root, new_branch_ptr);
 }
     
-std::pair<triedb_branch *, uint64_t> triedb::update_part(triedb_branch *node,
+std::pair<const triedb_branch *, uint64_t> triedb::update_part(const triedb_branch *node,
 							 uint64_t key,
 							 const uint8_t *data,
 							 size_t data_size,
@@ -488,7 +482,7 @@ std::pair<triedb_branch *, uint64_t> triedb::update_part(triedb_branch *node,
 	    tmp_branch.set_max_key_bits(sub_key_bits);
             tmp_branch.set_child_pointer(sub_sub_index, node->get_child_pointer(sub_index));
 	    tmp_branch.set_leaf(sub_sub_index);
-	    triedb_branch *new_child = nullptr;
+	    const triedb_branch *new_child = nullptr;
             uint64_t new_child_ptr = 0;
             std::tie(new_child, new_child_ptr) = update_part(&tmp_branch, key, data, data_size, do_insert, new_entry);
             auto *new_branch = new triedb_branch(*node);
@@ -501,7 +495,7 @@ std::pair<triedb_branch *, uint64_t> triedb::update_part(triedb_branch *node,
     }
 
     auto *child = get_branch(node, sub_index);
-    triedb_branch *new_child = nullptr;
+    const triedb_branch *new_child = nullptr;
     uint64_t new_child_ptr = 0;
     std::tie(new_child, new_child_ptr) = update_part(child, key, data, data_size, do_insert, new_entry);
     auto *new_branch = new triedb_branch(*node);
@@ -519,8 +513,8 @@ void triedb::remove(const root_id &at_root, uint64_t key) {
 	throw triedb_key_not_found_exception(msg.str());
     }
     uint64_t current_root_ptr = found_root->second.ptr();
-    triedb_branch *current_root = get_branch(current_root_ptr);
-    triedb_branch *new_branch = nullptr;
+    const triedb_branch *current_root = get_branch(current_root_ptr);
+    const triedb_branch *new_branch = nullptr;
     uint64_t new_branch_ptr = 0;
     size_t current_key_bits = current_root->max_key_bits();
     size_t key_bits = triedb_branch::compute_max_key_bits(key);
@@ -535,8 +529,8 @@ void triedb::remove(const root_id &at_root, uint64_t key) {
     set_root(at_root, new_branch_ptr);
 }
 
-std::pair<triedb_branch *, uint64_t> triedb::remove_part(const root_id &at_root,
-							 triedb_branch *node,
+std::pair<const triedb_branch *, uint64_t> triedb::remove_part(const root_id &at_root,
+							 const triedb_branch *node,
 							 uint64_t key)
 {
     size_t max_key_bits = node->max_key_bits();
@@ -566,7 +560,7 @@ std::pair<triedb_branch *, uint64_t> triedb::remove_part(const root_id &at_root,
     }
 
     auto *child = get_branch(node, sub_index);
-    triedb_branch *new_child = nullptr;
+    const triedb_branch *new_child = nullptr;
     uint64_t new_child_ptr = 0;
     std::tie(new_child, new_child_ptr) = remove_part(at_root, child, key);
     // Is the child completely empty?
@@ -668,7 +662,7 @@ boost::filesystem::path triedb::bucket_dir_location(size_t bucket_index) const {
     return r / name;
 }
 
-size_t triedb::scan_last_bucket() {
+size_t triedb::scan_last_bucket() const {
     size_t i;
     // First find right bucket directory
     for (i = 0;;i += 64) {
@@ -697,7 +691,7 @@ size_t triedb::scan_last_bucket() {
     return i - 1;
 }
 
-uint64_t triedb::scan_last_offset() {
+uint64_t triedb::scan_last_offset() const {
     size_t bucket_index = scan_last_bucket();
     if (bucket_index == static_cast<size_t>(-1)) {
          return 0;
@@ -716,7 +710,7 @@ boost::filesystem::path triedb::bucket_file_path(size_t bucket_index) const {
     return dir / name;
 }
 
-fstream * triedb::get_bucket_stream(size_t bucket_index) {
+fstream * triedb::get_bucket_stream(size_t bucket_index) const {
     auto *f = stream_cache_.find(bucket_index);
     if (f != nullptr) {
         return *f;
@@ -739,7 +733,7 @@ fstream * triedb::get_bucket_stream(size_t bucket_index) {
     return ff;
 }
 
-fstream * triedb::set_file_offset(uint64_t offset)
+fstream * triedb::set_file_offset(uint64_t offset) const
 {
     size_t bucket_index = offset / bucket_size();
     auto *f = get_bucket_stream(bucket_index);
@@ -756,7 +750,7 @@ const triedb_root & triedb::get_root(const root_id &id)
     return found->second;
 }
     
-void triedb::read_leaf_node(uint64_t offset, triedb_leaf &node)
+void triedb::read_leaf_node(uint64_t offset, triedb_leaf &node) const
 {
     uint8_t buffer[triedb_leaf::MAX_SIZE_IN_BYTES];  
     auto *f = set_file_offset(offset);
@@ -768,7 +762,7 @@ void triedb::read_leaf_node(uint64_t offset, triedb_leaf &node)
     node.read(buffer);
 }
 
-uint64_t triedb::append_leaf_node(const triedb_leaf &node)
+uint64_t triedb::append_leaf_node(const triedb_leaf &node) const
 {
     auto offset = last_offset_;
     size_t num_bytes = node.serialization_size();
@@ -790,7 +784,7 @@ uint64_t triedb::append_leaf_node(const triedb_leaf &node)
     return offset;
 }
     
-void triedb::read_branch_node(uint64_t offset, triedb_branch &node)
+void triedb::read_branch_node(uint64_t offset, triedb_branch &node) const
 {
     uint8_t buffer[triedb_branch::MAX_SIZE_IN_BYTES];
     auto *f = set_file_offset(offset);
@@ -802,7 +796,7 @@ void triedb::read_branch_node(uint64_t offset, triedb_branch &node)
     node.read(buffer);
 }
 
-uint64_t triedb::append_branch_node(triedb_branch *node)
+uint64_t triedb::append_branch_node(triedb_branch *node) const
 {
     auto offset = last_offset_;
     size_t num_bytes = node->serialization_size();
@@ -1002,6 +996,71 @@ void triedb_iterator::previous() {
 
     spine_.back().sub_index = common::msb(mask_prev);
     rightmost();
+}
+
+void triedb_iterator::add_current(merkle_root &root)
+{
+    merkle_node *node = &root;
+    bool first = true;
+    for (auto const &c : path()) {
+	assert(node->type() == merkle_node::BRANCH);
+	auto *br = reinterpret_cast<merkle_branch *>(node);
+	if (first) {
+	    const merkle_root &rootc = root;
+	    if (rootc.hash_size() == 0) {
+		root.set_hash(c.parent->hash(), c.parent->hash_size());
+	    } else {
+		assert(rootc.hash_with_size() == c.parent->hash_with_size());
+	    }
+	    first = false;
+	    continue;
+	}
+	auto *child = br->find_child(*c.parent);
+	if (child == nullptr) {
+	    auto *new_child = new merkle_branch();
+	    new_child->set_hash(c.parent->hash(), c.parent->hash_size());
+	    new_child->set_position(c.sub_index);
+	    std::unique_ptr<merkle_node> new_child1(new_child);
+	    node = &(*br->add_child(new_child1));
+	    
+	    // Read hashes from all children
+	    auto m = c.parent->mask();
+	    while (m) {
+		size_t sub_index = common::lsb(m);
+		m &= ~(1 << sub_index);
+		bool is_branch = c.parent->is_branch(sub_index);
+		if (is_branch) {
+		    auto sub_br = db_.get_branch(c.parent, sub_index);
+		    auto *mrk_br = new merkle_branch();
+		    mrk_br->set_position(sub_index);
+		    mrk_br->set_hash(sub_br->hash(), sub_br->hash_size());
+		    std::unique_ptr<merkle_node> mrk_br1(mrk_br);
+		    new_child->add_child(mrk_br1);
+		} else {
+		    auto sub_lf = db_.get_leaf(c.parent, sub_index);
+		    auto *mrk_lf = new merkle_leaf(sub_lf->key());
+		    mrk_lf->set_position(sub_index);
+		    mrk_lf->set_hash(sub_lf->hash(), sub_lf->hash_size());
+		    std::unique_ptr<merkle_node> mrk_lf1(mrk_lf);
+		    new_child->add_child(mrk_lf1);
+		}
+	    }
+	} else {
+	    node = &(*(*child));
+	}
+    }
+    assert(node->type() == merkle_node::BRANCH);
+    
+    auto *br = reinterpret_cast<merkle_branch *>(node);
+    // Final piece of the path maps to a merkle leaf (with keys)
+    
+    auto &dblf = operator * ();
+    std::unique_ptr<custom_data_t> dat(new custom_data_t(dblf));
+    merkle_leaf *lf = new merkle_leaf(dblf.key(), dat);
+    lf->set_position(path().back().sub_index);
+    lf->set_hash(dblf.hash(), dblf.hash_size());
+    std::unique_ptr<merkle_node> lf1(lf);
+    br->add_child(lf1);
 }
 
 }}

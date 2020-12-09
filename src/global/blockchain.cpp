@@ -155,6 +155,24 @@ static bool is_match(const meta_id &id, const uint8_t *prefix, size_t prefix_len
     return memcmp(id.hash(), prefix, prefix_len) == 0;
 }
 
+std::set<meta_id> blockchain::find_entries(const uint8_t *prefix, size_t prefix_len) {
+    uint8_t search[meta_id::HASH_SIZE];
+    assert(prefix_len <= meta_id::HASH_SIZE);
+    memset(&search[0], 0, meta_id::HASH_SIZE);
+    memcpy(&search[0], prefix, prefix_len);
+    meta_id search_id(search);
+    std::set<meta_id> found;
+    auto it = chains_.lower_bound(search_id);
+    for (; it != chains_.end(); ++it) {
+	auto &id = it->first;
+	if (!is_match(id, prefix, prefix_len)) {
+	    break;
+	}
+	found.insert(id);
+    }
+    return found;
+}
+	
 std::set<meta_id> blockchain::find_entries(size_t height, const uint8_t *prefix, size_t prefix_len)
 {
     std::set<meta_id> matched;

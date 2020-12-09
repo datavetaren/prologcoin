@@ -158,57 +158,68 @@ public:
 
 private:
     inline void set_byte(size_t index, value_t v)
-    { auto bit_off = untagged_cell::CELL_NUM_BITS-(8*(index+1));
+    { auto byte_off = index % sizeof(untagged_cell);
+      auto bit_off = 8*byte_off;
       auto bit_mask = ~(static_cast<untagged_cell::value_t>(0xff) << bit_off);
       auto bit_val = static_cast<untagged_cell::value_t>(v) << bit_off;
       cached_ = (cached_.raw_value() & bit_mask) | bit_val;
+      dirty_ = true;
     }
 
     inline value_t get_byte(size_t index) const
-    { auto bit_off = untagged_cell::CELL_NUM_BITS-(8*(index+1));
+    { auto byte_off = index % sizeof(untagged_cell);
+      auto bit_off = 8*byte_off;
       return static_cast<value_t>(cached_.raw_value() >> bit_off);
     }
 
     static inline untagged_cell * flush_and_invalidate(const cell_byte &cb0) {
 	cell_byte &cb = const_cast<cell_byte &>(cb0);
-	if (cb.cell_) *cb.cell_ = cb.cached_;
-	auto *r = cb.cell_;
-	cb.cell_ = nullptr;
+	auto *r = cb.base_;
+	if (!cb.dirty_) {
+	    cb.base_ = nullptr;	    
+	    return r;
+	}
+	if (cb.base_) cb.base_[cb.index_/sizeof(untagged_cell)] = cb.cached_;
+	cb.base_ = nullptr;
+	cb.dirty_ = false;
 	return r;
     }
 
 public:
-    inline cell_byte(untagged_cell &c, size_t index) :
-	cell_(&c), index_(index), cached_(c) { }
+    inline cell_byte(untagged_cell *base, size_t i, size_t n) :
+	base_(base), index_(i), n_(n), cached_(*base), dirty_(false) { }
 
-    inline cell_byte(const cell_byte &other)
-	: cell_(flush_and_invalidate(other)),
-	  index_(other.index_),
-	  cached_(other.cached_) { }
+    cell_byte(const cell_byte &other) = default;
+    cell_byte(cell_byte &&other) = default;
 
-    inline cell_byte(cell_byte &&other) :
-	cell_(flush_and_invalidate(other)),
-	index_(other.index_),
-	cached_(other.cached_) { }
+    inline ~cell_byte() { if (base_ && dirty_) base_[index_/sizeof(untagged_cell)] = cached_; }
 
-    inline ~cell_byte() { if (cell_) *cell_ = cached_; }
+    inline void set_address(untagged_cell *base, size_t index) {
+	flush_and_invalidate(*this);
+        base_ = base;
+	index_ = index;
+	cached_ = *base_;
+    }
 
     inline void operator = (const cell_byte &other) {
-	*cell_ = cached_;
-	cell_ = other.cell_;
+	if (base_ && dirty_) base_[index_/sizeof(untagged_cell)] = cached_;
+	base_ = other.base_;
 	index_ = other.index_;
 	cached_ = other.cached_;
+	dirty_ = other.dirty_;
     }
 	
     inline void operator ++ () {
+	if (base_ && ((index_+1) % sizeof(untagged_cell)) == 0) {
+	    if (dirty_) {
+		base_[index_/sizeof(untagged_cell)] = cached_;
+		dirty_ = false;
+	    }
+	    if ((index_+1) < n_) {	    
+		cached_ = base_[(index_+1)/sizeof(untagged_cell)];
+	    }
+	}
 	index_++;
-    }
-
-    inline void set_address(untagged_cell &c, size_t index) {
-	if (cell_) *cell_ = cached_;
-	cell_ = &c;
-	index_ = index;
-	cached_ = *cell_;
     }
 
     inline void operator >>= (size_t n)
@@ -220,9 +231,11 @@ public:
     inline operator value_t () const
     { return get_byte(index_); }
 
-    untagged_cell *cell_;
+    untagged_cell *base_;
     size_t index_;
+    size_t n_;
     untagged_cell cached_;
+    bool dirty_;
 };
 
 }}
@@ -641,17 +654,24 @@ class dat_cell : public int_cell {
 private:
     static const size_t CELL_NUM_BITS_HALF = CELL_NUM_BITS / 2;
 
+    static const size_t NUM_SIZE_BITS = CELL_NUM_BITS_HALF - TAG_SIZE_BITS;
+    
 public:
     static const size_t CELL_NUM_BYTES_HALF = CELL_NUM_BITS / 2 / 8;
 
     // Lower 4 bytes (half cell) = number of bits
+    // (if negative then the number lives separately, not
+    //  directly on heap.)
     // Upper 4 bytes (half cell) = binary data
+
     inline dat_cell(size_t num_bits)
         : int_cell(tag_t::DAT, static_cast<int64_t>(num_bits)) { }
 
     inline size_t num_bits() const
-    { auto mask = (static_cast<untagged_cell::value_t>(1) << (CELL_NUM_BITS_HALF - TAG_SIZE_BITS)) - 1;
-      return value() & mask;
+    { auto mask = (static_cast<untagged_cell::value_t>(1) << NUM_SIZE_BITS) - 1;
+      auto v = value();
+      auto n = v & mask;
+      return n;
     }
 
     // [32] means reserved for 32 bits storing size.
@@ -776,6 +796,7 @@ public:
     inline size_t index() const { return index_; }
     inline size_t offset() const { return offset_; }
     inline size_t size() const { return size_; }
+    inline bool is_full() const { return size() == MAX_SIZE; }
 
     inline cell & operator [] (size_t addr) {
         if (!changed_) { changed_ = true; modified(); }
@@ -787,7 +808,7 @@ public:
     }
 
     inline bool can_allocate(size_t n) const {
-	return size_ + n < MAX_SIZE;
+	return size_ + n <= MAX_SIZE;
     }
 
     inline size_t allocate(size_t n) {
@@ -796,6 +817,11 @@ public:
 	return addr;
     }
 
+    inline size_t allocate0(size_t n) {
+	memset(&cells_[size_], 0, n*sizeof(untagged_cell));
+	return allocate(n);
+    }
+    
     inline void trim(size_t n) {
 	size_ = n;
     }
@@ -941,7 +967,7 @@ public:
 
     inline size_t size() const { return size_; }
 
-    inline size_t num_blocks() const { return size()/heap_block::MAX_SIZE; }
+    inline size_t num_blocks() const { return (size()+heap_block::MAX_SIZE-1)/heap_block::MAX_SIZE; }
   
     void trim(size_t new_size);
 
@@ -1308,22 +1334,23 @@ public:
 	return big;
     }
 
+    // Big nums are special and can span over multiple heap blocks
     inline big_cell new_big(size_t num_bits)
     {
 	auto num_bytes = (num_bits + 7) / 8;
-	auto num_cells = (num_bytes <= 4) ? 1 : 1+(((num_bytes-4) + sizeof(cell) - 1) / sizeof(cell));
+	auto num_cells = ((num_bytes <= 4) ? 1 : 1+(((num_bytes-4) + sizeof(cell) - 1) / sizeof(cell)));
 
 	big_header header(num_bits);
 
 	cell *p;
 	size_t index;
 	size_t n = num_cells;
-	ensure_allocate(n+1);
-	std::tie(p, index) = allocate(tag_t::BIG, n+1);
+	// We pass true as second argument to indicate that a bignum can
+	// span across multiple heap blocks (even for small bignums as
+	// a small bignum can go across the heap block boundary.)
+	std::tie(p, index) = allocate(tag_t::BIG, n+1, true);
 	static_cast<big_cell &>(*p).set_index(index+1);
 	p[1] = header;
-	// 0 the data to ensure a consistent state (across all platforms)
-	memset(&p[2], 0, sizeof(cell)*(n-1));
 	return big_cell(index+1);
     }
 
@@ -1340,9 +1367,10 @@ public:
       return hdr;
     }
 
-    static std::string big_to_string(const boost::multiprecision::cpp_int &i, size_t base, size_t nbits);
+    static std::string big_to_string(const boost::multiprecision::cpp_int &i, size_t base, size_t nbits, size_t limit = std::numeric_limits<size_t>::max());
   
-    std::string big_to_string(cell big, size_t base, bool capital = false) const;
+    std::string big_to_string(cell big, size_t base, bool capital = false, size_t limit = std::numeric_limits<size_t>::max()) const;
+    std::string big16_to_string(cell big, size_t limit) const;    
     inline size_t num_cells(const boost::multiprecision::cpp_int &i)
     {
 	using namespace boost::multiprecision;
@@ -1371,9 +1399,6 @@ public:
 	  if(c.tag() == tag_t::CON) {
 	    auto &con = reinterpret_cast<con_cell &>(c);
 	    ensure_allocate(1+con.arity());
-	  } else if(c.tag() == tag_t::DAT) {
-	    auto &dat = reinterpret_cast<dat_cell &>(c);
-	    ensure_allocate(dat.num_cells());
 	  }
 	}
         std::tie(p, index) = allocate(tag_t::STR, 1);
@@ -1381,6 +1406,14 @@ public:
 	return index;
     }
 
+    inline void new_dat_cell(cell c)
+    {
+        cell *p;
+        size_t index;
+	std::tie(p, index) = allocate(tag_t::DAT, 1, true);
+	*p = c;
+    }
+    
     inline term new_dotted_pair()
     {
         term t = new_str0(DOTTED_PAIR);
@@ -1524,20 +1557,38 @@ private:
 	return addr < size();
     }
 
-    inline void ensure_allocate(size_t n) {
-        if (head_block_ == nullptr || !head_block_->can_allocate(n)) {
-  	    get_block_fn_(*this, get_block_fn_context_, NEW_BLOCK);
+    inline heap_block * ensure_allocate(size_t n, bool span = false) {
+	if (!span) {
+	    if (head_block_ == nullptr || !head_block_->can_allocate(n)) {
+		get_block_fn_(*this, get_block_fn_context_, NEW_BLOCK);
+	    }
+	    return head_block_;
+	} else {
+	    heap_block *block = nullptr;
+	    while (n > 0) {
+		if (head_block_ == nullptr || head_block_->is_full()) {
+		    get_block_fn_(*this, get_block_fn_context_, NEW_BLOCK);
+		}
+		if (!block) block = head_block_;
+		size_t next_alloc = std::min(n, heap_block::MAX_SIZE - head_block_->size());
+		head_block_->allocate0(next_alloc);
+		n -= next_alloc;
+	    }
+	    return block;
 	}
     }
 
-    inline std::pair<cell *, size_t> allocate(tag_t::kind_t tag, size_t n) {
-	ensure_allocate(n);
-	heap_block *block = head_block_;
-	size_t addr = block->allocate(n);
+    inline std::pair<cell *, size_t> allocate(tag_t::kind_t tag, size_t n, bool span = false) {
+	size_t addr = size_;
+	heap_block *block = ensure_allocate(n, span);
+	if (!span) {
+	    block = head_block_;
+	    addr = block->allocate(n);
+	}
+	size_ = head_block_->offset() + head_block_->size();
 	ptr_cell new_cell(tag, addr);
 	cell *p = &(*block)[addr];
 	*p = new_cell;
-	size_ = addr + n;
 	return std::make_pair(p, addr);
     }
 
@@ -1639,16 +1690,16 @@ inline bool heap_block::is_head_block() const {
 template<typename T> inline big_iterator_base<T>::big_iterator_base(heap &h, size_t index, size_t num) 
  : heap_(h),
    index_(index),
-   i_(0),
-   end_(num),
-   cell_byte_(h.untagged_at(index), 0) { }
+   i_(4),
+   end_(num+4),
+   cell_byte_(&h.untagged_at(index), 4, num+4) { }
 
 template<typename T> inline big_iterator_base<T>::big_iterator_base(heap &h, size_t index, size_t num, bool b)
  : heap_(h),
    index_(index),
-   i_(num),
-   end_(num),
-   cell_byte_(h.untagged_at(index), 0) { }
+   i_(num+4),
+   end_(num+4),
+   cell_byte_(&h.untagged_at(index), 4, num+4) { }
 
 template<typename T> inline big_iterator_base<T>::big_iterator_base(const big_iterator_base<T> &it)
  : heap_(it.heap_),
@@ -1660,16 +1711,18 @@ template<typename T> inline big_iterator_base<T>::big_iterator_base(const big_it
 template<typename T> inline big_iterator_base<T> & big_iterator_base<T>::operator ++()
 {
     i_++;
-    ++cell_byte_;
-    if (i_ < static_cast<int>(dat_cell::CELL_NUM_BYTES_HALF)) {
-	return *this;
+    if (i_ % 8 == 0) {
+	index_++;
+	if ((index_ % heap_block::MAX_SIZE) == 0) {
+	    // Are we stepping over a heap block boundary?
+	    // Then we need to switch base address for cell_byte
+	    cell_byte_.set_address(&heap_.untagged_at(index_), 0);
+	} else {
+	    ++cell_byte_;	    
+	}
+    } else {
+	++cell_byte_;
     }
-    size_t ii = static_cast<size_t>(i_ - static_cast<int>(dat_cell::CELL_NUM_BYTES_HALF));
-    if ((ii % sizeof(cell)) != 0) {
-	return *this;
-    }
-    size_t iic = ii / sizeof(cell) + 1;
-    cell_byte_.set_address(heap_.untagged_at(index_+iic), 0);
     return *this;
 }
 

@@ -15,12 +15,14 @@ What needs to be done:
   we can write some non-trivial tests to create large states in different
   branches and switch between them.
 
-* Create a test where we produce a couple of thousand transactions
+[FIXED] * Create a test where we produce a couple of thousand transactions
   between 10 different wallets. We want to create a 1 MB block with
   transactions that we can serialize and deserialize and run in the
   global interpreter. Then we record the entire state (= all UTXOs =
   all closures) and make sure we get the same set of closures when
   we restart the global interpreter.
+  FIXED: Although not thousand transactions, but hundreds. I want the
+  the test to finish fast.
 
 * Mempool. Likely we introduce a new module 'mempool' for where we
   store pending transactions as predicates: mempool( <hash-id>,
@@ -44,9 +46,12 @@ What needs to be done:
   check that we can run it in the global interpreter and then advance
   state.
 
-* Syncing. When a node starts it needs to update the global state.
+[IN PROGRESS] * Syncing. When a node starts it needs to update the global state.
   First we need to find the best chain with most accumulated difficulty
   and then a branch-point to initialize the state.
+  - Added db_get/5 and db_key/5 to extract sub-tries from the database.
+    These will become primitives for fast-syncing. Extracting and
+    inserting sub-tries will become "bulk operations."
 
 * Garbage collection.
   (For both global and local interpreters. For global interpreter
