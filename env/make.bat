@@ -344,6 +344,18 @@ IF NOT EXIST %BIN%\test\!SUBDIR!\ (
 mkdir %BIN%\test\!SUBDIR!
 )
 
+SET MOREOBJ=
+IF NOT "%DOEXE%"=="" (
+    for %%S in (%SRC%\%SUBDIR%\*.cpp) DO (
+        set CPPFILE=%%S
+        IF NOT "!CPPFILE!"=="%SRC%\%SUBDIR%\main.cpp" (
+	    set OBJFILE=!CPPFILE:.cpp=.obj!
+	    set OBJFILE=!OBJFILE:%SRC%=%OUT%!
+	    set MOREOBJ=!MOREOBJ! !OBJFILE!
+	)
+    )
+)
+
 REM
 REM Compile and run tests
 REM
@@ -382,7 +394,7 @@ REM
 
 	set PDBFILE=
 	IF "!DEBUGMODE!"=="1" set PDBFILE=/debug /pdb:"!BINEXEFILE:.exe=.pdb!"
-	link !LINKFLAGS! /out:!BINEXEFILE! !PDBFILE! !LIB_FILES! !OBJFILE!
+	link !LINKFLAGS! /out:!BINEXEFILE! !PDBFILE! !LIB_FILES! !OBJFILE! !MOREOBJ!
         IF ERRORLEVEL 1 GOTO :EOF
 	ECHO Running !BINEXEFILE!
 	ECHO   [output to !BINLOGFILE!]
