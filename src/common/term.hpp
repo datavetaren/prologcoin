@@ -845,7 +845,7 @@ public:
     }
 
     void modified();
-
+    
 private:
     heap &heap_;
     size_t index_;
@@ -1338,7 +1338,7 @@ public:
     inline big_cell new_big(size_t num_bits)
     {
 	auto num_bytes = (num_bits + 7) / 8;
-	auto num_cells = ((num_bytes <= 4) ? 1 : 1+(((num_bytes-4) + sizeof(cell) - 1) / sizeof(cell)));
+	auto num_cells = (num_bytes <= 4) ? 1 : 1+(((num_bytes-4) + sizeof(cell) - 1) / sizeof(cell));
 
 	big_header header(num_bits);
 
@@ -1348,10 +1348,9 @@ public:
 	// We pass true as second argument to indicate that a bignum can
 	// span across multiple heap blocks (even for small bignums as
 	// a small bignum can go across the heap block boundary.)
-	std::tie(p, index) = allocate(tag_t::BIG, n+1, true);
-	static_cast<big_cell &>(*p).set_index(index+1);
-	p[1] = header;
-	return big_cell(index+1);
+	std::tie(p, index) = allocate(tag_t::DAT, n, true);
+	*p = header;
+	return big_cell(index);
     }
 
     bool big_equal(big_cell big1, big_cell big2, uint64_t &cost) const;
@@ -1532,7 +1531,7 @@ public:
         head_block_ = h;
         size_ = h->index() * heap_block::MAX_SIZE + h->size();
     }
-  
+
 private:
 
     static inline void new_block_default(heap &h)
