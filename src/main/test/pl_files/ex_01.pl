@@ -11,7 +11,7 @@
 % First ew create some nodes
 %
 
-?- start(node, n1, 1000), start(node, n2, 1001), nolimit @ node(n1), nolimit @ node(n2).
+?- start(node, n1, 9000), start(node, n2, 9001), nolimit @ node(n1), nolimit @ node(n2).
 % Expect: true
 
 %
