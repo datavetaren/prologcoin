@@ -248,7 +248,7 @@ term term_serializer::read(const buffer_t &bytes, size_t n,
 	    continue;
 	}
 
-quitw	switch (c.tag()) {
+	switch (c.tag()) {
 	case tag_t::INT:
 	  new_index = env_.new_cell0(c);
 	  break;
