@@ -52,6 +52,9 @@
 ?- save.
 % Expect: true/*
 
+?- chain @ node.
+% Expect: true/*
+
 %
 % Wallet 1 now has a lot of money
 %
@@ -101,6 +104,7 @@ tmp:send1(Count, EndCount) :-
     Value is 1000000 + Count,
     spend_one(PubAddr, Value, 1234, Tx, OldUtxos), retract_utxos(OldUtxos),
     commit(Tx) @- node,
+    chain @ node,
     sync,
     Count1 is Count + 1,
     tmp:send1(Count1, EndCount).
@@ -279,6 +283,10 @@ tmp:send4b(Count, EndCount, TxIn, TxOut) :-
 ?- tic, password("foobar3"), tmp:send4(100), toc.
 % Expect: true/*
 
+
+?- chain @ node.
+% Expect: true/*
+
 %
 % Go to wallet 4 again
 %
@@ -320,6 +328,27 @@ expected_balance4(Exp,N) :- N1 is N - 1, expected_balance4(Exp1,N1),
 
 %
 % Let's rerun the last goals
+%
+?- tmp:myid(Id), tic, (goals(Id, Goals), commit(Goals)) @- node, toc.  
+% Expect: true/*
+
+%
+% Print chain
+%
+?- chain @ node.
+% Expect: true/*
+
+?- height(H) @ node, assert(tmp:myheight(H)), H1 is H - 1, (chain(H1, [Prev]), switch(Prev), chain) @ node.
+% Expect: true/*
+
+%
+% Prepare committing it again yet one more time
+%
+?- tmp:myid(Id), (meta(Id, Params), setup_commit(Params)) @ node.
+% Expect: true/*
+
+%
+% Let's rerun the last goals one more time
 %
 ?- tmp:myid(Id), tic, (goals(Id, Goals), commit(Goals)) @- node, toc.  
 % Expect: true/*

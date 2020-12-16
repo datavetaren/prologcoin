@@ -236,7 +236,7 @@ bool wam_interpreter::cont_wam()
     return !fail_;
 }
 
-void wam_interpreter::compile(const qname &qn)
+bool wam_interpreter::compile(const qname &qn)
 {
     size_t heap_sz = heap_size();
 
@@ -244,7 +244,7 @@ void wam_interpreter::compile(const qname &qn)
     compiler_->clear();
     if (!compiler_->compile_predicate(qn, instrs)) {
 	trim_heap_safe(heap_sz);
-        return;
+	return false;
     }
     size_t xn_size = compiler_->get_num_x_registers(instrs);
     size_t yn_size = compiler_->get_environment_size_of(instrs);    
@@ -261,16 +261,18 @@ void wam_interpreter::compile(const qname &qn)
     trim_heap_safe(heap_sz);
 
     get_predicate(qn).set_was_compiled(true);
+
+    return true;
 }
 
-void wam_interpreter::compile(common::con_cell module, common::con_cell name)
+bool wam_interpreter::compile(common::con_cell module, common::con_cell name)
 {
-    compile(std::make_pair(module, name));
+    return compile(std::make_pair(module, name));
 }
 
-void wam_interpreter::compile(common::con_cell name)
+bool wam_interpreter::compile(common::con_cell name)
 {
-    compile(std::make_pair(current_module(), name));
+    return compile(std::make_pair(current_module(), name));
 }
 
 void wam_interpreter::compile()
@@ -316,15 +318,21 @@ void wam_interpreter::recompile_if_needed(const qname &qn)
 void wam_interpreter::auto_compile(const qname &qn)
 {
     auto &pred = get_predicate(qn);
+    bool failed = false;
     if (pred.ok_to_compile()) {
 	auto num_clauses = pred.num_clauses();
-	if (num_clauses <= 10) {
-	    compile(qn);
+	if (num_clauses > 0 && num_clauses <= 10) {
+	    if (!compile(qn)) {
+		failed = true;
+	    }
 	} else {
-	    pred.set_ok_to_compile(false);
-	    remove_compiled(qn);
-	    clear_updated_predicate(qn);
+	    failed = true;
 	}
+    }
+    if (failed) {
+	pred.set_ok_to_compile(false);
+	remove_compiled(qn);
+	clear_updated_predicate(qn);
     }
 }
 

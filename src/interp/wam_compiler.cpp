@@ -1986,9 +1986,12 @@ void wam_compiler::compile_subsection(const managed_clauses &subsection,
 				      wam_interim_code &instrs)
 {
     auto n = subsection.size();
+
+    bool arity_0 = env_.functor(clause_head(subsection[0].clause())).arity() == 0;
+    
     if (n > 1) {
         std::vector<common::int_cell> labels = new_labels(2*n);
-	emit_switch_on_term(subsection, labels, instrs);
+	if (!arity_0) emit_switch_on_term(subsection, labels, instrs);
 	for (size_t i = 0; i < n; i++) {
 	    emit_cp(labels, i, n, instrs);
 	    auto &m_clause = subsection[i];
@@ -2006,22 +2009,26 @@ void wam_compiler::compile_subsection(const managed_clauses &subsection,
 
 bool wam_compiler::compile_predicate(const qname &qn, wam_interim_code &instrs)
 {
-    auto &clauses = interp_.get_predicate(qn).get_clauses();
-
-    if (clauses.empty()) {
+    auto &pred = interp_.get_predicate(qn);
+    if (pred.empty()) {
 	return false;
     }
 
-    auto sections = partition_clauses_nonvar(clauses);
-    auto n = sections.size();
-    if (n > 1) {
-        std::vector<common::int_cell> labels = new_labels_dup(n);
-	for (size_t i = 0; i < n; i++) {
-	    emit_cp(labels, i, n, instrs);
-	    compile_subsection(sections[i], instrs);
+    try {
+	auto &clauses = pred.get_clauses();
+	auto sections = partition_clauses_nonvar(clauses);
+	auto n = sections.size();
+	if (n > 1) {
+	    std::vector<common::int_cell> labels = new_labels_dup(n);
+	    for (size_t i = 0; i < n; i++) {
+		emit_cp(labels, i, n, instrs);
+		compile_subsection(sections[i], instrs);
+	    }
+	} else {
+	    compile_subsection(sections[0], instrs);
 	}
-    } else {
-        compile_subsection(sections[0], instrs);
+    } catch (wam_exception &ex) {
+	return false;
     }
 
     return true;
@@ -2094,7 +2101,12 @@ std::vector<managed_clauses> wam_compiler::partition_clauses(
 
 term wam_compiler::first_arg(const term clause)
 {
-    auto arg = env_.arg(clause_head(clause), 0);
+    auto head = clause_head(clause);
+    auto f = env_.functor(head);
+    if (f.arity() == 0) {
+	return env_.EMPTY_LIST;
+    }
+    auto arg = env_.arg(head, 0);
     switch (arg.tag()) {
     case common::tag_t::REF: case common::tag_t::RFW: return arg;
     case common::tag_t::CON: return arg;

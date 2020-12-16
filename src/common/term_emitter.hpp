@@ -56,7 +56,7 @@ public:
 
     void set_var_naming(const naming_map *var_naming);
 
-    void set_var_name(term t, const std::string &name);
+    void set_var_name(ref_cell r, const std::string &name);
 
     void reset();
     void print(cell c);

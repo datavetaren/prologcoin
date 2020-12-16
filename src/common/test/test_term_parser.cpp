@@ -108,7 +108,7 @@ static void test_complicated_parse()
 
     term_emitter emitter(reemit, h, ops);
 
-    parser.for_each_var_name( [&](const term &ref,
+    parser.for_each_var_name( [&](ref_cell ref,
 				  const std::string &name)
 			      { emitter.set_var_name(ref, name); } );
 

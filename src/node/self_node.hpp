@@ -87,6 +87,7 @@ public:
 
     inline const std::string & id() const { return id_; }
 
+    inline boost::asio::ip::address address() { return endpoint_.address(); }
     inline unsigned short port() const { return endpoint_.port(); }
 
     inline void set_name(const std::string &name) { name_ = name; }

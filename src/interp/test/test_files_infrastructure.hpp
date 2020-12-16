@@ -260,7 +260,7 @@ static inline bool test_interpreter_file(const std::string &filepath,
 
 	    // Once parsing is done we'll copy over the var-name bindings
 	    // so we can pretty print the variable names.
-	    parser->for_each_var_name( [&](const term  &ref,
+	    parser->for_each_var_name( [&](ref_cell ref,
 					  const std::string &name)
 				      { interp.set_name(ref,name); } );
 	    parser->clear_var_names();

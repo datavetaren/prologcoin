@@ -286,6 +286,9 @@ void heap::reset()
     modified_block_fn_context_ = nullptr;
     new_atom_fn_ = &new_atom_default;
     new_atom_fn_context_ = nullptr;
+    trim_fn_ = &trim_default;
+    trim_fn_context_ = nullptr;
+    
     atom_index_to_name_table_.clear();
     atom_name_to_index_table_.clear();
 }
@@ -311,7 +314,7 @@ const con_cell heap::DOTTED_PAIR = con_cell(".",2);
 const con_cell heap::COMMA = con_cell(",",2);
 const con_cell heap::COIN = con_cell("$coin",2);
 
-void heap::trim(size_t new_size)
+void heap::internal_trim(size_t new_size)
 {
     if (size() == 0) {
 	return;
@@ -326,8 +329,8 @@ void heap::trim(size_t new_size)
 	    delete blocks_[i];
 	}
 	blocks_.resize(block_index+1);
-	head_block_ = &block;
     }
+    head_block_ = &block;
 }
 
 size_t heap::list_length(const cell lst0) const

@@ -1434,6 +1434,18 @@ bool builtins::password_2(interpreter_base &interp, size_t arity, common::term a
     return true;
 }
 
+bool builtins::sleep_1(interpreter_base &interp, size_t arity, common::term args[]) {
+    if (args[0].tag() != tag_t::INT) {
+	throw interpreter_exception_wrong_arg_type("sleep/1: First argument mst be an integer (milliseconds)");
+    }
+
+    auto val = reinterpret_cast<int_cell &>(args[0]).value();
+
+    utime::sleep(utime::ms(val));
+
+    return true;
+}
+
 bool builtins::now_2(interpreter_base &interp, size_t arity, common::term args[]) {
     if (arity == 0) {
 	std::cout << utime::now().str() << std::endl;
@@ -1726,6 +1738,7 @@ void builtins::load(interpreter_base &interp) {
     i.load_builtin(con_cell("defrost",3), builtin(&builtins::defrost_3));
     i.load_builtin(i.functor("password",1), builtin(&builtins::password_2));
     i.load_builtin(i.functor("password",2), builtin(&builtins::password_2));
+    i.load_builtin(con_cell("sleep",1), builtin(&builtins::sleep_1));
     i.load_builtin(con_cell("now",0), builtin(&builtins::now_2));
     i.load_builtin(con_cell("now",1), builtin(&builtins::now_2));
     i.load_builtin(con_cell("now",2), builtin(&builtins::now_2));

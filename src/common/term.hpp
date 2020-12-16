@@ -10,6 +10,7 @@
 #include <memory>
 #include <unordered_set>
 #include <unordered_map>
+#include <map>
 #include <boost/lexical_cast.hpp>
 #include <bitset>
 
@@ -968,8 +969,15 @@ public:
     inline size_t size() const { return size_; }
 
     inline size_t num_blocks() const { return (size()+heap_block::MAX_SIZE-1)/heap_block::MAX_SIZE; }
-  
-    void trim(size_t new_size);
+
+    void trim(size_t new_size) {
+	trim_fn_(*this, trim_fn_context_, new_size);
+    }
+
+protected:
+    void internal_trim(size_t new_size);
+
+public:
 
     inline void set_size(size_t new_size) {
         size_ = new_size;
@@ -1483,9 +1491,16 @@ public:
 private:
     friend class term_emitter;
 
+protected:
     inline size_t find_block_index(size_t addr) const
     {
 	return addr / heap_block::MAX_SIZE;
+    }
+
+    inline size_t last_block_index() const
+    {
+	size_t hsz = size();
+	return hsz == 0 ? 0 : find_block_index(hsz-1);
     }
 
 public:
@@ -1509,6 +1524,10 @@ public:
 	// but it is not deterministic. For the global Prolog interpreter
 	// we need to query the database.
 	return h.atom_name_to_index_table_.size();
+    }
+
+    static inline void trim_default(heap &h, void * /* context */, size_t new_size) {
+	h.internal_trim(new_size);
     }
 
     inline void set_atom_index(const std::string &name, size_t index)
@@ -1661,10 +1680,12 @@ public:
     typedef heap_block & (*get_block_fn)(heap &h, void *context, size_t block_index);
     typedef void (*modified_block_fn)(heap_block &block, void *context);
     typedef size_t (*new_atom_fn)(const heap &h, void *context, const std::string &atom_name);
+    typedef void (*trim_fn)(heap &h, void *context, size_t new_size);
   
     inline void setup_get_block_fn(get_block_fn fn, void *context) { get_block_fn_ = fn; get_block_fn_context_ = context; }
     inline void setup_modified_block_fn(modified_block_fn fn, void *context) { modified_block_fn_ = fn; modified_block_fn_context_ = context; }
     inline void setup_new_atom_fn(new_atom_fn fn, void *context) { new_atom_fn_ = fn; new_atom_fn_context_ = context; }
+    inline void setup_trim_fn(trim_fn fn, void *context) { trim_fn_ = fn; trim_fn_context_ = context; }
 
 private:
     get_block_fn get_block_fn_;
@@ -1676,6 +1697,9 @@ private:
 
     new_atom_fn new_atom_fn_;
     void *new_atom_fn_context_;
+
+    trim_fn trim_fn_;
+    void *trim_fn_context_;
 };
 
 inline void heap_block::modified() {
@@ -1847,53 +1871,38 @@ namespace prologcoin { namespace common {
 class naming_map {
 public:
     void clear_names() {
-	used_names_.clear();
-	term_2_name_.clear();
+	ref_2_name_.clear();
     }
-    size_t count_name(const std::string &name) const {
-	auto it = used_names_.find(name);
-	if (it == used_names_.end()) {
-	    return 0;
-	}
-	return it->second;
-    }
-    const std::string & get_name(term t) const {
+    const std::string & get_name(ref_cell r) const {
 	static std::string empty;
-	auto it = term_2_name_.find(t);
-	if (it == term_2_name_.end()) {
+	auto it = ref_2_name_.find(r);
+	if (it == ref_2_name_.end()) {
 	    return empty;
 	}
 	return it->second;
     }
-    void set_name(term t, const std::string &name) {
-	used_names_[name]++;
-	term_2_name_[t] = name;
+    void set_name(ref_cell r, const std::string &name) {
+	ref_2_name_[r] = name;
     }
-    void clear_name(term t) {
-	auto it = term_2_name_.find(t);
-	if (it == term_2_name_.end()) {
-	    return;
-	}
-	term_2_name_.erase(it);
-	auto it2 = used_names_.find(it->second);
-	if (--it2->second == 0) {
-	    used_names_.erase(it2);
-	}
+    void clear_name(ref_cell r) {
+	ref_2_name_.erase(r);
     }
-    bool has_name(term t) const {
-	auto it = term_2_name_.find(t);
-	if (it == term_2_name_.end()) {
-	    return false;
-	}
-	return true;
+    bool has_name(ref_cell r) const {
+	return ref_2_name_.count(r);
     }
     size_t size() const {
-	return term_2_name_.size();
+	return ref_2_name_.size();
+    }
+    void trim_names(size_t heap_limit) {
+	ref_cell r(heap_limit);
+	auto it_end = ref_2_name_.end();
+	for (auto it = ref_2_name_.lower_bound(r); it != it_end; ++it) {
+	    ref_2_name_.erase(it);
+	}
     }
     
 private:
-    std::unordered_map<std::string, size_t> used_names_;
-    std::unordered_map<term, std::string> term_2_name_;
+    std::map<ref_cell, std::string> ref_2_name_;
 };
 
 } }

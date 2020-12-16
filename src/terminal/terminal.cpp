@@ -517,7 +517,7 @@ bool terminal::process_query_reply()
 	    return true;
 	}
 
-	std::vector<term> touched;
+	std::vector<ref_cell> touched;
 	e.prettify_var_names(vars, touched);
 
 	// Collect var values so that if we get
@@ -540,9 +540,7 @@ bool terminal::process_query_reply()
 	    auto var_name = e.atom_name(reinterpret_cast<con_cell &>(var_name_term));
 	    auto var_value = e.arg(var_binding, 1);
 	    vars = e.arg(vars, 1);
-	    e.set_name(var_value, var_name);
 	    var_value_list.push_back(std::pair<std::string, term>(var_name, var_value));
-	    touched.push_back(var_value);
 	}
 
 	bool non_empty = false;

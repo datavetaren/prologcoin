@@ -457,7 +457,7 @@ class triedb_node : public node_hash {
 //
 class triedb_leaf : public triedb_node, public custom_data_t {
 public:
-    static const size_t MAX_SIZE_IN_BYTES = 65536*2;
+    static const size_t MAX_SIZE_IN_BYTES = 2*triedb_params::MB;
   
     inline triedb_leaf()
 	: key_(0) { }

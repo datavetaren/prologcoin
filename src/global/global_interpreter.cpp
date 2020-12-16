@@ -30,6 +30,7 @@ global_interpreter::global_interpreter(global &g)
 void global_interpreter::init()
 {
     heap_setup_get_block_function( call_get_heap_block, this );
+    heap_setup_trim_function( call_trim_heap, this );
 
     init_from_heap_db();
     init_from_symbols_db();
@@ -221,6 +222,8 @@ bool global_interpreter::execute_goal(buffer_t &serialized, bool silent)
 {
     term_serializer ser(*this);
 
+    clear_names();
+    
     try {
         term goal = ser.read(serialized);
 	

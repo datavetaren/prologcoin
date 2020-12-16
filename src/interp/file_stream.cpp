@@ -96,7 +96,7 @@ term file_stream::read_term()
 
     term r = parser_->parse();
 
-    parser_->for_each_var_name( [&](const term  &ref,
+    parser_->for_each_var_name( [&](ref_cell ref,
 				   const std::string &name)
 				{ env_.set_name(ref,name); } );
     parser_->clear_var_names();

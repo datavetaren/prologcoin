@@ -253,6 +253,8 @@ typedef std::pair<common::con_cell, common::con_cell> qname;
         // external hacks.
         static bool password_2(interpreter_base &interp, size_t arity, common::term args[] );
 
+	static bool sleep_1(interpreter_base &interp, size_t arity, common::term args[]);
+	
 	static bool now_2(interpreter_base &interp, size_t arity, common::term args[]);
 	static bool tic_0(interpreter_base &interp, size_t arity, common::term args[]);
 	static bool toc_1(interpreter_base &interp, size_t arity, common::term args[]);

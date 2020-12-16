@@ -142,8 +142,8 @@ protected:
   typedef std::vector<sym> args_t;
   args_t args_;
 
-  typedef std::unordered_map<term, std::string> var_name_map_type;
-  typedef std::unordered_map<std::string, term> name_var_map_type;
+  typedef std::unordered_map<ref_cell, std::string> var_name_map_type;
+  typedef std::unordered_map<std::string, ref_cell> name_var_map_type;
 
   var_name_map_type var_name_map_;
   name_var_map_type name_var_map_;
@@ -682,7 +682,8 @@ protected:
 
       // We didn't find this variable, so we create a new one.
 
-      auto ref = heap_.new_ref();
+      auto ref_term = heap_.new_ref();
+      auto ref = reinterpret_cast<ref_cell &>(ref_term);
 
       // Register this ref cell so we can give the same name for it
       // when printing.
@@ -1072,9 +1073,9 @@ public:
 
   const std::string & get_var_name(term &cell);
 
-  void for_each_var_name(std::function<void (const term ref, const std::string &name)> f) const {
+  void for_each_var_name(std::function<void (ref_cell ref, const std::string &name)> f) const {
       for (auto e : var_name_map_) {
-	  const term ref = e.first;
+	  auto ref = e.first;
 	  const std::string &name = e.second;
 	  f(ref,name);
       }
@@ -1487,7 +1488,7 @@ bool term_parser::is_error()
     return impl_->is_error();
 }
 
-void term_parser::for_each_var_name(std::function<void (const term ref, const std::string &name)> f) const {
+void term_parser::for_each_var_name(std::function<void (ref_cell ref, const std::string &name)> f) const {
     impl_->for_each_var_name(f);
 }
 

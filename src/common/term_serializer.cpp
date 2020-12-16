@@ -102,7 +102,7 @@ void term_serializer::write_all_header(buffer_t &bytes,const term t)
         case tag_t::REF: case tag_t::RFW: { 
             ref_cell v = reinterpret_cast<ref_cell &>(t1);
             if (!is_indexed(v) && env_.has_name(v)) {
-	        const std::string &name = env_.get_name(t1);
+	        const std::string &name = env_.get_name(v);
 		write_ref_cell(bytes, bytes.size(), v);
 		write_encoded_string(bytes, name);
 	    }
@@ -248,7 +248,7 @@ term term_serializer::read(const buffer_t &bytes, size_t n,
 	    continue;
 	}
 
-	switch (c.tag()) {
+quitw	switch (c.tag()) {
 	case tag_t::INT:
 	  new_index = env_.new_cell0(c);
 	  break;
@@ -624,15 +624,20 @@ void term_serializer::integrity_check(size_t heap_start, size_t heap_end,
 
 void term_serializer::print_buffer(const buffer_t &bytes, size_t n)
 {
+    print_buffer(std::cout, bytes, n);
+}
+
+void term_serializer::print_buffer(std::ostream &out, const buffer_t &bytes, size_t n)
+{
     size_t num_dat = 0;
     for (size_t i = 0; i < n; i += sizeof(cell::value_t)) {
 	cell c = read_cell(bytes, i, "print_buffer");
-	std::cout << "[" << std::setw(5) << cell_count(i) << "]: ";
+	out << "[" << std::setw(5) << cell_count(i) << "]: ";
 	if (num_dat > 0) {
-	    std::cout << c.boxed_str_dat();
+	    out << c.boxed_str_dat();
 	    num_dat--;
 	} else {
-    	    std::cout << c.boxed_str();
+    	    out << c.boxed_str();
 	    if (c.tag() == tag_t::DAT) {
 		auto &dc = reinterpret_cast<const dat_cell &>(c);
 		num_dat = dc.num_cells();
@@ -640,7 +645,7 @@ void term_serializer::print_buffer(const buffer_t &bytes, size_t n)
 		num_dat--;
 	    }
 	}
-       std::cout << " [offset:" << std::setw(5) << i << "]\n";
+        out << " [offset:" << std::setw(5) << i << "]\n";
     }
 }
 

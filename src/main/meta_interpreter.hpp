@@ -8,6 +8,7 @@
 #include "../interp/interpreter.hpp"
 #include "../node/self_node.hpp"
 #include "../terminal/terminal.hpp"
+#include "../wallet/wallet.hpp"
 
 namespace prologcoin { namespace main {
 
@@ -31,15 +32,21 @@ private:
 
     terminal::terminal * get_node_terminal(const std::string &node_name);
 
-    interp::remote_return_t execute_at(term query, term_env &query_src, const std::string &where, bool silent);
-    interp::remote_return_t continue_at(term_env &query_src, const std::string &where);
-    bool delete_instance_at(term_env &query_src, const std::string &where);
+    interp::remote_return_t execute_at_node(term query, term_env &query_src, const std::string &where, bool silent);
+    interp::remote_return_t continue_at_node(term_env &query_src, const std::string &where);
+    bool delete_instance_at_node(term_env &query_src, const std::string &where);
+
+    interp::remote_return_t execute_at_wallet(term query, term_env &query_src, const std::string &where, bool silent);
+    interp::remote_return_t continue_at_wallet(term_env &query_src, const std::string &where);
+    bool delete_instance_at_wallet(term_env &query_src, const std::string &where);
     
     static bool operator_at_impl(interpreter_base &interp, size_t arity, term args[], bool silent);
     static bool operator_at_2(interpreter_base &interp, size_t arity, term args[]);
     static bool operator_at_silent_2(interpreter_base &interp, size_t arity, term args[]);
 
-    static bool start_2(interpreter_base &interp, size_t arity, term args[]);
+    static bool erase_all_0(interpreter_base &interp, size_t arity, term args[]);
+    static bool start_3(interpreter_base &interp, size_t arity, term args[]);
+    static bool connect_2(interpreter_base &interp, size_t arity, term args[]);
   
     std::string home_dir_;
 
@@ -51,6 +58,8 @@ private:
 
     // All nodes
     std::map<std::string, std::pair<node::self_node *, terminal::terminal *> > nodes_;
+    // All wallets
+    std::map<std::string, wallet::wallet *> wallets_;
 };
     
 }}

@@ -158,7 +158,28 @@ private:
 	return gi->new_atom(atom_name);
     }
 
+    static inline void call_trim_heap(common::heap &h, void *context, size_t new_size)
+    {
+        auto *gi = reinterpret_cast<global_interpreter *>(context);
+	return gi->trim_global_heap(new_size);	
+    }
+
     size_t new_atom(const std::string &atom_name);
+
+    void trim_global_heap(size_t new_size)
+    {
+	auto last_index = last_block_index();
+	    
+	internal_trim(new_size);
+	// Remove heap blocks that comes after heap_size()
+
+	auto first_index = last_block_index() + 1;
+
+	for (auto i = first_index; i <= last_index; i++) {
+	    block_cache_.erase(i);
+	    modified_blocks_.erase(i);
+	}
+    }
 
     inline void modified_heap_block(common::heap_block &block)
     {
@@ -193,17 +214,22 @@ private:
 	    return *new_block;
         }
 	current_block_index_ = block_index;
+	auto hsz = heap_size();
+	bool is_head = hsz == 0 ? 0 : find_block_index(hsz - 1) == block_index;
         auto it = modified_blocks_.find(block_index);
 	if (it != modified_blocks_.end()) {
 	    current_block_ = it->second;
+	    if (is_head) set_head_block(current_block_);
 	    return *current_block_;
 	}
 	auto *found = block_cache_.find(block_index);
 	if (found != nullptr) {
   	    current_block_ = *found;
+	    if (is_head) set_head_block(current_block_);	    
 	    return *current_block_;
 	}
 	auto block = db_get_heap_block(block_index);
+	if (is_head) set_head_block(block);
 	return *block;
     }
 

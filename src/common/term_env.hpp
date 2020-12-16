@@ -147,6 +147,8 @@ public:
         { T::get_heap().setup_modified_block_fn(fn, context); }
     inline void heap_setup_new_atom_function( heap::new_atom_fn fn, void *context)
         { T::get_heap().setup_new_atom_fn(fn, context); }
+    inline void heap_setup_trim_function( heap::trim_fn fn, void *context)
+        { T::get_heap().setup_trim_fn(fn, context); }
 
     inline void heap_set_size(size_t sz)
         { T::get_heap().set_size(sz);  }
@@ -569,6 +571,7 @@ public:
       heap_dock<HT>::reset();
       stacks_dock<ST>::reset();
       ops_dock<OT>::reset();
+      clear_names();
   }
 
   inline void heap_set_size(size_t sz)
@@ -603,14 +606,14 @@ public:
      { return var_naming_; }
   inline void clear_names()
      { var_naming_.clear_names(); }
-  inline void clear_name(const term t)
-     { var_naming_.clear_name(t); }
-  inline bool has_name(const term t) const
-     { return var_naming_.has_name(t); }
-  inline void set_name(const term t, const std::string &name)
-     { var_naming_.set_name(t, name); }
-  inline const std::string & get_name(const term t) const
-     { return var_naming_.get_name(t); }
+  inline void clear_name(ref_cell r)
+     { var_naming_.clear_name(r); }
+  inline bool has_name(ref_cell r) const
+     { return var_naming_.has_name(r); }
+  inline void set_name(ref_cell r, const std::string &name)
+     { var_naming_.set_name(r, name); }
+  inline const std::string & get_name(ref_cell r) const
+     { return var_naming_.get_name(r); }
 
   inline void unwind_trail(size_t from, size_t to)
   {
@@ -761,7 +764,7 @@ public:
 
       // Once parsing is done we'll copy over the var-name bindings
       // so we can pretty print the variable names.
-      parser.for_each_var_name( [this](const term ref,
+      parser.for_each_var_name( [this](ref_cell ref,
 				    const std::string &name)
           { this->var_naming_.set_name(ref, name); } );
       return r;
@@ -869,9 +872,9 @@ public:
       return vars;
   }
 
-  void prettify_var_names(const term t0, std::vector<term> &touched)
+  void prettify_var_names(const term t0, std::vector<ref_cell> &touched)
   {
-      std::map<term, size_t> count_occurrences;
+      std::map<ref_cell, size_t> count_occurrences;
       std::unordered_set<term> seen;
       std::unordered_set<std::string> used_names;
       stacks_dock<ST>::temp_clear();
@@ -880,10 +883,11 @@ public:
       while(stacks_dock<ST>::temp_size() > 0) {
 	auto t = heap_dock<HT>::deref(stacks_dock<ST>::temp_pop());
 	if (t.tag().is_ref()) {
-	  if (!this->has_name(t)) {
-	      ++count_occurrences[t];
+	  auto r = reinterpret_cast<ref_cell &>(t);
+	  if (!this->has_name(r)) {
+	      ++count_occurrences[r];
 	  } else {
-	      used_names.insert(get_name(t));
+	      used_names.insert(get_name(r));
 	  }
 	  continue;
 	}

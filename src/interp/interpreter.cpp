@@ -731,7 +731,7 @@ std::string interpreter::get_result(bool newlines) const
     using namespace prologcoin::common;
 
     interpreter &ii = const_cast<interpreter &>(*this);
-    std::vector<term> touched;
+    std::vector<ref_cell> touched;
     ii.prettify_var_names(qr(), touched);
     
     std::vector<std::string> result;

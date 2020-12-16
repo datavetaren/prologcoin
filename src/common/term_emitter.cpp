@@ -68,13 +68,13 @@ void term_emitter::set_var_naming(const naming_map *var_naming)
     clear_printed_names();
 }
 
-void term_emitter::set_var_name(term t, const std::string &name)
+void term_emitter::set_var_name(ref_cell r, const std::string &name)
 {
     if (var_naming_ == nullptr) {
         var_naming_ = new naming_map();
 	var_naming_owned_ = true;
     }
-    var_naming_->set_name(t, name);
+    var_naming_->set_name(r, name);
 }
 
 void term_emitter::nl()
@@ -949,12 +949,6 @@ void term_emitter::print_from_stack(size_t top)
 	      if (e.cell_.tag().is_ref()) {
 	  	  emit_ref(e);
 		  continue;
-	      } else {
-	          const std::string &name = var_naming_->get_name(e.cell_);
-	          if (!name.empty()) {
-		      emit_token(name);
-		      continue;
-	          }
 	      }
 	    } else {
 	      already_printed.insert(e.cell_);

@@ -560,9 +560,11 @@ term term_utils::copy(term c, naming_map &names,
 	    cell v = new_ref();
 	    term_map[c] = v;
 	    if (src_names) {
-		auto vn = src_names->get_name(c);
+		auto r = reinterpret_cast<ref_cell &>(c);
+		auto vr = reinterpret_cast<ref_cell &>(v);
+		auto vn = src_names->get_name(r);
 		if (!vn.empty()) {
-		    names.set_name(v, vn);
+		    names.set_name(vr, vn);
 		}
 	    }
 	    temp_push(v);

@@ -97,7 +97,7 @@ public:
 
     const std::string & get_variable_name( term t );
 
-    void for_each_var_name(std::function<void (const term ref,
+    void for_each_var_name(std::function<void (ref_cell ref,
 				       const std::string &name)> f) const;
 
     void clear_var_names();

@@ -752,14 +752,15 @@ const triedb_root & triedb::get_root(const root_id &id)
     
 void triedb::read_leaf_node(uint64_t offset, triedb_leaf &node) const
 {
-    uint8_t buffer[triedb_leaf::MAX_SIZE_IN_BYTES];  
+    std::vector<uint8_t> buffer(4);
     auto *f = set_file_offset(offset);
     f->read(reinterpret_cast<char *>(&buffer[0]), sizeof(uint32_t));
-    uint32_t size = read_uint32(buffer);
+    uint32_t size = read_uint32(&buffer[0]);
     assert(size >= 4 && size < triedb_leaf::MAX_SIZE_IN_BYTES);
+    buffer.resize(4+size);
     f->read(reinterpret_cast<char *>(&buffer[sizeof(uint32_t)]),
 	    size-sizeof(uint32_t));
-    node.read(buffer);
+    node.read(&buffer[0]);
 }
 
 uint64_t triedb::append_leaf_node(const triedb_leaf &node) const
@@ -775,9 +776,10 @@ uint64_t triedb::append_leaf_node(const triedb_leaf &node) const
         offset = bucket_index*bucket_size();
 	last_offset_ = offset;
     }
-    uint8_t buffer[triedb_leaf::MAX_SIZE_IN_BYTES];
     size_t n = node.serialization_size();
-    node.write(buffer);
+    assert(n < triedb_leaf::MAX_SIZE_IN_BYTES);
+    std::vector<uint8_t> buffer(n);
+    node.write(&buffer[0]);
     auto *f = set_file_offset(offset);
     f->write(reinterpret_cast<char *>(&buffer[0]), n);
     last_offset_ += n;

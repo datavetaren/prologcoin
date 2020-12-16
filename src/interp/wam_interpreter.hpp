@@ -722,9 +722,9 @@ public:
 	return pred.was_compiled();
     }
     void compile();
-    void compile(const qname &pred);
-    void compile(common::con_cell module, common::con_cell name);
-    void compile(common::con_cell name);
+    bool compile(const qname &pred);
+    bool compile(common::con_cell module, common::con_cell name);
+    bool compile(common::con_cell name);
     void recompile();
     void recompile_if_needed(const qname &qn);
     void auto_compile(const qname &qn);

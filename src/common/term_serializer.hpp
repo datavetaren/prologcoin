@@ -219,6 +219,7 @@ public:
     term read(const buffer_t &bytes);
     term read(const buffer_t &bytes, size_t n);
 
+    void print_buffer(std::ostream &out, const buffer_t &bytes, size_t n);    
     void print_buffer(const buffer_t &bytes, size_t n);
 
     static inline cell read_cell(const buffer_t &bytes, size_t from_offset, const std::string &context)

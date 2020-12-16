@@ -91,14 +91,7 @@ public:
   inline const std::vector<managed_clause> & get_clauses() const
       { return clauses_; }
 
-  inline size_t num_clauses() const {
-      size_t n = 0;
-      for (auto &mclause : get_clauses()) {
-	  if (mclause.is_erased()) continue;
-	  n++;
-      }
-      return n;
-  }
+  inline size_t num_clauses() const { return num_clauses_; }
 
   inline void clear()
   {
@@ -705,7 +698,7 @@ public:
 
 	    // Once parsing is done we'll copy over the var-name bindings
 	    // so we can pretty print the variable names.
-	    parser.for_each_var_name( [&](const term  &ref,
+	    parser.for_each_var_name( [&](ref_cell ref,
 					  const std::string &name)
 				      { set_name(ref, name); } );
 

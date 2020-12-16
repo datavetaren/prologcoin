@@ -74,6 +74,7 @@ sync(N) :-
     H1 is H + 1,
     wallet:'@'(((frozenk(H1, N, HeapAddrs), frozen(HeapAddrs, Closures)) @ global), node),
     wallet:'@'(discard, node),
+    HeapAddrs = [_|_], % At least one address!
     (last(HeapAddrs, LastH) ->
         retract(wallet:lastheap(_)), assert(wallet:lastheap(LastH)) ; true),
     forall('$member2'(Closure, HeapAddress, Closures, HeapAddrs),
@@ -85,8 +86,14 @@ sync(N) :-
 % something we recognize.
 %
 sync :- 
-    '$cache_addresses',
-    sync(100).
+    '$cache_addresses', sync(100), !.
+sync.
+
+sync_all :-
+    '$cache_addresses', sync_all0.
+sync_all0 :-
+    sync(100), !, sync_all0.
+sync_all0.
 
 %
 % Restart wallet sweep. Clean UTXO database and start from heap address 0.
