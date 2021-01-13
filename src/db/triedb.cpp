@@ -136,6 +136,28 @@ void triedb_leaf::write(uint8_t *buffer) const {
 // triedb_branch
 //
 
+void triedb_branch::set_mask(uint32_t m)
+{
+    // When a new mask is set we need to rearrange the pointers.
+    auto m0 = m;
+    size_t new_n = std::bitset<triedb_params::MAX_BRANCH>(m).count();
+    uint64_t *ptr = new uint64_t[new_n];
+    size_t j = 0;
+    while (m0) {
+	auto sub_index = common::lsb(m0);
+	if (is_empty(sub_index)) {
+	    ptr[j] = 0;
+	} else {
+	    ptr[j] = get_child_pointer(sub_index);
+	}
+	m0 &= ~(1 << sub_index);
+	j++;
+    }
+    delete [] ptr_;
+    ptr_ = ptr;
+    mask_ = m;
+}
+	
 void triedb_branch::read(const uint8_t *buffer)
 {
     const uint8_t *p = buffer;
@@ -215,7 +237,13 @@ void triedb::branch_hasher(triedb_branch *branch) {
 
     blake2b_state s;
     blake2b_init(&s, sizeof(final_hash));
-    for (size_t i = 0; i < triedb_params::MAX_BRANCH; i++) {
+    uint32_t m = branch->mask();
+    uint8_t mask_buffer[sizeof(uint32_t)];
+    write_uint32(mask_buffer, m);
+    blake2b_update(&s, mask_buffer, sizeof(mask_buffer));
+    while (m != 0) {
+	size_t i = common::lsb(m);
+	m &= (static_cast<uint32_t>(-1) << i) << 1;
 	if (branch->is_branch(i)) {
 	    auto *sub_branch = get_branch(branch, i);
 	    blake2b_update(&s, sub_branch->hash(), sub_branch->hash_size());
@@ -229,11 +257,6 @@ void triedb::branch_hasher(triedb_branch *branch) {
 }
 
 void triedb::leaf_hasher(triedb_leaf *leaf) {
-    if (!use_hashing()) {
-	leaf->set_hash(nullptr, 0);
-	return;
-    }
-
     uint8_t final_hash[32];
 
     blake2b_state s;
@@ -440,7 +463,11 @@ std::pair<const triedb_branch *, uint64_t> triedb::update_part(const triedb_bran
     // If the child is empty, then create a new node at that position
     if (node->is_empty(sub_index)) {
         auto *new_leaf = new triedb_leaf(key, data, data_size);
-	leaf_hasher_fn_(*this, new_leaf);
+	if (use_hashing()) {
+	    leaf_hasher_fn_(new_leaf);
+	} else {
+	    new_leaf->set_hash(nullptr, 0);
+	}
 	auto leaf_ptr = append_leaf_node(*new_leaf);
 	leaf_cache_.insert(leaf_ptr, new_leaf);
 	auto *new_branch = new triedb_branch(*node);
@@ -462,7 +489,11 @@ std::pair<const triedb_branch *, uint64_t> triedb::update_part(const triedb_bran
 		    + "' in the database.");
 	    }
 	    auto *new_leaf = new triedb_leaf(key, data, data_size);
-	    leaf_hasher_fn_(*this, new_leaf);
+	    if (use_hashing()) {
+		leaf_hasher_fn_(new_leaf);
+	    } else {
+		new_leaf->set_hash(nullptr, 0);
+	    }
 	    auto leaf_ptr = append_leaf_node(*new_leaf);
 	    leaf_cache_.insert(leaf_ptr, new_leaf);
 	    auto *new_branch = new triedb_branch(*node);
@@ -573,6 +604,44 @@ std::pair<const triedb_branch *, uint64_t> triedb::remove_part(const root_id &at
     branch_hasher(new_branch);
     auto new_branch_ptr = append_branch_node(new_branch);
     return std::make_pair(new_branch, new_branch_ptr);
+}
+
+void triedb::update(const root_id &at_root, const merkle_root &part)
+{
+    auto *br = get_root_branch(at_root);
+    auto ptr = update(br, part);
+    set_root(at_root, ptr);
+}
+
+uint64_t triedb::update(const triedb_branch *br, const merkle_branch &mbr)
+{
+    std::vector<const merkle_node *> children;
+    auto mmask = mbr.get_children(children);
+
+    triedb_branch *new_branch = br ? new triedb_branch(*br) : new triedb_branch();
+    if (br) mmask |= br->mask();
+    new_branch->set_mask(mmask);
+    for (auto child : children) {
+	if (child->type() == merkle_node::LEAF) {
+	    auto *mlf = reinterpret_cast<const merkle_leaf *>(child);
+	    triedb_leaf new_leaf(mlf->key(), mlf->data().data(), mlf->data().size());
+	    new_leaf.set_hash(mlf->hash(), mlf->hash_size());
+	    auto ptr = append_leaf_node(new_leaf);
+	    auto sub_index = mlf->position();
+	    new_branch->set_leaf(sub_index);
+	    new_branch->set_child_pointer(sub_index, ptr);
+	} else {
+	    auto *submbr = reinterpret_cast<const merkle_branch *>(child);
+	    auto sub_index = submbr->position();
+	    auto *subbr = br != nullptr && br->is_branch(sub_index) ?
+		get_branch(br, sub_index) : nullptr;
+	    auto ptr = update(subbr, *submbr);
+	    new_branch->set_branch(sub_index);
+	    new_branch->set_child_pointer(sub_index, ptr);
+	}
+    }
+    new_branch->set_hash(mbr.hash(), mbr.hash_size());
+    return append_branch_node(new_branch);
 }
 
 boost::filesystem::path triedb::roots_file_path() const {
@@ -1000,32 +1069,39 @@ void triedb_iterator::previous() {
     rightmost();
 }
 
-void triedb_iterator::add_current(merkle_root &root)
+void triedb_iterator::add_current(merkle_root &root, bool include_leaf_data)
 {
     merkle_node *node = &root;
-    bool first = true;
+    const merkle_root &rootc = root;
+    auto const &c0 = path().front();
+    if (rootc.hash_size() == 0) {
+	root.set_hash(c0.parent->hash(), c0.parent->hash_size());
+    } else {
+	assert(rootc.hash_with_size() == c0.parent->hash_with_size());
+    }
+    
     for (auto const &c : path()) {
 	assert(node->type() == merkle_node::BRANCH);
 	auto *br = reinterpret_cast<merkle_branch *>(node);
-	if (first) {
-	    const merkle_root &rootc = root;
-	    if (rootc.hash_size() == 0) {
-		root.set_hash(c.parent->hash(), c.parent->hash_size());
-	    } else {
-		assert(rootc.hash_with_size() == c.parent->hash_with_size());
+
+	// Read hashes from all children
+	bool found = false;
+	if (c.parent->is_branch(c.sub_index)) {
+	    auto sub_br = db_.get_branch(c.parent, c.sub_index);
+	    auto *child = br->find_child(*sub_br);
+	    if (child != nullptr) {
+		node = child->get();
+		found = true;
 	    }
-	    first = false;
-	    continue;
+	} else {
+	    auto sub_lf = db_.get_leaf(c.parent, c.sub_index);
+	    auto *child = br->find_child(*sub_lf);
+	    if (child != nullptr) {
+		node = child->get();
+		found = true;
+	    }
 	}
-	auto *child = br->find_child(*c.parent);
-	if (child == nullptr) {
-	    auto *new_child = new merkle_branch();
-	    new_child->set_hash(c.parent->hash(), c.parent->hash_size());
-	    new_child->set_position(c.sub_index);
-	    std::unique_ptr<merkle_node> new_child1(new_child);
-	    node = &(*br->add_child(new_child1));
-	    
-	    // Read hashes from all children
+	if (!found) {
 	    auto m = c.parent->mask();
 	    while (m) {
 		size_t sub_index = common::lsb(m);
@@ -1037,32 +1113,72 @@ void triedb_iterator::add_current(merkle_root &root)
 		    mrk_br->set_position(sub_index);
 		    mrk_br->set_hash(sub_br->hash(), sub_br->hash_size());
 		    std::unique_ptr<merkle_node> mrk_br1(mrk_br);
-		    new_child->add_child(mrk_br1);
+		    br->add_child(mrk_br1);
 		} else {
 		    auto sub_lf = db_.get_leaf(c.parent, sub_index);
-		    auto *mrk_lf = new merkle_leaf(sub_lf->key());
+		    custom_data_t *dat0 = include_leaf_data ?
+			new custom_data_t(*sub_lf)
+		      : new custom_data_t(sub_lf->custom_data_size());
+		    std::unique_ptr<custom_data_t> dat(dat0);
+		    merkle_leaf *mrk_lf = new merkle_leaf(sub_lf->key(), dat);
 		    mrk_lf->set_position(sub_index);
 		    mrk_lf->set_hash(sub_lf->hash(), sub_lf->hash_size());
 		    std::unique_ptr<merkle_node> mrk_lf1(mrk_lf);
-		    new_child->add_child(mrk_lf1);
+		    br->add_child(mrk_lf1);
 		}
 	    }
-	} else {
-	    node = &(*(*child));
+	    if (c.parent->is_branch(c.sub_index)) {
+		auto sub_br = db_.get_branch(c.parent, c.sub_index);
+	        node = br->find_child(*sub_br)->get();
+	    } else {
+		auto sub_lf = db_.get_leaf(c.parent, c.sub_index);
+	        node = br->find_child(*sub_lf)->get();
+	    }
 	}
     }
-    assert(node->type() == merkle_node::BRANCH);
+}
+
+bool merkle_branch::validate(const triedb &db) const {
+    if (num_children() == 0) {
+	// We don't have the sub-tree available, so we take
+	// the provided hash value for granted; nothing to validate
+	// against.
+	return true;
+    }
     
-    auto *br = reinterpret_cast<merkle_branch *>(node);
-    // Final piece of the path maps to a merkle leaf (with keys)
-    
-    auto &dblf = operator * ();
-    std::unique_ptr<custom_data_t> dat(new custom_data_t(dblf));
-    merkle_leaf *lf = new merkle_leaf(dblf.key(), dat);
-    lf->set_position(path().back().sub_index);
-    lf->set_hash(dblf.hash(), dblf.hash_size());
-    std::unique_ptr<merkle_node> lf1(lf);
-    br->add_child(lf1);
+    std::vector<const merkle_node *> children;
+    uint32_t m = get_children(children);
+
+    uint8_t final_hash[32];
+
+    blake2b_state s;
+    blake2b_init(&s, sizeof(final_hash));
+
+    uint8_t mask_buffer[sizeof(uint32_t)];
+    write_uint32(mask_buffer, m);
+    blake2b_update(&s, mask_buffer, sizeof(mask_buffer));
+
+    for (auto node : children) {
+	if (!node->validate(db)) {
+	    return false;
+	}
+	blake2b_update(&s, node->hash(), node->hash_size());
+    }
+
+    blake2b_final(&s, &final_hash[0], sizeof(final_hash));
+
+    auto h = hash();
+    auto sz = hash_size();
+    if (sz != 32) {
+	return false;
+    }
+    return memcmp(h, final_hash, 32) == 0;
+}
+
+bool merkle_leaf::validate(const triedb &db) const {
+    triedb_leaf leaf(key(), data().data(), data().size());
+    db.get_leaf_hasher()(&leaf);
+    return equal_hash(leaf);
 }
 
 }}

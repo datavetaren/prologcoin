@@ -132,6 +132,9 @@ tmp:send1b(Count, EndCount, Addresses, Tx) :-
 ?- chain(5, [Id]) @ node(n1), db_key(Id, heap, 0, 1000, X) @ node(n1).
 % Expect: true/*
 
+?- chain(5, [Id]) @ node(n1), db_size(Id, heap, 8, 20, X) @ node(n1).
+% Expect: true/*
+
 %
 % Go back one state
 %

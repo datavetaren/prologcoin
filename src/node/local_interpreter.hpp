@@ -91,8 +91,19 @@ public:
 
     static term build_leaf_term(interpreter_base &interp0, const db::merkle_leaf &br);
     static term build_tree_term(interpreter_base &interp0, const db::merkle_branch &br);
+    static term db_get(interpreter_base &interp, const std::string &name,
+		       size_t arity, term args[], bool compute_size_only);
     static bool db_get_5(interpreter_base &interp, size_t arity, term args[]);
-    static bool db_key_5(interpreter_base &interp, size_t arity, term args[]); };
+    static bool db_size_5(interpreter_base &interp, size_t arity, term args[]);
+    static bool db_key_5(interpreter_base &interp, size_t arity, term args[]);
+
+    static std::pair<db::triedb *, db::root_id> get_db_root(interpreter_base &interp, term name, const global::meta_id &id);
+    static bool set_hash(interpreter_base &interp0, term hash_term, db::merkle_node &mnode);
+    static bool set_position(interpreter_base &interp0, term hash_term, db::merkle_node &mnode);
+    static bool build_merkle_tree(interpreter_base &interp0, term t, db::merkle_branch &br);
+    static bool build_merkle_tree(interpreter_base &interp0, term t, db::merkle_leaf &lf);
+    static bool db_put_3(interpreter_base &interp, size_t arity, term args[]);
+};
 
 class local_interpreter_exception : public interp::interpreter_exception {
 public:

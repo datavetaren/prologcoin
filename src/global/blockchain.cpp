@@ -23,19 +23,17 @@ void blockchain::update_meta_id()
 {
     blake2b_state s;
     blake2b_init(&s, BLAKE2B_OUTBYTES);
-    const uint8_t *hash = nullptr;
-    size_t hash_size = 0;
     
     // Hash all root hashes from state databases
     auto &t = tip_;
-    std::tie(hash, hash_size) = heap_db().get_root_hash(t.get_root_id_heap());
-    blake2b_update(&s, hash, hash_size);
-    std::tie(hash, hash_size) = closures_db().get_root_hash(t.get_root_id_closures());
-    blake2b_update(&s, hash, hash_size);
-    std::tie(hash, hash_size) = symbols_db().get_root_hash(t.get_root_id_symbols());
-    blake2b_update(&s, hash, hash_size);
-    std::tie(hash, hash_size) = program_db().get_root_hash(t.get_root_id_program());
-    blake2b_update(&s, hash, hash_size);
+    auto &h1 = heap_db().get_root_hash(t.get_root_id_heap());
+    blake2b_update(&s, h1.hash(), h1.hash_size());
+    auto &h2 = closures_db().get_root_hash(t.get_root_id_closures());
+    blake2b_update(&s, h2.hash(), h2.hash_size());
+    auto &h3 = symbols_db().get_root_hash(t.get_root_id_symbols());
+    blake2b_update(&s, h3.hash(), h3.hash_size());
+    auto &h4 = program_db().get_root_hash(t.get_root_id_program());
+    blake2b_update(&s, h4.hash(), h4.hash_size());
 
     // Add previous id
     blake2b_update(&s, tip_.get_previous_id().hash(), meta_id::HASH_SIZE);

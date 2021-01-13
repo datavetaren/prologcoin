@@ -1014,9 +1014,11 @@ term me_builtins::build_leaf_term(interpreter_base &interp0, const merkle_leaf &
 	data_term = interp.new_big(data.size()*8);
 	interp.set_big(data_term, data.data(), data.size());
     }
-    auto leaf_term = interp.new_term(con_cell("leaf",3),
-				     {int_cell(checked_cast<int64_t>(key)),
-				      hash_term,
+    auto pos = int_cell(lf.position());
+    auto leaf_term = interp.new_term(con_cell("leaf",4),
+				     {hash_term,
+				      pos,
+				      int_cell(checked_cast<int64_t>(key)),
 				      data_term});
     return leaf_term;
 }
@@ -1028,7 +1030,7 @@ term me_builtins::build_tree_term(interpreter_base &interp0, const merkle_branch
     term tail = interp.EMPTY_LIST;
     term lst = tail;
 
-    std::vector<merkle_node *> children;
+    std::vector<const merkle_node *> children;
     br.get_children(children);
     
     for (auto &child : children) {
@@ -1051,7 +1053,8 @@ term me_builtins::build_tree_term(interpreter_base &interp0, const merkle_branch
     }
     auto hash_term = interp.new_big(br.hash_size()*8);
     interp.set_big(hash_term, br.hash(), br.hash_size());
-    return interp.new_term(con_cell("branch", 2), {hash_term, lst});
+    auto pos = int_cell(br.position());
+    return interp.new_term(con_cell("branch", 3), {hash_term, pos, lst});
 }
 
 //
@@ -1059,11 +1062,7 @@ term me_builtins::build_tree_term(interpreter_base &interp0, const merkle_branch
 // db_get(<root id>, heap, 10,         2000,                 X)
 //  X will become a tree of data.
 //
-bool me_builtins::db_get_5(interpreter_base &interp0, size_t arity, term args[]) {
-    static con_cell HEAP("heap", 0);
-
-    static const std::string name = "db_get/5";
-    
+term me_builtins::db_get(interpreter_base &interp0, const std::string &name, size_t arity, term args[], bool compute_size_only) {
     auto &interp = to_local(interp0);
 
     auto id = get_meta_id(interp, name, args[0]);
@@ -1075,15 +1074,9 @@ bool me_builtins::db_get_5(interpreter_base &interp0, size_t arity, term args[])
     triedb *db = nullptr;
     root_id root_id;
 
-    auto &chain = interp.self().global().get_blockchain();
-    auto e = chain.get_meta_entry(id);
-    
-    con_cell &cat = reinterpret_cast<con_cell &>(args[1]);
-    if (cat == HEAP) {
-	db = &chain.heap_db();
-	root_id = e->get_root_id_heap();
-    } else {
-	throw interpreter_exception_wrong_arg_type(name + ": Currently only 'heap' is supported.");
+    std::tie(db,root_id) = get_db_root(interp0, args[1], id);
+    if (db == nullptr) {
+	throw interpreter_exception_wrong_arg_type(name + ": Second argument must be 'heap', 'closure', 'symbols' or 'program'");
     }
 
     auto from_key = args[2];
@@ -1110,19 +1103,20 @@ bool me_builtins::db_get_5(interpreter_base &interp0, size_t arity, term args[])
 	if (k >= to_key_val) {
 	    break;
 	}
-	it.add_current(mtree);
+	it.add_current(mtree, !compute_size_only);
 	++it;
 	if (mtree.size() > limit) {
 	    break;
 	}
     }
 
-    auto result = build_tree_term(interp, mtree);
-    
-    // Now we have a nice merkle-tree that we'd like to create a
-    // term for.
-
-    return interp.unify(result, args[4]);
+    term result;
+    if (compute_size_only) {
+	result = int_cell(static_cast<int64_t>(mtree.total_size()));
+    } else {
+	result = build_tree_term(interp, mtree);
+    }
+    return result;
 }
 
 //
@@ -1130,9 +1124,50 @@ bool me_builtins::db_get_5(interpreter_base &interp0, size_t arity, term args[])
 // db_key(<root id>, heap, 10,         2000,                 X)
 //  X will become a tree of data.
 //
-bool me_builtins::db_key_5(interpreter_base &interp0, size_t arity, term args[]) {
-    static con_cell HEAP("heap", 0);
+bool me_builtins::db_get_5(interpreter_base &interp0, size_t arity, term args[]) {
+    auto &interp = to_local(interp0);    
+    term result = db_get(interp0, "db_get/5", arity, args, false);
+    return interp.unify(result, args[4]);
+}
 
+
+bool me_builtins::db_size_5(interpreter_base &interp0, size_t arity, term args[]) {
+    auto &interp = to_local(interp0);    
+    term result = db_get(interp0, "db_size/5", arity, args, true);
+    return interp.unify(result, args[4]);
+}
+
+std::pair<triedb *, root_id> me_builtins::get_db_root(interpreter_base &interp0, term db_name, const global::meta_id &id) {
+    db::triedb *db = nullptr;
+    db::root_id rid;
+
+    static con_cell HEAP("heap", 0);
+    static con_cell CLOSURE("closure",0);
+    static con_cell SYMBOLS("symbols",0);
+    static con_cell PROGRAM("program",0);
+    auto &interp = to_local(interp0);
+    auto &chain = interp.self().global().get_blockchain();
+
+    auto e = chain.get_meta_entry(id);    
+
+    if (db_name == HEAP) {
+	db = &chain.heap_db();
+	rid = e->get_root_id_heap();
+    } else if (db_name == CLOSURE) {
+	db = &chain.closures_db();
+	rid = e->get_root_id_closures();
+    } else if (db_name == SYMBOLS) {
+	db = &chain.symbols_db();
+	rid = e->get_root_id_symbols();
+    } else if (db_name == PROGRAM) {
+	db = &chain.program_db();
+	rid = e->get_root_id_program();
+    }
+
+    return std::make_pair(db, rid);
+}
+
+bool me_builtins::db_key_5(interpreter_base &interp0, size_t arity, term args[]) {
     static const std::string name = "db_key/5";
     
     auto &interp = to_local(interp0);
@@ -1146,15 +1181,9 @@ bool me_builtins::db_key_5(interpreter_base &interp0, size_t arity, term args[])
     triedb *db = nullptr;
     root_id root_id;
 
-    auto &chain = interp.self().global().get_blockchain();
-    auto e = chain.get_meta_entry(id);
-    
-    con_cell &cat = reinterpret_cast<con_cell &>(args[1]);
-    if (cat == HEAP) {
-	db = &chain.heap_db();
-	root_id = e->get_root_id_heap();
-    } else {
-	throw interpreter_exception_wrong_arg_type(name + ": Currently only 'heap' is supported.");
+    std::tie(db, root_id) = get_db_root(interp0, args[1], id);
+    if (db == nullptr) {
+	throw interpreter_exception_wrong_arg_type(name + ": Second argument must be 'heap', 'closure', 'symbols' or 'program'");	
     }
 
     auto from_key = args[2];
@@ -1196,7 +1225,172 @@ bool me_builtins::db_key_5(interpreter_base &interp0, size_t arity, term args[])
     }
 
     term result = lst;
+
     return interp.unify(result, args[4]);
+}
+
+bool me_builtins::set_hash(interpreter_base &interp0, term t, merkle_node &mnode) {
+    static const size_t MAX_HASH_SIZE_BYTES = 256;
+    
+    if (t.tag() != tag_t::BIG) {
+	return false;
+    }
+    big_cell &bc = reinterpret_cast<big_cell &>(t);
+    size_t num_bits = interp0.num_bits(bc);
+    size_t num_bytes = (num_bits + 7) / 8;
+    if (num_bytes > MAX_HASH_SIZE_BYTES) {
+	return false;
+    }
+    uint8_t hash[MAX_HASH_SIZE_BYTES];
+    interp0.get_big(bc, hash, num_bytes);
+    mnode.set_hash(hash, num_bytes);
+
+    return true;
+}
+
+bool me_builtins::set_position(interpreter_base &interp0, term t, merkle_node &mnode) {
+    if (t.tag() != tag_t::INT) {
+	return false;
+    }
+    int_cell &ic = reinterpret_cast<int_cell &>(t);
+    if (ic.value() < 0 || ic.value() > 255) {
+	return false;
+    }
+    mnode.set_position(checked_cast<size_t>(ic.value()));
+
+    return true;
+}
+
+bool me_builtins::build_merkle_tree(interpreter_base &interp0, term t, merkle_branch &br)
+{
+    if (t.tag() != tag_t::STR) {
+	return false;
+    }
+    auto f = interp0.functor(t);
+    if (f != con_cell("branch", 3)) {
+	return false;
+    }
+    auto hash_term = interp0.arg(t, 0);
+    if (!set_hash(interp0, hash_term, br)) {
+	return false;
+    }
+    auto pos_term = interp0.arg(t, 1);
+    if (!set_position(interp0, pos_term, br)) {
+	return false;
+    }
+    auto children = interp0.arg(t, 2);
+    if (!interp0.is_list(children)) {
+	return false;
+    }
+
+    while (interp0.is_dotted_pair(children)) {
+	term child = interp0.arg(children, 0);
+	if (child.tag() != tag_t::STR) {
+	    return false;
+	}
+	merkle_node *child_node = nullptr;
+	if (f == con_cell("branch", 3)) {
+	    auto *branch_child = new merkle_branch();
+	    child_node = branch_child;
+	    if (!build_merkle_tree(interp0, child, *branch_child)) {
+		delete branch_child;
+		return false;
+	    }
+	} else if (f == con_cell("leaf", 4)) {
+	    auto *leaf_child = new merkle_leaf();
+	    child_node = leaf_child;
+	    if (!build_merkle_tree(interp0, child, *leaf_child)) {
+		delete leaf_child;
+		return false;
+	    }
+	} else {
+	    return false;
+	}
+	std::unique_ptr<merkle_node> child_ptr(child_node);
+	br.add_child(child_ptr);
+	children = interp0.arg(children, 1);
+    }
+
+    return true;
+}
+
+bool me_builtins::build_merkle_tree(interpreter_base &interp0, term t, merkle_leaf &lf)
+{
+    if (t.tag() != tag_t::STR) {
+	return false;
+    }
+    auto f = interp0.functor(t);
+    if (f != con_cell("leaf", 4)) {
+	return false;
+    }
+    auto hash_term = interp0.arg(t, 0);
+    if (!set_hash(interp0, hash_term, lf)) {
+	return false;
+    }
+    auto pos_term = interp0.arg(t, 1);
+    if (!set_position(interp0, pos_term, lf)) {
+	return false;
+    }
+    auto key_term = interp0.arg(t, 2);
+    if (key_term.tag() != tag_t::INT) {
+	return false;
+    }
+    auto key = reinterpret_cast<int_cell &>(key_term).value();
+    if (key < 0) {
+	return false;
+    }
+    auto key64 = static_cast<uint64_t>(key);
+    lf.set_key(key64);
+    
+    auto data_term = interp0.arg(t, 3);
+    if (data_term != interp0.EMPTY_LIST) {
+	if (data_term.tag() != tag_t::BIG) {
+	    return false;
+	}
+	auto &bc = reinterpret_cast<big_cell &>(data_term);
+	auto num_bits = interp0.num_bits(bc);
+	auto num_bytes = (num_bits + 7) / 8;
+	std::unique_ptr<custom_data_t> data(new custom_data_t(num_bytes));
+	interp0.get_big(bc, data.get()->data(), num_bytes);
+	lf.set_data(data);
+    }
+    return true;
+}
+
+bool me_builtins::db_put_3(interpreter_base &interp0, size_t arity, term args[]) {
+    static const std::string name = "db_put/3";
+    
+    auto &interp = to_local(interp0);
+
+    auto id = get_meta_id(interp, name, args[0]);
+    
+    if (args[1].tag() != tag_t::CON) {
+	throw interpreter_exception_wrong_arg_type(name + ": Second argument must be an atom.");
+    }
+
+    triedb *db = nullptr;
+    root_id root_id;
+
+    std::tie(db, root_id) = get_db_root(interp0, args[1], id);
+    if (db == nullptr) {
+	throw interpreter_exception_wrong_arg_type(name + ": Second argument must be 'heap', 'closure', 'symbols' or 'program'");
+    }
+
+    term merkle_term = args[2];
+
+    merkle_root mr;
+    if (!build_merkle_tree(interp0, merkle_term, mr)) {
+	return false;
+    }
+
+    if (!mr.validate(*db)) {
+	return false;
+    }
+
+    // At this point we assume it is safe to insert it
+    db->update(root_id, mr);
+
+    return true;
 }
 
 local_interpreter::local_interpreter(in_session_state &session)
@@ -1318,7 +1512,9 @@ void local_interpreter::setup_local_builtins()
 
     // Fast sync primitives
     load_builtin(ME, con_cell("db_get", 5), &me_builtins::db_get_5);
+    load_builtin(ME, con_cell("db_size", 5), &me_builtins::db_size_5);
     load_builtin(ME, con_cell("db_key", 5), &me_builtins::db_key_5);
+    load_builtin(ME, con_cell("db_put", 3), &me_builtins::db_put_3);
 }
 
 void local_interpreter::startup_file()
