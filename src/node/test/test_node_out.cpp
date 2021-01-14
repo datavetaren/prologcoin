@@ -164,7 +164,7 @@ static void test_address_propagation()
     std::vector<self_node *> nodes;
     for (size_t i = 0; i < num_nodes; i++) {
         auto *node = new self_node(test_dir, self_node::DEFAULT_PORT+i);
-	node->set_timer_interval(utime::ss(5));
+	node->set_timer_interval(utime::ss(1));
 	node->set_time_to_live(utime::ss(10));
 	node->set_testing_mode(true);
 	nodes.push_back(node);
@@ -237,6 +237,45 @@ static void test_address_propagation()
 	}
     }
 
+    // Wait until all nodes are connected to each other
+    // (required before we stop a node)
+    std::cout << "Wait until all nodes connect..." << std::endl;
+    std::unordered_set<unsigned short> ok_nodes2;
+    for (size_t i = 0; i < 240 && ok_nodes2.size() < num_nodes; i++) {
+	utime::sleep(utime::ss(1));	
+	for (auto *node : nodes) {
+	    size_t out_count = 0;
+	    unsigned short port = node->port();
+	    if (ok_nodes2.find(port) == ok_nodes2.end()) {
+		node->for_each_standard_out_connection(
+	           [&](out_connection *conn) {
+		       out_count++;
+		   });
+		if (out_count == num_nodes-1) {
+		    ok_nodes2.insert(node->port());
+		    std::cout << "Node " << node->port() << " is fully connected." << std::endl;
+		}
+	    }
+	}
+    }
+    if (ok_nodes2.size() != num_nodes) {
+	std::cout << "Failed to make all nodes connected to each other." << std::endl;
+	for (auto *node : nodes) {	
+	    std::stringstream ss;
+	    ss << "Node at port " << node->port() << " is connected to ";
+	    bool first = true;
+	    node->for_each_standard_out_connection(
+		   [&](out_connection *conn) {
+		       if (!first) ss << ", ";
+		       ss << conn->ip().port();
+		       first = false;
+		   });
+	    ss << std::endl;
+	    std::cout << ss.str();
+	}
+	assert(ok_nodes2.size() == num_nodes);
+    }
+    
     auto *stopped_node = nodes[4];
 
     //
