@@ -32,6 +32,8 @@ jobs:
     runs-on: ubuntu-18.04
     steps:
     - uses: actions/checkout@v2
+    - name: apt
+      run: sudo apt update
     - name: gdb
       run: sudo apt-get install gdb
     - name: boost
