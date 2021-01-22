@@ -32,15 +32,15 @@ private:
 
     terminal::terminal * get_node_terminal(const std::string &node_name);
 
-    interp::remote_return_t execute_at_node(term query, term_env &query_src, const std::string &where, bool silent);
-    interp::remote_return_t continue_at_node(term_env &query_src, const std::string &where);
+    interp::remote_return_t execute_at_node(term query, term_env &query_src, const std::string &where, interp::remote_execute_mode mode);
+    interp::remote_return_t continue_at_node(term_env &query_src, const std::string &where, interp::remote_execute_mode mode);
     bool delete_instance_at_node(term_env &query_src, const std::string &where);
 
-    interp::remote_return_t execute_at_wallet(term query, term_env &query_src, const std::string &where, bool silent);
-    interp::remote_return_t continue_at_wallet(term_env &query_src, const std::string &where);
+    interp::remote_return_t execute_at_wallet(term query, term_env &query_src, const std::string &where, interp::remote_execute_mode mode);
+    interp::remote_return_t continue_at_wallet(term_env &query_src, const std::string &where, interp::remote_execute_mode mode);
     bool delete_instance_at_wallet(term_env &query_src, const std::string &where);
     
-    static bool operator_at_impl(interpreter_base &interp, size_t arity, term args[], bool silent);
+    static bool operator_at_impl(interpreter_base &interp, size_t arity, term args[], interp::remote_execute_mode mode);
     static bool operator_at_2(interpreter_base &interp, size_t arity, term args[]);
     static bool operator_at_silent_2(interpreter_base &interp, size_t arity, term args[]);
 

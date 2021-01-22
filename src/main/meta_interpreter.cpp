@@ -72,7 +72,7 @@ terminal::terminal * meta_interpreter::get_node_terminal(const std::string &node
     return it->second.second;
 }
 
-bool meta_interpreter::operator_at_impl(interpreter_base &interp0, size_t arity, term args[], bool silent) {
+bool meta_interpreter::operator_at_impl(interpreter_base &interp0, size_t arity, term args[], interp::remote_execute_mode mode) {
     static con_cell NODE("node", 1);
     static con_cell WALLET("wallet",1);
 
@@ -102,14 +102,14 @@ bool meta_interpreter::operator_at_impl(interpreter_base &interp0, size_t arity,
 #define LL(x) reinterpret_cast<meta_interpreter &>(x)
 	
 	interp::remote_execution_proxy proxy(interp,
-        [](interpreter_base &interp, term query, const std::string &where, bool silent)
-	  {return LL(interp).execute_at_node(query, interp, where, silent);},
-        [](interpreter_base &interp, const std::string &where)
-	  {return LL(interp).continue_at_node(interp, where);},
+        [](interpreter_base &interp, term query, const std::string &where, interp::remote_execute_mode mode)
+	  {return LL(interp).execute_at_node(query, interp, where, mode);},
+        [](interpreter_base &interp, const std::string &where, interp::remote_execute_mode mode)
+	  {return LL(interp).continue_at_node(interp, where, mode);},
 	[](interpreter_base &interp, const std::string &where)
 	  {return LL(interp).delete_instance_at_node(interp, where);});
 
-	proxy.set_silent(silent);
+	proxy.set_mode(mode);
 	return proxy.start(query, where);
 
     } else {
@@ -121,27 +121,27 @@ bool meta_interpreter::operator_at_impl(interpreter_base &interp0, size_t arity,
 	}
 
 	interp::remote_execution_proxy proxy(interp,
-        [](interpreter_base &interp, term query, const std::string &where, bool silent)
-	  {return LL(interp).execute_at_wallet(query, interp, where, silent);},
-        [](interpreter_base &interp, const std::string &where)
-	  {return LL(interp).continue_at_wallet(interp, where);},
+        [](interpreter_base &interp, term query, const std::string &where, interp::remote_execute_mode mode)
+	  {return LL(interp).execute_at_wallet(query, interp, where, mode);},
+        [](interpreter_base &interp, const std::string &where, interp::remote_execute_mode mode)
+	  {return LL(interp).continue_at_wallet(interp, where, mode);},
 	[](interpreter_base &interp, const std::string &where)
 	  {return LL(interp).delete_instance_at_wallet(interp, where);});
 
-	proxy.set_silent(silent);
+	proxy.set_mode(mode);
 	return proxy.start(query, where);
     }
 }
 	
 bool meta_interpreter::operator_at_2(interpreter_base &interp, size_t arity, term args[]) {
-    return operator_at_impl(interp, arity, args, false);
+    return operator_at_impl(interp, arity, args, interp::MODE_NORMAL);
 }
 
 bool meta_interpreter::operator_at_silent_2(interpreter_base &interp, size_t arity, term args[]) {
-    return operator_at_impl(interp, arity, args, true);
+    return operator_at_impl(interp, arity, args, interp::MODE_SILENT);
 }
 
-remote_return_t meta_interpreter::execute_at_node(term query, term_env &query_src, const std::string &where, bool silent)
+remote_return_t meta_interpreter::execute_at_node(term query, term_env &query_src, const std::string &where, interp::remote_execute_mode mode)
 {
     terminal::terminal *tterm = get_node_terminal(where);
     if (tterm == nullptr) {
@@ -155,7 +155,7 @@ remote_return_t meta_interpreter::execute_at_node(term query, term_env &query_sr
     bool old = tterm->is_result_to_text();
     try {
 	tterm->set_result_to_text(false);
-	if (!tterm->execute(query_term, silent)) {
+	if (!tterm->execute(query_term, mode == interp::MODE_SILENT)) {
 	    tterm->set_result_to_text(old);
 	    return remote_return_t();
 	}
@@ -171,7 +171,7 @@ remote_return_t meta_interpreter::execute_at_node(term query, term_env &query_sr
     return remote_return_t(result_term, more_state, at_end_state, cost);
 }
 
-remote_return_t meta_interpreter::continue_at_node(term_env &query_src, const std::string &where)
+remote_return_t meta_interpreter::continue_at_node(term_env &query_src, const std::string &where, interp::remote_execute_mode)
 {
     terminal::terminal *tterm = get_node_terminal(where);
     if (tterm == nullptr) {
@@ -208,7 +208,7 @@ bool meta_interpreter::delete_instance_at_node(term_env &query_src, const std::s
     return tterm->delete_instance();
 }
 
-remote_return_t meta_interpreter::execute_at_wallet(term query, term_env &query_src, const std::string &where, bool silent)
+remote_return_t meta_interpreter::execute_at_wallet(term query, term_env &query_src, const std::string &where, interp::remote_execute_mode)
 {
     auto it = wallets_.find(where);
     if (it == wallets_.end()) {
@@ -234,7 +234,7 @@ remote_return_t meta_interpreter::execute_at_wallet(term query, term_env &query_
     return remote_return_t(result_term, more_state, at_end_state, wi.accumulated_cost() + cost);
 }
 
-remote_return_t meta_interpreter::continue_at_wallet(term_env &query_src, const std::string &where)
+remote_return_t meta_interpreter::continue_at_wallet(term_env &query_src, const std::string &where, interp::remote_execute_mode)
 {
     auto it = wallets_.find(where);
     if (it == wallets_.end()) {

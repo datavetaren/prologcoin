@@ -201,27 +201,28 @@ task_execute_query * self_node::schedule_execute_delete_instance(const std::stri
     return task;
 }
 
-task_execute_query * self_node::schedule_execute_query(term query, term_env &query_src, const std::string &where, bool silent)
+task_execute_query * self_node::schedule_execute_query(term query, term_env &query_src, const std::string &where, interp::remote_execute_mode mode)
 {
     boost::lock_guard<boost::recursive_mutex> guard(lock_);
     auto *out = find_out_connection(where);
     if (out == nullptr) {
 	return nullptr;
     }
-    auto *task = new task_execute_query(*out, query, query_src);
-    task->set_silent(silent);
+    auto *task = new task_execute_query(*out, query, query_src, mode);
     out->schedule(task);
     return task;
 }
 
-task_execute_query * self_node::schedule_execute_next(const std::string &where)
+task_execute_query * self_node::schedule_execute_next(const std::string &where,
+						      term_env &query_src,
+						      interp::remote_execute_mode mode)
 {
     boost::lock_guard<boost::recursive_mutex> guard(lock_);
     auto *out = find_out_connection(where);
     if (out == nullptr) {
 	return nullptr;
     }
-    auto *task = new task_execute_query(*out, task_execute_query::do_next());
+    auto *task = new task_execute_query(*out, task_execute_query::do_next(), query_src, mode);
     out->schedule(task);
     return task;
 }
@@ -246,22 +247,29 @@ interp::remote_return_t self_node::schedule_execute_wait_for_result(task_execute
     return interp::remote_return_t(result_copy, has_more, at_end, cost);
 }
 
-interp::remote_return_t self_node::execute_at(term query, term_env &query_src, const std::string &where, bool silent)
+interp::remote_return_t self_node::execute_at(term query, term_env &query_src, const std::string &where, interp::remote_execute_mode mode)
 {
-    auto *task = schedule_execute_query(query, query_src, where, silent);
+    auto *task = schedule_execute_query(query, query_src, where, mode);
     if (task == nullptr) {
 	// TODO: Throw an exception instead
         return interp::remote_return_t();
     }
-    return schedule_execute_wait_for_result(task, query_src);
+    if (mode == interp::MODE_PARALLEL) {
+	return interp::remote_return_t(query_src.EMPTY_LIST);
+    } else {
+	return schedule_execute_wait_for_result(task, query_src);
+    }
 }
 
-interp::remote_return_t self_node::continue_at(term_env &query_src, const std::string &where)
+interp::remote_return_t self_node::continue_at(term_env &query_src, const std::string &where, interp::remote_execute_mode mode)
 {
-    auto *task = schedule_execute_next(where);
+    auto *task = schedule_execute_next(where, query_src, mode);
     if (task == nullptr) {
 	// TODO: Throw an exception instead
         return interp::remote_return_t();
+    }
+    if (mode == interp::MODE_PARALLEL) {
+	return interp::remote_return_t(query_src.EMPTY_LIST);
     }
     return schedule_execute_wait_for_result(task, query_src);
 }
@@ -638,6 +646,23 @@ std::string self_node::check_mail()
     }
 
     return s;
+}
+
+bool self_node::wait_parallel_us(uint64_t timeout_us) {
+    boost::unique_lock<boost::mutex> lockit(parallel_changed_lock_);
+    for (auto t : parallel_) {
+	if (t->is_result_ready()) {
+	    return true;
+	}
+    }
+    boost::chrono::duration<uint64_t, boost::micro> timeout(timeout_us);
+    parallel_changed_.wait_for(lockit, timeout);
+    for (auto t : parallel_) {
+	if (t->is_result_ready()) {
+	    return true;
+	}
+    }
+    return false;
 }
 
 }}

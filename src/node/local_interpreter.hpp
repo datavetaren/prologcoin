@@ -30,10 +30,12 @@ public:
 
     static bool operator_clause_2(interpreter_base &interp, size_t arity, term args[]);
 
-    static bool operator_at_impl(interpreter_base &interp, size_t arity, term args[], bool silent);
+    static bool operator_at_impl(interpreter_base &interp, size_t arity, term args[], const std::string &name, interp::remote_execute_mode mode);
     static bool operator_at_2(interpreter_base &interp, size_t arity, term args[]);
-    static bool operator_at_silent_2(interpreter_base &interp, size_t arity, term args[]);    
+    static bool operator_at_silent_2(interpreter_base &interp, size_t arity, term args[]);
+    static bool operator_at_parallel_2(interpreter_base &interp, size_t arity, term args[]);    
     static bool operator_at_2_meta(interpreter_base &interp, const meta_reason_t &reason);
+    static bool wait_1(interpreter_base &interp, size_t arity, term args[]);
 
     // Version & name...
     static bool id_1(interpreter_base &interp, size_t arity, term args[]);
@@ -172,7 +174,7 @@ public:
 private:
     self_node & self();
     bool is_root();
-    void root_check(const char *name, size_t arity);
+    void root_check(const std::string &name, size_t arity);
 
     friend class me_builtins;
 

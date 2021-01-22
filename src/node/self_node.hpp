@@ -173,20 +173,23 @@ public:
     out_connection * find_out_connection(const std::string &where);
 
     task_execute_query * schedule_execute_new_instance(const std::string &where);    
-    task_execute_query * schedule_execute_delete_instance(const std::string &where);    
-    task_execute_query * schedule_execute_query(term query, term_env &query_src, const std::string &where, bool silent);
-    task_execute_query * schedule_execute_next(const std::string &where);
+    task_execute_query * schedule_execute_delete_instance(const std::string &where);
+    
+    task_execute_query * schedule_execute_query(term query, term_env &query_src, const std::string &where, interp::remote_execute_mode mode);
+    task_execute_query * schedule_execute_next(const std::string &where, term_env &query_src, interp::remote_execute_mode mode);
 
     interp::remote_return_t schedule_execute_wait_for_result(task_execute_query *task, term_env &query_src);
 
     bool new_instance_at(term_env &query_src, const std::string &where);
     bool delete_instance_at(term_env &query_src, const std::string &where);
+
     interp::remote_return_t execute_at(term query, term_env &query_src,
 				       const std::string &where,
-				       bool silent);
+				       interp::remote_execute_mode mode);
 
     interp::remote_return_t continue_at(term_env &query_src,
-					const std::string &where);
+					const std::string &where,
+					interp::remote_execute_mode mode);
 
     in_session_state * new_in_session(in_connection *conn, bool is_root);
     in_session_state * find_in_session(const std::string &id);
@@ -224,6 +227,21 @@ public:
 	return locker(*this);
     }
 
+    inline void add_parallel(task_execute_query *t) {
+	parallel_.push_back(t);
+    }
+    
+    inline void notify_parallel() {
+	boost::unique_lock<boost::mutex> lockit(parallel_changed_lock_);
+	parallel_changed_.notify_one();
+    }
+
+    bool wait_parallel_us(uint64_t timeout_microsec);
+
+    std::vector<task_execute_query *> & all_parallel() {
+	return parallel_;
+    }
+    
 private:
     bool join_us(uint64_t microsec);
 
@@ -315,6 +333,11 @@ private:
   
     // This is where the consensus is stored
     global::global global_;
+
+    // Tracking outgoing parallel tasks
+    std::vector<task_execute_query *> parallel_;
+    boost::mutex parallel_changed_lock_;
+    boost::condition_variable parallel_changed_;
 };
 
 inline address_book_wrapper::address_book_wrapper(self_node &self, address_book &book) : self_(self), book_(book)

@@ -64,8 +64,8 @@ public:
     bool has_more();
     bool next();
 
-    remote_return_t execute_at(common::term query, common::term_env &query_src, const std::string &where, bool silent);
-    remote_return_t continue_at(common::term_env &query_src, const std::string &where);
+    remote_return_t execute_at(common::term query, common::term_env &query_src, const std::string &where, interp::remote_execute_mode mode);
+    remote_return_t continue_at(common::term_env &query_src, const std::string &where, interp::remote_execute_mode mode);
     bool delete_instance_at(common::term_env &query_src, const std::string &where);
   
 private:

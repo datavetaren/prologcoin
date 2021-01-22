@@ -312,7 +312,7 @@ retract_utxos([HeapAddr|HeapAddrs]) :-
     set_current_module(old_module);
 }
 
-bool wallet_interpreter::operator_at_impl(interpreter_base &interp, size_t arity, term args[], bool silent) {
+bool wallet_interpreter::operator_at_impl(interpreter_base &interp, size_t arity, term args[], interp::remote_execute_mode mode) {
     static con_cell NODE("node", 0);
     auto query = args[0];
     auto where_term = args[1];
@@ -326,23 +326,23 @@ bool wallet_interpreter::operator_at_impl(interpreter_base &interp, size_t arity
 #define LL(x) reinterpret_cast<wallet_interpreter &>(interp)
 	
     interp::remote_execution_proxy proxy(interp,
-	[](interpreter_base &interp, term query, const std::string &where, bool silent)
-	   {return LL(interp).get_wallet().execute_at(query, interp, where, silent);},
-        [](interpreter_base &interp, const std::string &where)
-	   {return LL(interp).get_wallet().continue_at(interp, where);},
+	[](interpreter_base &interp, term query, const std::string &where, interp::remote_execute_mode mode)
+	   {return LL(interp).get_wallet().execute_at(query, interp, where, mode);},
+        [](interpreter_base &interp, const std::string &where, interp::remote_execute_mode mode)
+	   {return LL(interp).get_wallet().continue_at(interp, where, mode);},
 	[](interpreter_base &interp, const std::string &where)
 	   {return LL(interp).get_wallet().delete_instance_at(interp, where);});
 
-    proxy.set_silent(silent);
+    proxy.set_mode(mode);
     return proxy.start(query, where);
 }
 	
 bool wallet_interpreter::operator_at_2(interpreter_base &interp, size_t arity, term args[]) {
-    return operator_at_impl(interp, arity, args, false);
+    return operator_at_impl(interp, arity, args, interp::MODE_NORMAL);
 }
 
 bool wallet_interpreter::operator_at_silent_2(interpreter_base &interp, size_t arity, term args[]) {
-    return operator_at_impl(interp, arity, args, true);
+    return operator_at_impl(interp, arity, args, interp::MODE_SILENT);
 }
 
 bool wallet_interpreter::save_0(interpreter_base &interp, size_t arity, term args[])

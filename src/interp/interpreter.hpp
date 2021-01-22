@@ -58,8 +58,9 @@ private:
 // different way (e.g. the node vs the wallet) we'll at least provide the
 // common framework for it here.
 //
-typedef std::function<remote_return_t (interpreter_base &, common::term, const std::string &, bool)> remote_execute_fn_t;
-typedef std::function<remote_return_t (interpreter_base &, const std::string &)> remote_continue_fn_t;
+enum remote_execute_mode { MODE_NORMAL, MODE_SILENT, MODE_PARALLEL };
+typedef std::function<remote_return_t (interpreter_base &, common::term, const std::string &, remote_execute_mode)> remote_execute_fn_t;
+typedef std::function<remote_return_t (interpreter_base &, const std::string &, remote_execute_mode)> remote_continue_fn_t;
 typedef std::function<bool (interpreter_base &, const std::string &)> remote_delete_fn_t;
   
 class meta_context_remote : public meta_context {
@@ -68,7 +69,8 @@ public:
 			       common::term query, const std::string &where,
 			       remote_continue_fn_t remote_cont,
 			       remote_delete_fn_t remote_del)
-	: meta_context(interp, fn), interp_(interp), silent_(false), query_(query), where_(where),
+	: meta_context(interp, fn), interp_(interp), mode_(MODE_NORMAL),
+	  query_(query), where_(where),
 	  remote_continue_(remote_cont), remote_delete_(remote_del) { }
 
     const std::string & where() const {
@@ -78,23 +80,22 @@ public:
         return query_;
     }
     remote_return_t do_remote_continue() {
-        return remote_continue_(interp_, where_);
+        return remote_continue_(interp_, where_, mode_);
     }
     bool do_remote_delete() {
         return remote_delete_(interp_, where_);
     }
 
-    bool is_silent() const {
-	return silent_;
+    remote_execute_mode mode() const {
+	return mode_;
     }
-
-    void set_silent(bool silent) {
-	silent_ = silent;
+    void set_mode(remote_execute_mode m) {
+	mode_ = m;
     }
     
 private:
     interpreter_base &interp_;
-    bool silent_;
+    remote_execute_mode mode_;
     common::term query_;
     std::string where_;
     remote_continue_fn_t remote_continue_;
@@ -120,7 +121,7 @@ public:
 			   remote_continue_fn_t remote_continue_fn,
 			   remote_delete_fn_t remote_delete_fn)
       : interp_(interp),
-	silent_(false),
+	mode_(MODE_NORMAL),
 	remote_execute_(remote_execute_fn),
         remote_continue_(remote_continue_fn),
         remote_delete_(remote_delete_fn) { }
@@ -190,7 +191,7 @@ public:
 	}
 
 	auto context = interp.get_current_meta_context<meta_context_remote>();
-	if (context->is_silent()) {
+	if (context->mode() != MODE_NORMAL) {
 	    return true;
 	} else {
 	    return interp.unify(qr, r.result());
@@ -198,7 +199,7 @@ public:
     }
 			 
     bool start(common::term query, const std::string where) {
-        auto result = remote_execute_(interp_, query, where, silent_);
+        auto result = remote_execute_(interp_, query, where, mode_);
 
 	if (result.failed()) {
 	    return false;
@@ -206,29 +207,29 @@ public:
 
 	if (result.has_more()) {
 	    auto context = interp_.new_meta_context<meta_context_remote>(&callback, query, where, remote_continue_, remote_delete_);
-	    context->set_silent(is_silent());
+	    context->set_mode(mode_);
 	    interp_.set_top_b(interp_.b());
 	    interp_.allocate_choice_point(code_point::fail());
 	}
-	if (silent_) {
+	if (mode_ != MODE_NORMAL) {
 	    return true;
 	} else {
 	    return interp_.unify(result.result(), query);
 	}
     }
 
-    bool is_silent() const {
-	return silent_;
+    bool mode() const {
+	return mode_;
     }
     
-    void set_silent(bool silent) {
-	silent_ = silent;
+    void set_mode(remote_execute_mode m) {
+	mode_ = m;
     }
     
 private:
     interpreter_base &interp_;
 
-    bool silent_;
+    remote_execute_mode mode_;
     remote_execute_fn_t remote_execute_;
     remote_continue_fn_t remote_continue_;
     remote_delete_fn_t remote_delete_;

@@ -27,6 +27,7 @@ void term_ops::reset()
 	    // Non-standard Prolog operator; for Prologcoin only
 	    { "@",      2, 995,        XFY, SPACE_XFX },
 	    { "@-",     2, 995,        XFY, SPACE_XFX },
+	    { "@=",     2, 995,        XFY, SPACE_XFX },
 
 	    { ":=",     2, 990,        XFX, SPACE_XFX },
 	    { "\\+",    1, 900,        FY, SPACE_FX },

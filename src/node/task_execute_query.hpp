@@ -15,16 +15,20 @@ public:
 
     task_execute_query(out_connection &out,
 		       const term query,
-		       term_env &query_src);
-
-    task_execute_query(out_connection &out, do_next n);
+		       term_env &query_src,
+		       interp::remote_execute_mode mode);
+    task_execute_query(out_connection &out, do_next n,
+		       term_env &query_src,
+		       interp::remote_execute_mode mode);
     task_execute_query(out_connection &out, new_instance i);
     task_execute_query(out_connection &out, delete_instance i);
 
-    inline void set_silent(bool silent) { silent_ = silent; }
-    inline bool is_silent() const { return silent_; }
-    
+    inline interp::remote_execute_mode mode() const { return mode_; }
+
+    term_env & query_src() { return *query_src_; }
+    term query() { return query_; }
     void wait_for_result();
+    bool is_result_ready() const;
     inline term get_result() const { return result_; }
     inline bool failed() const { return result_ == term(); }
     inline void consume_result() { result_consumed_ = true; }
@@ -37,13 +41,15 @@ private:
 	   DO_NEXT = 2,
 	   DELETE_INSTANCE = 3 } type_;
 
+    term_env *query_src_;
     term query_;
+    term query_copy_;
     term result_;
     bool result_ready_;
     bool result_consumed_;
     boost::mutex result_cv_lock_;
     boost::condition_variable result_cv_;
-    bool silent_;
+    interp::remote_execute_mode mode_;
 };
 
 }}

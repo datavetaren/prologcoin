@@ -9,48 +9,65 @@ namespace prologcoin { namespace node {
 
 task_execute_query::task_execute_query(out_connection &out,
 				       const term query,
-				       term_env &query_src)
+				       term_env &query_src,
+				       interp::remote_execute_mode m)
     : out_task("execute_query", out),
+      query_src_(&query_src),
+      query_(query),
       result_ready_(false),
       result_consumed_(false),
-      silent_(false)
+      mode_(m)
 {
     uint64_t cost = 0;
     type_ = QUERY;
-    query_ = env().copy(query, query_src, cost);
+    query_copy_ = env().copy(query, query_src, cost);
+    if (mode_) {
+	self().add_parallel(this);
+    }
 }
 
 task_execute_query::task_execute_query(out_connection &out,
-				       task_execute_query::do_next)
+				       task_execute_query::do_next,
+				       term_env &query_src,
+				       interp::remote_execute_mode m)
     : out_task("execute_query_next", out),
+      query_src_(&query_src),
+      query_(term()),
+      query_copy_(term()),
       result_ready_(false),
       result_consumed_(false),
-      silent_(false)
+      mode_(m)
 {
     type_ = DO_NEXT;
-    query_ = term();
+    if (mode_) {
+	self().add_parallel(this);
+    }
 }
 
 task_execute_query::task_execute_query(out_connection &out,
 				       task_execute_query::new_instance)
     : out_task("execute_query_new_instance", out),
+      query_src_(nullptr),
+      query_(term()),
+      query_copy_(term()),
       result_ready_(false),
       result_consumed_(false),
-      silent_(false)
+      mode_(interp::MODE_NORMAL)
 {
     type_ = NEW_INSTANCE;
-    query_ = term();
 }
 
 task_execute_query::task_execute_query(out_connection &out,
 				       task_execute_query::delete_instance)
     : out_task("execute_query_delete_instance", out),
+      query_src_(nullptr),
+      query_(term()),
+      query_copy_(term()),
       result_ready_(false),
       result_consumed_(false),
-      silent_(false)
+      mode_(interp::MODE_NORMAL)
 {
     type_ = DELETE_INSTANCE;
-    query_ = term();
 }
 
 void task_execute_query::wait_for_result()
@@ -59,6 +76,10 @@ void task_execute_query::wait_for_result()
 	boost::unique_lock<boost::mutex> lockit(result_cv_lock_);
 	result_cv_.wait(lockit);
     }
+}
+
+bool task_execute_query::is_result_ready() const {
+    return result_ready_;
 }
 
 void task_execute_query::process()
@@ -80,7 +101,7 @@ void task_execute_query::process()
     if (get_state() == SEND) {
 	switch (type_) {
 	case NEW_INSTANCE: set_command(con_cell("newinst",0)); break;
-	case QUERY: set_query(query_, silent_); break;
+	case QUERY: set_query(query_copy_, mode() == interp::MODE_SILENT); break;
 	case DO_NEXT: set_command(con_cell("next",0)); break;
 	case DELETE_INSTANCE: set_command(con_cell("delinst",0)); break;
 	}
@@ -89,6 +110,9 @@ void task_execute_query::process()
 	result_ = get_result_goal();
 	result_ready_ = true;
 	result_cv_.notify_one();
+	if (mode() == interp::MODE_PARALLEL) {
+	    self().notify_parallel();
+	}
 	set_state(IDLE);
 	return;
     }
