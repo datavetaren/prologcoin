@@ -8,7 +8,7 @@ using namespace prologcoin::common;
 
 namespace prologcoin { namespace node {
 
-task_address_verifier::task_address_verifier(out_connection &out)
+task_address_verifier::task_address_verifier(out_connection *out)
     : out_task("address_verifier", out)
 { }
 

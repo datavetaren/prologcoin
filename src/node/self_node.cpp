@@ -184,7 +184,7 @@ task_execute_query * self_node::schedule_execute_new_instance(const std::string 
     if (out == nullptr) {
 	return nullptr;
     }
-    auto *task = new task_execute_query(*out, task_execute_query::new_instance());
+    auto *task = new task_execute_query(out, task_execute_query::new_instance());
     out->schedule(task);
     return task;
 }
@@ -196,7 +196,7 @@ task_execute_query * self_node::schedule_execute_delete_instance(const std::stri
     if (out == nullptr) {
 	return nullptr;
     }
-    auto *task = new task_execute_query(*out, task_execute_query::delete_instance());
+    auto *task = new task_execute_query(out, task_execute_query::delete_instance());
     out->schedule(task);
     return task;
 }
@@ -208,7 +208,7 @@ task_execute_query * self_node::schedule_execute_query(term query, term_env &que
     if (out == nullptr) {
 	return nullptr;
     }
-    auto *task = new task_execute_query(*out, query, query_src, mode);
+    auto *task = new task_execute_query(out, query, query_src, mode);
     out->schedule(task);
     return task;
 }
@@ -222,7 +222,7 @@ task_execute_query * self_node::schedule_execute_next(const std::string &where,
     if (out == nullptr) {
 	return nullptr;
     }
-    auto *task = new task_execute_query(*out, task_execute_query::do_next(), query_src, mode);
+    auto *task = new task_execute_query(out, task_execute_query::do_next(), query_src, mode);
     out->schedule(task);
     return task;
 }
@@ -261,7 +261,7 @@ interp::remote_return_t self_node::execute_at(term query, term_env &query_src, c
     }
 }
 
-interp::remote_return_t self_node::continue_at(term_env &query_src, const std::string &where, interp::remote_execute_mode mode)
+interp::remote_return_t self_node::continue_at(term /* query */, term_env &query_src, const std::string &where, interp::remote_execute_mode mode)
 {
     auto *task = schedule_execute_next(where, query_src, mode);
     if (task == nullptr) {
@@ -339,7 +339,7 @@ out_connection * self_node::new_standard_out_connection(const ip_service &ip)
     out_connections_.insert(out);
     out_standard_ips_.insert(ip);
     num_standard_out_connections_++;
-    task_address_downloader *task = new task_address_downloader(*out);
+    task_address_downloader *task = new task_address_downloader(out);
     out->schedule(task);
     return out;
 }
@@ -377,7 +377,7 @@ out_connection * self_node::new_verifier_connection(const ip_service &ip)
     boost::lock_guard<boost::recursive_mutex> guard(lock_);
 
     auto *out = new out_connection(*this, out_connection::VERIFIER, ip);
-    task_address_verifier *task = new task_address_verifier(*out);
+    task_address_verifier *task = new task_address_verifier(out);
     out->schedule(task);
     out_connections_.insert(out);
     num_verifier_connections_++;

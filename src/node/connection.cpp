@@ -683,27 +683,27 @@ out_connection::~out_connection()
 
 out_task * out_connection::create_heartbeat_task()
 {
-    return new task_heartbeat(*this);
+    return new task_heartbeat(this);
 }
 
 out_task * out_connection::create_publish_task()
 {
-    return new task_publish(*this);
+    return new task_publish(this);
 }
 
 out_task * out_connection::create_info_task()
 {
-    return new task_info(*this);
+    return new task_info(this);
 }
 
 out_task * out_connection::create_init_connection_task()
 {
-    return new task_init_connection(*this);
+    return new task_init_connection(this);
 }
 
 task_reset * out_connection::create_reset_task()
 {
-    return new task_reset(*this);
+    return new task_reset(this);
 }
 
 void out_connection::idle_state()

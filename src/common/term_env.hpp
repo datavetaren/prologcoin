@@ -408,6 +408,10 @@ public:
       trim_trail(to);
   }
 
+  inline void clear_trail() {
+      T::get_trail().clear();
+  }
+
   inline size_t temp_size()
      { return T::get_temp().size(); }
   inline void temp_clear()

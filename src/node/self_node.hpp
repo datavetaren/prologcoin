@@ -32,6 +32,7 @@ public:
 };
 
 class self_node;
+class local_interpreter;
 
 class address_book_wrapper
 {
@@ -187,7 +188,8 @@ public:
 				       const std::string &where,
 				       interp::remote_execute_mode mode);
 
-    interp::remote_return_t continue_at(term_env &query_src,
+    interp::remote_return_t continue_at(term query,
+					term_env &query_src,
 					const std::string &where,
 					interp::remote_execute_mode mode);
 

@@ -90,6 +90,8 @@ static inline void process_meta(interpreter &interp, std::string &comments,
 	    interp.enable_file_io();
 	} else if (cmd == "WAM-only") {
             opt["WAM-only"] = 1;
+	} else if (cmd == "retain state") {
+	    interp.set_retain_state_between_queries(true);
 	} else if (cmd == "xlocale") { 
             interp.current_locale().set_decimal_point(con_cell(",",0));
             interp.current_locale().set_thousands_sep(con_cell(" ",0));
@@ -365,8 +367,10 @@ static inline bool test_interpreter_file(const std::string &filepath,
 		    for (size_t i = 0; i < expected.size(); i++) {
 			test_run_once(interp, i, query, expected, expected_files);
 		    }
-		    interp.unwind(tr_mark);
-		    interp.reset_files();
+		    if (!interp.is_retain_state_between_queries()) {
+			interp.unwind(tr_mark);
+			interp.reset_files();
+		    }
 		}
 
 		// Then run this query again to check that the result is
@@ -414,10 +418,14 @@ static inline bool test_interpreter_file(const std::string &filepath,
 		for (size_t i = 0; i < expected.size(); i++) {
 		    test_run_once(interp, i, query, expected, expected_files);
 		}
-		interp.unwind(tr_mark);
-		interp.reset_files();
-		interp.set_register_hb(interp.heap_size());
-		interp.clear_all_frozen_closures();
+		if (!interp.is_retain_state_between_queries()) {
+		    interp.unwind(tr_mark);
+		    interp.reset_files();
+		    interp.set_register_hb(interp.heap_size());
+		    interp.clear_all_frozen_closures();
+		} else {
+		    interp.clear_trail();
+		}
 	    }
 
 	    hook( "post command" );

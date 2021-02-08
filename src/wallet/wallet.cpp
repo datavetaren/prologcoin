@@ -233,7 +233,7 @@ remote_return_t wallet::execute_at(term query, term_env &query_src, const std::s
     return remote_return_t(result_term, more_state, at_end_state, cost);
 }
 
-remote_return_t wallet::continue_at(term_env &query_src, const std::string &where, interp::remote_execute_mode)
+remote_return_t wallet::continue_at(term /*query*/, term_env &query_src, const std::string &where, interp::remote_execute_mode)
 {
     uint64_t cost = 0;
     bool old = terminal_->is_result_to_text();

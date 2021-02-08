@@ -9,7 +9,7 @@ namespace prologcoin { namespace node {
 
 class task_address_downloader : public out_task {
 public:
-    task_address_downloader(out_connection &out);
+    task_address_downloader(out_connection *out);
 
 private:
     virtual void process();

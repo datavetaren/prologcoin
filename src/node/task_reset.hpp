@@ -10,7 +10,7 @@ namespace prologcoin { namespace node {
 
 class task_reset : public out_task {
 public:
-    task_reset(out_connection &out);
+    task_reset(out_connection *out);
 
     inline void consume() {
 	consumed_ = true;

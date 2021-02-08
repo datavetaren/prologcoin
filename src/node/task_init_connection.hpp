@@ -10,7 +10,7 @@ namespace prologcoin { namespace node {
 
 class task_init_connection : public out_task {
 public:
-    task_init_connection(out_connection &out);
+    task_init_connection(out_connection *out);
 
 private:
     virtual void process() override;

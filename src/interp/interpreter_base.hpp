@@ -9,6 +9,7 @@
 #include <tuple>
 #include <map>
 #include <boost/range/adaptor/reversed.hpp>
+#include <boost/thread.hpp>
 #include "../common/term_env.hpp"
 #include "../common/term_tokenizer.hpp"
 #include "../common/merkle_trie.hpp"
@@ -474,7 +475,7 @@ public:
     typedef common::int_cell int_cell;
 
     interpreter_base();
-    ~interpreter_base();
+    virtual ~interpreter_base();
 
     static const size_t MAX_ARGS = 256;
 
@@ -1591,6 +1592,11 @@ protected:
 
     term get_first_arg(term goal)
     {
+	if (goal.tag() == common::tag_t::CON) {
+	    // This is a functor constant (probably set by WAM)
+	    // we need to use the argument register instead
+	    return get_first_arg();
+	}
         if (!is_functor(goal)) {
 	    return EMPTY_LIST;
         }
@@ -1633,10 +1639,10 @@ protected:
 	register_e_ = context->old_e;
 	register_p_ = context->old_p;
 	register_cp_ = context->old_cp;
-	register_qr_ = context->old_qr;
+	set_qr(context->old_qr);
 	set_register_hb(context->old_hb);
         register_m_ = register_m_->old_m;
-
+	
 	if (is_debug()) {
 	    std::cout << "interpreter_base::release_meta_context(): ---- e=" << e() << " ----\n";
 	}
@@ -1931,6 +1937,7 @@ protected:
     }
 
     void check_frozen();
+    void check_delayed();
 
     void heap_limit() {
 	heap_limiter_ = heap_size();
@@ -1946,6 +1953,49 @@ protected:
 
 private:
     size_t heap_limiter_;
+
+protected:
+    struct delayed_t {
+	delayed_t(term q)
+	    : query(q), result(), result_src(nullptr), ready(false) { }
+	delayed_t(const delayed_t &other) = default;
+	term query;
+	term result;
+	term_env *result_src;
+	bool ready;
+    };
+
+public:
+    void add_delayed(delayed_t *dt) {
+	boost::unique_lock<boost::mutex> lockit(delayed_lock_);
+	delayed_.push_back(dt);
+    }
+    void delayed_ready(delayed_t *dt) {
+	boost::unique_lock<boost::mutex> lockit(delayed_lock_);
+	dt->ready = true;
+	delayed_ready_++;
+    }
+    void process_delayed( const std::function<void (const delayed_t &)> &fn ) {
+	boost::unique_lock<boost::mutex> lockit(delayed_lock_);
+	for (auto it = delayed_.begin(); it != delayed_.end();) {
+	    auto *d = *it;
+	    if (d->ready) {
+		if (d->result_src) {
+		    fn(*d);
+		}
+		delete d;
+		it = delayed_.erase(it);
+		delayed_ready_--;
+	    } else {
+		++it;
+	    }
+	}
+    }
+
+private:
+    size_t delayed_ready_;
+    std::vector<delayed_t *> delayed_;
+    boost::mutex delayed_lock_;
 };
 
 inline void predicate::add_clause(interpreter_base &interp, common::term clause0, clause_position pos)  {
@@ -2160,8 +2210,17 @@ template<> inline environment_frozen_t * interpreter_base::allocate_environment<
     return new_ef;
 }
 
+inline void interpreter_base::check_delayed()
+{
+    process_delayed( [this](const delayed_t &dt) {
+	term result_copy = copy( dt.result, *dt.result_src);
+	unify(dt.query, result_copy);
+    });
+}
+
 inline void interpreter_base::check_frozen()
 {
+    if (delayed_ready_) check_delayed();
     auto &watched = heap_watched();
     size_t n = watched.size();
     if (n == 0) {

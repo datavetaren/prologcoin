@@ -87,8 +87,8 @@ bool me_builtins::operator_at_impl(interpreter_base &interp0, size_t arity, term
     remote_execution_proxy proxy(interp,
 	[](interpreter_base &interp, term query, const std::string &where, interp::remote_execute_mode mode)
 	   {return LL(interp).self().execute_at(query, interp, where, mode);},
-	[](interpreter_base &interp, const std::string &where, interp::remote_execute_mode mode)
-	   {return LL(interp).self().continue_at(interp, where, mode);},
+	[](interpreter_base &interp, term query, const std::string &where, interp::remote_execute_mode mode)
+	   {return LL(interp).self().continue_at(query, interp, where, mode);},
 	[](interpreter_base &interp, const std::string &where)
 	   {return LL(interp).self().delete_instance_at(interp, where);});
     proxy.set_mode(mode);
@@ -1489,6 +1489,10 @@ void local_interpreter::ensure_initialized()
 	use_module(ME);
 	use_module(con_cell("ec",0));
 	use_module(con_cell("coin",0));
+
+	// Retain state between queries (enables frozen closures in
+	// "background" processes between queries)
+	set_retain_state_between_queries(true);
 
 	// Load startup file
 	startup_file();

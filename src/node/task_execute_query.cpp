@@ -7,7 +7,7 @@ using namespace prologcoin::common;
 
 namespace prologcoin { namespace node {
 
-task_execute_query::task_execute_query(out_connection &out,
+task_execute_query::task_execute_query(out_connection *out,
 				       const term query,
 				       term_env &query_src,
 				       interp::remote_execute_mode m)
@@ -21,12 +21,12 @@ task_execute_query::task_execute_query(out_connection &out,
     uint64_t cost = 0;
     type_ = QUERY;
     query_copy_ = env().copy(query, query_src, cost);
-    if (mode_) {
+    if (mode_ == interp::MODE_PARALLEL) {
 	self().add_parallel(this);
     }
 }
 
-task_execute_query::task_execute_query(out_connection &out,
+task_execute_query::task_execute_query(out_connection *out,
 				       task_execute_query::do_next,
 				       term_env &query_src,
 				       interp::remote_execute_mode m)
@@ -39,12 +39,12 @@ task_execute_query::task_execute_query(out_connection &out,
       mode_(m)
 {
     type_ = DO_NEXT;
-    if (mode_) {
+    if (mode_ == interp::MODE_PARALLEL) {
 	self().add_parallel(this);
     }
 }
 
-task_execute_query::task_execute_query(out_connection &out,
+task_execute_query::task_execute_query(out_connection *out,
 				       task_execute_query::new_instance)
     : out_task("execute_query_new_instance", out),
       query_src_(nullptr),
@@ -57,7 +57,7 @@ task_execute_query::task_execute_query(out_connection &out,
     type_ = NEW_INSTANCE;
 }
 
-task_execute_query::task_execute_query(out_connection &out,
+task_execute_query::task_execute_query(out_connection *out,
 				       task_execute_query::delete_instance)
     : out_task("execute_query_delete_instance", out),
       query_src_(nullptr),
@@ -84,7 +84,7 @@ bool task_execute_query::is_result_ready() const {
 
 void task_execute_query::process()
 {
-    if (!is_connected()) {
+    if (has_connection() && !is_connected()) {
 	reschedule_last();
 	set_state(IDLE);
 	return;

@@ -5,8 +5,8 @@ namespace prologcoin { namespace node {
 
 using namespace prologcoin::common;
 
-out_task::out_task(const char *description, out_connection &out)
-    : description_(description), out_(&out), env_(&out.env()),
+out_task::out_task(const char *description, out_connection *out)
+    : description_(description), out_(out), env_(&out->env()),
       state_(IDLE), when_(utime::now())
 {
 }

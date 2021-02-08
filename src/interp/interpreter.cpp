@@ -100,6 +100,10 @@ length(Xs, N) :- '$length'(Xs,N,0).
     }
     load_builtin(con_cell("consult", 1), consult_1);
     load_builtin(con_cell("compile", 0), compile_0);
+    load_builtin(con_cell("@",2), operator_at_2);
+    load_builtin(con_cell("@-",2), operator_at_silent_2);
+    load_builtin(con_cell("@=",2), operator_at_parallel_2);
+    
     compile();
     set_current_module(con_cell("user",0));
     use_module(con_cell("system",0));
@@ -855,6 +859,125 @@ bool interpreter::consult_1(interpreter_base &interp0, size_t arity, common::ter
 	throw interpreter_exception_unknown("Unknown error");
     }
 
+    return true;
+}
+
+bool interpreter::operator_at_impl(interpreter_base &interp, size_t arity, term args[], const std::string &name, interp::remote_execute_mode mode) {
+
+#define LL(interp) reinterpret_cast<interpreter &>(interp)
+    term query = args[0];
+    std::string where = interp.to_string(args[1]);
+
+    remote_execution_proxy proxy(interp,
+	 [](interpreter_base &interp, term query, const std::string &where, interp::remote_execute_mode mode)
+	     { return LL(interp).execute_at(query, interp, where, mode);},
+	 [](interpreter_base &interp, term query, const std::string &where, interp::remote_execute_mode mode)
+	     { return LL(interp).continue_at(query, interp, where, mode); },
+	 [](interpreter_base &interp, const std::string &where)
+	     { return LL(interp).delete_instance_at(interp, where); }
+         );
+    proxy.set_mode(mode);
+    return proxy.start(query, where);
+}
+
+bool interpreter::operator_at_2(interpreter_base &interp0, size_t arity, term args[] )
+{
+    return operator_at_impl(interp0, arity, args, "@", MODE_NORMAL);
+}
+
+bool interpreter::operator_at_silent_2(interpreter_base &interp0, size_t arity, term args[] )
+{
+    return operator_at_impl(interp0, arity, args, "@-", MODE_SILENT);
+}
+
+bool interpreter::operator_at_parallel_2(interpreter_base &interp0, size_t arity, term args[] )
+{
+    return  operator_at_impl(interp0, arity, args, "@=", MODE_PARALLEL);
+}
+
+remote_return_t interpreter::execute_at(common::term query,
+					common::term_env &query_src,
+					const std::string &where,
+					remote_execute_mode mode) {
+    ensure_local_workers(2);
+    ensure_at_local(where);
+    
+    auto *interp = at_local_[where];
+
+    if (mode == MODE_PARALLEL) {
+	auto *d = new delayed_t(query);
+	add_delayed(d);
+	local_service_.add(
+	   [d, query, &query_src, interp, this](){
+	       term copy_query = interp->copy(query, query_src);
+	       bool ok = interp->execute(copy_query);
+	       if (ok) {
+		   d->result = interp->get_result_term();
+		   d->result_src = interp;
+	       }
+	       delayed_ready(d);
+	   });
+	return remote_return_t(query_src.EMPTY_LIST);
+    } else {
+	term copy_query = interp->copy(query, query_src);
+	bool ok = interp->execute(copy_query);
+	if (!ok) {
+	    return remote_return_t();
+	}
+
+	term result_term = interp->get_result_term();
+	bool has_more = interp->has_more();
+	bool at_end = !interp->has_more() && interp->is_instance();
+	uint64_t cost = interp->accumulated_cost();
+	uint64_t cost_tmp = 0;
+	term result_copy = query_src.copy(result_term, *interp, cost_tmp);
+	return remote_return_t(result_copy, has_more, at_end, cost);
+    }
+}
+
+remote_return_t interpreter::continue_at(common::term query,
+					 common::term_env &query_src,
+					 const std::string &where,
+					 remote_execute_mode mode) {
+    auto *interp = at_local_[where];
+    if (interp == nullptr) {
+	return remote_return_t();
+    }
+
+    if (mode == MODE_PARALLEL) {
+	auto *d = new delayed_t(query);
+	add_delayed(d);
+	local_service_.add(
+	   [d, interp, this](){
+	       bool ok = interp->next();
+	       if (ok) {
+		   d->result = interp->get_result_term();
+		   d->result_src = interp;
+	       }
+	       delayed_ready(d);
+	   });
+	return remote_return_t(query_src.EMPTY_LIST);
+    } else {
+	auto ok = interp->next();
+	if (!ok) {
+	    return remote_return_t();
+	}
+	term result_term = interp->get_result_term();
+	bool has_more = interp->has_more();
+	bool at_end = !interp->has_more() && interp->is_instance();	
+	uint64_t cost = interp->accumulated_cost();
+	uint64_t cost_tmp = 0;
+	term result_copy = query_src.copy(result_term, *interp, cost_tmp);
+	return remote_return_t(result_copy, has_more, at_end, cost);	
+    }
+}
+
+bool interpreter::delete_instance_at(term_env &query_src, const std::string &where) {
+    auto *interp = at_local_[where];
+    if (interp == nullptr) {
+	return false;
+    }
+    interp->delete_instance();
     return true;
 }
     

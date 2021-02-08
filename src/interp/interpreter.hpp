@@ -5,6 +5,7 @@
 
 #include <iostream>
 #include "wam_interpreter.hpp"
+#include "../common/local_service.hpp"
 
 namespace prologcoin { namespace interp {
 
@@ -60,7 +61,7 @@ private:
 //
 enum remote_execute_mode { MODE_NORMAL, MODE_SILENT, MODE_PARALLEL };
 typedef std::function<remote_return_t (interpreter_base &, common::term, const std::string &, remote_execute_mode)> remote_execute_fn_t;
-typedef std::function<remote_return_t (interpreter_base &, const std::string &, remote_execute_mode)> remote_continue_fn_t;
+typedef std::function<remote_return_t (interpreter_base &, common::term, const std::string &, remote_execute_mode)> remote_continue_fn_t;
 typedef std::function<bool (interpreter_base &, const std::string &)> remote_delete_fn_t;
   
 class meta_context_remote : public meta_context {
@@ -80,7 +81,7 @@ public:
         return query_;
     }
     remote_return_t do_remote_continue() {
-        return remote_continue_(interp_, where_, mode_);
+        return remote_continue_(interp_, query_, where_, mode_);
     }
     bool do_remote_delete() {
         return remote_delete_(interp_, where_);
@@ -323,14 +324,60 @@ public:
 
     bool is_instance() const;
 
-protected:
+    void add_local_workers(size_t cnt) {
+	local_service_.add_workers(cnt);
+    }
+
+    void ensure_local_workers(size_t cnt) {
+	local_service_.ensure_workers(cnt);
+    }
+
+    // Can be overridden if desired
+    virtual void ensure_at_local(const std::string &name) {
+	if (at_local_.find(name) == at_local_.end()) {
+	    auto *interp = new interpreter();
+	    interp->setup_standard_lib();
+	    add_at_local(name, interp);
+	}
+    }
+
+    inline bool is_retain_state_between_queries() const {
+	return retain_state_between_queries_;
+    }
+    
     inline void set_retain_state_between_queries(bool b) {
         retain_state_between_queries_ = b;
     }
   
+protected:
+    void add_at_local(const std::string &name, interpreter *interp) {
+	at_local_[name] = interp;
+    }
+
+    void remove_at_local(const std::string &name) {
+	if (auto *i = at_local_[name]) {
+	    at_local_.erase(name);
+	    delete i;
+	}
+    }
+
+    bool delete_instance_at(term_env &query_src, const std::string &where);
+
+    interp::remote_return_t execute_at(term query, term_env &query_src,
+				       const std::string &where,
+				       interp::remote_execute_mode mode);
+
+    interp::remote_return_t continue_at(term query, term_env &query_src,
+					const std::string &where,
+					interp::remote_execute_mode mode);
+
 private:
     static bool compile_0(interpreter_base &interp, size_t arity, common::term args[]);    
     static bool consult_1(interpreter_base &interp, size_t arity, common::term args[]);
+    static bool operator_at_impl(interpreter_base &interp, size_t arity, common::term args[], const std::string &name, remote_execute_mode mode);
+    static bool operator_at_2(interpreter_base &interp, size_t arity, common::term args[] );
+    static bool operator_at_silent_2(interpreter_base &interp, size_t arity, common::term args[] );
+    static bool operator_at_parallel_2(interpreter_base &interp, size_t arity, common::term args[] );
   
     static bool new_instance_meta(interpreter_base &interp, const meta_reason_t &reason);
 
@@ -361,6 +408,9 @@ private:
     friend struct new_instance_context;
     friend class test_wam_interpreter;
     friend class test_wam_compiler;
+
+    common::local_service local_service_;
+    std::unordered_map<std::string, interpreter *> at_local_;
 };
 
 template<typename Pre, typename Post> void standard_clause_processing<Pre,Post>::operator () (common::term clause)

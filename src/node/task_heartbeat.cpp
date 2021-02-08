@@ -8,7 +8,7 @@ using namespace prologcoin::common;
 
 namespace prologcoin { namespace node {
 
-task_heartbeat::task_heartbeat(out_connection &out)
+task_heartbeat::task_heartbeat(out_connection *out)
     : out_task("heartbeat", out)
 { }
 

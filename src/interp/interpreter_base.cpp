@@ -67,6 +67,7 @@ void interpreter_base::total_reset()
 
 void interpreter_base::init()
 {
+    delayed_ready_ = 0;
     has_updated_predicates_ = false;
     register_pr_ = con_cell("",0);
     arith_.total_reset();
@@ -586,11 +587,17 @@ void interpreter_base::load_clause(term t, clause_position pos)
 void interpreter_base::load_builtin(const qname &qn, builtin b)
 {
     auto found = builtins_.find(qn);
-    if (found == builtins_.end()) {
-        builtins_[qn] = b;
-	module_db_[qn.first].push_back(qn);
-	set_code(qn, code_point(qn.second, b.fn(), b.is_recursive()));
+    if (found != builtins_.end()) {
+	auto &mod = module_db_[qn.first];
+	auto it = std::find(mod.begin(), mod.end(), qn);
+	if (it != mod.end()) {
+	    mod.erase(it);
+	}
     }
+    
+    builtins_[qn] = b;
+    module_db_[qn.first].push_back(qn);
+    set_code(qn, code_point(qn.second, b.fn(), b.is_recursive()));
 }
 
 void interpreter_base::set_debug_enabled()
@@ -939,10 +946,11 @@ choice_point_t * interpreter_base::reset_to_choice_point(choice_point_t *b)
     set_b0(ch->b0);
     set_register_hb(heap_size());
     
-    register_qr_ = ch->qr;
+    set_qr(ch->qr);
     register_pr_ = ch->pr;
 
     size_t n = ch->arity;
+    num_of_args_ = n;
     for (size_t i = 0; i < n; i++) {
 	a(i) = ch->ai[i];
     }
@@ -969,8 +977,13 @@ void interpreter_base::use_module(con_cell module_name)
 
 void interpreter_base::import_predicate(const qname &qn) {
     auto module = current_module();
-    auto &cp = get_code(qn);
     qname imported_qn(module, qn.second);
+    if (!get_code(imported_qn).is_fail()) {
+	// We alreadty have a definition in current module
+	// and we won't overwrite it.
+	return;
+    }
+    auto &cp = get_code(qn);
     set_code(imported_qn, cp);
     if (cp.is_builtin()) {
 	builtin &b = get_builtin(qn);

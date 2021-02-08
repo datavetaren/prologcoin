@@ -328,8 +328,8 @@ bool wallet_interpreter::operator_at_impl(interpreter_base &interp, size_t arity
     interp::remote_execution_proxy proxy(interp,
 	[](interpreter_base &interp, term query, const std::string &where, interp::remote_execute_mode mode)
 	   {return LL(interp).get_wallet().execute_at(query, interp, where, mode);},
-        [](interpreter_base &interp, const std::string &where, interp::remote_execute_mode mode)
-	   {return LL(interp).get_wallet().continue_at(interp, where, mode);},
+	[](interpreter_base &interp, term query, const std::string &where, interp::remote_execute_mode mode)
+	   {return LL(interp).get_wallet().continue_at(query, interp, where, mode);},
 	[](interpreter_base &interp, const std::string &where)
 	   {return LL(interp).get_wallet().delete_instance_at(interp, where);});
 

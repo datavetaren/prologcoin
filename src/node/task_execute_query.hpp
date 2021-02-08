@@ -13,15 +13,15 @@ public:
     struct new_instance { };
     struct delete_instance { };
 
-    task_execute_query(out_connection &out,
+    task_execute_query(out_connection *out,
 		       const term query,
 		       term_env &query_src,
 		       interp::remote_execute_mode mode);
-    task_execute_query(out_connection &out, do_next n,
+    task_execute_query(out_connection *out, do_next n,
 		       term_env &query_src,
 		       interp::remote_execute_mode mode);
-    task_execute_query(out_connection &out, new_instance i);
-    task_execute_query(out_connection &out, delete_instance i);
+    task_execute_query(out_connection *out, new_instance i);
+    task_execute_query(out_connection *out, delete_instance i);
 
     inline interp::remote_execute_mode mode() const { return mode_; }
 
