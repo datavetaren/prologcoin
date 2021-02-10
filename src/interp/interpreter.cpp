@@ -899,7 +899,7 @@ remote_return_t interpreter::execute_at(common::term query,
 					common::term_env &query_src,
 					const std::string &where,
 					remote_execute_mode mode) {
-    ensure_local_workers(2);
+    ensure_local_workers(4);
     ensure_at_local(where);
     
     auto *interp = at_local_[where];
@@ -916,7 +916,7 @@ remote_return_t interpreter::execute_at(common::term query,
 		   d->result_src = interp;
 	       }
 	       delayed_ready(d);
-	   });
+	   }, where);
 	return remote_return_t(query_src.EMPTY_LIST);
     } else {
 	term copy_query = interp->copy(query, query_src);

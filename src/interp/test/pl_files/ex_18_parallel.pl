@@ -28,7 +28,7 @@ loop(N,M) :-
 
 wait_until_done(T) :-
     (current_predicate(result/2), findall(N-M, result(N,M), L), length(L, T), write(L), nl
-     -> true ; sleep(1000), wait_until_done(T)).
+     -> true ; sleep(100), wait_until_done(T)).
 
 print_it :- result(X,Y), write(X), write(' -> '), write(Y), nl, fail.
 print_it.
