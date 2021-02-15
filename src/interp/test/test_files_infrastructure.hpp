@@ -500,7 +500,7 @@ template<typename Interpreter = interpreter> static inline void test_interpreter
 {
     auto files = test_interpreter_get_files(dir, filter);
     for (auto &filepath : files) {
-	Interpreter interp;
+	Interpreter interp("test");
 	init_fn(interp);
 	bool r = test_interpreter_file(filepath.string(), interp, hook);
 	assert(r);

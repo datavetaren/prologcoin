@@ -19,7 +19,7 @@ static void test_up_and_down()
 
     auto start = boost::posix_time::microsec_clock::local_time();
     {
-	interpreter interp;
+	interpreter interp("test");
 	interp.setup_standard_lib();
     }
     auto stop = boost::posix_time::microsec_clock::local_time();
@@ -54,7 +54,7 @@ static void eval_check_1(const std::string &program,
 			 const std::string &query,
 			 const std::string &expected)
 {
-    interpreter interp;
+    interpreter interp("test");
 
     term prog = interp.parse(program);
 
@@ -113,7 +113,7 @@ static void eval_check_n(const std::string &program,
 			 size_t count,
 			 const std::string &expected)
 {
-    interpreter interp;
+    interpreter interp("test");
 
     // interp.set_debug(true);
 
@@ -175,7 +175,7 @@ static void test_interpreter_serialize()
 {
     header("test_interpreter_serialize()");
 
-    interpreter interp;
+    interpreter interp("test");
 
     const std::string program = 
 	R"PROGRAM(
@@ -233,7 +233,7 @@ static void test_interpreter_multi_instance()
 {
     header("test_interpreter_multi_instance()");
 
-    interpreter interp;
+    interpreter interp("test");
 
     interp.setup_standard_lib();
 
@@ -298,7 +298,7 @@ static void test_interpreter_freeze_preprocess()
 {
     header("test_interpreter_freeze_preprocess()");
 
-    interpreter interp;
+    interpreter interp("test");
 
     const std::string program = 
 	R"PROGRAM(

@@ -22,6 +22,10 @@ public:
     inline utime() : time_(0) { }
     inline utime(uint64_t t) : time_(t) { }
 
+    bool is_zero() const { return time_ == 0; }
+
+    void set_zero() { time_ = 0; }
+    
     template<uint64_t DT> class dt {
     public:
 	inline dt(uint64_t v) : value_(v) { }

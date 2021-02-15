@@ -41,7 +41,7 @@ static void check_gold(std::string actual, std::string expect)
 class test_wam_compiler
 {
 public:
-    test_wam_compiler() : interp_(), comp_(interp_) { }
+    test_wam_compiler() : interp_("test"), comp_(interp_) { }
 
     void test_flatten();
     void test_compile();
@@ -267,7 +267,7 @@ static void test_instruction_sequence()
 {
     header("test_instruction_sequence");
 
-    wam_interpreter interp;
+    wam_interpreter interp("test");
     interp.add(wam_instruction<PUT_VARIABLE_X>(1, 2));
     interp.add(wam_instruction<PUT_VARIABLE_X>(3, 4));
     interp.add(wam_instruction<PUT_VARIABLE_Y>(5, 6));

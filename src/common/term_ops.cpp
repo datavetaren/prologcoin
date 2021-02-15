@@ -50,6 +50,8 @@ void term_ops::reset()
 	    { "\\==",   2, 700,        XFX, SPACE_XFX },
 	    { "as",     2, 700,        XFX, SPACE_XFX },
 	    { "is",     2, 700,        XFX, SPACE_XFX },
+	    { "else",   2, 700,        XFX, SPACE_XFX },
+	    { "timeout",2, 700,        XFX, SPACE_XFX },
 	    { ">:<",    2, 700,        XFX, SPACE_XFX },
 	    { ":<",     2, 700,        XFX, SPACE_XFX },
 	    { ":",      2, 600,        XFY, SPACE_XFX },

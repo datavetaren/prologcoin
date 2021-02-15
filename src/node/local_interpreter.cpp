@@ -66,7 +66,19 @@ bool me_builtins::operator_at_impl(interpreter_base &interp0, size_t arity, term
     interp.root_check(name, 2);
     
     auto query = args[0];
-    auto where_term = args[1];
+
+    term where_term;
+    term else_do;
+    size_t timeout;
+
+    std::tie(where_term, else_do, timeout) = interpreter::deconstruct_where(interp0, args[1]);
+
+    if (where_term.tag() == tag_t::STR && interp.functor(where_term) == con_cell("local",1)) {
+	term new_args[16];
+	std::copy(args, args+arity, new_args);
+	new_args[1] = interp.arg(args[1], 0);
+	return interpreter::operator_at_impl(interp0, arity, new_args, name, mode);
+    }
 
     // std::cout << "operator_at_2: query=" << interp.to_string(query) << " where=" << interp.to_string(where_term) << std::endl;
 
@@ -85,15 +97,16 @@ bool me_builtins::operator_at_impl(interpreter_base &interp0, size_t arity, term
 #define LL(interp) reinterpret_cast<local_interpreter &>(interp)
     
     remote_execution_proxy proxy(interp,
-	[](interpreter_base &interp, term query, const std::string &where, interp::remote_execute_mode mode)
-	   {return LL(interp).self().execute_at(query, interp, where, mode);},
-	[](interpreter_base &interp, term query, const std::string &where, interp::remote_execute_mode mode)
-	   {return LL(interp).self().continue_at(query, interp, where, mode);},
+	[](interpreter_base &interp, term query, term else_do, const std::string &where, interp::remote_execute_mode mode, size_t timeout)
+	   {return LL(interp).self().execute_at(query, else_do, interp, where, mode, timeout);},
+        [](interpreter_base &interp, term query, term else_do, const std::string &where, interp::remote_execute_mode mode, size_t timeout)
+	   {return LL(interp).self().continue_at(query, else_do, interp, where, mode, timeout);},
 	[](interpreter_base &interp, const std::string &where)
 	   {return LL(interp).self().delete_instance_at(interp, where);});
     proxy.set_mode(mode);
+    proxy.set_timeout(timeout);
 
-    return proxy.start(query, where);
+    return proxy.start(query, else_do, where);
 }
 
     
@@ -110,49 +123,6 @@ bool me_builtins::operator_at_silent_2(interpreter_base &interp0, size_t arity, 
 bool me_builtins::operator_at_parallel_2(interpreter_base &interp0, size_t arity, term args[] )
 {
     return  operator_at_impl(interp0, arity, args, "@=", MODE_PARALLEL);
-}
-
-bool me_builtins::wait_1(interpreter_base &interp0, size_t arity, term args[]) {
-    auto &interp = to_local(interp0);
-    bool cont = true;
-    auto vars = interp.find_vars(args[0]);
-    while (cont) {
-	if (interp.self().wait_parallel_us(utime::us(interp.self().get_timer_interval_microseconds()))) {
-	    bool failed = false;
-	    for (auto it = interp.self().all_parallel().begin(); it != interp.self().all_parallel().end();) {
-		auto t = *it;
-		if (t->is_result_ready()) {
-		    term q = t->query();
-
-		    auto remote_result = interp.self().schedule_execute_wait_for_result(t, t->query_src());
-		    it = interp.self().all_parallel().erase(it);
-		    if (remote_result.failed()) {
-			// Maybe we should throw an exception instead
-			failed = true;
-			continue;
-		    }
-		    bool ok = interp.unify(q, remote_result.result());
-		    if (!ok) {
-			failed = true;
-		    }
-		} else {
-		    ++it;
-		}
-	    }
-	    if (failed) {
-		return false;
-	    }
-	    // Here we scan the list to see if any var became bound, if yes
-	    // then terminate
-	    for (auto &p : vars) {
-		auto v = p.second;
-		if (!interp.deref(v).tag().is_ref()) {
-		    cont = false;
-		}
-	    }
-	}
-    }
-    return true;
 }
 	
 bool me_builtins::id_1(interpreter_base &interp0, size_t arity, term args[] )
@@ -1443,7 +1413,7 @@ bool me_builtins::db_put_3(interpreter_base &interp0, size_t arity, term args[])
 }
 
 local_interpreter::local_interpreter(in_session_state &session)
-    :session_(session), initialized_(false), ignore_text_(false)
+    : interp::interpreter("node"), session_(session), initialized_(false), ignore_text_(false)
 {
     // Redirect standard output (standard std::cout) to an internal
     // stringstream.
@@ -1504,7 +1474,6 @@ void local_interpreter::setup_local_builtins()
     load_builtin(con_cell("@",2), &me_builtins::operator_at_2);
     load_builtin(con_cell("@-",2), &me_builtins::operator_at_silent_2);
     load_builtin(con_cell("@=",2), &me_builtins::operator_at_parallel_2);
-    load_builtin(con_cell("wait",1), &me_builtins::wait_1);
 
     // [...] syntax to load programs.
     load_builtin(con_cell(".", 2), &me_builtins::list_load_2);

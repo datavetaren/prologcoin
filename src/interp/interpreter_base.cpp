@@ -36,7 +36,7 @@ meta_context::meta_context(interpreter_base &i, meta_fn mfn)
     old_hb = i.get_register_hb();
 }
 
-interpreter_base::interpreter_base() : arith_(*this), locale_(*this)
+interpreter_base::interpreter_base(const std::string &name) : arith_(*this), locale_(*this), name_(name)
 {
     init();
 }

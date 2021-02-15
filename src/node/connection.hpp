@@ -16,6 +16,7 @@
 #include "../common/term.hpp"
 #include "../common/term_env.hpp"
 #include "../common/utime.hpp"
+#include "../common/spinlock.hpp"
 #include "ip_address.hpp"
 #include "ip_service.hpp"
 #include "task.hpp"
@@ -71,7 +72,7 @@ public:
     enum connection_type { CONNECTION_IN, CONNECTION_OUT };
 
     connection(self_node &self, connection_type type, term_env &env);
-    ~connection();
+    virtual ~connection();
 
     connection_type type() const { return type_; }
 
@@ -84,7 +85,7 @@ public:
     void stop();
     inline bool is_stopped() const { return stopped_; }
 
-    void close();
+    virtual void close();
     inline bool is_closed() const { return get_state() == STATE_CLOSED; }
 
     inline void prepare_receive() { set_state(STATE_RECEIVE_LENGTH); }
@@ -164,7 +165,7 @@ private:
 class in_connection : public connection {
 public:
     in_connection(self_node &self);
-    ~in_connection();
+    virtual ~in_connection();
 
     inline const std::string & name() const { return name_; }
 
@@ -222,7 +223,12 @@ public:
     enum out_type_t { STANDARD, VERIFIER };
 
     out_connection(self_node &self, out_type_t t, const ip_service &ip);
-    ~out_connection();
+    virtual ~out_connection();
+
+    void close() override {
+	connection::close();
+	delete_tasks();
+    }
 
     inline out_type_t out_type() const { return out_type_; }
     inline const ip_service & ip() const { return ip_; }
@@ -269,10 +275,26 @@ public:
     inline bool is_connected() const { return connected_; }
     inline void set_connected(bool b) { connected_ = b; }
 
+    void delete_tasks();
+    
     void print_task_queue() const;
 
     void error(const reason_t &reason, const std::string &msg);
 
+    void increment_busy() {
+	boost::lock_guard<common::spinlock> lockit(busy_count_lock_);
+	busy_count_++;
+    }
+    void decrement_busy() {
+	boost::lock_guard<common::spinlock> lockit(busy_count_lock_);	
+	busy_count_--;	
+    }
+
+    bool is_busy() {
+	boost::lock_guard<common::spinlock> lockit(busy_count_lock_);
+	return busy_count_ > 0;
+    }
+    
 protected:
     void idle_state();
 
@@ -307,6 +329,8 @@ private:
     // boost::condition_variable work_cv_;
     std::priority_queue<out_task *, std::vector<out_task *>, std::function<bool (const out_task *t1, const out_task *t2)> > work_;
     utime last_in_work_;
+    size_t busy_count_;
+    common::spinlock busy_count_lock_;
 };
 
 }}

@@ -48,6 +48,7 @@ public:
 
     term get_result() const;
     term get_result_goal() const;
+    std::string get_standard_out();
     uint64_t get_cost() const;
     bool has_more() const;
     bool at_end() const;

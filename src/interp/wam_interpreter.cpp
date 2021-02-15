@@ -97,7 +97,7 @@ void wam_code::print_code(std::ostream &out, size_t from, size_t to)
     }
 }
 
-wam_interpreter::wam_interpreter() : wam_code(*this), auto_wam_(false), compiler_(nullptr)
+wam_interpreter::wam_interpreter(const std::string &name) : interpreter_base(name), wam_code(*this), auto_wam_(false), compiler_(nullptr)
 {
     total_reset();
 }

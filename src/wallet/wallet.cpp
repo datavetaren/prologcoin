@@ -208,11 +208,11 @@ term wallet::get_result_term(const std::string &varname)
     return interp_.get_result_term(varname);
 }    
     
-remote_return_t wallet::execute_at(term query, term_env &query_src, const std::string &where, interp::remote_execute_mode mode)
+remote_return_t wallet::execute_at(term query, term /*else_do*/, interpreter_base &query_interp, const std::string &where, interp::remote_execute_mode mode, size_t /*timeout*/ )
 {
     uint64_t cost = 0;
     terminal_->env().clear_names();
-    term query_term = terminal_->env().copy(query, env(), cost);
+    term query_term = terminal_->env().copy(query, query_interp, cost);
 
     bool old = terminal_->is_result_to_text();
     try {
@@ -229,11 +229,11 @@ remote_return_t wallet::execute_at(term query, term_env &query_src, const std::s
     term result_remote = terminal_->get_result();
     bool more_state = terminal_->has_more();
     bool at_end_state = terminal_->at_end();
-    term result_term = query_src.copy(result_remote, terminal_->env(), cost);
+    term result_term = static_cast<term_env &>(query_interp).copy(result_remote, terminal_->env(), cost);
     return remote_return_t(result_term, more_state, at_end_state, cost);
 }
 
-remote_return_t wallet::continue_at(term /*query*/, term_env &query_src, const std::string &where, interp::remote_execute_mode)
+remote_return_t wallet::continue_at(term /*query*/, term /*else_do*/, interpreter_base &query_interp, const std::string &where, interp::remote_execute_mode, size_t /*timeout*/)
 {
     uint64_t cost = 0;
     bool old = terminal_->is_result_to_text();
@@ -250,7 +250,7 @@ remote_return_t wallet::continue_at(term /*query*/, term_env &query_src, const s
     term result_remote = terminal_->get_result();
     bool more_state = terminal_->has_more();
     bool at_end_state = terminal_->at_end();
-    term result_term = query_src.copy(result_remote, terminal_->env(), cost);
+    term result_term = static_cast<term_env &>(query_interp).copy(result_remote, terminal_->env(), cost);
     return remote_return_t(result_term, more_state, at_end_state, cost);
 }
 

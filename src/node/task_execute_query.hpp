@@ -14,7 +14,8 @@ public:
     struct delete_instance { };
 
     task_execute_query(out_connection *out,
-		       const term query,
+		       term query,
+		       interp::interpreter_base::delayed_t *delayed,
 		       term_env &query_src,
 		       interp::remote_execute_mode mode);
     task_execute_query(out_connection *out, do_next n,
@@ -22,6 +23,7 @@ public:
 		       interp::remote_execute_mode mode);
     task_execute_query(out_connection *out, new_instance i);
     task_execute_query(out_connection *out, delete_instance i);
+    virtual ~task_execute_query();
 
     inline interp::remote_execute_mode mode() const { return mode_; }
 
@@ -43,6 +45,7 @@ private:
 
     term_env *query_src_;
     term query_;
+    term else_do_;
     term query_copy_;
     term result_;
     bool result_ready_;
@@ -50,6 +53,7 @@ private:
     boost::mutex result_cv_lock_;
     boost::condition_variable result_cv_;
     interp::remote_execute_mode mode_;
+    interp::interpreter_base::delayed_t *delayed_;
 };
 
 }}

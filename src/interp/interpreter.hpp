@@ -60,18 +60,20 @@ private:
 // common framework for it here.
 //
 enum remote_execute_mode { MODE_NORMAL, MODE_SILENT, MODE_PARALLEL };
-typedef std::function<remote_return_t (interpreter_base &, common::term, const std::string &, remote_execute_mode)> remote_execute_fn_t;
-typedef std::function<remote_return_t (interpreter_base &, common::term, const std::string &, remote_execute_mode)> remote_continue_fn_t;
+typedef std::function<remote_return_t (interpreter_base &, common::term, common::term, const std::string &, remote_execute_mode, size_t)> remote_execute_fn_t;
+typedef std::function<remote_return_t (interpreter_base &, common::term, common::term, const std::string &, remote_execute_mode, size_t)> remote_continue_fn_t;
 typedef std::function<bool (interpreter_base &, const std::string &)> remote_delete_fn_t;
   
 class meta_context_remote : public meta_context {
 public:
     inline meta_context_remote(interpreter_base &interp, meta_fn fn,
-			       common::term query, const std::string &where,
+			       common::term query, common::term else_do,
+			       const std::string &where,
 			       remote_continue_fn_t remote_cont,
 			       remote_delete_fn_t remote_del)
 	: meta_context(interp, fn), interp_(interp), mode_(MODE_NORMAL),
-	  query_(query), where_(where),
+	  timeout_(std::numeric_limits<size_t>::max()),
+	  query_(query), else_do_(else_do), where_(where),
 	  remote_continue_(remote_cont), remote_delete_(remote_del) { }
 
     const std::string & where() const {
@@ -81,7 +83,7 @@ public:
         return query_;
     }
     remote_return_t do_remote_continue() {
-        return remote_continue_(interp_, query_, where_, mode_);
+        return remote_continue_(interp_, query_, else_do_, where_, mode_, timeout_);
     }
     bool do_remote_delete() {
         return remote_delete_(interp_, where_);
@@ -93,11 +95,21 @@ public:
     void set_mode(remote_execute_mode m) {
 	mode_ = m;
     }
+
+    size_t timeout() const {
+	return timeout_;
+    }
+
+    void set_timeout(size_t t) {
+	timeout_ = t;
+    }
     
 private:
     interpreter_base &interp_;
     remote_execute_mode mode_;
+    size_t timeout_;
     common::term query_;
+    common::term else_do_;
     std::string where_;
     remote_continue_fn_t remote_continue_;
     remote_delete_fn_t remote_delete_;
@@ -123,6 +135,7 @@ public:
 			   remote_delete_fn_t remote_delete_fn)
       : interp_(interp),
 	mode_(MODE_NORMAL),
+	timeout_( std::numeric_limits<size_t>::max() ),
 	remote_execute_(remote_execute_fn),
         remote_continue_(remote_continue_fn),
         remote_delete_(remote_delete_fn) { }
@@ -195,19 +208,29 @@ public:
 	if (context->mode() != MODE_NORMAL) {
 	    return true;
 	} else {
+	    
 	    return interp.unify(qr, r.result());
 	}
     }
 			 
-    bool start(common::term query, const std::string where) {
-        auto result = remote_execute_(interp_, query, where, mode_);
+    bool start(common::term query, common::term else_do, const std::string where) {
+        auto result = remote_execute_(interp_, query, else_do, where, mode_, timeout_);
 
 	if (result.failed()) {
-	    return false;
+	    if (else_do != interp_.EMPTY_LIST) {
+		interp_.allocate_environment<ENV_FROZEN, environment_frozen_t *>();
+		interp_.allocate_environment<ENV_NAIVE, environment_naive_t *>();
+		interp_.set_cp(code_point(interp_.EMPTY_LIST));
+		interp_.set_p(code_point(else_do));
+		interp_.set_qr(else_do);
+		return true;
+	    } else {
+		return false;
+	    }
 	}
 
 	if (result.has_more()) {
-	    auto context = interp_.new_meta_context<meta_context_remote>(&callback, query, where, remote_continue_, remote_delete_);
+	    auto context = interp_.new_meta_context<meta_context_remote>(&callback, query, else_do, where, remote_continue_, remote_delete_);
 	    context->set_mode(mode_);
 	    interp_.set_top_b(interp_.b());
 	    interp_.allocate_choice_point(code_point::fail());
@@ -226,11 +249,19 @@ public:
     void set_mode(remote_execute_mode m) {
 	mode_ = m;
     }
+
+    size_t timeout() const {
+	return timeout_;
+    }
+
+    void set_timeout(size_t t) {
+	timeout_ = t;
+    }
     
 private:
     interpreter_base &interp_;
-
     remote_execute_mode mode_;
+    size_t timeout_;
     remote_execute_fn_t remote_execute_;
     remote_continue_fn_t remote_continue_;
     remote_delete_fn_t remote_delete_;
@@ -239,7 +270,7 @@ private:
 class interpreter : public wam_interpreter
 {
 public:
-    interpreter();
+    interpreter(const std::string &name);
     ~interpreter();
 
     void total_reset();
@@ -335,7 +366,8 @@ public:
     // Can be overridden if desired
     virtual void ensure_at_local(const std::string &name) {
 	if (at_local_.find(name) == at_local_.end()) {
-	    auto *interp = new interpreter();
+	    auto *interp = new interpreter(name);
+	    interp->enable_file_io();
 	    interp->setup_standard_lib();
 	    add_at_local(name, interp);
 	}
@@ -363,21 +395,33 @@ protected:
 
     bool delete_instance_at(term_env &query_src, const std::string &where);
 
-    interp::remote_return_t execute_at(term query, term_env &query_src,
+    interp::remote_return_t execute_at(term query, term else_do,
+				       term_env &query_src,
 				       const std::string &where,
-				       interp::remote_execute_mode mode);
+				       interp::remote_execute_mode mode,
+				       size_t timeout);
 
-    interp::remote_return_t continue_at(term query, term_env &query_src,
+    interp::remote_return_t continue_at(term query, term else_do,
+					term_env &query_src,
 					const std::string &where,
-					interp::remote_execute_mode mode);
+					interp::remote_execute_mode mode,
+					size_t timeout);
 
 private:
     static bool compile_0(interpreter_base &interp, size_t arity, common::term args[]);    
     static bool consult_1(interpreter_base &interp, size_t arity, common::term args[]);
+
+public:
+    static std::tuple<common::term, common::term, size_t> deconstruct_where(interpreter_base &interp, common::term where);
     static bool operator_at_impl(interpreter_base &interp, size_t arity, common::term args[], const std::string &name, remote_execute_mode mode);
     static bool operator_at_2(interpreter_base &interp, size_t arity, common::term args[] );
     static bool operator_at_silent_2(interpreter_base &interp, size_t arity, common::term args[] );
     static bool operator_at_parallel_2(interpreter_base &interp, size_t arity, common::term args[] );
+private:
+    static bool is_else(interpreter_base &interp, common::term t);
+    static std::pair<common::term, common::term> extract_else(interpreter_base &interp, common::term t);
+    static bool is_timeout(interpreter_base &interp, common::term t);
+    static std::pair<size_t, common::term> extract_timeout(interpreter_base &interp, common::term t);    
   
     static bool new_instance_meta(interpreter_base &interp, const meta_reason_t &reason);
 

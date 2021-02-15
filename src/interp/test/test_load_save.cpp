@@ -39,7 +39,7 @@ int main( int argc, char *argv[] )
 	return 1;
     }
     
-    interpreter interp;
+    interpreter interp("test");
     interp.enable_file_io();
     interp.setup_standard_lib();
     std::ifstream ifs(src_file.string());

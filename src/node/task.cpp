@@ -103,6 +103,16 @@ term out_task::get_result_goal() const
     return env().arg(r, 0);
 }
 
+std::string out_task::get_standard_out()
+{
+    term r = get_result();
+    if (r == term()) {
+	return "";
+    }
+    term term_str = env().arg(r, 3);
+    return env().list_to_string(term_str);
+}
+
 uint64_t out_task::get_cost() const
 {
     term r = get_result();

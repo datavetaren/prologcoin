@@ -176,7 +176,7 @@ public:
     task_execute_query * schedule_execute_new_instance(const std::string &where);    
     task_execute_query * schedule_execute_delete_instance(const std::string &where);
     
-    task_execute_query * schedule_execute_query(term query, term_env &query_src, const std::string &where, interp::remote_execute_mode mode);
+    task_execute_query * schedule_execute_query(term query, interp::interpreter_base::delayed_t *delayed, term_env &query_src, const std::string &where, interp::remote_execute_mode mode);
     task_execute_query * schedule_execute_next(const std::string &where, term_env &query_src, interp::remote_execute_mode mode);
 
     interp::remote_return_t schedule_execute_wait_for_result(task_execute_query *task, term_env &query_src);
@@ -184,14 +184,19 @@ public:
     bool new_instance_at(term_env &query_src, const std::string &where);
     bool delete_instance_at(term_env &query_src, const std::string &where);
 
-    interp::remote_return_t execute_at(term query, term_env &query_src,
+    interp::remote_return_t execute_at(term query,
+				       term else_do,
+				       interp::interpreter_base &query_interp,
 				       const std::string &where,
-				       interp::remote_execute_mode mode);
+				       interp::remote_execute_mode mode,
+				       size_t timeout);
 
     interp::remote_return_t continue_at(term query,
-					term_env &query_src,
+					term else_do,
+					interp::interpreter_base &query_interp,
 					const std::string &where,
-					interp::remote_execute_mode mode);
+					interp::remote_execute_mode mode,
+					size_t timeout);
 
     in_session_state * new_in_session(in_connection *conn, bool is_root);
     in_session_state * find_in_session(const std::string &id);

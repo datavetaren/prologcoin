@@ -35,7 +35,6 @@ public:
     static bool operator_at_silent_2(interpreter_base &interp, size_t arity, term args[]);
     static bool operator_at_parallel_2(interpreter_base &interp, size_t arity, term args[]);    
     static bool operator_at_2_meta(interpreter_base &interp, const meta_reason_t &reason);
-    static bool wait_1(interpreter_base &interp, size_t arity, term args[]);
 
     // Version & name...
     static bool id_1(interpreter_base &interp, size_t arity, term args[]);

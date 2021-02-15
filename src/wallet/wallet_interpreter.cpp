@@ -10,7 +10,7 @@ using namespace prologcoin::interp;
 
 namespace prologcoin { namespace wallet {
 
-wallet_interpreter::wallet_interpreter(wallet &w, const std::string &wallet_file) : file_path_(wallet_file), wallet_(w), no_coin_security_(this->disable_coin_security()) {
+wallet_interpreter::wallet_interpreter(wallet &w, const std::string &wallet_file) : interp::interpreter("wallet"), file_path_(wallet_file), wallet_(w), no_coin_security_(this->disable_coin_security()) {
     init();
 }
 
@@ -27,6 +27,7 @@ void wallet_interpreter::init()
     // Make wallet inherit everything from wallet_impl
     use_module(functor("wallet_impl",0));
     set_auto_wam(true);
+    set_retain_state_between_queries(true);
 }
 
 void wallet_interpreter::total_reset()
@@ -312,13 +313,18 @@ retract_utxos([HeapAddr|HeapAddrs]) :-
     set_current_module(old_module);
 }
 
-bool wallet_interpreter::operator_at_impl(interpreter_base &interp, size_t arity, term args[], interp::remote_execute_mode mode) {
+bool wallet_interpreter::operator_at_impl(interpreter_base &interp, size_t arity, term args[], const std::string &name, interp::remote_execute_mode mode) {
     static con_cell NODE("node", 0);
     auto query = args[0];
+
+    term else_do;
+    size_t timeout;
     auto where_term = args[1];
 
+    std::tie(where_term, else_do, timeout) = interpreter::deconstruct_where(interp, where_term);
+
     if (where_term != NODE) {
-        throw interp::interpreter_exception_wrong_arg_type("@/2: Second argument must be the atom 'node'; was " + interp.to_string(where_term));
+        return interpreter::operator_at_impl(interp, arity, args, name, mode);
     }
 
     std::string where = interp.atom_name(where_term);
@@ -326,23 +332,28 @@ bool wallet_interpreter::operator_at_impl(interpreter_base &interp, size_t arity
 #define LL(x) reinterpret_cast<wallet_interpreter &>(interp)
 	
     interp::remote_execution_proxy proxy(interp,
-	[](interpreter_base &interp, term query, const std::string &where, interp::remote_execute_mode mode)
-	   {return LL(interp).get_wallet().execute_at(query, interp, where, mode);},
-	[](interpreter_base &interp, term query, const std::string &where, interp::remote_execute_mode mode)
-	   {return LL(interp).get_wallet().continue_at(query, interp, where, mode);},
+	[](interpreter_base &interp, term query, term else_do, const std::string &where, interp::remote_execute_mode mode, size_t timeout)
+	  {return LL(interp).get_wallet().execute_at(query, else_do, interp, where, mode, timeout);},
+	[](interpreter_base &interp, term query, term else_do, const std::string &where, interp::remote_execute_mode mode, size_t timeout)
+	  {return LL(interp).get_wallet().continue_at(query, else_do, interp, where, mode, timeout);},
 	[](interpreter_base &interp, const std::string &where)
 	   {return LL(interp).get_wallet().delete_instance_at(interp, where);});
 
     proxy.set_mode(mode);
-    return proxy.start(query, where);
+    proxy.set_timeout(timeout);
+    return proxy.start(query, else_do, where);
 }
 	
 bool wallet_interpreter::operator_at_2(interpreter_base &interp, size_t arity, term args[]) {
-    return operator_at_impl(interp, arity, args, interp::MODE_NORMAL);
+    return operator_at_impl(interp, arity, args, "@/2", interp::MODE_NORMAL);
 }
 
 bool wallet_interpreter::operator_at_silent_2(interpreter_base &interp, size_t arity, term args[]) {
-    return operator_at_impl(interp, arity, args, interp::MODE_SILENT);
+    return operator_at_impl(interp, arity, args, "@-/2", interp::MODE_SILENT);
+}
+
+bool wallet_interpreter::operator_at_parallel_2(interpreter_base &interp, size_t arity, term args[]) {
+    return operator_at_impl(interp, arity, args, "@=/2", interp::MODE_PARALLEL);
 }
 
 bool wallet_interpreter::save_0(interpreter_base &interp, size_t arity, term args[])

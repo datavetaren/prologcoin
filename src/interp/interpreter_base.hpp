@@ -13,6 +13,8 @@
 #include "../common/term_env.hpp"
 #include "../common/term_tokenizer.hpp"
 #include "../common/merkle_trie.hpp"
+#include "../common/utime.hpp"
+#include "../common/spinlock.hpp"
 #include "builtins.hpp"
 #include "file_stream.hpp"
 #include "arithmetics.hpp"
@@ -474,7 +476,7 @@ public:
     typedef common::con_cell con_cell;
     typedef common::int_cell int_cell;
 
-    interpreter_base();
+    interpreter_base(const std::string &name);
     virtual ~interpreter_base();
 
     static const size_t MAX_ARGS = 256;
@@ -1954,39 +1956,88 @@ protected:
 private:
     size_t heap_limiter_;
 
-protected:
+public:
     struct delayed_t {
-	delayed_t(term q)
-	    : query(q), result(), result_src(nullptr), ready(false) { }
+	delayed_t(interpreter_base &i, term q, term e, std::function<void()> processed_fn = nullptr)
+	    : interp(i), query(q), else_do(e), timeout(std::numeric_limits<size_t>::max()), timeout_at(), result(), result_src(nullptr), ready(false), failed(false), processed_fn(nullptr) { }
 	delayed_t(const delayed_t &other) = default;
+	interpreter_base &interp;
 	term query;
+	term else_do;
+	size_t timeout;
+	common::utime timeout_at;
 	term result;
 	term_env *result_src;
 	bool ready;
-    };
+	bool failed;
+	std::function<void()> processed_fn;
+	std::string standard_out;
 
-public:
+	bool has_timeout() const {
+	    return timeout != std::numeric_limits<size_t>::max();
+	}
+	
+	bool has_expired() const {
+	    if (!has_timeout()) {
+		return false;
+	    }
+	    return common::utime::now() > timeout_at;
+	}
+
+	void clear_timeout() {
+	    timeout = std::numeric_limits<size_t>::max();
+        }
+
+	void set_failed() {
+	    failed = true;
+        }
+
+	void set_timeout_millis(size_t dt) {
+	    timeout = dt;
+	    timeout_at = common::utime::now() + common::utime::ms(dt);
+	}
+    };
+    
     void add_delayed(delayed_t *dt) {
-	boost::unique_lock<boost::mutex> lockit(delayed_lock_);
 	delayed_.push_back(dt);
+	if (dt->has_timeout()) {
+	    boost::lock_guard<common::spinlock> lockit2(delayed_fast_lock_);
+	    if (delayed_next_timeout_.is_zero() ||
+		dt->timeout_at < delayed_next_timeout_) {
+		delayed_next_timeout_ = dt->timeout_at;
+	    }
+	}
     }
     void delayed_ready(delayed_t *dt) {
-	boost::unique_lock<boost::mutex> lockit(delayed_lock_);
+	boost::unique_lock<common::spinlock> lockit(delayed_fast_lock_);
 	dt->ready = true;
 	delayed_ready_++;
     }
     void process_delayed( const std::function<void (const delayed_t &)> &fn ) {
-	boost::unique_lock<boost::mutex> lockit(delayed_lock_);
+	delayed_next_timeout_.set_zero();
 	for (auto it = delayed_.begin(); it != delayed_.end();) {
 	    auto *d = *it;
-	    if (d->ready) {
-		if (d->result_src) {
+	    if (d->has_expired()) {
+		d->set_failed();
+		d->clear_timeout();
+		fn(*d);
+		if (d->processed_fn) d->processed_fn();
+	    } else if (d->ready) {
+		if (!d->failed) {
 		    fn(*d);
+		    if (d->processed_fn) d->processed_fn();
 		}
 		delete d;
 		it = delayed_.erase(it);
+		boost::lock_guard<common::spinlock> lockit2(delayed_fast_lock_);
 		delayed_ready_--;
 	    } else {
+		if (d->has_timeout()) {
+		    if (delayed_next_timeout_.is_zero() ||
+			d->timeout_at < delayed_next_timeout_) {
+			delayed_next_timeout_ = d->timeout_at;
+		    }
+		}
 		++it;
 	    }
 	}
@@ -1994,8 +2045,11 @@ public:
 
 private:
     size_t delayed_ready_;
+    common::spinlock delayed_fast_lock_;
+    common::utime delayed_next_timeout_;
     std::vector<delayed_t *> delayed_;
-    boost::mutex delayed_lock_;
+
+    std::string name_;
 };
 
 inline void predicate::add_clause(interpreter_base &interp, common::term clause0, clause_position pos)  {
@@ -2213,14 +2267,35 @@ template<> inline environment_frozen_t * interpreter_base::allocate_environment<
 inline void interpreter_base::check_delayed()
 {
     process_delayed( [this](const delayed_t &dt) {
-	term result_copy = copy( dt.result, *dt.result_src);
-	unify(dt.query, result_copy);
+	if (dt.result_src) {
+	    term result_copy = copy( dt.result, *dt.result_src);
+	    unify(dt.query, result_copy);
+	} else {
+	    // Remote execution failed, so execute else clause (if present)
+	    if (dt.else_do != EMPTY_LIST) {
+		allocate_environment<ENV_FROZEN, environment_frozen_t *>();
+		allocate_environment<ENV_NAIVE, environment_naive_t *>();
+		set_cp(code_point(EMPTY_LIST));
+		set_p(code_point(dt.else_do));
+		set_qr(dt.else_do);
+	    }
+	}
     });
 }
 
 inline void interpreter_base::check_frozen()
 {
-    if (delayed_ready_) check_delayed();
+    bool do_check_delayed = false;
+    {
+	boost::lock_guard<common::spinlock> lockit(delayed_fast_lock_);
+	if (delayed_ready_) {
+	    do_check_delayed = true;
+	} else if (!delayed_next_timeout_.is_zero() &&
+		 common::utime::now() > delayed_next_timeout_) {
+	    do_check_delayed = true;
+	}
+    }
+    if (do_check_delayed) check_delayed();
     auto &watched = heap_watched();
     size_t n = watched.size();
     if (n == 0) {

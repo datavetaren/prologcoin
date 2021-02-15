@@ -2,9 +2,11 @@
 #include "wam_compiler.hpp"
 #include <boost/range/adaptor/reversed.hpp>
 
+using namespace prologcoin::common;
+
 namespace prologcoin { namespace interp {
 
-interpreter::interpreter() 
+interpreter::interpreter(const std::string &name) : wam_interpreter(name)
 {
     wam_enabled_ = true;
     query_vars_ = nullptr;
@@ -862,22 +864,69 @@ bool interpreter::consult_1(interpreter_base &interp0, size_t arity, common::ter
     return true;
 }
 
+bool interpreter::is_else(interpreter_base &interp, term t) {
+    return t.tag() == tag_t::STR && interp.functor(t) == con_cell("else",2);
+}
+
+std::pair<term, term> interpreter::extract_else(interpreter_base &interp, term t) {
+    return std::make_pair(interp.arg(t, 1), interp.arg(t, 0));
+}
+
+bool interpreter::is_timeout(interpreter_base &interp, term t) {
+    return t.tag() == tag_t::STR && interp.functor(t) == con_cell("timeout",2); 
+}
+
+std::pair<size_t, term> interpreter::extract_timeout(interpreter_base &interp, term t) {
+    size_t timeout = std::numeric_limits<size_t>::max();
+    term timeout_term = interp.arg(t, 1);
+    if (timeout_term.tag() == tag_t::INT) {
+	auto v = reinterpret_cast<int_cell &>(timeout_term).value();
+	if (v > 0 && v < std::numeric_limits<size_t>::max()) {
+	    timeout = static_cast<size_t>(v);
+	}
+    }
+    return std::make_pair(timeout, interp.arg(t, 0));
+}
+
+std::tuple<term, term, size_t> interpreter::deconstruct_where(interpreter_base &interp, term where) {
+    size_t timeout = std::numeric_limits<size_t>::max();
+    term else_do = EMPTY_LIST;
+    if (is_else(interp, where)) {
+	std::tie(else_do, where) = extract_else(interp, where);
+	if (is_timeout(interp, where)) {
+	    std::tie(timeout, where) = extract_timeout(interp, where);
+	}
+    } else if (is_timeout(interp, where)) {
+	std::tie(timeout, where) = extract_timeout(interp, where);
+	if (is_else(interp, where)) {
+	    std::tie(else_do, where) = extract_else(interp, where);
+	}
+    }
+    return std::make_tuple(where, else_do, timeout);
+}
+
 bool interpreter::operator_at_impl(interpreter_base &interp, size_t arity, term args[], const std::string &name, interp::remote_execute_mode mode) {
 
 #define LL(interp) reinterpret_cast<interpreter &>(interp)
     term query = args[0];
-    std::string where = interp.to_string(args[1]);
+    term where_term;
+    term else_do;
+    size_t timeout;
+
+    std::tie(where_term, else_do, timeout) = deconstruct_where(interp, args[1]);
+    auto where = interp.to_string(where_term);
 
     remote_execution_proxy proxy(interp,
-	 [](interpreter_base &interp, term query, const std::string &where, interp::remote_execute_mode mode)
-	     { return LL(interp).execute_at(query, interp, where, mode);},
-	 [](interpreter_base &interp, term query, const std::string &where, interp::remote_execute_mode mode)
-	     { return LL(interp).continue_at(query, interp, where, mode); },
+	 [](interpreter_base &interp, term query, term else_do, const std::string &where, interp::remote_execute_mode mode, size_t timeout)
+	     { return LL(interp).execute_at(query, else_do, interp, where, mode, timeout);},
+	 [](interpreter_base &interp, term query, term else_do, const std::string &where, interp::remote_execute_mode mode, size_t timeout)
+	 { return LL(interp).continue_at(query, else_do, interp, where, mode, timeout); },
 	 [](interpreter_base &interp, const std::string &where)
 	     { return LL(interp).delete_instance_at(interp, where); }
          );
     proxy.set_mode(mode);
-    return proxy.start(query, where);
+    proxy.set_timeout(timeout);
+    return proxy.start(query, else_do, where);
 }
 
 bool interpreter::operator_at_2(interpreter_base &interp0, size_t arity, term args[] )
@@ -896,32 +945,43 @@ bool interpreter::operator_at_parallel_2(interpreter_base &interp0, size_t arity
 }
 
 remote_return_t interpreter::execute_at(common::term query,
+					common::term else_do,
 					common::term_env &query_src,
 					const std::string &where,
-					remote_execute_mode mode) {
+					remote_execute_mode mode,
+					size_t timeout) {
     ensure_local_workers(4);
     ensure_at_local(where);
     
     auto *interp = at_local_[where];
 
     if (mode == MODE_PARALLEL) {
-	auto *d = new delayed_t(query);
+	auto *d = new delayed_t(*this, query, else_do);
+	d->set_timeout_millis(timeout);
 	add_delayed(d);
 	local_service_.add(
 	   [d, query, &query_src, interp, this](){
-	       term copy_query = interp->copy(query, query_src);
-	       bool ok = interp->execute(copy_query);
-	       if (ok) {
-		   d->result = interp->get_result_term();
-		   d->result_src = interp;
+	       try {
+		   term copy_query = interp->copy(query, query_src);
+		   bool ok = interp->execute(copy_query);
+		   if (ok) {
+		       d->result = interp->get_result_term();
+		       d->result_src = interp;
+		   }
+	       } catch (std::exception &) {
+		   // Here we could store the exception...
 	       }
 	       delayed_ready(d);
 	   }, where);
 	return remote_return_t(query_src.EMPTY_LIST);
     } else {
 	term copy_query = interp->copy(query, query_src);
-	bool ok = interp->execute(copy_query);
-	if (!ok) {
+	try {
+	    bool ok = interp->execute(copy_query);
+	    if (!ok) {
+		return remote_return_t();
+	    }
+	} catch (std::exception &) {
 	    return remote_return_t();
 	}
 
@@ -936,23 +996,30 @@ remote_return_t interpreter::execute_at(common::term query,
 }
 
 remote_return_t interpreter::continue_at(common::term query,
+					 common::term else_do,
 					 common::term_env &query_src,
 					 const std::string &where,
-					 remote_execute_mode mode) {
+					 remote_execute_mode mode,
+					 size_t timeout) {
     auto *interp = at_local_[where];
     if (interp == nullptr) {
 	return remote_return_t();
     }
 
     if (mode == MODE_PARALLEL) {
-	auto *d = new delayed_t(query);
+	auto *d = new delayed_t(*this, query, else_do);
+	d->set_timeout_millis(timeout);
 	add_delayed(d);
 	local_service_.add(
 	   [d, interp, this](){
-	       bool ok = interp->next();
-	       if (ok) {
-		   d->result = interp->get_result_term();
-		   d->result_src = interp;
+	       try {
+		   bool ok = interp->next();
+		   if (ok) {
+		       d->result = interp->get_result_term();
+		       d->result_src = interp;
+		   }
+	       } catch (std::exception &ex) {
+		   // Here we could store the exception...
 	       }
 	       delayed_ready(d);
 	   });

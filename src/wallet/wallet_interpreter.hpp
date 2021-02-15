@@ -33,9 +33,10 @@ private:
     static bool load_0(interpreter_base &interp, size_t arity, term args[]);    
     static bool file_1(interpreter_base &interp, size_t arity, term args[]);
     static bool auto_save_1(interpreter_base &interp, size_t arity, term args[]);
-    static bool operator_at_impl(interpreter_base &interp, size_t arity, term args[], interp::remote_execute_mode mode);
+    static bool operator_at_impl(interpreter_base &interp, size_t arity, term args[], const std::string &name, interp::remote_execute_mode mode);
     static bool operator_at_2(interpreter_base &interp, size_t arity, term args[]);
-    static bool operator_at_silent_2(interpreter_base &interp, size_t arity, term args[]);    
+    static bool operator_at_silent_2(interpreter_base &interp, size_t arity, term args[]);
+    static bool operator_at_parallel_2(interpreter_base &interp, size_t arity, term args[]);        
   
     std::string file_path_;
     wallet &wallet_;

@@ -674,7 +674,7 @@ private:
 class wam_interpreter : public interpreter_base, public wam_code
 {
 public:
-    wam_interpreter();
+    wam_interpreter(const std::string &name);
     ~wam_interpreter();
 
     void total_reset();

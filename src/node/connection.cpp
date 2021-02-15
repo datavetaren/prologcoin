@@ -591,7 +591,11 @@ void in_connection::process_execution(const term cmd, bool in_query, bool silent
 		}
 	    }
 	    auto qr = cmd;
-	    // std::cout << "QUERY: " << session_->env().to_string(qr) << std::endl;
+	    /*
+	    if (session_->env().to_string(qr).find("heartbeat") == std::string::npos) {
+	        std::cout << "QUERY: " << session_->env().to_string(qr) << std::endl;
+	    }
+	    */
 	    bool r = in_query ? session_->next() : session_->execute(qr);
 	    term standard_out = e.EMPTY_LIST;
 	    if (!session_->get_text_out().empty()) {
@@ -608,7 +612,7 @@ void in_connection::process_execution(const term cmd, bool in_query, bool silent
 				     int_cell(last_cost) } ));
 	    } else {
 		// We're just copying the result from the session to our
-		// own lcoal heap. There's no danger in creating coins out of thin
+		// own local heap. There's no danger in creating coins out of thin
 		// air.
 		auto disabled = e.disable_coin_security();
 
@@ -648,7 +652,7 @@ void in_connection::process_execution(const term cmd, bool in_query, bool silent
 //
 
 out_connection::out_connection(self_node &self, out_connection::out_type_t t, const ip_service &ip)
-    :  connection(self, CONNECTION_OUT, env_), out_type_(t), ip_(ip), init_in_progress_(false), use_heartbeat_(true), connected_(false), sent_my_name_(false), work_( &out_task::comparator )
+    :  connection(self, CONNECTION_OUT, env_), out_type_(t), ip_(ip), init_in_progress_(false), use_heartbeat_(true), connected_(false), sent_my_name_(false), work_( &out_task::comparator ), busy_count_(0)
 {
     using namespace boost::system;
 
@@ -670,8 +674,11 @@ out_connection::out_connection(self_node &self, out_connection::out_type_t t, co
 
 out_connection::~out_connection()
 {
-    // std::cout << self().port() << ": out=" << ip().port() << " this=" << this << std::endl;
+    // std::cout << "~out_connection(): " << self().port() << ": out=" << ip().port() << " this=" << this << std::endl;
+}
 
+void out_connection::delete_tasks()
+{
     boost::lock_guard<boost::recursive_mutex> guard(work_lock_);
 
     while (!work_.empty()) {

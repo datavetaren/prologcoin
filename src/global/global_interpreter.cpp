@@ -11,7 +11,8 @@ using namespace prologcoin::interp;
 namespace prologcoin { namespace global {
 
 global_interpreter::global_interpreter(global &g)
-    : global_(g),
+    : interp::interpreter("global"),
+      global_(g),
       current_block_index_(static_cast<size_t>(-2)),
       current_block_(nullptr),
       block_flusher_(),

@@ -15,7 +15,7 @@ using namespace prologcoin::wallet;
 
 namespace prologcoin { namespace main {
 
-meta_interpreter::meta_interpreter(const std::string &home_dir) : home_dir_(home_dir), no_coin_security_(this->disable_coin_security()) {
+meta_interpreter::meta_interpreter(const std::string &home_dir) : interp::interpreter("meta"), home_dir_(home_dir), no_coin_security_(this->disable_coin_security()) {
     init();
 }
 
@@ -76,12 +76,17 @@ bool meta_interpreter::operator_at_impl(interpreter_base &interp0, size_t arity,
     static con_cell NODE("node", 1);
     static con_cell WALLET("wallet",1);
 
-    auto query = args[0];
-    auto where_term = args[1];
     auto &interp = reinterpret_cast<meta_interpreter &>(interp0);
 
+    auto query = args[0];
+    auto where_term = args[1];
+    term else_do;
+    size_t timeout;
+
+    std::tie(where_term, else_do, timeout) = interpreter::deconstruct_where(interp, where_term);
+    
     if (interp.functor(where_term) != NODE && interp.functor(where_term) != WALLET) {
-        throw interp::interpreter_exception_wrong_arg_type("@/2: Second argument must be'node(...)' or 'wallet(...)'; was " + interp.to_string(where_term));
+        throw interp::interpreter_exception_wrong_arg_type("@/2: Second argument must be 'node(...)' or 'wallet(...)'; was " + interp.to_string(where_term));
     }
 
     bool is_node = interp.functor(where_term) == NODE;
@@ -102,15 +107,15 @@ bool meta_interpreter::operator_at_impl(interpreter_base &interp0, size_t arity,
 #define LL(x) reinterpret_cast<meta_interpreter &>(x)
 	
 	interp::remote_execution_proxy proxy(interp,
-        [](interpreter_base &interp, term query, const std::string &where, interp::remote_execute_mode mode)
-	  {return LL(interp).execute_at_node(query, interp, where, mode);},
-        [](interpreter_base &interp, term query, const std::string &where, interp::remote_execute_mode mode)
-	  {return LL(interp).continue_at_node(query, interp, where, mode);},
+        [](interpreter_base &interp, term query, term else_do, const std::string &where, interp::remote_execute_mode mode, size_t timeout)
+	  {return LL(interp).execute_at_node(query, else_do, interp, where, mode, timeout);},
+        [](interpreter_base &interp, term query, term else_do, const std::string &where, interp::remote_execute_mode mode, size_t timeout)
+	  {return LL(interp).continue_at_node(query, else_do, interp, where, mode, timeout);},
 	[](interpreter_base &interp, const std::string &where)
 	  {return LL(interp).delete_instance_at_node(interp, where);});
 
 	proxy.set_mode(mode);
-	return proxy.start(query, where);
+	return proxy.start(query, else_do, where);
 
     } else {
 	// Wallet
@@ -121,15 +126,16 @@ bool meta_interpreter::operator_at_impl(interpreter_base &interp0, size_t arity,
 	}
 
 	interp::remote_execution_proxy proxy(interp,
-        [](interpreter_base &interp, term query, const std::string &where, interp::remote_execute_mode mode)
-	  {return LL(interp).execute_at_wallet(query, interp, where, mode);},
-        [](interpreter_base &interp, term query, const std::string &where, interp::remote_execute_mode mode)
-	  {return LL(interp).continue_at_wallet(query, interp, where, mode);},
+        [](interpreter_base &interp, term query, term else_do, const std::string &where, interp::remote_execute_mode mode, size_t timeout)
+	  {return LL(interp).execute_at_wallet(query, else_do, interp, where, mode, timeout);},
+	[](interpreter_base &interp, term query, term else_do, const std::string &where, interp::remote_execute_mode mode, size_t timeout)
+	  {return LL(interp).continue_at_wallet(query, else_do, interp, where, mode, timeout);},
 	[](interpreter_base &interp, const std::string &where)
 	  {return LL(interp).delete_instance_at_wallet(interp, where);});
 
 	proxy.set_mode(mode);
-	return proxy.start(query, where);
+	proxy.set_timeout(timeout);
+	return proxy.start(query, else_do, where);
     }
 }
 	
@@ -141,7 +147,7 @@ bool meta_interpreter::operator_at_silent_2(interpreter_base &interp, size_t ari
     return operator_at_impl(interp, arity, args, interp::MODE_SILENT);
 }
 
-remote_return_t meta_interpreter::execute_at_node(term query, term_env &query_src, const std::string &where, interp::remote_execute_mode mode)
+remote_return_t meta_interpreter::execute_at_node(term query, term else_do, interp::interpreter_base &query_interp, const std::string &where, interp::remote_execute_mode mode, size_t /*timeout*/)
 {
     terminal::terminal *tterm = get_node_terminal(where);
     if (tterm == nullptr) {
@@ -167,11 +173,11 @@ remote_return_t meta_interpreter::execute_at_node(term query, term_env &query_sr
     term result_remote = tterm->get_result();
     bool more_state = tterm->has_more();
     bool at_end_state = tterm->at_end();
-    term result_term = query_src.copy(result_remote, tterm->env(), cost);
+    term result_term = static_cast<term_env &>(query_interp).copy(result_remote, tterm->env(), cost);
     return remote_return_t(result_term, more_state, at_end_state, cost);
 }
 
-remote_return_t meta_interpreter::continue_at_node(term /*query*/, term_env &query_src, const std::string &where, interp::remote_execute_mode)
+remote_return_t meta_interpreter::continue_at_node(term /*query*/, term /*else_do*/, interp::interpreter_base &query_interp, const std::string &where, interp::remote_execute_mode, size_t /*timeout*/)
 {
     terminal::terminal *tterm = get_node_terminal(where);
     if (tterm == nullptr) {
@@ -194,7 +200,7 @@ remote_return_t meta_interpreter::continue_at_node(term /*query*/, term_env &que
     term result_remote = tterm->get_result();
     bool more_state = tterm->has_more();
     bool at_end_state = tterm->at_end();
-    term result_term = query_src.copy(result_remote, tterm->env(), cost);
+    term result_term = static_cast<term_env &>(query_interp).copy(result_remote, tterm->env(), cost);
     return remote_return_t(result_term, more_state, at_end_state, cost);
 }
 
@@ -208,7 +214,7 @@ bool meta_interpreter::delete_instance_at_node(term_env &query_src, const std::s
     return tterm->delete_instance();
 }
 
-remote_return_t meta_interpreter::execute_at_wallet(term query, term_env &query_src, const std::string &where, interp::remote_execute_mode)
+remote_return_t meta_interpreter::execute_at_wallet(term query, term else_do, interp::interpreter_base &query_interp, const std::string &where, interp::remote_execute_mode, size_t /*timeout*/)
 {
     auto it = wallets_.find(where);
     if (it == wallets_.end()) {
@@ -230,11 +236,11 @@ remote_return_t meta_interpreter::execute_at_wallet(term query, term_env &query_
     term result_remote = wi.get_result_term();
     bool more_state = wi.has_more();
     bool at_end_state = !more_state && wi.is_instance();
-    term result_term = query_src.copy(result_remote, wi, cost);
+    term result_term = static_cast<term_env &>(query_interp).copy(result_remote, wi, cost);
     return remote_return_t(result_term, more_state, at_end_state, wi.accumulated_cost() + cost);
 }
 
-remote_return_t meta_interpreter::continue_at_wallet(term /*query*/, term_env &query_src, const std::string &where, interp::remote_execute_mode)
+remote_return_t meta_interpreter::continue_at_wallet(term /*query*/, term /*else_do*/, interp::interpreter_base &query_interp, const std::string &where, interp::remote_execute_mode, size_t /*timeout*/)
 {
     auto it = wallets_.find(where);
     if (it == wallets_.end()) {
@@ -251,7 +257,7 @@ remote_return_t meta_interpreter::continue_at_wallet(term /*query*/, term_env &q
     term result_remote = wi.get_result_term();
     bool more_state = wi.has_more();
     bool at_end_state = !more_state && wi.is_instance();
-    term result_term = query_src.copy(result_remote, wi, cost);
+    term result_term = static_cast<term_env &>(query_interp).copy(result_remote, wi, cost);
     return remote_return_t(result_term, more_state, at_end_state, wi.accumulated_cost() + cost);
 }
 

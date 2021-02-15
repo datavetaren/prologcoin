@@ -201,14 +201,14 @@ task_execute_query * self_node::schedule_execute_delete_instance(const std::stri
     return task;
 }
 
-task_execute_query * self_node::schedule_execute_query(term query, term_env &query_src, const std::string &where, interp::remote_execute_mode mode)
+task_execute_query * self_node::schedule_execute_query(term query, interp::interpreter_base::delayed_t *delayed, term_env &query_src, const std::string &where, interp::remote_execute_mode mode)
 {
     boost::lock_guard<boost::recursive_mutex> guard(lock_);
     auto *out = find_out_connection(where);
     if (out == nullptr) {
 	return nullptr;
     }
-    auto *task = new task_execute_query(out, query, query_src, mode);
+    auto *task = new task_execute_query(out, query, delayed, query_src, mode);
     out->schedule(task);
     return task;
 }
@@ -242,36 +242,46 @@ interp::remote_return_t self_node::schedule_execute_wait_for_result(task_execute
 
     uint64_t cost_tmp = 0;
     term result_copy = query_src.copy(result_term, task->env(), cost_tmp);
+    std::string standard_out = task->get_standard_out();
     task->consume_result();
-
+    static_cast<local_interpreter &>(query_src).add_text(standard_out);
+    
     return interp::remote_return_t(result_copy, has_more, at_end, cost);
 }
 
-interp::remote_return_t self_node::execute_at(term query, term_env &query_src, const std::string &where, interp::remote_execute_mode mode)
+interp::remote_return_t self_node::execute_at(term query, term else_do, interp::interpreter_base &query_interp, const std::string &where, interp::remote_execute_mode mode, size_t timeout)
 {
-    auto *task = schedule_execute_query(query, query_src, where, mode);
+    interp::interpreter_base::delayed_t *delayed = nullptr;
+    if (mode == interp::MODE_PARALLEL) {
+	delayed = new interp::interpreter_base::delayed_t(query_interp, query, else_do);
+	delayed->set_timeout_millis(timeout);
+    }
+    auto *task = schedule_execute_query(query, delayed, query_interp, where, mode);
     if (task == nullptr) {
+	if (delayed) delete delayed;
 	// TODO: Throw an exception instead
         return interp::remote_return_t();
     }
     if (mode == interp::MODE_PARALLEL) {
-	return interp::remote_return_t(query_src.EMPTY_LIST);
+	query_interp.add_delayed(delayed);
+	return interp::remote_return_t(query_interp.EMPTY_LIST);
     } else {
-	return schedule_execute_wait_for_result(task, query_src);
+	if (delayed) delete delayed;
+	return schedule_execute_wait_for_result(task, query_interp);
     }
 }
 
-interp::remote_return_t self_node::continue_at(term /* query */, term_env &query_src, const std::string &where, interp::remote_execute_mode mode)
+interp::remote_return_t self_node::continue_at(term /* query */, term /* else_do */, interp::interpreter_base &query_interp, const std::string &where, interp::remote_execute_mode mode, size_t timeout)
 {
-    auto *task = schedule_execute_next(where, query_src, mode);
+    auto *task = schedule_execute_next(where, query_interp, mode);
     if (task == nullptr) {
 	// TODO: Throw an exception instead
         return interp::remote_return_t();
     }
     if (mode == interp::MODE_PARALLEL) {
-	return interp::remote_return_t(query_src.EMPTY_LIST);
+	return interp::remote_return_t(query_interp.EMPTY_LIST);
     }
-    return schedule_execute_wait_for_result(task, query_src);
+    return schedule_execute_wait_for_result(task, query_interp);
 }
 
 bool self_node::new_instance_at(term_env &query_src, const std::string &where)
@@ -431,8 +441,9 @@ void self_node::start_tick()
 void self_node::prune_dead_connections()
 {
     boost::lock_guard<boost::recursive_mutex> guard(lock_);
-    while (!closed_.empty()) {
-	auto *c = closed_.back();
+    auto it = closed_.begin();
+    while (it != closed_.end()) {
+	auto *c = *it;
 	if (c->type() == connection::CONNECTION_IN) {
 	    auto *s = reinterpret_cast<in_connection *>(c)->get_session();
 	    if (s != nullptr) {
@@ -441,15 +452,20 @@ void self_node::prune_dead_connections()
 	} else {
 	    assert(c->type() == connection::CONNECTION_OUT);
 	    auto *out = reinterpret_cast<out_connection *>(c);
+	    // If there's a result being processed we cannot delete
+	    // the connection until it's done.
+	    if (out->is_busy()) {
+		++it;
+		continue;
+	    }
 	    switch (out->out_type()) {
 	    case out_connection::STANDARD: num_standard_out_connections_--;
 		break;
 	    case out_connection::VERIFIER: num_verifier_connections_--; break;
 	    }
 	}
-
 	disconnect(c);
-	closed_.pop_back();
+	it = closed_.erase(it);
     }
 }
 
