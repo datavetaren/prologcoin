@@ -881,7 +881,7 @@ std::pair<size_t, term> interpreter::extract_timeout(interpreter_base &interp, t
     term timeout_term = interp.arg(t, 1);
     if (timeout_term.tag() == tag_t::INT) {
 	auto v = reinterpret_cast<int_cell &>(timeout_term).value();
-	if (v > 0 && v < std::numeric_limits<size_t>::max()) {
+	if (v > 0) {
 	    timeout = static_cast<size_t>(v);
 	}
     }
