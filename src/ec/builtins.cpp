@@ -2300,16 +2300,17 @@ void builtins::bech32_hrp_expand(const std::string &s, uint8_t data[], size_t &n
 
 void builtins::bech32_create_checksum(const std::string &hrp, uint8_t data[], size_t n, uint8_t out[6])
 {
+    constexpr size_t MAX_EXP_LEN = 10;
     size_t exp_len = 2*hrp.size()+1;
-    assert(exp_len < 10);
-    uint8_t hrp_data[10];
+    assert(exp_len < MAX_EXP_LEN);
+    uint8_t hrp_data[MAX_EXP_LEN];
     bech32_hrp_expand(hrp, hrp_data, exp_len);
-    uint8_t values[exp_len+n+6];
+    std::vector<uint8_t> values(exp_len+n+6);
     static uint8_t ZERO[6] = {0,0,0,0,0,0};
-    std::copy(hrp_data, hrp_data+exp_len, values);
+    std::copy(hrp_data, hrp_data+exp_len, &values[0]);
     std::copy(data, data+n, &values[exp_len]);
     std::copy(ZERO, ZERO+6, &values[exp_len+n]);
-    auto polymod = bech32_polymod(values, exp_len+n+6) ^ 1;
+    auto polymod = bech32_polymod(&values[0], exp_len+n+6) ^ 1;
     for (size_t i = 0; i < 6; i++) {
 	out[i] = (polymod >> (5 * (5 - i))) & 31;
     }
