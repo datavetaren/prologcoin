@@ -2301,7 +2301,8 @@ void builtins::bech32_hrp_expand(const std::string &s, uint8_t data[], size_t &n
 void builtins::bech32_create_checksum(const std::string &hrp, uint8_t data[], size_t n, uint8_t out[6])
 {
     size_t exp_len = 2*hrp.size()+1;
-    uint8_t hrp_data[exp_len];
+    assert(exp_len < 10);
+    uint8_t hrp_data[10];
     bech32_hrp_expand(hrp, hrp_data, exp_len);
     uint8_t values[exp_len+n+6];
     static uint8_t ZERO[6] = {0,0,0,0,0,0};
