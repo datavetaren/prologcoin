@@ -60,3 +60,4 @@ bin/
 out/
 
 compile_commands.json
+.vscode/
