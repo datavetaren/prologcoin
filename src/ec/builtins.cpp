@@ -1891,6 +1891,7 @@ void builtins::load(interpreter_base &interp, con_cell *module0)
     interp.load_builtin(M, interp.functor("child_pubkey", 3), &builtins::child_pubkey_3);
     interp.load_builtin(M, interp.functor("child_privkey", 3), &builtins::child_privkey_3);
     interp.load_builtin(M, interp.functor("normal_key", 2), &builtins::normal_key_2);
+    interp.load_builtin(M, interp.functor("bc1", 2), &builtins::bc1_2);    
 
     // Encryption
     
@@ -2262,6 +2263,111 @@ bool builtins::normal_key_2(interpreter_base &interp, size_t arity, term args[])
 	throw interpreter_exception_wrong_arg_type(msg.str());      
     }
        
+}
+
+uint32_t builtins::bech32_polymod(uint8_t values[], size_t n)
+{
+    static const uint32_t GEN[5] = {
+	0x3b6a57b2, 0x26508e6d, 0x1ea119fa, 0x3d4233dd, 0x2a1462b3	    
+    };
+
+    uint32_t chk = 1;
+    for (size_t i = 0; i < n; i++) {
+	auto v = values[i];
+	assert(v >= 0 && v < 32);
+	auto b = chk >> 25;
+	chk = ((chk & 0x1ffffff) << 5) ^ v;
+	for (size_t j = 0; j < 5; j++) {
+	    chk ^= ((b >> j) & 1) ? GEN[j] : 0;
+	}
+    }
+    return chk;
+}
+
+void builtins::bech32_hrp_expand(const std::string &s, uint8_t data[], size_t &n)
+{
+    assert(n >= 1+2*s.size());
+    size_t i = 0;
+    for (auto ch : s) {
+	data[i++] = static_cast<uint8_t>(ch) >> 5;
+    }
+    data[i++] = 0;
+    for (auto ch : s) {
+	data[i++] = static_cast<uint8_t>(ch) & 31;
+    }
+    n = i;
+}
+
+void builtins::bech32_create_checksum(const std::string &hrp, uint8_t data[], size_t n, uint8_t out[6])
+{
+    constexpr size_t MAX_EXP_LEN = 10;
+    size_t exp_len = 2*hrp.size()+1;
+    assert(exp_len < MAX_EXP_LEN);
+    uint8_t hrp_data[MAX_EXP_LEN];
+    bech32_hrp_expand(hrp, hrp_data, exp_len);
+    std::vector<uint8_t> values(exp_len+n+6);
+    static uint8_t ZERO[6] = {0,0,0,0,0,0};
+    std::copy(hrp_data, hrp_data+exp_len, &values[0]);
+    std::copy(data, data+n, &values[exp_len]);
+    std::copy(ZERO, ZERO+6, &values[exp_len+n]);
+    auto polymod = bech32_polymod(&values[0], exp_len+n+6) ^ 1;
+    for (size_t i = 0; i < 6; i++) {
+	out[i] = (polymod >> (5 * (5 - i))) & 31;
+    }
+}
+
+bool builtins::bc1_2(interpreter_base &interp, size_t arity, term args[])
+{
+    static char table[32] = {
+	'q', 'p', 'z', 'r', 'y', '9', 'x', '8',
+	'g', 'f', '2', 't', 'v', 'd', 'w', '0',
+	's', '3', 'j', 'n', '5', '4', 'k', 'h',
+	'c', 'e', '6', 'm', 'u', 'a', '7', 'l' };
+
+    std::string hrp = "bc";
+    
+    std::string str = hrp + "1";
+    
+    // Generate a bc1 P2WPKH address from the public key.
+
+    public_key pubkey;
+    if (!get_public_key(interp, args[0], pubkey)) {
+	return false;
+    }
+
+    uint8_t addr[25];
+    get_address(pubkey, addr);
+
+    uint8_t values[8*20/5];
+
+    const uint8_t *p = &addr[1];
+    size_t i = 1;
+    uint16_t w = p[0] << 3; // 00000 xxxxx yyy
+    size_t wi = 13;
+    size_t bo = 0;
+    size_t vi = 0;
+    while (bo < 5+8*20) {
+	if (wi < 5) {
+	    w |= p[i] << (8 - wi);
+	    wi += 8;
+	    i++;
+	}
+	size_t value = (w >> 11);
+	values[vi++] = value;
+	str += table[value];
+	w <<= 5;
+	wi -= 5;
+	bo += 5;
+    }
+
+    uint8_t chk[6];
+    bech32_create_checksum(hrp, values, vi, chk);
+    for (size_t i = 0; i < 6; i++) {
+	str += table[chk[i]];
+    }
+
+    auto result = interp.string_to_list(str);
+    return interp.unify(result, args[1]);
 }
 
 bool builtins::decrypt(interpreter_base &interp, term input, const uint8_t *key, term result) {

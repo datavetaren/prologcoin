@@ -174,6 +174,15 @@ public:
     // True iff Key is the normal key from the extended key.
     static bool normal_key_2(interpreter_base &interp, size_t arity, term args[]);
 
+    // bc1(PubKey, Bc1Address)
+    // True iff Bc1Address is the string representation of the bc1 address
+    // for P2WPKH.
+    static bool bc1_2(interpreter_base &interp, size_t arity, term args[]);
+
+    static uint32_t bech32_polymod(uint8_t values[], size_t n);
+    static void bech32_hrp_expand(const std::string &s, uint8_t data[], size_t &n);
+    static void bech32_create_checksum(const std::string &hrp, uint8_t data[], size_t n, uint8_t out[6]);
+
     // Encryption
     // encrypt(+Input, +Password, +Iterations, -Output)
     // If input is the term encrypt(Term), then Term is attempted for decryption.
