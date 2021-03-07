@@ -35,7 +35,7 @@ private:
 		     std::vector<ptr_cell *> &roots);
   void cleanup_blocks(live_t &live);
 
-  size_t garbage_collector::collect(live_t &live);
+  size_t collect(live_t &live);
 };
 
 }}

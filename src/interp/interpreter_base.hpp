@@ -1535,7 +1535,7 @@ protected:
 	    break;
    	    }
 	case ENV_WAM: {
-	  auto frame_ptr = e0();
+	  //	  auto frame_ptr = e0();
   	    set_cp(e0()->cp);
 	    set_e(e0()->ce);
 	    break;
@@ -2289,7 +2289,7 @@ template<> inline environment_t * interpreter_base::allocate_environment<ENV_WAM
     new_e->cp = cp();
     set_e(new_e, ENV_WAM);
 
-    auto ny = num_y_fn()(this, true);
+    //    auto ny = num_y_fn()(this, true);
     //    std::cout << "New Env: num_y = " << ny << ", new_e: " << new_e << "\n";
     //    for(size_t i = 0; i < ny; i++) {
     //      y(i) = common::int_cell(0);

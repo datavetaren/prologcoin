@@ -1074,8 +1074,8 @@ std::vector<common::ptr_cell> interpreter_base::get_gc_roots() {
 void interpreter_base::get_stack_roots(std::vector<common::ptr_cell> &roots) {
   //  std::cout << "get_stack_roots - entry\n";
   auto frame_ptr = e0();
-  size_t stack_size = frame_ptr == nullptr ? 0 :
-    (size_t)frame_ptr - (size_t)stack_;
+  //  size_t stack_size = frame_ptr == nullptr ? 0 :
+  //    (size_t)frame_ptr - (size_t)stack_;
   auto kind = e_kind();
   environment_base_t *cur_e = nullptr;
   while(frame_ptr != nullptr || cur_e != nullptr) {
