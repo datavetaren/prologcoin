@@ -119,3 +119,15 @@ foo9 :-
 
 ?- foo9.
 % Expect: true
+
+%
+% Simple bind
+%
+
+dummy(1,4711).
+
+foo10(K) :-
+    freeze(X, (write(Y), nl, K = bar(X,Y))), Y = 42, dummy(1, X), write(done), nl.
+
+?- foo10(K).
+% Expect: K = bar(4711,42)

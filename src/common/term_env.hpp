@@ -9,6 +9,7 @@
 #include "term_emitter.hpp"
 #include "term_parser.hpp"
 #include "term_tokenizer.hpp"
+#include "checked_cast.hpp"
 
 namespace prologcoin { namespace common {
 
@@ -264,6 +265,32 @@ public:
         { return T::get_heap().atom_name(f); }
     inline bool is_dollar_atom_name(con_cell f) const
         { return T::get_heap().is_dollar_atom_name(f); }
+
+    template<typename U> inline bool get_number(term t, U &num) const
+        { if (t.tag() != tag_t::INT && t.tag() != tag_t::BIG) {
+	      return false;
+          }
+	  if (t.tag() == tag_t::INT) {
+	      auto v = reinterpret_cast<int_cell &>(t).value();
+	      try {
+		  num = checked_cast<U>(v);
+		  return true;
+	      } catch (checked_cast_exception &ex) {
+		  return false;
+	      }
+	  } else {
+	      boost::multiprecision::cpp_int i;
+	      size_t nbits = 0;
+	      big_cell big = reinterpret_cast<big_cell &>(t);
+	      get_big(big, i, nbits);
+	      try {
+		  num = checked_cast<U>(i);
+		  return true;
+	      } catch (checked_cast_exception &ex) {
+		  return false;
+	      }
+	  }
+        }
 
     // Term predicates
     inline bool is_dotted_pair(term t) const
@@ -709,6 +736,9 @@ public:
   inline void bind(const ref_cell &a, term b)
   {
       size_t index = a.index();
+      if (a.tag() == tag_t::RFW) {
+	  heap_dock<HT>::heap_add_watched(index);
+      }      
       heap_dock<HT>::heap_set(index, b);
       stacks_dock<ST>::trail(index);
   }
