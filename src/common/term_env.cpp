@@ -440,7 +440,12 @@ int term_utils::standard_order(term a, term b, uint64_t &cost)
 	    // Can never be equal as it would have triggered if (a == b)...
 	    int cmp = functor_standard_order(fa, fb);
 	    cost = cost_tmp;
-	    return cmp;
+	    if (cmp < 0) {
+		return -1;
+	    } else {
+		return 1;
+	    }
+	    break;
 	  }
 	case tag_t::REF:
 	case tag_t::RFW:
@@ -448,11 +453,10 @@ int term_utils::standard_order(term a, term b, uint64_t &cost)
 	    trim_stack(d);
 	    auto &ap = reinterpret_cast<ptr_cell &>(a);
 	    auto &bp = reinterpret_cast<ptr_cell &>(b);
+	    cost = cost_tmp;
 	    if (ap.index() < bp.index()) {
-		cost = cost_tmp;
 	        return -1;
 	    } else {
-		cost = cost_tmp;
   	        return 1;
 	    }
 	  }
@@ -461,11 +465,10 @@ int term_utils::standard_order(term a, term b, uint64_t &cost)
 	    trim_stack(d);
 	    auto &ai = reinterpret_cast<int_cell &>(a);
 	    auto &bi = reinterpret_cast<int_cell &>(b);
+	    cost = cost_tmp;
 	    if (ai.value() < bi.value()) {
-		cost = cost_tmp;
 	        return -1;
 	    } else {
-		cost = cost_tmp;
   	        return 1;
 	    }
 	  }
@@ -479,6 +482,8 @@ int term_utils::standard_order(term a, term b, uint64_t &cost)
 	    if (v != 0) {
 	        cost = cost_tmp;
 		return v;
+	    } else {
+		continue;
 	    }
 	  }
 	  break;

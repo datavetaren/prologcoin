@@ -113,12 +113,15 @@ void blockchain::init()
 	    if (!entry.get_id().is_zero()) {
 		chains_.insert(std::make_pair(entry.get_id(), entry));
 		at_height_[entry.get_height()].insert(entry.get_id());
-		best = entry;
+		if (!entry.is_partial()) {
+		    best = entry;
+		}
 	    }
 	}
     }
 
     tip_ = best;
+    
     auto tip_path = boost::filesystem::path(data_dir_) / "db" / "tip.txt";
     if (boost::filesystem::exists(tip_path)) {
 	std::string line;
@@ -251,6 +254,26 @@ void blockchain::advance() {
 
     tip_ = new_tip;
 }
+
+void blockchain::add_meta_entry(meta_entry &e)
+{
+    if (e.get_previous_id().is_zero()) {
+	e.set_root_id_meta(meta_db().new_root());
+    } else {
+	auto *prev_entry = get_meta_entry(e.get_previous_id());
+	assert(prev_entry != nullptr);
+	e.set_root_id_meta(meta_db().new_root(prev_entry->get_root_id_meta()));
+    }
+	
+    const size_t data_size = meta_entry::serialization_size();
+    uint8_t data[ data_size ];
+    e.write(data);
+    meta_db().update(e.get_root_id_meta(),
+		     e.get_height(),
+		     data, data_size);
+    chains_.insert(std::make_pair(e.get_id(), e));
+    at_height_[e.get_height()].insert(e.get_id());
+}
 	
 void blockchain::update_tip() {
     update_meta_id();
@@ -260,15 +283,8 @@ void blockchain::update_tip() {
 	tip_ = find_it->second;
 	return;
     }
-    
-    const size_t data_size = meta_entry::serialization_size();
-    uint8_t data[ data_size ];
-    tip().write(data);
-    meta_db().update(tip().get_root_id_meta(),
-		     tip().get_height(),
-		     data, data_size);
-    chains_.insert(std::make_pair(tip().get_id(), tip()));
-    at_height_[tip().get_height()].insert(tip().get_id());
+
+    add_meta_entry(tip());
 }
 
 }}

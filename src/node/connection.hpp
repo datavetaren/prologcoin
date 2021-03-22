@@ -91,6 +91,8 @@ public:
     inline void prepare_receive() { set_state(STATE_RECEIVE_LENGTH); }
     inline void prepare_send() { set_state(STATE_SEND_LENGTH); }
 
+    inline bool is_ready() const { return get_state() == STATE_IDLE; }
+    
     void send_error(const term t);
     void send_ok(const term t);
     void send(const term t);
@@ -240,7 +242,7 @@ public:
 
 
     inline void set_id(const std::string &id) { id_ = id; }
-    inline void set_name(const std::string &name) { name_ = name; }
+    void set_name(const std::string &name);
 
     inline term_env & env() { return env_; }
 

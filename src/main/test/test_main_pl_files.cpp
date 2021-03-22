@@ -61,11 +61,11 @@ int main( int argc, char *argv[] )
 
     const std::string dir = "/src/main/test/pl_files";
 
-    meta_interpreter mi(test_dir);
-    
-    test_interpreter_files(dir, mi, [&](const std::string &cmd) {
-	return false;
-    }, name);
+    test_interpreter_files<meta_interpreter>(
+	      dir,
+	      [&](meta_interpreter &mi){mi.set_home_dir(test_dir);},
+	      [&](const std::string &cmd) { return false; },
+	      name);
 
     return 0;
 }

@@ -24,6 +24,7 @@
 namespace prologcoin { namespace node {
 
 class task_execute_query;
+class sync;
 
 class self_node_exception : public std::runtime_error {
 public:
@@ -76,10 +77,12 @@ public:
     static const uint64_t DEFAULT_NEW_FUNDS_PER_SECOND = 100;
 
     self_node(const std::string &data_dir, unsigned short port = DEFAULT_PORT);
+    ~self_node();
 
     inline term_env & env() { return env_; }
 
     inline global::global & global() { return global_; }
+    inline const global::global & global() const { return global_; }    
 
     inline void erase_db(const std::string &data_dir) { global::global::erase_db(data_dir); }
 
@@ -117,6 +120,7 @@ public:
     { master_hook_ = hook; }
 
     void start();
+    void start_sync();
     void stop();
     void join();
     template<uint64_t C> inline bool join( common::utime::dt<C> t ) {
@@ -248,7 +252,64 @@ public:
     std::vector<task_execute_query *> & all_parallel() {
 	return parallel_;
     }
+
+    bool check_pow() const {
+	return global().check_pow();
+    }
     
+    void set_check_pow(bool b) {
+	global().set_check_pow(b);
+    }
+
+    void change_connection_name(const std::string &old, const std::string &name);
+    bool is_unique_connection_name(const std::string &name) {
+	auto it =  named_out_connections_.find(name);
+	if (it == named_out_connections_.end()) {
+	    return false;
+	}
+	return it->second == 1;
+    }
+
+    bool is_sync_complete() {
+	boost::lock_guard<boost::recursive_mutex> guard(lock_);	
+	return sync_complete_;
+    }
+
+    void set_sync_complete(bool b) {
+	boost::lock_guard<boost::recursive_mutex> guard(lock_);
+	sync_complete_ = b;
+    }
+
+    void set_sync_init(const std::string &str) {
+	boost::lock_guard<boost::recursive_mutex> guard(lock_);	
+	sync_init_ = str;
+    }
+
+    std::string get_sync_init() {
+	boost::lock_guard<boost::recursive_mutex> guard(lock_);	
+	return sync_init_;
+    }
+
+    std::string get_sync_mode() {
+	boost::lock_guard<boost::recursive_mutex> guard(lock_);
+	return sync_mode_;
+    }
+    
+    void set_sync_mode(const std::string &mode) {
+	boost::lock_guard<boost::recursive_mutex> guard(lock_);	
+	sync_mode_ = mode;
+    }
+
+    size_t get_syncing_meta_block() {
+	boost::lock_guard<boost::recursive_mutex> guard(lock_);
+	return syncing_meta_block_;
+    }
+
+    void set_syncing_meta_block(size_t m) {
+	boost::lock_guard<boost::recursive_mutex> guard(lock_);
+	syncing_meta_block_ = m;
+    }    
+
 private:
     bool join_us(uint64_t microsec);
 
@@ -260,6 +321,7 @@ private:
     void run();
     void start_accept();
     void start_tick();
+    void stop_sync();
     void prune_dead_connections();
     void connect_to(const std::vector<address_entry> &entries);
     void check_out_connections();
@@ -304,6 +366,7 @@ private:
     in_connection *recent_in_connection_;
     std::unordered_set<connection *> in_connections_;
     std::unordered_set<connection *> out_connections_;
+    std::unordered_map<std::string, size_t> named_out_connections_;
     std::unordered_set<ip_service> out_standard_ips_;
     std::unordered_map<ip_service, std::pair<utime, size_t> > recently_failed_;
     std::set<std::pair<utime, ip_service> > recently_failed_sorted_;
@@ -345,6 +408,13 @@ private:
     std::vector<task_execute_query *> parallel_;
     boost::mutex parallel_changed_lock_;
     boost::condition_variable parallel_changed_;
+
+    sync *sync_{nullptr};
+    bool sync_complete_{false};
+    std::string sync_init_; // Source code before running sync thread
+                            // Useful for testing
+    std::string sync_mode_;
+    size_t syncing_meta_block_{0};
 };
 
 inline address_book_wrapper::address_book_wrapper(self_node &self, address_book &book) : self_(self), book_(book)

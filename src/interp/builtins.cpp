@@ -42,15 +42,24 @@ bool builtins::debug_off_0(interpreter_base &interp, size_t arity, common::term 
     return true;
 }
 
-	//
+//
 // debug_check/0
 //
 bool builtins::debug_check_0(interpreter_base &interp, size_t arity, common::term args[])
 {
     interp.debug_check();
     return true;
-}	
+}
 
+//
+//
+bool builtins::debug_predicate_1(interpreter_base &interp, size_t arity, common::term args[]) {
+    qname qn = check_predicate(interp, "debug_predicate/1", args[0]);
+    auto &pred = interp.get_predicate(qn);
+    pred.check_index(interp);
+    exit(0);
+    return true;
+}
 //
 // program_state/0
 //
@@ -1572,6 +1581,7 @@ bool builtins::retract(interpreter_base &interp, const std::string &pname, term 
     if (r) {
 	interp.updated_predicate_post(qn);
     }
+    
     return r;
 }
 
@@ -1658,7 +1668,10 @@ bool builtins::status_predicate_2(interpreter_base &interp, size_t arity, common
 
 void builtins::load(interpreter_base &interp) {
     auto &i = interp;
-  
+
+    auto old_mod = interp.current_module();
+    interp.set_current_module(con_cell("system",0));
+    
     // Profiling
     i.load_builtin(con_cell("profile", 0), &builtins::profile_0);
 
@@ -1757,7 +1770,8 @@ void builtins::load(interpreter_base &interp) {
     i.load_builtin(i.functor("retractall",1), builtin(&builtins::retractall_1));
     i.load_builtin(i.functor("current_predicate",1), builtin(&builtins::current_predicate_1));
     i.load_builtin(i.functor("status_predicate",2), builtin(&builtins::status_predicate_2));
-    
+
+    interp.set_current_module(old_mod);
 }
  
 }}

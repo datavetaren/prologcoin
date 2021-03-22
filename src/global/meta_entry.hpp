@@ -3,6 +3,7 @@
 #ifndef _global_meta_entry_hpp
 #define _global_meta_entry_hpp
 
+#include "../common/term_env.hpp"
 #include "../common/utime.hpp"
 #include "../pow/pow_verifier.hpp"
 #include "../db/util.hpp"
@@ -33,6 +34,10 @@ public:
 	return memcmp(hash_, other.hash_, HASH_SIZE) == 0;
     }
 
+    inline bool operator != (const meta_id &other) const {
+	return ! (operator == (other));
+    }
+
     inline bool operator < (const meta_id &other) const {
 	return memcmp(hash_, other.hash_, HASH_SIZE) < 0;
     }
@@ -44,6 +49,9 @@ public:
     void read(const uint8_t *data) {
 	memcpy(hash_, data, HASH_SIZE);
     }
+
+    bool from_term(common::term_env &src, common::term t);
+    common::term to_term(common::term_env &dst) const;
 
 private:
     uint8_t hash_[HASH_SIZE];
@@ -173,6 +181,10 @@ public:
     }
 
     bool validate_pow() const;
+
+    bool is_partial() const {
+	return get_root_id_goal_blocks().is_zero();
+    }
 
     const db_root_id get_root_id_meta() const {
 	return root_id_meta_;

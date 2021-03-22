@@ -51,6 +51,7 @@ public:
 
     static bool add_address_2(interpreter_base &interp, size_t arity, term args[]);
     static bool connections_0(interpreter_base &interp, size_t arity, term args[]);
+    static bool ready_1(interpreter_base &interp, size_t arity, term args[]);
 
     // Mailboxes
     static bool mailbox_1(interpreter_base &interp, size_t arity, term args[]);
@@ -78,6 +79,13 @@ public:
     static bool height_1(interpreter_base &interp, size_t arity, term args[]);
     static bool goals_2(interpreter_base &interp, size_t arity, term args[]);
     static bool meta_2(interpreter_base &interp, size_t arity, term args[]);
+    static bool meta_roots_4(interpreter_base &interp, size_t arity, term args[]);
+    static bool metas_3(interpreter_base &interp, size_t arity, term args[]);
+    
+    static bool put_meta_1(interpreter_base &interp, size_t arity, term args[]);
+    static bool put_metas_1(interpreter_base &interp, size_t arity, term args[]);
+    static bool delay_put_metas_1(interpreter_base &interp, size_t arity, term ars[]);
+    static bool branches_2(interpreter_base &interp, size_t arity, term args[]);
     static bool current_1(interpreter_base &interp, size_t arity, term args[]);
 
     static bool setup_commit_1(interpreter_base &interp, size_t arity, term args[]);
@@ -90,7 +98,16 @@ public:
     // Fast sync primitives
     static bool fastsync_1(interpreter_base &interp, size_t arity, term args[]);
 
-    static term build_leaf_term(interpreter_base &interp0, const db::merkle_leaf &br);
+    // Tell or query if sync has completed
+    static bool sync_init_1(interpreter_base &interp, size_t arity, term args[]);
+    static bool sync_0(interpreter_base &interp, size_t arity, term args[]);
+    static bool sync_complete_1(interpreter_base &interp, size_t arity, term args[]);
+    static bool sync_mode_1(interpreter_base &interp, size_t arity, term args[]);
+    static bool syncing_meta_1(interpreter_base &interp, size_t arity, term args[]);    
+    static bool ignore_pow_1(interpreter_base &interp, size_t arity, term args[]);
+
+
+    static term build_leaf_term(interpreter_base &interp0, const db::merkle_leaf &lf);
     static term build_tree_term(interpreter_base &interp0, const db::merkle_branch &br);
     static term db_get(interpreter_base &interp, const std::string &name,
 		       size_t arity, term args[], bool compute_size_only);
@@ -130,6 +147,18 @@ public:
         local_interpreter_exception(msg) { }
 };
 
+class db_exception : public global::global_db_exception {
+public:
+    db_exception(const std::string &msg) :
+	global_db_exception(msg) { }
+};
+
+class db_exception_meta_id_not_found : public db_exception {
+public:
+    db_exception_meta_id_not_found(const std::string &msg) :
+	db_exception(msg) { }
+};	
+
 class local_interpreter : public interp::interpreter {
 public:
     using interperter_base = interp::interpreter_base;
@@ -142,9 +171,12 @@ public:
     bool reset();
     void local_reset();
 
-    void load_file(const std::string &filename);
     void startup_file();
 
+    void dont_load_startup_file() {
+	load_startup_file_ = false;
+    }
+    
     inline in_session_state & session() { return session_; }
 
     inline const std::string & get_text_out() { return text_out_; }
@@ -184,6 +216,7 @@ private:
     std::string text_out_;
     bool ignore_text_;
     std::stringstream standard_output_;
+    bool load_startup_file_{true};
 };
 
 }}

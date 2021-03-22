@@ -38,11 +38,21 @@ private:
     static const size_t MB = 1024*1024;
     static const size_t GB = 1024*MB;
 
+    bool pow_check_{true};
+
 public:
     static const size_t BLOCK_CACHE_SIZE = 4*GB;
 
     inline const std::string & data_dir() { return data_dir_; }
 
+    inline bool check_pow() const {
+	return pow_check_;
+    }
+    
+    inline void set_check_pow(bool b) {
+	pow_check_ = b;
+    }
+    
     global(const std::string &data_dir);
 
     // Reinitializes interpreter from a different state
@@ -338,6 +348,12 @@ public:
     void db_set_goal_block(size_t height, const buffer_t &buf);
 
     term db_get_meta(common::term_env &dst, const meta_id &id);
+    size_t db_get_meta_length(const meta_id &root_id, size_t lookahead_n);
+    term db_get_meta_roots(common::term_env &dst, const meta_id &id, size_t spacing, size_t n);
+    bool db_put_meta(common::term_env &src, common::term meta_term);
+    term db_get_metas(common::term_env &dst, const meta_id &id, size_t n);
+    void db_put_metas(common::term_env &src, common::term meta_terms);
+    bool db_parse_meta(common::term_env &src, common::term meta_term, meta_entry &out);
 
 private:
     void custom_data_to_heap_block(const uint8_t *custom_data,

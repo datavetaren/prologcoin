@@ -277,6 +277,8 @@ public:
 
     void setup_standard_lib();
 
+    static bool debug_predicate_1(interpreter_base &interp, size_t arity, term args[]);
+
     template<typename Pre = no_processing, typename Post = no_processing> void load_program(const std::string &str) {
         standard_clause_processing<Pre,Post> process(*this);
 	interpreter_base::load_program(str, process);
@@ -305,6 +307,8 @@ public:
     bool next();
     bool cont();
     void fail();
+
+    void load_file(const std::string &filename);
 
     inline common::term query() const { return qr(); }
 

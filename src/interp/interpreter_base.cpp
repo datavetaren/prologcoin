@@ -5,6 +5,7 @@
 #include <boost/filesystem.hpp>
 #include <boost/timer/timer.hpp>
 #include <boost/algorithm/string.hpp>
+#include "interpreter.hpp"
 
 #define PROFILER 0
 
@@ -19,7 +20,34 @@ const common::con_cell interpreter_base::IMPLIED_BY = common::con_cell(":-",2);
 const common::con_cell interpreter_base::ACTION_BY = common::con_cell(":-",1);
 const common::con_cell interpreter_base::USER_MODULE = common::con_cell("user",0);
 const common::con_cell interpreter_base::COLON = common::con_cell(":",2);
+	
+void predicate::check_index(interpreter_base &interp)
+{
+    if (with_vars_) return;
+    
+    size_t ordinal = 0;
+    for (auto &mclause : clauses_) {
+	assert(mclause.ordinal() != ordinal);
+	ordinal++;
 
+	if (mclause.is_erased()) {
+	    continue;
+	}
+	
+	auto first_arg_index = interp.arg_index(interp.clause_first_arg(mclause.clause()));
+	auto &idx = indexed_[first_arg_index];
+	bool found = false;
+	size_t i = 0;
+	for (auto &m : idx) {
+	    if (m == mclause) {
+		found = true;
+	    }
+	    i++;
+	}
+	assert(found);
+    }
+}
+	
 meta_context::meta_context(interpreter_base &i, meta_fn mfn)
 {
     fn = mfn;
@@ -70,6 +98,7 @@ void interpreter_base::init()
     delayed_ready_ = 0;
     has_updated_predicates_ = false;
     register_pr_ = con_cell("",0);
+    inside_frozen_closure_count_ = 0;
     arith_.total_reset();
     locale_.total_reset();
     current_module_ = con_cell("system",0);
@@ -107,6 +136,8 @@ void interpreter_base::init()
     heap_limit();
     register_top_hb_ = heap_size();
     register_top_tr_ = trail_size();
+
+    set_current_module(con_cell("user",0));
 }
 
 interpreter_base::~interpreter_base()
@@ -571,7 +602,7 @@ void interpreter_base::load_clause(term t, clause_position pos)
 
     auto &pred = program_db_[qn];
     pred.add_clause(*this, t, pos);
-    
+
     if (module_db_set_[module].count(qn) == 0) {
         module_db_set_[module].insert(qn);
 	module_db_[module].push_back(qn);
@@ -600,13 +631,33 @@ void interpreter_base::load_builtin(const qname &qn, builtin b)
     set_code(qn, code_point(qn.second, b.fn(), b.is_recursive()));
 }
 
+void interpreter_base::remove_builtin(const qname &qn)
+{
+    auto found = builtins_.find(qn);
+    if (found == builtins_.end()) {
+	return;
+    }
+    builtins_.erase(found);
+    auto &mod = module_db_[qn.first];
+    auto found_in_module = std::find(mod.begin(), mod.end(), qn);
+    if (found_in_module != mod.end()) {
+	mod.erase(found_in_module);
+    }
+    remove_code(qn);
+}
+
 void interpreter_base::set_debug_enabled()
 {
+    auto old_mod = current_module();
+    set_current_module(con_cell("system",0));
     load_builtin(functor("debug_on",0), &builtins::debug_on_0);
     load_builtin(functor("debug_off",0), &builtins::debug_off_0);
     load_builtin(functor("debug_check",0), &builtins::debug_check_0);
+    load_builtin(functor("debug_predicate",1), &interpreter::debug_predicate_1);
     load_builtin(functor("program_state",0), &builtins::program_state_0);
     load_builtin(functor("program_state",1), &builtins::program_state_1);
+    set_current_module(old_mod);
+    use_module(con_cell("system",0));
 }
 
 void interpreter_base::enable_file_io()
@@ -641,6 +692,9 @@ std::string interpreter_base::get_full_path(const std::string &path) const
 
 void interpreter_base::load_builtins_file_io()
 {
+    con_cell old_module = current_module();
+    set_current_module( con_cell("system",0) );
+    
     load_builtin(con_cell("open", 3), &builtins_fileio::open_3);
     load_builtin(con_cell("close", 1), &builtins_fileio::close_1);
     load_builtin(con_cell("read", 2), &builtins_fileio::read_2);
@@ -652,6 +706,7 @@ void interpreter_base::load_builtins_file_io()
     load_builtin(con_cell("told",0), &builtins_fileio::told_0);
     load_builtin(con_cell("format",2), builtin(&builtins_fileio::format_2,true));
     load_builtin(con_cell("sformat",3), builtin(&builtins_fileio::sformat_3,true));
+    set_current_module(old_module);
 }
 
 qname interpreter_base::gen_predicate(const common::con_cell module, size_t arity) {
@@ -1060,6 +1115,20 @@ void interpreter_base::clear_secret()
     for (auto &qn : qnames) {
 	auto &pred = get_predicate(qn);
 	pred.clear();
+    }
+}
+
+void interpreter_base::add_delayed(delayed_t *dt)
+{
+    heap_limit_term(dt->query);
+    heap_limit_term(dt->else_do);
+    delayed_.push_back(dt);
+    if (dt->has_timeout()) {
+	boost::lock_guard<common::spinlock> lockit2(delayed_fast_lock_);
+	if (delayed_next_timeout_.is_zero() ||
+	    dt->timeout_at < delayed_next_timeout_) {
+	    delayed_next_timeout_ = dt->timeout_at;
+	}
     }
 }
 

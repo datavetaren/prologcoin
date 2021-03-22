@@ -88,6 +88,7 @@ static inline void process_meta(interpreter &interp, std::string &comments,
 	    interp.setup_standard_lib();
 	} else if (cmd == "fileio on") {
 	    interp.enable_file_io();
+	    interp.use_module(con_cell("system",0));
 	} else if (cmd == "WAM-only") {
             opt["WAM-only"] = 1;
 	} else if (cmd == "retain state") {

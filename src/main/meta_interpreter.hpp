@@ -18,6 +18,7 @@ public:
     ~meta_interpreter();
 
     const std::string & home_dir() const { return home_dir_; }
+    void set_home_dir(const std::string &dir) { home_dir_ = dir; }
     
     void total_reset();
 

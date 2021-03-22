@@ -677,6 +677,12 @@ out_connection::~out_connection()
     // std::cout << "~out_connection(): " << self().port() << ": out=" << ip().port() << " this=" << this << std::endl;
 }
 
+void out_connection::set_name(const std::string &name)
+{
+    self().change_connection_name(name_, name);
+    name_ = name;
+}
+
 void out_connection::delete_tasks()
 {
     boost::lock_guard<boost::recursive_mutex> guard(work_lock_);

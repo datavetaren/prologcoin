@@ -18,6 +18,7 @@ static std::string name;
 static std::string dir;
 static bool is_wallet = false;
 static bool is_meta = false;
+static bool check_pow = true;
 
 static void help()
 {
@@ -28,7 +29,7 @@ static void help()
     std::cout << "                        connecting to that node.)" << std::endl;
     std::cout << "  --port <number> (start service on this port, default is " << self_node::DEFAULT_PORT << ")" << std::endl;
     std::cout << "  --name <string> (set friendly name on node, default is noname)" << std::endl;
-    std::cout << "  --datadir <dir> (location of data directory)" << std::endl;
+    std::cout << "  --dir <dir> (location of data directory)" << std::endl;
 
     std::cout << std::endl;
     std::cout << "Example: " << program_name << " --interactive --port 8700" << std::endl;
@@ -52,6 +53,7 @@ static void start()
 
     std::cout << "[" << program_name << " v" << self_node::VERSION_MAJOR << "." << self_node::VERSION_MINOR << "]" << std::endl;
     std::cout << "Data directory: " << dir << std::endl;
+    std::cout << "Port          : " << port << std::endl;
     std::cout << std::endl;
     
     if (is_meta) {
@@ -64,7 +66,12 @@ static void start()
 	node.set_name(name);
     }
 
+    if (!check_pow) {
+	node.set_check_pow(false);
+    }
+
     node.start();
+    node.start_sync();
 
     prologcoin::main::interactive_prompt prompt;
     if (!prompt.connect_node(port)) {
@@ -183,6 +190,11 @@ int main(int argc, char *argv[])
     std::string dir_opt = get_option(args, "--dir");
     if (!dir_opt.empty()) {
         dir = dir_opt;
+    }
+
+    std::string ignore_pow = get_option(args, "--ignore_pow");
+    if (ignore_pow == "1" || ignore_pow == "true") {
+	check_pow = false;
     }
 
     start();

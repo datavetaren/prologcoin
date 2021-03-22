@@ -262,7 +262,7 @@ tmp:send4(Count) :-
     tmp:send4b(0, Count, [], TxList),
     tmp:list_to_commas(TxList, Tx),
     write('Size of transactions: '), term_size(Tx, N), write(N), write(' bytes.'), nl,
-    setup_commit([version(1), nonce(0), time(0)]) @- node,
+    setup_commit(meta([version(1), nonce(0), time(0)])) @- node,
     commit(Tx) @- node,
     gstat @ node.
 

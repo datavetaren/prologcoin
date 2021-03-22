@@ -1,6 +1,7 @@
 #include "interpreter.hpp"
 #include "wam_compiler.hpp"
 #include <boost/range/adaptor/reversed.hpp>
+#include <boost/filesystem.hpp>
 
 using namespace prologcoin::common;
 
@@ -88,6 +89,7 @@ length(Xs, N) :- '$length'(Xs,N,0).
 
 )PROG";
 
+    auto old_mod = current_module();
     set_current_module(con_cell("system",0));
     // Check if standard library is already available
     // (This enables the client of this class to load the library in a
@@ -109,6 +111,7 @@ length(Xs, N) :- '$length'(Xs,N,0).
     compile();
     set_current_module(con_cell("user",0));
     use_module(con_cell("system",0));
+    set_current_module(old_mod);
 }
 
 // Save everything so interpreter state can be restored.
@@ -174,6 +177,16 @@ bool interpreter::new_instance_meta(interpreter_base &interp0, const meta_reason
     return false;
 }
 
+//
+//
+bool interpreter::debug_predicate_1(interpreter_base &interp, size_t arity, common::term args[]) {
+    interpreter &i = static_cast<interpreter &>(interp);
+    i.check_it();
+    throw std::runtime_error("foo");
+    return true;
+}
+
+	
 bool interpreter::execute(const term query)
 {
     using namespace prologcoin::common;
@@ -661,6 +674,7 @@ void interpreter::dispatch()
 
     // Is this a built-in?
     qname qn(module, f);
+
     auto &code = get_code(qn);
     if (code.is_builtin()) {
 	set_p(cp());
@@ -816,23 +830,9 @@ bool interpreter::compile_0(interpreter_base &interp0, size_t arity, common::ter
     return true;
 }
 
-bool interpreter::consult_1(interpreter_base &interp0, size_t arity, common::term args[])
+void interpreter::load_file(const std::string &filename)
 {
-    using namespace prologcoin::common;
-
-    auto &interp = reinterpret_cast<interpreter &>(interp0);
-
-    std::string filename;
-    
-    if (interp.is_atom(args[0])) {
-        filename = interp.atom_name(args[0]);
-    } else if (interp.is_string(args[0])) {
-        filename = interp.list_to_string(args[0]);        
-    } else {
-        throw interpreter_exception_wrong_arg_type("Atom or string expected; was " + interp.to_string(args[0]));
-    }
-
-    std::ifstream infile(interp.get_full_path(filename + ".pl"));
+    std::ifstream infile(get_full_path(filename));
     if (!infile.good()) {
 	throw interpreter_exception_file_not_found("Couldn't open file '" + filename + "'");
     }
@@ -851,13 +851,13 @@ bool interpreter::consult_1(interpreter_base &interp0, size_t arity, common::ter
 	    }
 	    interpreter &interp_;
 	};
-	interp.load_program<pre_action>(infile);
-	interp.compile();
+	load_program<pre_action>(infile);
+	compile();
 	infile.close();
     } catch (const syntax_exception &ex) {
-	interp.abort(ex);
+	throw ex;
     } catch (const interpreter_exception &ex) {
-	interp.abort(ex);
+	throw ex;
     } catch (const token_exception &ex) {
         throw ex;
     } catch (const term_parse_exception &ex) {
@@ -869,6 +869,29 @@ bool interpreter::consult_1(interpreter_base &interp0, size_t arity, common::ter
     } catch (...) {
 	throw interpreter_exception_unknown("Unknown error");
     }
+}
+
+bool interpreter::consult_1(interpreter_base &interp0, size_t arity, common::term args[])
+{
+    using namespace prologcoin::common;
+
+    auto &interp = reinterpret_cast<interpreter &>(interp0);
+
+    std::string filename;
+    if (interp.is_atom(args[0])) {
+        filename = interp.atom_name(args[0]);
+    } else if (interp.is_string(args[0])) {
+        filename = interp.list_to_string(args[0]);        
+    } else {
+        throw interpreter_exception_wrong_arg_type("Atom or string expected; was " + interp.to_string(args[0]));
+    }
+
+    boost::filesystem::path path(filename);
+    if (!path.has_extension()) {
+	filename += ".pl";
+    }
+
+    interp.load_file(filename);
 
     return true;
 }

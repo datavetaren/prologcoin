@@ -107,7 +107,6 @@ void task_execute_query::process()
 
     if (get_state() == IDLE) {
 	if (!result_consumed_) {
-	    std::cout << "Waiting..." << std::endl;
 	    reschedule_next();
 	    return;
 	}
@@ -118,7 +117,7 @@ void task_execute_query::process()
     if (get_state() == SEND) {
 	switch (type_) {
 	case NEW_INSTANCE: set_command(con_cell("newinst",0)); break;
-	case QUERY: set_query(query_copy_, mode() != interp::MODE_NORMAL); break;
+	case QUERY: set_query(query_copy_, mode() == interp::MODE_SILENT); break;
 	case DO_NEXT: set_command(con_cell("next",0)); break;
 	case DELETE_INSTANCE: set_command(con_cell("delinst",0)); break;
 	}
@@ -126,14 +125,18 @@ void task_execute_query::process()
 	boost::unique_lock<boost::mutex> lockit(result_cv_lock_);
 	result_ = get_result_goal();
 	result_ready_ = true;
-	result_cv_.notify_one();
-	set_state(IDLE);
 	if (delayed_) {
-	    delayed_->result = result_;
+	    if (result_ == term()) {
+		delayed_->result = env().EMPTY_LIST;
+	    } else {
+		delayed_->result = result_;
+	    }
 	    delayed_->result_src = &env();
 	    delayed_->standard_out = get_standard_out();
 	    delayed_->interp.delayed_ready(delayed_);
 	}
+	result_cv_.notify_one();
+	set_state(IDLE);
 	return;
     }
 }

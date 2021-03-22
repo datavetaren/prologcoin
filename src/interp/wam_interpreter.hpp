@@ -451,7 +451,7 @@ public:
 	return is_compiled(std::make_pair(module,p));
     }
 
-    void remove_compiled(const qname &pn);
+    void remove_compiled_code_points(const qname &pn);
 
     struct predicate_meta_data {
         inline predicate_meta_data(size_t off, size_t end, size_t num_x, size_t num_y)
@@ -693,9 +693,10 @@ public:
 	remove_compiled(qn);
     }
     
-    inline void remove_compiled(const qname &pn)
+    inline void remove_compiled(const qname &qn)
     {
-	wam_code::remove_compiled(pn);
+	wam_code::remove_compiled_code_points(qn);
+	set_code(qn, code_point(qn));
     }
 
     inline std::string to_string(const term t) const

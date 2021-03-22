@@ -10,6 +10,7 @@
 #include "address_verifier.hpp"
 #include "address_downloader.hpp"
 #include "task_execute_query.hpp"
+#include "sync.hpp"
 
 namespace prologcoin { namespace node {
 
@@ -43,6 +44,11 @@ self_node::self_node(const std::string &data_dir, unsigned short port)
     id_ = random::next();
 }
 
+self_node::~self_node()
+{
+    delete sync_;
+}
+
 void self_node::start()
 {
     stopped_ = false;
@@ -58,6 +64,7 @@ void self_node::start()
 void self_node::stop()
 {
     stop_all_connections();
+    stop_sync();
 }
 
 void self_node::run()
@@ -68,6 +75,19 @@ void self_node::run()
     for (int i = 0; i < 2; i++) {
     	workers_.push_back(boost::thread([this]() { ioservice_.run(); } ));
     }
+}
+
+void self_node::start_sync()
+{
+    if (!sync_) {
+	sync_ = new sync(this);
+	sync_->start();
+    }
+}
+
+void self_node::stop_sync()
+{
+    if (sync_) sync_->stop();
 }
 
 void self_node::close(connection *conn)
@@ -169,7 +189,7 @@ out_connection * self_node::find_out_connection(const std::string &where)
     for (auto *conn : out_connections_) {
 	auto *out = reinterpret_cast<out_connection *>(conn);
 	if (out->out_type() == out_connection::STANDARD) {
-	    if (out->name() == where) {
+	    if (out->name() == where || out->ip().str() == where) {
 		return out;
 	    }
 	}
@@ -469,6 +489,19 @@ void self_node::prune_dead_connections()
     }
 }
 
+void self_node::change_connection_name(const std::string &old, const std::string &name) {
+    boost::lock_guard<boost::recursive_mutex> guard(lock_);
+    if (!old.empty()) {
+	auto it = named_out_connections_.find(old);
+	if (it != named_out_connections_.end()) {
+	    if (--it->second == 0) {
+		named_out_connections_.erase(it);
+	    }
+	}
+    }
+    named_out_connections_[name]++;
+}
+
 void self_node::connect_to(const std::vector<address_entry> &entries)
 {
     for (auto &e : entries) {
@@ -564,6 +597,8 @@ void self_node::join()
 {
     using namespace boost::system;
 
+    if (sync_) sync_->join();
+    
     stop_all_connections();
     for (size_t i = 0; i < 100 && !all_connections_closed(); i++) {
 	prune_dead_connections();
@@ -605,6 +640,12 @@ void self_node::disconnect(connection *conn)
 	auto *out_conn = reinterpret_cast<out_connection *>(conn);
 	if (out_conn->out_type() == out_connection::STANDARD) {
 	    out_standard_ips_.erase(out_conn->ip());
+	}
+	auto named_it = named_out_connections_.find(out_conn->name());
+	if (named_it != named_out_connections_.end()) {
+	    if (--named_it->second == 0) {
+		named_out_connections_.erase(named_it);
+	    }
 	}
     }
     connection::delete_connection(conn);

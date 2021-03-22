@@ -94,6 +94,20 @@ namespace prologcoin { namespace interp {
 	}
     }
 
+    term arithmetics_fn::max_2(interpreter_base &interp, term *args)
+    {
+	auto a = get_int(args[0]).value();
+	auto b = get_int(args[1]).value();
+	return int_cell(std::max(a, b));
+    }
+
+    term arithmetics_fn::min_2(interpreter_base &interp, term *args)
+    {
+	auto a = get_int(args[0]).value();
+	auto b = get_int(args[1]).value();
+	return int_cell(std::min(a, b));
+    }	
+	
     void arithmetics::total_reset() {
 	fn_map_.clear();
 	args_.clear();
@@ -118,6 +132,8 @@ namespace prologcoin { namespace interp {
 	load_fn("rem", 2, &arithmetics_fn::rem_2);
 	load_fn("div", 2, &arithmetics_fn::div_2);
 	load_fn("//", 2, &arithmetics_fn::div0_2);
+	load_fn("max", 2, &arithmetics_fn::max_2);
+	load_fn("min", 2, &arithmetics_fn::min_2);
     }
 
     void arithmetics::unload()

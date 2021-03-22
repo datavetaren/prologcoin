@@ -29,7 +29,7 @@ size_t wam_code::add(const wam_instruction_base &i)
     return sz;
 }
 
-void wam_code::remove_compiled(const qname &qn) 
+void wam_code::remove_compiled_code_points(const qname &qn) 
 {
     auto it = predicate_map_.find(qn);
     if (it != predicate_map_.end()) {

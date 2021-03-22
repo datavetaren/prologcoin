@@ -32,7 +32,9 @@ public:
 	static common::term mod_2(interpreter_base &interp, common::term *args);
 	static common::term rem_2(interpreter_base &interp, common::term *args);
 	static common::term div0_2(interpreter_base &interp, common::term *args);
-	static common::term div_2(interpreter_base &interp, common::term *args);			
+	static common::term div_2(interpreter_base &interp, common::term *args);
+	static common::term max_2(interpreter_base &interp, common::term *args);
+	static common::term min_2(interpreter_base &interp, common::term *args);	
     private:
 	static common::int_cell get_int(const common::term &t);
     };

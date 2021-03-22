@@ -56,6 +56,8 @@ void global_interpreter::init()
     old_predicates_.clear();
     new_predicates_ = 0;
     old_heap_size_ = heap_size();
+
+    get_global().get_blockchain().flush_db();
 }
 
 void global_interpreter::total_reset()

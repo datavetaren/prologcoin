@@ -294,6 +294,35 @@ bool me_builtins::connections_0(interpreter_base &interp0, size_t arity, term ar
     return true;
 }
 
+bool me_builtins::ready_1(interpreter_base &interp0, size_t arity, term args[]) {
+    auto &interp = to_local(interp0);
+
+    interp.root_check("ready", arity);
+    
+    term arg = args[0];
+    term result = interp.EMPTY_LIST;
+    bool found = false;
+    
+    interp.self().for_each_standard_out_connection(
+	      [&](out_connection *conn){
+		  if (!found && conn->is_ready()) {
+		      found = true;
+		      auto name = conn->name();
+		      if (interp.self().is_unique_connection_name(name)) {
+			  result = interp.functor(name, 0);
+		      } else {
+			  result = interp.functor(conn->ip().str(), 0);
+		      }
+		  }
+	      });
+
+    if (!found) {
+	return false;
+    }
+
+    return interp.unify(arg, result);
+}
+
 bool me_builtins::mailbox_1(interpreter_base &interp0, size_t arity, term args[] )
 {
     auto &interp = to_local(interp0);
@@ -758,6 +787,12 @@ std::set<global::meta_id> me_builtins::get_meta_ids(interpreter_base &interp0, c
     auto &g = interp.self().global();
     auto &chain = g.get_blockchain();
 
+    if (interp0.is_empty_list(id)) {
+	std::set<global::meta_id> r;
+	r.insert(chain.genesis());
+	return r;
+    }
+    
     uint8_t prefix[global::meta_id::HASH_SIZE];
     size_t prefix_len = 0;
     if (id.tag() != tag_t::INT && id.tag() != tag_t::BIG) {
@@ -791,7 +826,7 @@ std::set<global::meta_id> me_builtins::get_meta_ids(interpreter_base &interp0, c
 global::meta_id me_builtins::get_meta_id(interpreter_base &interp0, const std::string &name, term id) {
     auto ids = get_meta_ids(interp0, name, id);
     if (ids.empty()) {
-	throw interpreter_exception_wrong_arg_type(name + ": Did not find entry with id.");
+	throw db_exception_meta_id_not_found(name + ": Did not find entry with id.");
     }
     if (ids.size() != 1) {
 	throw interpreter_exception_wrong_arg_type(name + ": Id was not unique. Try a bigger number.");
@@ -918,6 +953,253 @@ bool me_builtins::meta_2(interpreter_base &interp0, size_t arity, term args[]) {
     return interp.unify(result, args[1]);
 }
 
+bool me_builtins::metas_3(interpreter_base &interp0, size_t arity, term args[]) {
+    auto &interp = to_local(interp0);
+    auto &g = interp.self().global();
+
+    try {
+	auto id = get_meta_id(interp0, "metas/3", args[0]);
+
+	auto n_term = args[1];
+	if (n_term.tag() != tag_t::INT) {
+	    interp.abort(interpreter_exception_wrong_arg_type("metas/3: Second argument must be an integer; was " + interp.to_string(n_term)));
+	}
+
+	int64_t n = reinterpret_cast<int_cell &>(n_term).value();
+	if (n < 1 || n > 1000) {
+	    interp.abort(interpreter_exception_wrong_arg_type("metas/3: Second argument must be a number within 1..1000; was " + boost::lexical_cast<std::string>(n)));
+	}    
+    
+	term result = g.db_get_metas(interp0, id, n);
+
+	return interp.unify(result, args[2]);
+    } catch (const db_exception_meta_id_not_found &) {
+	return false;
+    }
+}
+
+bool me_builtins::meta_roots_4(interpreter_base &interp0, size_t arity, term args[]) {
+    auto &interp = to_local(interp0);
+    auto &g = interp.self().global();
+
+    try {
+	global::meta_id id = get_meta_id(interp0, "meta_roots/4", args[0]);
+	auto spacing_term = args[1];
+	if (spacing_term.tag() != tag_t::INT) {
+	    interp.abort(interpreter_exception_wrong_arg_type("meta_roots/4: Second argument must be an integer; was " + interp.to_string(spacing_term)));
+	}
+	int64_t spacing = reinterpret_cast<int_cell &>(spacing_term).value();
+	if (spacing < 1 || spacing > 1000) {
+	    interp.abort(interpreter_exception_wrong_arg_type("meta_roots/4: Second argument must be a number within 1..1000; was " + boost::lexical_cast<std::string>(spacing)));	
+	}
+	
+	auto n_term = args[2];
+	if (n_term.tag() != tag_t::INT) {
+	    interp.abort(interpreter_exception_wrong_arg_type("meta_roots/4: Thid argument must be an integer; was " + interp.to_string(n_term)));
+	}
+	
+	int64_t n = reinterpret_cast<int_cell &>(n_term).value();
+	if (n < 1 || n > 1000) {
+	    interp.abort(interpreter_exception_wrong_arg_type("meta_roots/4: Third argument must be a number within 1..1000; was " + boost::lexical_cast<std::string>(n)));
+	}
+	term result = g.db_get_meta_roots(interp0, id, spacing, n);
+	return interp.unify(result, args[3]);
+    } catch (const db_exception_meta_id_not_found &) {
+	return false;
+    }
+}
+
+bool me_builtins::put_meta_1(interpreter_base &interp0, size_t arity, term args[]) {
+    auto &interp = to_local(interp0);
+    auto &g = interp.self().global();
+
+    try {
+	g.db_put_meta(interp0, args[0]);
+	g.get_blockchain().meta_db().flush();
+    } catch (const global::global_db_exception &ex) {
+	throw db_exception(ex.what());
+    }
+    return true;
+}
+
+bool me_builtins::put_metas_1(interpreter_base &interp0, size_t arity, term args[]) {
+    auto &interp = to_local(interp0);
+    auto &g = interp.self().global();
+
+    try {
+	g.db_put_metas(interp0, args[0]);
+	g.get_blockchain().meta_db().flush();	
+    } catch (const global::global_db_exception &ex) {
+	throw db_exception(ex.what());
+    }
+
+    return true;    
+}
+
+bool me_builtins::delay_put_metas_1(interpreter_base &interp0, size_t arity, term args[]) {
+    auto &interp = to_local(interp0);
+    auto &g = interp.self().global();
+
+    term lst = args[0];
+    if (!interp.is_dotted_pair(lst)) {
+	return false;
+    }
+    auto meta_term = interp.arg(lst, 0);
+    global::meta_entry entry;
+
+    try {
+	if (!g.db_parse_meta(interp, meta_term, entry)) {
+	    // Don't delay because of parse errors! We want to know and fail!
+	    return false;
+	}
+    } catch (const global::global_db_exception &ex) {
+	throw db_exception(ex.what());
+    }
+    auto &previd = entry.get_previous_id();
+    if (previd.is_zero()) {
+	return false;
+    }
+	 
+    if (g.get_blockchain().get_meta_entry(previd)) {
+	return false;
+    }
+
+    // We have a missing previous entry, so let's delay this
+    return true;
+}
+
+bool me_builtins::branches_2(interpreter_base &interp0, size_t arity, term args[]) {
+    auto &interp = to_local(interp0);
+    
+    // First build graph
+    struct meta_small {
+	global::meta_id id;
+	global::meta_id prev_id;
+	size_t height;
+    };
+    global::meta_id longest_id;
+    size_t longest_id_height = 0;
+    bool ambiguous = false;
+    std::unordered_map<global::meta_id, meta_small> small_map;
+    std::map<global::meta_id, std::unordered_set<global::meta_id> > follows;
+    auto lst = args[0];
+    while (interp.is_dotted_pair(lst)) {
+	auto meta_term = interp.arg(lst, 0);
+	meta_small small;
+	bool id_ok = false, previd_ok = false, height_ok = false;
+	bool error = false;
+	if (interp.is_functor(meta_term, con_cell("meta",1))) {
+	    auto prop_lst = interp.arg(meta_term, 0);
+	    while (!error && interp.is_dotted_pair(prop_lst)) {
+		auto prop = interp.arg(prop_lst, 0);
+		if (interp.is_functor(prop, con_cell("id",1))) {
+		    if (small.id.from_term(interp, interp.arg(prop, 0))) {
+			id_ok = true;
+		    } else {
+			error = true;
+		    }
+		} else if (interp.is_functor(prop, con_cell("previd",1))) {
+		    if (small.prev_id.from_term(interp, interp.arg(prop, 0))) {
+			previd_ok = true;
+		    } else {
+			error = true;
+		    }
+		} else if (interp.is_functor(prop, con_cell("height",1))) {
+		    auto hterm = interp.arg(prop, 0);
+		    if (hterm.tag() != tag_t::INT) {
+			error = true;
+			break;
+		    }
+		    auto v = reinterpret_cast<int_cell &>(hterm).value();
+		    if (v >= 0) {
+			small.height = static_cast<size_t>(v);
+			height_ok = true;
+			if (small.height > longest_id_height) {
+			    longest_id_height = small.height;
+			    longest_id = small.id;
+			    ambiguous = false;
+			} else if (small.height == longest_id_height) {
+			    ambiguous = true;
+			}
+		    } else {
+			error = true;
+		    }
+		}
+		prop_lst = interp.arg(prop_lst, 1);
+	    }
+	    if (!error && id_ok && previd_ok && height_ok) {
+		small_map[small.id] = small;
+		follows[small.prev_id].insert(small.id);
+	    }
+	}
+	lst = interp.arg(lst, 1);
+    }
+
+    // Find the longest chain so we can prune unncessary
+    // branches; the longest chain is not considered to be a branch.
+    std::unordered_set<global::meta_id> longest_chain;
+
+    if (!ambiguous) {
+	while (!longest_id.is_zero()) {
+	    longest_chain.insert(longest_id);
+	    longest_id = small_map[longest_id].prev_id;
+	}
+    }
+
+    std::vector<meta_small> branchpoints;
+
+    for (auto &e : follows) {
+	auto &fids = e.second;
+
+	if (fids.size() > 1) {
+	    for (auto &fid : fids) {
+		if (!longest_chain.count(fid)) {
+		    branchpoints.push_back(small_map[fid]);
+		}
+	    }
+	}
+    }
+
+    std::reverse(branchpoints.begin(), branchpoints.end());
+    
+    std::sort(branchpoints.begin(), branchpoints.end(),
+	      [](const meta_small &a, const meta_small &b)
+	      { if (a.height < b.height) {
+		      return -1;
+		  } else if (a.height > b.height) {
+		      return 1;
+		  } else {
+		      if (a.id < b.id) {
+			  return -1;
+		      } if (a.id == b.id) {
+			  return 0;
+		      } else {
+			  return 1;
+		      }
+		  }
+	      });
+    
+    // At this point we have all branchpoints. Build list result.
+    term head = interp.EMPTY_LIST, tail = interp.EMPTY_LIST;
+    for (auto &b : branchpoints) {
+	auto new_tail =
+	    interp.new_dotted_pair(
+		   interp.new_term( con_cell("branch", 2),
+				    { int_cell(static_cast<int64_t>(b.height)),
+				      b.id.to_term(interp) } ),
+		   interp.EMPTY_LIST);
+	if (head == interp.EMPTY_LIST) {
+	    head = new_tail;
+	    tail = new_tail;
+	} else {
+	    interp.set_arg(tail, 1, new_tail);
+	    tail = new_tail;
+	}
+    }
+
+    return interp.unify(args[1], head);
+}
+
 bool me_builtins::setup_commit_1(interpreter_base &interp0, size_t arity, term args[]) {
     auto &interp = to_local(interp0);
     
@@ -1017,6 +1299,77 @@ bool me_builtins::global_1(interpreter_base &interp0, size_t arity, term args[] 
 bool me_builtins::global_silent_1(interpreter_base &interp0, size_t arity, term args[] )
 {
     return global_impl(interp0, arity, args, true);
+}
+
+bool me_builtins::sync_init_1(interpreter_base &interp0, size_t arity, term args[]) {
+    auto &interp = to_local(interp0);    
+    if (args[0].tag().is_ref()) {
+	auto str = interp.self().get_sync_init();
+	if (str.empty()) {
+	    return interp.unify(args[0], interp.EMPTY_LIST);
+	} else {
+	    // Attempt to parse it and return term
+	    try {
+		auto t = interp.parse(str + ".");
+		return interp.unify(args[0], t);
+	    } catch (std::runtime_error &ex) {
+		return interp.unify(args[0], interp.string_to_list(ex.what()));
+	    }
+	}
+    } else {
+	// Set it
+	std::string str = interp.to_string(args[0]);
+	interp.self().set_sync_init(str);
+	return true;
+    }
+}
+
+bool me_builtins::sync_0(interpreter_base &interp0, size_t arity, term args[])
+{
+    auto &interp = to_local(interp0);    
+    interp.self().start_sync();
+    return true;
+}
+
+bool me_builtins::sync_complete_1(interpreter_base &interp0, size_t arity, term args[])
+{
+    auto &interp = to_local(interp0);
+    auto c = interp.self().is_sync_complete() ? con_cell("true",0) : con_cell("false",0);    
+    return interp.unify(args[0], c);
+}
+
+bool me_builtins::sync_mode_1(interpreter_base &interp0, size_t arity, term args[])
+{
+    auto &interp = to_local(interp0);
+    auto mode = interp.self().get_sync_mode();
+    if (mode.empty()) {
+	return interp.unify(args[0], interp.EMPTY_LIST);
+    } else {
+	auto c = interp.functor(mode, 0);
+	return interp.unify(args[0], c);
+    }
+}
+
+bool me_builtins::syncing_meta_1(interpreter_base &interp0, size_t arity, term args[]) {
+    auto &interp = to_local(interp0);
+    auto block = static_cast<int64_t>(interp.self().get_syncing_meta_block());
+    return interp.unify(args[0], int_cell(block));
+}
+
+bool me_builtins::ignore_pow_1(interpreter_base &interp0, size_t arity, term args[])
+{
+    auto &interp = to_local(interp0);
+    if (args[0].tag().is_ref()) {
+	auto c = interp.self().check_pow() ? con_cell("false",0) : con_cell("true",0);
+	return interp.unify(args[0], c);
+    } else if (args[0] == con_cell("false",0)) {
+	interp.self().set_check_pow(true);
+    } else if (args[0] == con_cell("true",0)) {
+	interp.self().set_check_pow(false);
+    } else {
+	throw interpreter_exception_wrong_arg_type("ignore_pow/1: Argument must be a variable, or 'true' or 'false.'");
+    }
+    return true;
 }
 
 term me_builtins::build_leaf_term(interpreter_base &interp0, const merkle_leaf &lf)
@@ -1445,10 +1798,10 @@ void local_interpreter::ensure_initialized()
 {
     if (!initialized_) {
 	initialized_ = true;
-	setup_standard_lib();
-
 	// TODO: Only do this for authorized clients.
-	load_builtins_file_io();
+	enable_file_io();
+
+	setup_standard_lib();
 
 	ec::builtins::load(*this);
         coin::builtins::load(*this);
@@ -1465,12 +1818,21 @@ void local_interpreter::ensure_initialized()
 	set_retain_state_between_queries(true);
 
 	// Load startup file
-	startup_file();
+	if (load_startup_file_) startup_file();
     }
 }
 
 void local_interpreter::setup_local_builtins()
 {
+    auto old_mod = current_module();
+
+    remove_builtin(con_cell("@",2));
+    remove_builtin(con_cell("@-",2));
+    remove_builtin(con_cell("@=",2));
+    remove_builtin(con_cell(".",2));
+    
+    set_current_module(con_cell("system",0));
+
     load_builtin(con_cell("@",2), &me_builtins::operator_at_2);
     load_builtin(con_cell("@-",2), &me_builtins::operator_at_silent_2);
     load_builtin(con_cell("@=",2), &me_builtins::operator_at_parallel_2);
@@ -1490,6 +1852,7 @@ void local_interpreter::setup_local_builtins()
     load_builtin(ME, con_cell("peers", 2), &me_builtins::peers_2);
     load_builtin(ME, functor("connections",0), &me_builtins::connections_0);
     load_builtin(ME, functor("add_address",2), &me_builtins::add_address_2);
+    load_builtin(ME, con_cell("ready", 1), &me_builtins::ready_1);
 
     // Mailbox
     load_builtin(ME, con_cell("mailbox",1), &me_builtins::mailbox_1);
@@ -1525,6 +1888,17 @@ void local_interpreter::setup_local_builtins()
     load_builtin(ME, con_cell("goals", 2), &me_builtins::goals_2);
     // meta/2: Retrive meta information about a block
     load_builtin(ME, con_cell("meta", 2), &me_builtins::meta_2);
+    // metas/3: Retrive meta information for several blocks
+    load_builtin(ME, con_cell("metas", 3), &me_builtins::metas_3);
+    // meta_roots/4: Retrive meta id root information with spacing
+    load_builtin(ME, functor("meta_roots", 4), &me_builtins::meta_roots_4);
+    // put_meta/1: Put meta information into meta chain
+    load_builtin(ME, functor("put_meta", 1), &me_builtins::put_meta_1);
+    // put_metas/1: Put list of meta information into meta chain
+    load_builtin(ME, functor("put_metas", 1), &me_builtins::put_metas_1);
+    load_builtin(ME, functor("delay_put_metas", 1), &me_builtins::delay_put_metas_1);
+    // branches/2: Given a list of meta information, find all its branches
+    load_builtin(ME, functor("branches", 2), &me_builtins::branches_2);
     
     // Commit to the global interpreter
     load_builtin(ME, functor("setup_commit", 1), &me_builtins::setup_commit_1);
@@ -1535,10 +1909,20 @@ void local_interpreter::setup_local_builtins()
     load_builtin(ME, con_cell("global", 1), &me_builtins::global_1);
 
     // Fast sync primitives
+    load_builtin(ME, functor("sync_init", 1), &me_builtins::sync_init_1);
+    load_builtin(ME, con_cell("sync", 0), &me_builtins::sync_0);
+    load_builtin(ME, functor("sync_complete", 1), &me_builtins::sync_complete_1);
+    load_builtin(ME, functor("sync_mode", 1), &me_builtins::sync_mode_1);
+    load_builtin(ME, functor("syncing_meta", 1), &me_builtins::syncing_meta_1);
+    load_builtin(ME, functor("ignore_pow", 1), &me_builtins::ignore_pow_1);
     load_builtin(ME, con_cell("db_get", 5), &me_builtins::db_get_5);
     load_builtin(ME, con_cell("db_size", 5), &me_builtins::db_size_5);
     load_builtin(ME, con_cell("db_key", 5), &me_builtins::db_key_5);
     load_builtin(ME, con_cell("db_put", 3), &me_builtins::db_put_3);
+
+    set_current_module(old_mod);
+
+    use_module(con_cell("system",0));
 }
 
 void local_interpreter::startup_file()
@@ -1598,48 +1982,6 @@ bool local_interpreter::reset()
     return !failed;
 }
 
-void local_interpreter::load_file(const std::string &filename)
-{
-    using namespace prologcoin::common;
-
-    std::ifstream infile(filename);
-    if (!infile.good()) {
-	throw interpreter_exception_file_not_found("Couldn't open file '" + filename + "'");
-    }
-
-    try {
-        struct pre_action {
-	    pre_action(interpreter &interp) : interp_(interp) { }
-
-	    void operator () (term clause) {
-		auto head = interp_.clause_head(clause);
-		auto head_f = interp_.functor(head);
-
-		if (head_f == interpreter_base::ACTION_BY) {
-		    interp_.compile();
-		}
-	    }
-	    interpreter &interp_;
-	};
-	load_program<pre_action>(infile);
-	compile();
-	infile.close();
-    } catch (const syntax_exception &ex) {
-	abort(ex);
-    } catch (const interpreter_exception &ex) {
-	abort(ex);
-    } catch (const token_exception &ex) {
-        throw ex;
-    } catch (const term_parse_exception &ex) {
-        throw ex;
-    } catch (std::runtime_error &ex) {
-	std::string msg("Unknown error: ");
-	msg += ex.what();
-	abort(interpreter_exception_unknown(msg));
-    } catch (...) {
-	abort(interpreter_exception_unknown("Unknown error"));
-    }
-}
 
 }}
 

@@ -8,7 +8,6 @@ using namespace prologcoin::interp;
 
 namespace prologcoin { namespace global {
 
-
 global::global(const std::string &data_dir)
     : data_dir_(data_dir),
       blockchain_(data_dir),
@@ -192,14 +191,246 @@ term global::db_get_meta(term_env &dst, const meta_id &root_id) {
 	return common::heap::EMPTY_LIST;
     }
     term lst = common::heap::EMPTY_LIST;
+    auto id = dst.new_term( con_cell("id",1), { root_id.to_term(dst) } );
+    auto previd = dst.new_term(con_cell("previd",1), { e->get_previous_id().to_term(dst) });
     auto ver = dst.new_term( con_cell("version",1), { int_cell(static_cast<int64_t>(e->get_version())) });
+    auto height = dst.new_term( con_cell("height",1), { int_cell(static_cast<int64_t>(e->get_height())) });
     auto nonce = dst.new_term( con_cell("nonce",1), { to_number(dst, e->get_nonce()) });
     auto time = dst.new_term( con_cell("time",1), { int_cell(static_cast<int64_t>(e->get_timestamp().in_ss())) });
     lst = dst.new_dotted_pair(time, lst);
     lst = dst.new_dotted_pair(nonce, lst);
+    lst = dst.new_dotted_pair(height, lst);
     lst = dst.new_dotted_pair(ver, lst);
+    lst = dst.new_dotted_pair(previd, lst);
+    lst = dst.new_dotted_pair(id, lst);
+    auto meta = dst.new_term(con_cell("meta",1), { lst } );
+    return meta;
+}
 
-    return lst;
+static bool get_meta_id(term_env &src, term term_id, meta_id &id) {
+    return id.from_term(src, term_id);
+}
+
+bool global::db_parse_meta(term_env &src, term meta_term, meta_entry &entry)
+{
+    if (meta_term.tag() != tag_t::STR) {
+	return false;
+    }
+    if (src.functor(meta_term) != con_cell("meta",1)) {
+	return false;
+    }
+    term lst = src.arg(meta_term,0);
+
+    while (src.is_dotted_pair(lst)) {
+	term prop = src.arg(lst, 0);
+	if (prop.tag() != tag_t::STR) {
+	    throw global_db_exception("Unexpected property in meta: " + src.to_string(prop));
+	}
+	term f = src.functor(prop);
+	if (f == con_cell("id",1)) {
+	    meta_id id;
+	    if (!get_meta_id(src, src.arg(prop,0), id)) {
+		throw global_db_exception("Unexpected identifier in meta: " + src.to_string(prop));
+	    }
+	    entry.set_id(id);
+	} else if (f == con_cell("previd",1)) {
+	    meta_id previd;
+	    if (!get_meta_id(src, src.arg(prop,0), previd)) {
+		throw global_db_exception("Unexpected identifier in meta: " + src.to_string(prop));
+	    }
+	    entry.set_previous_id(previd);
+	} else if (f == con_cell("version",1)) {
+	    uint64_t ver;
+	    term ver_term = src.arg(prop,0);
+	    if (!src.get_number(ver_term, ver)) {
+		throw global_db_exception("Expected non-negative integer version number; was " + src.to_string(prop));
+	    }
+	    if (ver != 1) {
+		throw global_db_exception("Expected integer version 1; was " + src.to_string(prop));
+	    }
+	    entry.set_version(ver);
+	} else if (f == con_cell("height",1)) {
+	    term height_term  = src.arg(prop,0);
+	    uint32_t height;
+	    if (!src.get_number(height_term, height)) {
+		throw global_db_exception("Expected non-negative integer for height: " + src.to_string(prop));
+	    }
+	    entry.set_height(height);
+	} else if (f == con_cell("nonce", 1)) {
+	    term nonce_term = src.arg(prop,0);
+	    uint64_t nonce;
+	    if (!src.get_number(nonce_term, nonce)) {
+		throw global_db_exception("Nonce is not a valid number: " + src.to_string(prop));
+	    }
+	    entry.set_nonce(nonce);
+	} else if (f == con_cell("time",1)) {
+	    term time_term = src.arg(prop, 0);
+	    uint64_t t;
+	    if (!src.get_number(time_term, t)) {
+		throw global_db_exception("Time is not a valid unsigned 64-bit number: " + src.to_string(prop));
+	    }
+	    entry.set_timestamp(utime(t));
+	} else {
+	    // Ignore unrecognized fields
+	}
+	lst = src.arg(lst, 1);
+    }
+    return true;
+}
+
+bool global::db_put_meta(term_env &src, term meta_term) {
+    meta_entry entry;
+    
+    if (!db_parse_meta(src, meta_term, entry)) {
+	return false;
+    }
+    
+    if (check_pow()) {
+	if (!entry.validate_pow()) {
+	    std::string short_id = boost::lexical_cast<std::string>(entry.get_height()) + "(" + hex::to_string(entry.get_id().hash(), 2) + ")";
+	    throw global_db_exception("PoW check failed for " + short_id);
+	}
+    }
+
+    auto &previd = entry.get_previous_id();
+    if (!previd.is_zero() &&
+	blockchain_.get_meta_entry(previd) == nullptr) {
+	auto previd_str = src.to_string(previd.to_term(src));
+	throw global_db_exception("Couldn't find previoius identifier: " + previd_str);
+    }    
+
+    // We never want to corrupt the genesis state or existing entries
+    if (entry.get_height() > 0) {
+	if (!blockchain_.get_meta_entry(entry.get_id())) {
+	    blockchain_.add_meta_entry(entry);
+	}
+    }
+
+    return true;
+}
+
+size_t global::db_get_meta_length(const meta_id &root_id, size_t lookahead_n) {
+    auto follows = blockchain_.follows(root_id);
+    if (lookahead_n == 0 || follows.empty()) {
+	return 1;
+    }
+    size_t max_len = 0;
+    for (auto &child_id : follows) {
+	size_t len = 1 + db_get_meta_length(child_id, lookahead_n-1);
+	if (len > max_len) max_len = len;
+    }
+    return max_len;
+}
+
+term global::db_get_meta_roots(term_env &dst, const meta_id &root_id, size_t spacing, size_t n) {
+    term lst = common::heap::EMPTY_LIST;
+
+    if (n == 0) {
+	return lst;
+    }
+
+    auto id = root_id;
+    auto id_term = id.to_term(dst);
+    term head  = dst.new_dotted_pair(id_term, common::heap::EMPTY_LIST);
+    term tail = head;
+    n--;
+    
+    while (n > 0) {
+	bool found = false;
+	for (size_t i = 0; i < spacing; i++) {
+	    auto follows = blockchain_.follows(id);
+	    if (follows.empty()) {
+		break;
+	    }
+	    found = true;
+	    // Pick the longest branch with 10 blocks as max length
+	    // Note that this is not really an attack vector. Yes, idiot miners
+	    // can mine spurious branches (that are long), but this only impacts
+	    // the parallelization of downloading meta records.
+	    size_t max_len = 0;
+	    meta_id best_id;
+	    if (follows.size() > 1) {
+		for (auto &follow_id : follows) {
+		    auto len = db_get_meta_length(follow_id, 10);
+		    if (len > max_len) {
+			max_len = len;
+			best_id = follow_id;
+		    }
+		}
+	    } else {
+		best_id = *follows.begin();
+	    }
+	    id = best_id;
+	}
+	if (!found) {
+	    break;
+	}
+
+	id_term = id.to_term(dst);
+	
+	term new_term = dst.new_dotted_pair(id_term, common::heap::EMPTY_LIST);
+	dst.set_arg(tail, 1, new_term);
+	tail = new_term;
+	
+	n--;
+    }
+
+    return head;
+}
+
+term global::db_get_metas(term_env &dst, const meta_id &root_id, size_t n)
+{
+    term lst = common::heap::EMPTY_LIST;
+
+    std::vector<meta_id> branches;
+    branches.push_back(root_id);
+
+    term m = db_get_meta(dst, root_id);
+    lst = dst.new_dotted_pair(m, lst);
+    term head = lst, tail = lst;
+    bool has_more = true;
+    if (n > 0) n--;
+    
+    while (n > 0 && has_more) {
+	has_more = false;
+	size_t num_branches = branches.size();
+	for (size_t i = 0; i < num_branches; i++) {
+	    auto const &id = branches[i];
+	    auto follows = blockchain_.follows(id);
+	    if (follows.empty()) {
+		branches.erase(branches.begin()+i);
+		num_branches--;
+		i--;
+		continue;
+	    }
+	    bool first = true;
+	    for (auto const &fid : follows) {
+		has_more = true;
+		term m = db_get_meta(dst, fid);
+		term new_term = dst.new_dotted_pair(m, common::heap::EMPTY_LIST);
+		dst.set_arg(tail, 1, new_term);
+		tail = new_term;
+		
+		if (!first) branches.push_back(fid);
+		if (first) {
+		    branches[i] = fid;
+		    first = false;
+		}
+		if (n > 0) n--;
+	    }
+	}
+    }
+
+    return head;
+}
+
+void global::db_put_metas(term_env &src, term lst)
+{
+    while (src.is_dotted_pair(lst)) {
+	auto meta_term = src.arg(lst, 0);
+	db_put_meta(src, meta_term);
+	lst = src.arg(lst, 1);
+    }
 }
 
 size_t global::current_height() const {
@@ -226,7 +457,11 @@ void global::increment_height()
 void global::setup_commit(const term_serializer::buffer_t &buf) {
     term_env env;
     term_serializer ser(env);
-    term lst = ser.read(buf);
+    term m = ser.read(buf);
+    if (m.tag() != tag_t::STR || env.functor(m) != con_cell("meta",1)) {
+	throw global_db_exception( "expected meta/1; was " + env.to_string(m));
+    }
+    term lst = env.arg(m, 0);
     while (env.is_dotted_pair(lst)) {
 	auto el = env.arg(lst, 0);
 	if (env.functor(el) == con_cell("version",1)) {

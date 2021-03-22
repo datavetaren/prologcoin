@@ -32,6 +32,7 @@ public:
     
     void advance();
     void update_tip();
+    void add_meta_entry(meta_entry &e);
 
     inline db::triedb & get_db_instance(std::unique_ptr<db::triedb> &var,
 					const std::string &dir) const {
@@ -135,6 +136,18 @@ public:
 	    }
 	}
 	return s;
+    }
+
+    inline meta_id genesis() {
+	auto it = at_height_.find(0);
+	if (it == at_height_.end()) {
+	    return meta_id();
+	}
+	auto &ids = it->second;
+	if (ids.empty()) {
+	    return meta_id();
+	}
+	return *ids.begin();
     }
 
     inline size_t num_symbols() {

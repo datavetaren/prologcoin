@@ -39,6 +39,11 @@ public:
         : clause_(cl), cost_(cost), ordinal_(ord) { }
     inline managed_clause(const managed_clause &other) = default;
 
+    inline bool operator == (const managed_clause &other) const {
+	return clause_ == other.clause_ && ordinal_ == other.ordinal_ &&
+	       cost_ == other.cost_;
+    }
+    
     inline common::term clause() const {
 	return clause_;
     }
@@ -134,6 +139,8 @@ public:
 
   size_t performance_count() const { return performance_count_; }
 
+  void check_index(interpreter_base &interp);
+
 private:
     bool matched_indexed_clause(interpreter_base &interp, common::term head);
     managed_clause remove_indexed_clause(interpreter_base &interp, common::term head);
@@ -223,6 +230,9 @@ public:
     inline code_point(const common::con_cell module,
 		      const common::con_cell name)
         : bn_(nullptr), module_(module), term_code_(name) { }
+
+    inline code_point(const qname &qn)
+	: bn_(nullptr), module_(qn.first), term_code_(qn.second) { }
 
     inline code_point(const common::con_cell name, builtin_fn f, bool is_recursive)
       : bn_(f), term_code_(name) {
@@ -485,7 +495,7 @@ public:
         term_env::heap_set_size(sz);
 	set_register_hb(sz);
     }
-
+    
     inline con_cell current_module() const { return current_module_; }
     void set_current_module(con_cell m);
   
@@ -540,6 +550,16 @@ public:
 	  load_builtin(qn, b);
 	}
 
+    inline void remove_builtin(con_cell f)
+        { qname qn(current_module_, f);
+	  remove_builtin(qn);
+        }
+
+    inline void remove_builtin(con_cell module, con_cell f)
+        { qname qn(module, f);
+	  remove_builtin(qn);
+        }
+    
     void load_clause(const std::string &str);
     void load_clause(std::istream &is);
     void load_clause(term t, clause_position pos);
@@ -949,7 +969,16 @@ public:
     {
         code_db_[qn] = cp;
     }
-    
+
+    inline void remove_code(const qname &qn)
+    {
+	auto found = code_db_.find(qn);
+	if (found == code_db_.end()) {
+	    return;
+	}
+	code_db_.erase(found);
+    }
+	
 protected:
     inline std::unordered_map<qname, code_point> & code_db() {
 	return code_db_;
@@ -1483,6 +1512,7 @@ protected:
 	    set_qr(ef1->qr);
 	    set_pr(ef1->pr);
 	    set_p(ef1->p);
+	    inside_frozen_closure_count_--;
 	    break;
 	    }
 	case ENV_NAIVE: {
@@ -1677,9 +1707,14 @@ public:
 
 protected:
     void tidy_trail();
+
+    bool inside_frozen_closure() const {
+	return inside_frozen_closure_count_ > 0;
+    }
     
 private:
     void load_builtin(const qname &qn, builtin b);
+    void remove_builtin(const qname &qn);
     void load_builtins();
 
     void init();
@@ -1757,6 +1792,8 @@ private:
     term register_qr_;     // Current query 
     con_cell register_pr_; // Current predicate (for profiling)
 
+    size_t inside_frozen_closure_count_;
+    
 public:
     static const con_cell COMMA;
     static const con_cell EMPTY_LIST;
@@ -1953,6 +1990,25 @@ protected:
 	heap_limiter_ = heap_sz;
     }
 
+    void heap_limit_term(term t) {
+	size_t old_hl = get_heap_limit();
+	size_t hl = get_heap_limit();
+	for (auto s : iterate_over(t)) {
+	    switch (s.tag()) {
+	    case common::tag_t::STR:
+	    case common::tag_t::BIG:
+	    case common::tag_t::REF:
+	    case common::tag_t::RFW: {
+		auto addr = reinterpret_cast<common::ptr_cell &>(s).index();
+		if (addr > hl) hl = addr;
+    	    }
+	    }
+	}
+	if (hl > old_hl) {
+	    heap_limit(hl);
+	}
+    }
+
 private:
     size_t heap_limiter_;
 
@@ -1998,16 +2054,7 @@ public:
 	}
     };
     
-    void add_delayed(delayed_t *dt) {
-	delayed_.push_back(dt);
-	if (dt->has_timeout()) {
-	    boost::lock_guard<common::spinlock> lockit2(delayed_fast_lock_);
-	    if (delayed_next_timeout_.is_zero() ||
-		dt->timeout_at < delayed_next_timeout_) {
-		delayed_next_timeout_ = dt->timeout_at;
-	    }
-	}
-    }
+    void add_delayed(delayed_t *dt);
     void delayed_ready(delayed_t *dt) {
 	boost::unique_lock<common::spinlock> lockit(delayed_fast_lock_);
 	dt->ready = true;
@@ -2100,7 +2147,7 @@ inline managed_clause predicate::remove_indexed_clause(interpreter_base &interp,
     auto &idx = indexed_[arg_index];
     for (auto it = idx.begin(); it != idx.end();) {
         performance_count_++;
-        auto &mclause = (*it);
+        auto mclause = (*it);
         auto idx_clause = mclause.clause();
         auto idx_clause_head = interp.clause_head(idx_clause);
         if (interp.can_unify(idx_clause_head, head)) {
@@ -2260,6 +2307,8 @@ template<> inline environment_frozen_t * interpreter_base::allocate_environment<
     set_e(new_ef, ENV_FROZEN);
     
     save_state_fn_(this);
+
+    inside_frozen_closure_count_++;
     
     return new_ef;
 }
@@ -2267,10 +2316,12 @@ template<> inline environment_frozen_t * interpreter_base::allocate_environment<
 inline void interpreter_base::check_delayed()
 {
     process_delayed( [this](const delayed_t &dt) {
+	bool ok = false;
 	if (dt.result_src) {
 	    term result_copy = copy( dt.result, *dt.result_src);
-	    unify(dt.query, result_copy);
-	} else {
+	    ok = unify(dt.query, result_copy);
+	}
+	if (!ok) {
 	    // Remote execution failed, so execute else clause (if present)
 	    if (dt.else_do != EMPTY_LIST) {
 		allocate_environment<ENV_FROZEN, environment_frozen_t *>();
@@ -2286,7 +2337,12 @@ inline void interpreter_base::check_delayed()
 inline void interpreter_base::check_frozen()
 {
     bool do_check_delayed = false;
-    {
+    // Don't bind parallel variables when we're executing the body
+    // of a frozen closure. Keep the mental model simple for the user
+    // so that "new frozen closures" are not triggered randomly while
+    // executing the body of a frozen closure (unless the user explicitly
+    // binds some external variable.)
+    if (!inside_frozen_closure()) {
 	boost::lock_guard<common::spinlock> lockit(delayed_fast_lock_);
 	if (delayed_ready_) {
 	    do_check_delayed = true;
