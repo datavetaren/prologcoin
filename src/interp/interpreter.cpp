@@ -181,7 +181,6 @@ bool interpreter::new_instance_meta(interpreter_base &interp0, const meta_reason
 //
 bool interpreter::debug_predicate_1(interpreter_base &interp, size_t arity, common::term args[]) {
     interpreter &i = static_cast<interpreter &>(interp);
-    i.check_it();
     throw std::runtime_error("foo");
     return true;
 }
