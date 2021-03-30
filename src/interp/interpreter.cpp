@@ -12,7 +12,6 @@ interpreter::interpreter(const std::string &name) : wam_interpreter(name)
     wam_enabled_ = true;
     query_vars_ = nullptr;
     num_instances_ = 0;
-    retain_state_between_queries_ = false;
 }
 
 void interpreter::total_reset()
@@ -22,7 +21,6 @@ void interpreter::total_reset()
     wam_enabled_ = true;
     query_vars_ = nullptr;
     num_instances_ = 0;
-    retain_state_between_queries_ = false;
 }
 
 interpreter::~interpreter()
@@ -200,7 +198,7 @@ bool interpreter::execute(const term query)
 	do_new_instance = true;
     } else {
         // Overriding last instance
-        if (!retain_state_between_queries_) {
+        if (!is_retain_state_between_queries()) {
 	    clear_all_frozen_closures();
         }
     }
@@ -986,7 +984,7 @@ remote_return_t interpreter::execute_at(common::term query,
     auto *interp = at_local_[where];
 
     if (mode == MODE_PARALLEL) {
-	auto *d = new delayed_t(*this, query, else_do);
+	auto *d = new delayed_t(this, query, else_do);
 	d->set_timeout_millis(timeout);
 	add_delayed(d);
 	local_service_.add(
@@ -1037,7 +1035,7 @@ remote_return_t interpreter::continue_at(common::term query,
     }
 
     if (mode == MODE_PARALLEL) {
-	auto *d = new delayed_t(*this, query, else_do);
+	auto *d = new delayed_t(this, query, else_do);
 	d->set_timeout_millis(timeout);
 	add_delayed(d);
 	local_service_.add(

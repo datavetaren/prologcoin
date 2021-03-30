@@ -591,11 +591,6 @@ void in_connection::process_execution(const term cmd, bool in_query, bool silent
 		}
 	    }
 	    auto qr = cmd;
-	    /*
-	    if (session_->env().to_string(qr).find("heartbeat") == std::string::npos) {
-	        std::cout << "QUERY: " << session_->env().to_string(qr) << std::endl;
-	    }
-	    */
 	    bool r = in_query ? session_->next() : session_->execute(qr);
 	    term standard_out = e.EMPTY_LIST;
 	    if (!session_->get_text_out().empty()) {
@@ -652,7 +647,7 @@ void in_connection::process_execution(const term cmd, bool in_query, bool silent
 //
 
 out_connection::out_connection(self_node &self, out_connection::out_type_t t, const ip_service &ip)
-    :  connection(self, CONNECTION_OUT, env_), out_type_(t), ip_(ip), init_in_progress_(false), use_heartbeat_(true), connected_(false), sent_my_name_(false), work_( &out_task::comparator ), busy_count_(0)
+    :  connection(self, CONNECTION_OUT, env_), out_type_(t), ip_(ip), init_in_progress_(false), use_heartbeat_(true), connected_(false), sent_my_name_(false), work_( &out_task::comparator ), busy_count_(0), pending_queries_(0)
 {
     using namespace boost::system;
 
@@ -864,7 +859,9 @@ void out_connection::on_state()
 	task->set_state(out_task::RECEIVED);
 	task->set_term(r);
 	task->process();
-	if (task->get_state() == out_task::KILLED) {
+	if (task->get_state() == out_task::WAIT) {
+	    self().add_waiting(task);
+	} else if (task->get_state() == out_task::KILLED) {
 	    delete task;
 	}
 	if (!is_stopped()) {
@@ -895,6 +892,16 @@ void out_connection::print_task_queue() const
 	std::cout << task->get_when().str() << ": " << task->description() << std::endl;
 	temp.pop();
     }
+}
+
+void out_connection::increment_pending_queries() {
+    boost::lock_guard<boost::recursive_mutex> guard(work_lock_);
+    pending_queries_++;
+}
+
+void out_connection::decrement_pending_queries() {
+    boost::lock_guard<boost::recursive_mutex> guard(work_lock_);
+    pending_queries_--;
 }
 
 }}

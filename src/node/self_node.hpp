@@ -23,6 +23,7 @@
 
 namespace prologcoin { namespace node {
 
+class out_task;
 class task_execute_query;
 class sync;
 
@@ -52,6 +53,15 @@ private:
     address_book &book_;
 };
 
+class node_delayed_t : public interp::interpreter_base::delayed_t {
+public:
+    node_delayed_t(interp::interpreter_base *i, common::term q, common::term e) : delayed_t(i,q,e,nullptr), task_(nullptr) { }
+    virtual ~node_delayed_t();
+    void set_task(task_execute_query *task) { task_ = task; }
+private:
+    task_execute_query *task_;
+};
+	
 class self_node {
 private:
     using io_service = boost::asio::io_service;
@@ -180,10 +190,12 @@ public:
     task_execute_query * schedule_execute_new_instance(const std::string &where);    
     task_execute_query * schedule_execute_delete_instance(const std::string &where);
     
-    task_execute_query * schedule_execute_query(term query, interp::interpreter_base::delayed_t *delayed, term_env &query_src, const std::string &where, interp::remote_execute_mode mode);
+    task_execute_query * schedule_execute_query(term query, node_delayed_t *delayed, term_env &query_src, const std::string &where, interp::remote_execute_mode mode);
     task_execute_query * schedule_execute_next(const std::string &where, term_env &query_src, interp::remote_execute_mode mode);
 
     interp::remote_return_t schedule_execute_wait_for_result(task_execute_query *task, term_env &query_src);
+
+    void add_waiting(out_task *task);
 
     bool new_instance_at(term_env &query_src, const std::string &where);
     bool delete_instance_at(term_env &query_src, const std::string &where);
@@ -322,6 +334,7 @@ private:
     void start_accept();
     void start_tick();
     void stop_sync();
+    void process_waiting_tasks();
     void prune_dead_connections();
     void connect_to(const std::vector<address_entry> &entries);
     void check_out_connections();
@@ -370,6 +383,8 @@ private:
     std::unordered_set<ip_service> out_standard_ips_;
     std::unordered_map<ip_service, std::pair<utime, size_t> > recently_failed_;
     std::set<std::pair<utime, ip_service> > recently_failed_sorted_;
+    boost::recursive_mutex waiting_tasks_lock_;
+    std::vector<out_task *> waiting_tasks_;
 
     boost::recursive_mutex lock_;
     std::unordered_map<std::string, in_session_state *> in_states_;

@@ -64,13 +64,14 @@ meta_context::meta_context(interpreter_base &i, meta_fn mfn)
     old_hb = i.get_register_hb();
 }
 
-interpreter_base::interpreter_base(const std::string &name) : arith_(*this), locale_(*this), name_(name)
+interpreter_base::interpreter_base(const std::string &name) : retain_state_between_queries_(false), arith_(*this), locale_(*this), name_(name)
 {
     init();
 }
 
 void interpreter_base::total_reset()
 {
+    retain_state_between_queries_ = false;
     term_env::reset();
     secondary_env_.reset();
 
@@ -993,6 +994,8 @@ choice_point_t * interpreter_base::reset_to_choice_point(choice_point_t *b)
 {
     auto ch = b;
 
+    // std::cout << "reset_to_choice_point(): b=" << b << std::endl;
+    
     set_m(ch->m);
     set_e(ch->ce);
     set_cp(ch->cp);

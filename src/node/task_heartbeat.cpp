@@ -9,7 +9,7 @@ using namespace prologcoin::common;
 namespace prologcoin { namespace node {
 
 task_heartbeat::task_heartbeat(out_connection *out)
-    : out_task("heartbeat", out)
+    : out_task("heartbeat", out_task::TYPE_HEARTBEAT, out)
 { }
 
 void task_heartbeat::process()
@@ -36,6 +36,7 @@ void task_heartbeat::process()
 		    })
 	      );
 	break;
+    case WAIT:
     case KILLED:
 	break;
     }

@@ -294,6 +294,37 @@ bool me_builtins::connections_0(interpreter_base &interp0, size_t arity, term ar
     return true;
 }
 
+bool me_builtins::connections_1(interpreter_base &interp0, size_t arity, term args[] )
+{
+    auto &interp = to_local(interp0);
+
+    interp.root_check("connections", arity);
+
+    term lst = interp.EMPTY_LIST;
+    term head = lst, tail = lst;
+
+    interp.self().for_each_standard_out_connection(
+	      [&](out_connection *conn){
+		  auto name = conn->name();
+		  term name_term;
+		  if (interp.self().is_unique_connection_name(name)) {
+		      name_term = interp.functor(name, 0);
+		  } else {
+		      name_term = interp.functor(conn->ip().str(), 0);
+		  }
+		  auto new_tail = interp.new_dotted_pair(name_term,
+							 interp.EMPTY_LIST);
+		  if (head == interp.EMPTY_LIST) {
+		      head = tail = new_tail;
+		  } else {
+		      interp.set_arg(tail, 1, new_tail);
+		      tail = new_tail;
+		  }
+	      });
+
+    return interp.unify( args[0], head);
+}
+
 bool me_builtins::ready_1(interpreter_base &interp0, size_t arity, term args[]) {
     auto &interp = to_local(interp0);
 
@@ -1851,6 +1882,7 @@ void local_interpreter::setup_local_builtins()
     // Address book & connections
     load_builtin(ME, con_cell("peers", 2), &me_builtins::peers_2);
     load_builtin(ME, functor("connections",0), &me_builtins::connections_0);
+    load_builtin(ME, functor("connections",1), &me_builtins::connections_1);
     load_builtin(ME, functor("add_address",2), &me_builtins::add_address_2);
     load_builtin(ME, con_cell("ready", 1), &me_builtins::ready_1);
 

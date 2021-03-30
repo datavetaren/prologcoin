@@ -15,7 +15,7 @@ public:
 
     task_execute_query(out_connection *out,
 		       term query,
-		       interp::interpreter_base::delayed_t *delayed,
+		       node_delayed_t *delayed,
 		       term_env &query_src,
 		       interp::remote_execute_mode mode);
     task_execute_query(out_connection *out, do_next n,
@@ -53,11 +53,9 @@ private:
     boost::mutex result_cv_lock_;
     boost::condition_variable result_cv_;
     interp::remote_execute_mode mode_;
-    interp::interpreter_base::delayed_t *delayed_;
+    node_delayed_t *delayed_;
 };
 
 }}
 
 #endif
-
-

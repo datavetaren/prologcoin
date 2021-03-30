@@ -538,6 +538,14 @@ public:
     bool is_file_id(size_t id) const;
     void reset_files();
 
+    inline bool is_retain_state_between_queries() const {
+	return retain_state_between_queries_;
+    }
+    
+    inline void set_retain_state_between_queries(bool b) {
+        retain_state_between_queries_ = b;
+    }
+  
     inline arithmetics & arith() { return arith_; }
 
     inline void load_builtin(con_cell f, builtin b)
@@ -1555,7 +1563,7 @@ protected:
 	register_b_ = new_b;
 	set_register_hb(heap_size());
 
-	// std::cout << cnt << ": allocate_choice_point(): b=" << new_b << " trail_size=" << trail_size() << "\n";
+	// std::cout << "allocate_choice_point(): b=" << new_b << " trail_size=" << trail_size() << "\n";
 
         // std::cout << "allocate_choice_point b=" << new_b << " (prev=" << new_b->b << ")\n";
 	// std::cout << "allocate_choice_point saved qr=" << to_string(register_qr_) << "\n";
@@ -1803,6 +1811,7 @@ public:
     static const con_cell COLON;
 
 private:
+    bool retain_state_between_queries_;
 
     std::string current_dir_; // Current directory
 
@@ -1953,13 +1962,6 @@ private:
 protected:
     inline void trim_heap_safe(size_t new_size) {
         size_t current_size = heap_size();
-	// And we need to remove any pending frozen closures
-	std::vector<std::pair<size_t, term> > closures;
-	get_frozen_closures(new_size, current_size, MAX_FROZEN_CLOSURES, closures);
-	for (auto &p : closures) {
-   	     size_t addr = p.first;
-	     clear_frozen_closure(addr);
-	}
 	// Never shrink the heap beyond the limiter.
 	// The limiter is set as the "safe point." For example,
 	// when program DB is loaded with new clauses, we need to
@@ -1970,6 +1972,13 @@ protected:
 	// size_t orig_size = new_size;
 	if (new_size < heap_limiter_) {
 	    new_size = heap_limiter_;
+	}
+	// And we need to remove any pending frozen closures
+	std::vector<std::pair<size_t, term> > closures;
+	get_frozen_closures(new_size, current_size, MAX_FROZEN_CLOSURES, closures);
+	for (auto &p : closures) {
+   	     size_t addr = p.first;
+	     clear_frozen_closure(addr);
 	}
 	// std::cout << "trim_heap: new_size=" << new_size << " requested=" << orig_size << " limit=" << heap_limiter_ << std::endl;
         term_env::trim_heap(new_size);
@@ -1996,11 +2005,26 @@ protected:
 	for (auto s : iterate_over(t)) {
 	    switch (s.tag()) {
 	    case common::tag_t::STR:
+	    {
+		auto &str_cell = reinterpret_cast<common::str_cell &>(s);
+		auto addr = str_cell.index();
+		auto f = functor(s);
+		size_t n = f.arity() + 2;
+		if (addr + n > hl) hl = addr + n;
+		break;
+	    }
 	    case common::tag_t::BIG:
+	    {
+		auto &big_cell = reinterpret_cast<common::big_cell &>(s);
+		auto addr = big_cell.index();
+		size_t n = num_cells(big_cell) + 1;
+		if (addr + n > hl) hl = addr + n;
+		break;
+	    }
 	    case common::tag_t::REF:
 	    case common::tag_t::RFW: {
 		auto addr = reinterpret_cast<common::ptr_cell &>(s).index();
-		if (addr > hl) hl = addr;
+		if (addr + 1 > hl) hl = addr + 1;
     	    }
 	    }
 	}
@@ -2014,10 +2038,11 @@ private:
 
 public:
     struct delayed_t {
-	delayed_t(interpreter_base &i, term q, term e, std::function<void()> processed_fn = nullptr)
+	delayed_t(interpreter_base *i, term q, term e, std::function<void()> processed_fn = nullptr)
 	    : interp(i), query(q), else_do(e), timeout(std::numeric_limits<size_t>::max()), timeout_at(), result(), result_src(nullptr), ready(false), failed(false), processed_fn(nullptr) { }
 	delayed_t(const delayed_t &other) = default;
-	interpreter_base &interp;
+	virtual ~delayed_t() = default;
+	interpreter_base *interp;
 	term query;
 	term else_do;
 	size_t timeout;
@@ -2072,8 +2097,8 @@ public:
 	    } else if (d->ready) {
 		if (!d->failed) {
 		    fn(*d);
-		    if (d->processed_fn) d->processed_fn();
 		}
+		if (d->processed_fn) d->processed_fn();
 		delete d;
 		it = delayed_.erase(it);
 		boost::lock_guard<common::spinlock> lockit2(delayed_fast_lock_);

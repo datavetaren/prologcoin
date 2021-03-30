@@ -6,7 +6,7 @@ using namespace prologcoin::common;
 
 namespace prologcoin { namespace node {
 
-task_init_connection::task_init_connection(out_connection *out) : out_task("init", out)
+task_init_connection::task_init_connection(out_connection *out) : out_task("init", out_task::TYPE_INIT_CONNECTION, out)
 { }
 
 void task_init_connection::process()
@@ -91,6 +91,7 @@ void task_init_connection::process()
 	}
 	break;
     case KILLED:
+    case WAIT:
 	break;
     }
 }

@@ -23,15 +23,30 @@ public:
 	IDLE = 0,
 	SEND = 1,
 	RECEIVED = 2,
-	KILLED = 3
+	WAIT = 3,
+	KILLED = 4
     };
 
-    out_task(const char *description, out_connection *out);
+    enum type_t {
+	TYPE_NONE = 0,
+	TYPE_ADDRESS_DOWNLOADER = 1,
+	TYPE_ADDRESS_VERIFIER = 2,
+	TYPE_INIT_CONNECTION = 3,
+	TYPE_HEARTBEAT = 4,
+	TYPE_INFO = 5,
+	TYPE_PUBLISH = 6,
+	TYPE_RESET = 7,
+	TYPE_EXECUTE_QUERY = 8
+    };
+
+    out_task(const char *description, type_t type, out_connection *out);
     virtual ~out_task();
 
     static bool comparator(const out_task *t1, const out_task *t2);
 
     inline const char * description() const { return description_; }
+
+    inline type_t get_type() const { return type_; }
 
     virtual void process() = 0;
 
@@ -102,6 +117,7 @@ protected:
     void error(const reason_t &reason, const std::string &msg);
 
 private:
+    type_t type_;
     const char *description_;
     out_connection *out_;
     term_env *env_;

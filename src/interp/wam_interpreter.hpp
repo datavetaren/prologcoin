@@ -893,7 +893,6 @@ private:
 		    = common::ref_cell(index);
 	    } else {
 		heap_set(index, common::ref_cell(index));
-		
 	    }
 	}
     }

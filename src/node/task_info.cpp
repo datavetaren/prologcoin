@@ -8,7 +8,7 @@ using namespace prologcoin::common;
 
 namespace prologcoin { namespace node {
 
-task_info::task_info(out_connection *out) : out_task("info", out)
+task_info::task_info(out_connection *out) : out_task("info", out_task::TYPE_INFO, out)
 { }
 
 
@@ -86,6 +86,7 @@ void task_info::process()
 	    }));
 	break;
     case KILLED:
+    case WAIT:
 	break;
     }
 }

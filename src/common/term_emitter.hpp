@@ -64,7 +64,7 @@ public:
 
     void set_max_column( size_t max_column );
 
-    std::string name_ref(size_t index) const;
+    std::string name_ref(ref_cell r) const;
 
     inline std::ostream & out() { return out_; }
 

@@ -377,14 +377,6 @@ public:
 	}
     }
 
-    inline bool is_retain_state_between_queries() const {
-	return retain_state_between_queries_;
-    }
-    
-    inline void set_retain_state_between_queries(bool b) {
-        retain_state_between_queries_ = b;
-    }
-  
 protected:
     void add_at_local(const std::string &name, interpreter *interp) {
 	at_local_[name] = interp;
@@ -450,7 +442,6 @@ private:
     bool wam_enabled_;
     std::vector<binding> *query_vars_;
     size_t num_instances_;
-    bool retain_state_between_queries_;
     std::vector<size_t> last_hb_;
 
     friend struct new_instance_context;

@@ -594,6 +594,7 @@ bool builtins::is_2(interpreter_base &interp, size_t arity, common::term args[])
 {
     term lhs = args[0];
     term rhs = args[1];
+
     term result = interp.arith().eval(rhs, "is/2");
     bool ok = interp.unify(lhs, result);
     return ok;
@@ -1132,8 +1133,14 @@ bool builtins::freeze_2(interpreter_base &interp, size_t arity, common::term arg
     args[1] = interp.rewrite_freeze_body(args[0], args[1]);
 
     // At this point args[1] should be '$freeze':<id>( .... )
+								 
+    auto index = reinterpret_cast<ref_cell &>(args[0]).index();
+	
+    interp.set_frozen_closure(index, args[1]);
 
-    interp.set_frozen_closure(reinterpret_cast<ref_cell &>(args[0]).index(), args[1]);
+    if (interp.is_retain_state_between_queries()) {
+	interp.heap_limit_term(args[1]);
+    }
 
     interp.set_p(interp.cp());
     interp.set_cp(code_point(interpreter_base::EMPTY_LIST));

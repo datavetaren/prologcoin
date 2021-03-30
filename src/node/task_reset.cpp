@@ -6,7 +6,7 @@ using namespace prologcoin::common;
 
 namespace prologcoin { namespace node {
 
-task_reset::task_reset(out_connection *out) : out_task("init", out), failed_(false), reset_(false),  consumed_(false)
+task_reset::task_reset(out_connection *out) : out_task("reset", out_task::TYPE_RESET, out), failed_(false), reset_(false),  consumed_(false)
 { }
 
 void task_reset::process()
@@ -50,6 +50,7 @@ void task_reset::process()
 	set_term(e.new_term(con_cell("command",1), {con_cell("lreset",0)}));
 	break;
     case KILLED:
+    case WAIT:
 	break;
     }
 }

@@ -6,7 +6,7 @@ using namespace prologcoin::common;
 
 namespace prologcoin { namespace node {
 
-task_publish::task_publish(out_connection *out) : out_task("publish", out)
+task_publish::task_publish(out_connection *out) : out_task("publish", out_task::TYPE_PUBLISH, out)
 { }
 
 
@@ -40,6 +40,7 @@ void task_publish::process()
 		    ));
 	break;
     case KILLED:
+    case WAIT:
 	break;
     }
 }

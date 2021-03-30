@@ -51,6 +51,7 @@ public:
 
     static bool add_address_2(interpreter_base &interp, size_t arity, term args[]);
     static bool connections_0(interpreter_base &interp, size_t arity, term args[]);
+    static bool connections_1(interpreter_base &interp, size_t arity, term args[]);    
     static bool ready_1(interpreter_base &interp, size_t arity, term args[]);
 
     // Mailboxes

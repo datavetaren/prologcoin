@@ -26,6 +26,7 @@ namespace prologcoin { namespace node {
 class self_node;
 class in_session_state;
 class task_reset;
+class out_task;
 
 class reason_t {
 public:
@@ -68,6 +69,8 @@ protected:
     using term = prologcoin::common::term;
     using term_env = prologcoin::common::term_env;
 
+    friend class out_task;
+
 public:
     enum connection_type { CONNECTION_IN, CONNECTION_OUT };
 
@@ -91,8 +94,6 @@ public:
     inline void prepare_receive() { set_state(STATE_RECEIVE_LENGTH); }
     inline void prepare_send() { set_state(STATE_SEND_LENGTH); }
 
-    inline bool is_ready() const { return get_state() == STATE_IDLE; }
-    
     void send_error(const term t);
     void send_ok(const term t);
     void send(const term t);
@@ -226,7 +227,7 @@ public:
 
     out_connection(self_node &self, out_type_t t, const ip_service &ip);
     virtual ~out_connection();
-
+    
     void close() override {
 	connection::close();
 	delete_tasks();
@@ -240,6 +241,10 @@ public:
     inline bool sent_my_name() const { return sent_my_name_; }
     inline void set_sent_my_name() { sent_my_name_ = true; }
 
+    inline bool is_ready() const { return pending_queries_ == 0; }
+
+    void increment_pending_queries();
+    void decrement_pending_queries();
 
     inline void set_id(const std::string &id) { id_ = id; }
     void set_name(const std::string &name);
@@ -333,6 +338,7 @@ private:
     utime last_in_work_;
     size_t busy_count_;
     common::spinlock busy_count_lock_;
+    size_t pending_queries_;
 };
 
 }}

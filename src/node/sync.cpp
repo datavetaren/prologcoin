@@ -129,27 +129,23 @@ void sync::setup_sync_impl()
 
 sync :- 
     sync_setup,
-    sync:mode(Mode), !.
-
-%    write('hello sync'), nl.
-
-%    sync(Mode).
+    sync:mode(Mode), 
+    sync_run(Mode), !.
 
 sync_setup :-
     (\+ current_predicate(sync:mode/1) -> assert(sync:mode(meta)) ; true),
     (\+ current_predicate(sync:step/1) -> assert(sync:step(1000)) ; true),
     (\+ current_predicate(sync:'timeout'/1) -> assert(sync:'timeout'(100000)) ; true),
     (\+ current_predicate(sync:lookahead/1) -> assert(sync:lookahead(10)) ; true),
-    (\+ current_predicate(sync:low/1) -> assert(sync:low(0)) ; true),
-    sync:mode(Mode),
-    sync_run(Mode).
+    (\+ current_predicate(sync:low/1) -> assert(sync:low(0)) ; true).
+
 %
 
 sync_run(meta) :-
     !,
     sync_run_roots,
     (sync_process_delayed_results ; true),
-    (sync_meta_blocks ; true),
+    (sync_meta_blocks(10) ; true),
     (current_predicate(sync:root/4) -> true ;
      retract(sync:mode(_)),
      assert(sync:mode(done)),
@@ -162,27 +158,38 @@ print_roots(Label) :-
     write(LLL), nl,
     write('------------'), nl ; true).
 
-sync_meta_blocks :-
+sync_meta_blocks(0) :- !.
+sync_meta_blocks(N) :-
     current_predicate(sync:root/4),
     (\+ current_predicate(tmp:run/1) -> assert(tmp:run(dummy)) ; true),
     % Process lowest height first
+    (sync_meta_next(Height,Id,Span) ->
+        assert(tmp:run(Id)),
+        (ready(Connection) -> true ; retract(tmp:run(Id)), fail),
+        sync:'timeout'(Timeout),
+%        write('Get '), write(Height), write(' '), write(Id), nl,
+        (metas(Id, Span, Result) @= (Connection else
+            (
+%            write('failed connection '), write(Id), nl,
+             retract(tmp:run(Id)),
+             meta_fail_root(Height, Id)) timeout Timeout)),
+        freeze(Result, (delay_put_metas1(Result) ->
+                      sync_delay_result(Result,Height,Id,Span)
+                    ; sync_add_result(Result,Height,Id,Span)
+                    ; retract(tmp:run(Id)), meta_fail_root(Height, Id))),
+        N1 is N - 1,
+        !,
+        sync_meta_blocks(N1) 
+    ; true).
+
+sync_meta_next(Height,Id,Span) :-
     findall(root(H,I,S,F), sync:root(H,I,S,F), L),
     sort(L, SortedL),
     member(root(Height,Id,Span,_), SortedL),
-    \+ tmp:run(Id),
-    !,
-    assert(tmp:run(Id)),
-    (ready(Connection) -> true ; retract(tmp:run(Id)), fail),
-    sync:'timeout'(Timeout),
-    (metas(Id, Span, Result) @= (Connection else
-      (retract(tmp:run(Id)), meta_fail_root(Height, Id)) timeout Timeout)),
-    freeze(Result, (delay_put_metas(Result) ->
-                      sync_delay_result(Result,Height,Id,Span)
-                    ; sync_add_result(Result,Height,Id,Span)
-                    ; retract(tmp:run(Id)), meta_fail_root(Height, Id))).
+    \+ tmp:run(Id).
 
 sync_delay_result(Result, Height, Id, Span) :-
-    write('Delay '), write(Id), write(' '), write(Height), nl,
+%    write('Delay '), write(Height), write(' '), write(Id), nl,
     assert(tmp:delay(Height, Id, Span, Result)).
 
 sync_process_delayed_results :-
@@ -190,16 +197,23 @@ sync_process_delayed_results :-
     findall(delay(H,I,S,F), tmp:delay(H,I,S,F),L),
     sort(L, Sorted),
     [delay(Height,Id,Span,Result)|_] = Sorted,
-    (delay_put_metas(Result) -> true ; 
-        retract(tmp:delay(H,I,S,F)),
+    (delay_put_metas1(Result) -> true ; 
+        retract(tmp:delay(Height,Id,Span,_)),
         sync_add_result(Result, Height, Id, Span)).
 
+delay_put_metas1(Result) :-
+%    (\+ current_predicate(tmp:mycnt/1) -> assert(tmp:mycnt(0)) ; true),
+%    tmp:mycnt(Cnt), Cnt1 is Cnt + 1,
+%    retract(tmp:mycnt(_)),
+%    assert(tmp:mycnt(Cnt1)),
+%    (Cnt1 < 10, 0 is mod(Cnt1,2) -> true ; delay_put_metas(Result)),
+    delay_put_metas(Result).
+
 sync_add_result(Result, Height, Id, Span) :-
+%    write('Add '), write(Height), write(' '), write(Id), nl,
     put_metas(Result),
-    (retract(sync:root(Height,Id,Span,_)) ; 
-         write('failedit'), nl, 
-         write(Height), write(' '), write(Id), write(' '), write(Span), nl,
-         true),
+    (retract(sync:root(Height,Id,Span,_)) ; true),
+    !,
     retract(tmp:run(Id)),
     last(Result, MetaRecord),
     meta_height(MetaRecord, LastH),
@@ -218,13 +232,17 @@ sync_add_result(Result, Height, Id, Span) :-
     (current_predicate(sync:root/4) ->
         findall(H, sync:root(H,_,_,_), Hs) ; Hs = []),
     sort(Hs, HsSorted),
+    (current_predicate(sync:root/4) ->
+        findall(HH-AA-BB, sync:root(HH,AA,BB,_), HHs) ; HHs = []),
     retract(sync:low(_)),
     ([HLow|_] = HsSorted ->
         assert(sync:low(HLow)) ;
         assert(sync:low(LastH))).
+%    sync:low(LLL),
+%    write('Updated low '), write(LLL), nl.
 
 meta_fail_root(Height, Id) :-
-    write('Fail '), write(Id), write(' '), write(Height), nl,
+%    write('Fail '), write(Id), write(' '), write(Height), nl,
     sync:root(Height, Id, Span, FailCount),
     retract(sync:root(Height, Id, Span, FailCount)),
     FailCount1 is FailCount + 1,

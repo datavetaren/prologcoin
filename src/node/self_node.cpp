@@ -16,6 +16,12 @@ namespace prologcoin { namespace node {
 
 using namespace prologcoin::common;
 
+node_delayed_t::~node_delayed_t() {
+    if (task_) {
+	task_->consume_result();
+    }
+}
+	
 self_node::self_node(const std::string &data_dir, unsigned short port)
     : name_("noname"),
       ioservice_(),
@@ -221,7 +227,7 @@ task_execute_query * self_node::schedule_execute_delete_instance(const std::stri
     return task;
 }
 
-task_execute_query * self_node::schedule_execute_query(term query, interp::interpreter_base::delayed_t *delayed, term_env &query_src, const std::string &where, interp::remote_execute_mode mode)
+task_execute_query * self_node::schedule_execute_query(term query, node_delayed_t *delayed, term_env &query_src, const std::string &where, interp::remote_execute_mode mode)
 {
     boost::lock_guard<boost::recursive_mutex> guard(lock_);
     auto *out = find_out_connection(where);
@@ -271,9 +277,9 @@ interp::remote_return_t self_node::schedule_execute_wait_for_result(task_execute
 
 interp::remote_return_t self_node::execute_at(term query, term else_do, interp::interpreter_base &query_interp, const std::string &where, interp::remote_execute_mode mode, size_t timeout)
 {
-    interp::interpreter_base::delayed_t *delayed = nullptr;
+    node_delayed_t *delayed = nullptr;
     if (mode == interp::MODE_PARALLEL) {
-	delayed = new interp::interpreter_base::delayed_t(query_interp, query, else_do);
+	delayed = new node_delayed_t(&query_interp, query, else_do);
 	delayed->set_timeout_millis(timeout);
     }
     auto *task = schedule_execute_query(query, delayed, query_interp, where, mode);
@@ -284,6 +290,7 @@ interp::remote_return_t self_node::execute_at(term query, term else_do, interp::
     }
     if (mode == interp::MODE_PARALLEL) {
 	query_interp.add_delayed(delayed);
+	delayed->set_task(task);
 	return interp::remote_return_t(query_interp.EMPTY_LIST);
     } else {
 	if (delayed) delete delayed;
@@ -448,6 +455,7 @@ void self_node::start_tick()
     timer_.async_wait(
 	      strand_.wrap(
 			   [this](const error_code &) {
+			       process_waiting_tasks();
 			       prune_dead_connections();
 			       check_out_connections();
 			       master_hook();
@@ -456,6 +464,28 @@ void self_node::start_tick()
 					    timer_interval_microseconds_));
 			       start_tick();
 			   }));
+}
+
+void self_node::add_waiting(out_task *task)
+{
+    boost::lock_guard<boost::recursive_mutex> guard(waiting_tasks_lock_);
+    waiting_tasks_.push_back(task);
+}
+
+void self_node::process_waiting_tasks()
+{
+    boost::lock_guard<boost::recursive_mutex> guard(waiting_tasks_lock_);
+    auto it = waiting_tasks_.begin();
+    for (; it != waiting_tasks_.end();) {
+	auto *task = *it;
+	task->process();
+	if (task->get_state() == out_task::KILLED) {
+	    delete task;
+	    it = waiting_tasks_.erase(it);
+	} else {
+	    ++it;
+	}
+    }
 }
 
 void self_node::prune_dead_connections()

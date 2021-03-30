@@ -297,8 +297,10 @@ size_t term_emitter::get_precedence(cell c) const
     return p.precedence;
 }
 
-std::string term_emitter::name_ref(size_t index) const
+std::string term_emitter::name_ref(ref_cell r) const
 {
+    size_t index = r.index();
+
     static const char ALPHABET[]
     { 'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J',
       'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T',
@@ -322,6 +324,11 @@ std::string term_emitter::name_ref(size_t index) const
     std::reverse(s.begin(), s.end());
 
     return s;
+
+    /*
+    std::string t = r.tag().str();
+    return t + boost::lexical_cast<std::string>(index);
+    */
 }
 
 bool term_emitter::check_wrap_paren(const term_emitter::elem &e, size_t prec_low, size_t prec_high)
@@ -864,7 +871,7 @@ void term_emitter::emit_ref(const term_emitter::elem &e)
 	}
     }
 
-    emit_token(name_ref(ref.index()));
+    emit_token(name_ref(ref));
 }
 
 void term_emitter::emit_int(const term_emitter::elem &e)
