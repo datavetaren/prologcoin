@@ -76,7 +76,7 @@ advance(N,Node) :-
 % At this point we'll wait until sync is done
 %
 
-wait_sync_complete(20, _) :- !, write('Waiting for too long. Giving up.'), nl, fail.
+wait_sync_complete(40, _) :- !, write('Waiting for too long. Giving up.'), nl, fail.
 wait_sync_complete(N, Node) :-
     (sync_mode(Mode), syncing_meta(Block)) @ node(Node),
     write('Waiting iteration='), write(N), write(' mode='), write(Mode), write(' progress='), write(Block), write(' connections='), connections(Cs) @ node(Node), write(Cs), nl,
