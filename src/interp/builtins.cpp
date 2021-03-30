@@ -136,6 +136,14 @@ bool builtins::term_size_2(interpreter_base &interp, size_t arity, common::term 
 	return interp.unify(args[1], int_cell(static_cast<int64_t>(sz)));
     }
 }
+
+//
+// inside_frozen_count/1	
+//
+bool builtins::inside_frozen_count_1(interpreter_base &interp, size_t arity, common::term args[]) {
+    auto result = int_cell(static_cast<int64_t>(interp.inside_frozen_closure_count()));
+    return interp.unify(args[0], result);
+}
 	
 //
 // Simple
@@ -1767,6 +1775,7 @@ void builtins::load(interpreter_base &interp) {
     i.load_builtin(con_cell("toc",1), builtin(&builtins::toc_1));
     i.load_builtin(interp.functor("term_size", 1), &builtins::term_size_2);
     i.load_builtin(interp.functor("term_size", 2), &builtins::term_size_2);
+    i.load_builtin(interp.functor("inside_frozen_count", 1), &builtins::inside_frozen_count_1);
 
     // Program database
     i.load_builtin(con_cell("show",0), builtin(&builtins::show_0));

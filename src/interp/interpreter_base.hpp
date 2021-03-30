@@ -1719,6 +1719,10 @@ protected:
     bool inside_frozen_closure() const {
 	return inside_frozen_closure_count_ > 0;
     }
+
+    size_t inside_frozen_closure_count() const {
+	return inside_frozen_closure_count_;
+    }
     
 private:
     void load_builtin(const qname &qn, builtin b);

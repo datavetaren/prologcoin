@@ -206,7 +206,7 @@ delay_put_metas1(Result) :-
 %    tmp:mycnt(Cnt), Cnt1 is Cnt + 1,
 %    retract(tmp:mycnt(_)),
 %    assert(tmp:mycnt(Cnt1)),
-%    (Cnt1 < 10, 0 is mod(Cnt1,2) -> true ; delay_put_metas(Result)),
+%    (0 is mod(Cnt1,5) -> true ; delay_put_metas(Result)).
     delay_put_metas(Result).
 
 sync_add_result(Result, Height, Id, Span) :-

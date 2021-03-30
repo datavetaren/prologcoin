@@ -313,6 +313,8 @@ void interpreter_base::reset()
     // (e.g. the entry variables for the query.)
     set_register_hb(static_cast<size_t>(0));
     tidy_trail();
+
+    inside_frozen_closure_count_ = 0;
 }
 
 std::string code_point::to_string(const interpreter_base &interp) const

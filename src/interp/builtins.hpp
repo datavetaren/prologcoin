@@ -68,6 +68,7 @@ typedef std::pair<common::con_cell, common::con_cell> qname;
 	static bool program_state_0(interpreter_base &interp, size_t arity, common::term args[]);
 	static bool program_state_1(interpreter_base &interp, size_t arity, common::term args[]);
 	static bool term_size_2(interpreter_base &interp, size_t arity, common::term args[]);
+	static bool inside_frozen_count_1(interpreter_base &interp, size_t arity, common::term args[]);
 
 	//
 	// Simple

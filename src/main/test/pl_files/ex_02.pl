@@ -78,8 +78,8 @@ advance(N,Node) :-
 
 wait_sync_complete(40, _) :- !, write('Waiting for too long. Giving up.'), nl, fail.
 wait_sync_complete(N, Node) :-
-    (sync_mode(Mode), syncing_meta(Block)) @ node(Node),
-    write('Waiting iteration='), write(N), write(' mode='), write(Mode), write(' progress='), write(Block), write(' connections='), connections(Cs) @ node(Node), write(Cs), nl,
+    (sync_mode(Mode), syncing_meta(Block), inside_frozen_count(Frozen)) @ node(Node),
+    write('Waiting iteration='), write(N), write(' mode='), write(Mode), write(' progress='), write(Block), write(' frozen='), write(Frozen), write(' connections='), connections(Cs) @ node(Node), write(Cs), nl,
     sleep(5000),
     (sync_complete(true) @ node(Node) -> write('Sync is done'), nl
        ; N1 is N + 1, wait_sync_complete(N1,Node)).
