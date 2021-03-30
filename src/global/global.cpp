@@ -16,8 +16,12 @@ global::global(const std::string &data_dir)
       commit_nonce_(0),
       commit_time_(),
       commit_goals_() {
-    interp_ = std::unique_ptr<global_interpreter>(new global_interpreter(*this));
-    interp_->init();
+    if (!blockchain_.tip().is_partial() || blockchain_.tip().is_zero()) {
+	interp_ = std::unique_ptr<global_interpreter>(new global_interpreter(*this));
+	interp_->init();
+    } else {
+	interp_ = nullptr;
+    }
 }
 
 bool global::set_tip(const meta_id &id)
@@ -27,9 +31,12 @@ bool global::set_tip(const meta_id &id)
 	return false;
     }
     blockchain_.set_tip(*entry);
+
     interp_ = nullptr;
-    interp_ = std::unique_ptr<global_interpreter>(new global_interpreter(*this));
-    interp_->init();
+    if (!blockchain_.tip().is_partial()) {
+	interp_ = std::unique_ptr<global_interpreter>(new global_interpreter(*this));
+	interp_->init();
+    }
     return true;
 }
 	

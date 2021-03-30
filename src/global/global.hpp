@@ -25,6 +25,12 @@ class global_db_exception : public global_exception {
 public:
     global_db_exception(const std::string &msg) : global_exception(msg) { }
 };
+
+class global_db_no_interpreter_exception : public global_db_exception {
+public:
+    global_db_no_interpreter_exception(const std::string &msg) : global_db_exception(msg) {
+    }
+};
     
 //
 // global. This class captures the global state that everybody shares
@@ -76,18 +82,27 @@ public:
     }
 
     inline void reset() {
-        return interp_->reset();
+	if (interp_) return interp_->reset();
+    }
+
+    inline void check_interp() const {
+	if (!interp_) {
+	    throw global_db_no_interpreter_exception( "No global interpreter available due to missing state");
+	}
     }
 
     inline bool execute_goal(term t) {
+	check_interp();
         return interp_->execute_goal(t);
     }
 
     inline bool execute_goal(buffer_t &buf, bool silent) {
+	check_interp();
         return interp_->execute_goal(buf, silent);
     }
     
     inline bool execute_goal_silent(const buffer_t &buf) {
+	check_interp();
         return interp_->execute_goal(const_cast<buffer_t &>(buf), true);
     }
 
@@ -95,19 +110,24 @@ public:
     bool execute_commit(const buffer_t &buf);
 
     inline void execute_cut() {
+	check_interp();
         interp_->execute_cut();
     }
     inline bool is_clean() const {
+	check_interp();
         bool r = interp_->is_empty_stack() && interp_->is_empty_trail();
 	return r;
     }
     inline size_t heap_size() const {
+	check_interp();
         return interp_->heap_size();
     }
     inline size_t stack_size() const {
+	check_interp();
         return interp_->stack_size();
     }
     inline size_t trail_size() const {
+	check_interp();
         return interp_->trail_size();
     }
 
@@ -115,10 +135,12 @@ public:
     void increment_height();
 
     void advance() {
+	check_interp();
 	increment_height();
     }
 
     void discard() {
+	check_interp();
 	interp_->discard_changes();
     }
 
@@ -127,6 +149,7 @@ public:
     }
 
     inline global_interpreter & interp() {
+	check_interp();	
         return *interp_;
     }
 
@@ -291,6 +314,7 @@ public:
     }
 
     size_t num_predicates() {
+	check_interp();
 	return interp().num_predicates();
     }
 
@@ -302,6 +326,7 @@ public:
     }
 
     size_t num_frozen_closures() {
+	check_interp();
 	return interp().num_frozen_closures();
     }
 

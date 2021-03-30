@@ -167,7 +167,7 @@ sync_meta_blocks(N) :-
         assert(tmp:run(Id)),
         (ready(Connection) -> true ; retract(tmp:run(Id)), fail),
         sync:'timeout'(Timeout),
-%        write('Get '), write(Height), write(' '), write(Id), nl,
+        write('Get '), write(Height), write(' '), write(Id), write(' '), write(Span), nl,
         (metas(Id, Span, Result) @= (Connection else
             (
 %            write('failed connection '), write(Id), nl,
@@ -189,7 +189,7 @@ sync_meta_next(Height,Id,Span) :-
     \+ tmp:run(Id).
 
 sync_delay_result(Result, Height, Id, Span) :-
-%    write('Delay '), write(Height), write(' '), write(Id), nl,
+    write('Delay '), write(Height), write(' '), write(Id), write(' '), write(Span), nl,
     assert(tmp:delay(Height, Id, Span, Result)).
 
 sync_process_delayed_results :-
@@ -197,6 +197,7 @@ sync_process_delayed_results :-
     findall(delay(H,I,S,F), tmp:delay(H,I,S,F),L),
     sort(L, Sorted),
     [delay(Height,Id,Span,Result)|_] = Sorted,
+    write('Delayed '), write(Height), write(' '), write(Id), write(' '), write(Span), nl,
     (delay_put_metas1(Result) -> true ; 
         retract(tmp:delay(Height,Id,Span,_)),
         sync_add_result(Result, Height, Id, Span)).
@@ -210,7 +211,7 @@ delay_put_metas1(Result) :-
     delay_put_metas(Result).
 
 sync_add_result(Result, Height, Id, Span) :-
-%    write('Add '), write(Height), write(' '), write(Id), nl,
+    write('Add '), write(Height), write(' '), write(Id), write(' '), write(Span), nl,
     put_metas(Result),
     (retract(sync:root(Height,Id,Span,_)) ; true),
     !,
@@ -242,7 +243,7 @@ sync_add_result(Result, Height, Id, Span) :-
 %    write('Updated low '), write(LLL), nl.
 
 meta_fail_root(Height, Id) :-
-%    write('Fail '), write(Id), write(' '), write(Height), nl,
+    write('Fail '), write(Id), write(' '), write(Height), nl,
     sync:root(Height, Id, Span, FailCount),
     retract(sync:root(Height, Id, Span, FailCount)),
     FailCount1 is FailCount + 1,

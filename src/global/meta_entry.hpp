@@ -125,6 +125,10 @@ public:
 	id_ = id;
     }
 
+    bool is_zero() const {
+	return id_.is_zero();
+    }
+
     const meta_id & get_previous_id() const {
 	return previous_id_;
     }
