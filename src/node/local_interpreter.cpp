@@ -1837,7 +1837,7 @@ static size_t merkle_leaf_count(interpreter_base &interp0, term mtree_term, uint
     } else if (f == con_cell("leaf",4)) {
 	auto key = interp0.arg(mtree_term, 2);
 	if (key.tag() == tag_t::INT) {
-	    auto k = reinterpret_cast<int_cell &>(key).value();
+	    auto k = static_cast<uint64_t>(reinterpret_cast<int_cell &>(key).value());
 	    if (from_key <= k && k <= to_key) {
 		n++;
 	    }

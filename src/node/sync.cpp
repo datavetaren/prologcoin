@@ -195,7 +195,7 @@ void sync::run()
 	
 void sync::setup_sync_impl()
 {
-    std::string template_source = R"PROG(    
+    std::string template_source_1 = R"PROG(
 
 sync :- 
     critical_section((sync:mode(Mode), sync_run(Mode))).
@@ -315,7 +315,9 @@ print_roots(Label) :-
     write('----- roots '), write(Label), nl,
     write(LLL), nl,
     write('------------'), nl ; true).
-
+)PROG";
+    
+    std::string template_source_2 = R"PROG(
 %------------------------------
 % Meta chain syncing
 %------------------------------
@@ -493,7 +495,9 @@ max([], 0).
 max([X|Xs], M) :- max(Xs, M1), (X > M1 -> M = M1 ; M = X).
 
 min([X|Xs], M) :- (Xs = [] -> M = X ; min(Xs, M1), (X < M1 -> M = M1 ; M = X)).
+   )PROG";
 
+    std::string template_source_3 = R"PROG(
 %------------------------------
 % Database/state syncing
 %------------------------------
@@ -674,6 +678,11 @@ average_list([X|Xs], Acc, Avg) :-
 	    init_str += ".";
 	    interp_.load_program(init_str);
         }
+
+        std::string template_source;
+        template_source += template_source_1;
+        template_source += template_source_2;
+        template_source += template_source_3;
 
 	// Load template code above
         interp_.load_program(template_source);
