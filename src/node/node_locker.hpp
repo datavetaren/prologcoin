@@ -4,6 +4,7 @@
 #define _node_node_locker_hpp
 
 #include <boost/thread/recursive_mutex.hpp>
+#include <boost/core/noncopyable.hpp>
 
 namespace prologcoin { namespace node {
 

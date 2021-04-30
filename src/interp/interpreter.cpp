@@ -999,9 +999,6 @@ remote_return_t interpreter::execute_at(common::term query,
 	       } catch (std::exception &ex) {
 		   d->set_failed();
 		   d->set_exception(ex.what());
-	       } catch (std::runtime_error &ex) {
-		   d->set_failed();
-		   d->set_exception(ex.what());		   
 	       }
 	       delayed_ready(d);
 	   }, where);
@@ -1014,8 +1011,6 @@ remote_return_t interpreter::execute_at(common::term query,
 		return remote_return_t();
 	    }
 	} catch (std::exception &ex) {
-	    return remote_return_t(ex.what());
-	} catch (std::runtime_error &ex) {
 	    return remote_return_t(ex.what());
 	}
 
