@@ -8,6 +8,8 @@
 #include "../coin/builtins.hpp"
 #include "../global/global_interpreter.hpp"
 #include "../common/sha256.hpp"
+#include "node_locker.hpp"
+#include "sync.hpp"
 
 namespace prologcoin { namespace node {
 
@@ -325,7 +327,7 @@ bool me_builtins::connections_1(interpreter_base &interp0, size_t arity, term ar
     return interp.unify( args[0], head);
 }
 
-bool me_builtins::ready_1(interpreter_base &interp0, size_t arity, term args[]) {
+bool me_builtins::ready_2(interpreter_base &interp0, size_t arity, term args[]) {
     auto &interp = to_local(interp0);
 
     interp.root_check("ready", arity);
@@ -333,16 +335,28 @@ bool me_builtins::ready_1(interpreter_base &interp0, size_t arity, term args[]) 
     term arg = args[0];
     term result = interp.EMPTY_LIST;
     bool found = false;
+
+    std::unordered_set<std::string> not_these;
+    if (arity == 2) {
+	auto not_these_list = args[1];
+	while (interp.is_dotted_pair(not_these_list)) {
+	    auto not_this_term = interp.arg(not_these_list, 0);
+	    std::string not_this_str = interp.list_to_string(not_this_term);
+	    not_these.insert(not_this_str);
+	    not_these_list = interp.arg(not_these_list, 1);
+	}
+    }
     
     interp.self().for_each_standard_out_connection(
 	      [&](out_connection *conn){
 		  if (!found && conn->is_ready()) {
-		      found = true;
 		      auto name = conn->name();
-		      if (interp.self().is_unique_connection_name(name)) {
+		      if (!interp.self().is_unique_connection_name(name)) {
+			  name = conn->ip().str();
+		      }
+		      if (!not_these.count(name)) {
 			  result = interp.functor(name, 0);
-		      } else {
-			  result = interp.functor(conn->ip().str(), 0);
+			  found = true;
 		      }
 		  }
 	      });
@@ -489,6 +503,7 @@ bool me_builtins::nolimit_0(interpreter_base &interp0, size_t arity, term args[]
 
 bool me_builtins::drop_global_0(interpreter_base &interp0, size_t arity, term args[]) {
     auto &interp = to_local(interp0);
+    auto locked = interp.lock_node();
     auto &g = interp.self().global();
     g.total_reset();
     return true;
@@ -496,6 +511,7 @@ bool me_builtins::drop_global_0(interpreter_base &interp0, size_t arity, term ar
 
 bool me_builtins::gstat_1(interpreter_base &interp0, size_t arity, term args[]) {
     auto &interp = to_local(interp0);
+    auto locked = interp.lock_node();
     auto &g = interp.self().global();
     if (arity == 0) {
 	auto &prev_id = g.get_blockchain().tip().get_previous_id();	
@@ -722,6 +738,7 @@ bool me_builtins::chain_0(interpreter_base &interp0, size_t arity, term args[]) 
     using meta_id = global::meta_id;
     
     auto &interp = to_local(interp0);
+    auto locked = interp.lock_node();    
     auto &g = interp.self().global();
     auto &chain = g.get_blockchain();
     auto &tip = chain.tip();
@@ -815,6 +832,7 @@ static term to_term(interpreter_base &interp0, const global::meta_id &id) {
 
 std::set<global::meta_id> me_builtins::get_meta_ids(interpreter_base &interp0, const std::string &name, term id) {
     auto &interp = reinterpret_cast<local_interpreter &>(interp0);
+    auto locked = interp.lock_node();    
     auto &g = interp.self().global();
     auto &chain = g.get_blockchain();
 
@@ -867,6 +885,7 @@ global::meta_id me_builtins::get_meta_id(interpreter_base &interp0, const std::s
 
 bool me_builtins::chain_3(interpreter_base &interp0, size_t arity, term args[]) {
     auto &interp = to_local(interp0);
+    auto locked = interp.lock_node();    
     auto &g = interp.self().global();
     auto &chain = g.get_blockchain();
 
@@ -928,6 +947,7 @@ bool me_builtins::chain_3(interpreter_base &interp0, size_t arity, term args[]) 
 
 bool me_builtins::advance_0(interpreter_base &interp0, size_t arity, term args[]) {
     auto &interp = to_local(interp0);
+    auto locked = interp.lock_node();    
     auto &g = interp.self().global();
     g.advance();
     return true;
@@ -935,6 +955,7 @@ bool me_builtins::advance_0(interpreter_base &interp0, size_t arity, term args[]
 
 bool me_builtins::discard_0(interpreter_base &interp0, size_t arity, term args[]) {
     auto &interp = to_local(interp0);
+    auto locked = interp.lock_node();    
     auto &g = interp.self().global();
     g.discard();
     return true;
@@ -942,6 +963,7 @@ bool me_builtins::discard_0(interpreter_base &interp0, size_t arity, term args[]
 
 bool me_builtins::switch_1(interpreter_base &interp0, size_t arity, term args[]) {
     auto &interp = to_local(interp0);
+    auto locked = interp.lock_node();    
     auto &g = interp.self().global();
 
     auto id = get_meta_id(interp0, "switch/1", args[0]);
@@ -955,6 +977,7 @@ bool me_builtins::switch_1(interpreter_base &interp0, size_t arity, term args[])
 
 bool me_builtins::current_1(interpreter_base &interp0, size_t arity, term args[]) {
     auto &interp = to_local(interp0);
+    auto locked = interp.lock_node();    
     auto &g = interp.self().global();
     auto &id = g.tip_id();
     return interp.unify(args[0], to_term(interp0, id));
@@ -962,12 +985,21 @@ bool me_builtins::current_1(interpreter_base &interp0, size_t arity, term args[]
 
 bool me_builtins::height_1(interpreter_base &interp0, size_t arity, term args[]) {
     auto &interp = to_local(interp0);
+    auto locked = interp.lock_node();    
     auto &g = interp.self().global();
     return interp.unify(args[0], int_cell(static_cast<int64_t>(g.current_height())));
 }
 
+bool me_builtins::max_height_1(interpreter_base &interp0, size_t arity, term args[]) {
+    auto &interp = to_local(interp0);
+    auto locked = interp.lock_node();    
+    auto &g = interp.self().global();
+    return interp.unify(args[0], int_cell(static_cast<int64_t>(g.max_height())));
+}
+
 bool me_builtins::goals_2(interpreter_base &interp0, size_t arity, term args[]) {
     auto &interp = to_local(interp0);
+    auto locked = interp.lock_node();    
     auto &g = interp.self().global();
 
     auto id = get_meta_id(interp0, "goals/2", args[0]);
@@ -977,15 +1009,141 @@ bool me_builtins::goals_2(interpreter_base &interp0, size_t arity, term args[]) 
 
 bool me_builtins::meta_2(interpreter_base &interp0, size_t arity, term args[]) {
     auto &interp = to_local(interp0);
+    auto locked = interp.lock_node();    
     auto &g = interp.self().global();
 
     auto id = get_meta_id(interp0, "meta/2", args[0]);
-    term result = g.db_get_meta(interp0, id);
+    term result = g.db_get_meta(interp0, id, false);
     return interp.unify(result, args[1]);
+}
+
+bool me_builtins::meta_more_2(interpreter_base &interp0, size_t arity, term args[]) {
+    auto &interp = to_local(interp0);
+    auto locked = interp.lock_node();    
+    auto &g = interp.self().global();
+
+    auto id = get_meta_id(interp0, "meta_more/2", args[0]);
+    term result = g.db_get_meta(interp0, id, true);
+    return interp.unify(result, args[1]);
+    
+}
+
+bool me_builtins::validate_meta_1(interpreter_base &interp0, size_t arity, term args[]) {
+    auto &interp = to_local(interp0);
+    auto locked = interp.lock_node();
+    auto &g = interp.self().global();
+    global::meta_entry entry;
+    g.db_parse_meta(interp, args[0], entry);
+    auto const *found_entry = g.get_blockchain().get_meta_entry(entry.get_id());
+    if (found_entry == nullptr) {
+	return false;
+    }
+    if (*found_entry != entry) {
+	return false;
+    }
+
+    node_hash heap_hash, closure_hash, symbols_hash, program_hash;
+    uint64_t heap_num = 0, closure_num = 0, symbols_num = 0, program_num = 0;
+
+    term lst = interp.arg(args[0], 0);
+    while (interp.is_dotted_pair(lst)) {
+	auto prop = interp.arg(lst, 0);
+	if (prop.tag() == tag_t::STR && interp.functor(prop) == con_cell("db",3)) {
+	    node_hash *hash_p = nullptr;
+	    uint64_t *num_p = nullptr;
+	    auto dbname = interp.arg(prop, 0);
+	    if (dbname == con_cell("heap",0)) {
+		hash_p = &heap_hash;
+		num_p = &heap_num;
+	    }  else if (dbname == con_cell("closure",0)) {
+		hash_p = &closure_hash;
+		num_p = &closure_num;		
+	    } else if (dbname == con_cell("symbols",0)) {
+		hash_p = &symbols_hash;
+		num_p = &symbols_num;
+	    } else if (dbname == con_cell("program",0)) {
+		hash_p = &program_hash;
+		num_p = &program_num;		
+	    }
+
+	    if (hash_p && num_p) {
+		auto num_term = interp.arg(prop, 1);
+		if (num_term.tag() != tag_t::INT) {
+		    return false;
+		}
+		*num_p = static_cast<uint64_t>(reinterpret_cast<int_cell &>(num_term).value());
+		auto hash_term = interp.arg(prop, 2);
+		if (hash_term.tag() != tag_t::BIG) {
+		    return false;
+		}
+		auto big = reinterpret_cast<big_cell &>(hash_term);
+		size_t hash_size = interp.num_bytes(big);
+		if (hash_size > 128) {
+		    return false;
+		}
+		uint8_t hash_data[128];
+		interp.get_big(hash_term, hash_data, hash_size);
+		hash_p->set_hash(hash_data, hash_size);
+	    }
+	}
+	lst = interp.arg(lst, 1);
+    }
+
+
+    blake2b_state s;
+    blake2b_init(&s, BLAKE2B_OUTBYTES);
+
+    // Add previous id
+    blake2b_update(&s, entry.get_previous_id().hash(), global::meta_id::HASH_SIZE);
+
+    auto const &heap_hash_const = heap_hash;
+    auto const &closure_hash_const = closure_hash;
+    auto const &symbols_hash_const = symbols_hash;
+    auto const &program_hash_const = program_hash;
+    blake2b_update(&s, heap_hash_const.hash(), heap_hash_const.hash_size());
+    blake2b_update(&s, closure_hash_const.hash(), closure_hash_const.hash_size());
+    blake2b_update(&s, symbols_hash_const.hash(), symbols_hash_const.hash_size());
+    blake2b_update(&s, program_hash_const.hash(), program_hash_const.hash_size());
+
+    uint8_t data[1024];
+
+    // Add number of entries in heap, closures, symbols and program.
+    db::write_uint64(data, heap_num);
+    blake2b_update(&s, data, sizeof(uint64_t));
+    db::write_uint64(data, closure_num);
+    blake2b_update(&s, data, sizeof(uint64_t));
+    db::write_uint64(data, symbols_num);
+    blake2b_update(&s, data, sizeof(uint64_t));
+    db::write_uint64(data, program_num);
+    blake2b_update(&s, data, sizeof(uint64_t));
+    
+    // Add version
+    db::write_uint64(data, entry.get_version());
+    blake2b_update(&s, data, sizeof(uint32_t));
+
+    // Add nonce
+    db::write_uint64(data, entry.get_nonce());
+    blake2b_update(&s, data, sizeof(uint64_t));
+
+    // Add timestamp
+    auto &ts = entry.get_timestamp();
+    ts.write(data);
+    blake2b_update(&s, data, ts.serialization_size());
+
+    // Add pow difficulty
+    entry.get_pow_difficulty().write(data);
+    blake2b_update(&s, data, entry.get_pow_difficulty().serialization_size());
+
+    memset(data, 0, sizeof(data));
+    blake2b_final(&s, data, BLAKE2B_OUTBYTES);
+
+    // This hash should equal the id of the entry
+    return memcmp(data, entry.get_id().hash(), entry.get_id().hash_size()) == 0;
 }
 
 bool me_builtins::metas_3(interpreter_base &interp0, size_t arity, term args[]) {
     auto &interp = to_local(interp0);
+    auto locked = interp.lock_node();    
     auto &g = interp.self().global();
 
     try {
@@ -1011,6 +1169,7 @@ bool me_builtins::metas_3(interpreter_base &interp0, size_t arity, term args[]) 
 
 bool me_builtins::meta_roots_4(interpreter_base &interp0, size_t arity, term args[]) {
     auto &interp = to_local(interp0);
+    auto locked = interp.lock_node();    
     auto &g = interp.self().global();
 
     try {
@@ -1042,6 +1201,7 @@ bool me_builtins::meta_roots_4(interpreter_base &interp0, size_t arity, term arg
 
 bool me_builtins::put_meta_1(interpreter_base &interp0, size_t arity, term args[]) {
     auto &interp = to_local(interp0);
+    auto locked = interp.lock_node();    
     auto &g = interp.self().global();
 
     try {
@@ -1055,6 +1215,7 @@ bool me_builtins::put_meta_1(interpreter_base &interp0, size_t arity, term args[
 
 bool me_builtins::put_metas_1(interpreter_base &interp0, size_t arity, term args[]) {
     auto &interp = to_local(interp0);
+    auto locked = interp.lock_node();    
     auto &g = interp.self().global();
 
     try {
@@ -1069,6 +1230,7 @@ bool me_builtins::put_metas_1(interpreter_base &interp0, size_t arity, term args
 
 bool me_builtins::delay_put_metas_1(interpreter_base &interp0, size_t arity, term args[]) {
     auto &interp = to_local(interp0);
+    auto locked = interp.lock_node();    
     auto &g = interp.self().global();
 
     term lst = args[0];
@@ -1233,7 +1395,7 @@ bool me_builtins::branches_2(interpreter_base &interp0, size_t arity, term args[
 
 bool me_builtins::setup_commit_1(interpreter_base &interp0, size_t arity, term args[]) {
     auto &interp = to_local(interp0);
-    
+    auto locked = interp.lock_node();    
     global::global &g = interp.self().global();
 
     term_serializer::buffer_t buf;
@@ -1247,6 +1409,7 @@ bool me_builtins::setup_commit_1(interpreter_base &interp0, size_t arity, term a
 
 bool me_builtins::commit(local_interpreter &interp, term_serializer::buffer_t &buf, term t, bool naming)
 {
+    auto locked = interp.lock_node();
     global::global &g = interp.self().global();
 
     g.set_naming(naming);
@@ -1294,6 +1457,7 @@ bool me_builtins::commit_2(interpreter_base &interp0, size_t arity, term args[])
 bool me_builtins::global_impl(interpreter_base &interp0, size_t arity, term args[], bool silent)
 {
     auto &interp = to_local(interp0);
+    auto locked = interp.lock_node();    
 
     interp.root_check("global", arity);
   
@@ -1332,10 +1496,13 @@ bool me_builtins::global_silent_1(interpreter_base &interp0, size_t arity, term 
     return global_impl(interp0, arity, args, true);
 }
 
+//
+// Useful for testing. Adding arbitrary code to run when initializing syncing.
+//
 bool me_builtins::sync_init_1(interpreter_base &interp0, size_t arity, term args[]) {
     auto &interp = to_local(interp0);    
     if (args[0].tag().is_ref()) {
-	auto str = interp.self().get_sync_init();
+	auto str = interp.self().syncer().get_init();
 	if (str.empty()) {
 	    return interp.unify(args[0], interp.EMPTY_LIST);
 	} else {
@@ -1350,7 +1517,7 @@ bool me_builtins::sync_init_1(interpreter_base &interp0, size_t arity, term args
     } else {
 	// Set it
 	std::string str = interp.to_string(args[0]);
-	interp.self().set_sync_init(str);
+	interp.self().syncer().set_init(str);
 	return true;
     }
 }
@@ -1362,17 +1529,28 @@ bool me_builtins::sync_0(interpreter_base &interp0, size_t arity, term args[])
     return true;
 }
 
+bool me_builtins::sync_1(interpreter_base &interp0, size_t arity, term args[])
+{
+    auto &interp = to_local(interp0);
+
+    auto rootid = get_meta_id(interp0, "sync/1", args[0]);
+    interp.self().syncer().set_root(rootid);
+
+    return true;
+}
+
+
 bool me_builtins::sync_complete_1(interpreter_base &interp0, size_t arity, term args[])
 {
     auto &interp = to_local(interp0);
-    auto c = interp.self().is_sync_complete() ? con_cell("true",0) : con_cell("false",0);    
+    auto c = interp.self().syncer().is_complete() ? con_cell("true",0) : con_cell("false",0);    
     return interp.unify(args[0], c);
 }
 
 bool me_builtins::sync_mode_1(interpreter_base &interp0, size_t arity, term args[])
 {
     auto &interp = to_local(interp0);
-    auto mode = interp.self().get_sync_mode();
+    auto mode = interp.self().syncer().get_mode();
     if (mode.empty()) {
 	return interp.unify(args[0], interp.EMPTY_LIST);
     } else {
@@ -1383,13 +1561,117 @@ bool me_builtins::sync_mode_1(interpreter_base &interp0, size_t arity, term args
 
 bool me_builtins::syncing_meta_1(interpreter_base &interp0, size_t arity, term args[]) {
     auto &interp = to_local(interp0);
-    auto block = static_cast<int64_t>(interp.self().get_syncing_meta_block());
+    auto locked = interp.lock_node();    
+    auto block = static_cast<int64_t>(interp.self().syncer().get_at_meta_block());
     return interp.unify(args[0], int_cell(block));
+}
+
+bool me_builtins::sync_progress_1(interpreter_base &interp0, size_t arity, term args[]) {
+    std::string name = "sync_progress/" + boost::lexical_cast<std::string>(arity);
+    auto &interp = to_local(interp0);
+    auto locked = interp.lock_node();
+
+    if (!interp.self().has_syncer()) {
+	if (arity == 0) {
+	    std::cout << "None" << std::endl;
+	    return true;
+	} else {
+	    return interp.unify(args[0], interp.EMPTY_LIST);
+	}
+    }
+    
+    auto mode = interp.self().syncer().get_mode();
+    auto progress = interp.self().syncer().get_progress();
+    auto meta_id = interp.self().syncer().get_root();
+    auto meta_id_term = meta_id.to_term(interp);
+    auto meta_entry = interp.self().global().get_blockchain().get_meta_entry(meta_id);
+
+    if (arity == 0) {
+	if (interp.self().syncer().is_complete()) {
+	    std::cout << "Completed" << std::endl;
+	    return true;
+	}
+	if (mode == "meta") {
+	    auto current = interp.self().syncer().get_at_meta_block();
+	    
+	    std::cout << "Syncing meta blocks: height=" << current << std::endl;
+	    return true;
+	}
+	if (mode == "wait") {
+	    std::cout << "Waiting for selected root..." << std::endl;
+	    return true;
+	}
+	auto meta_id_str = interp.to_string(meta_id_term);
+	auto short_id_str = hex::to_string(meta_id.hash(), 2);	
+	std::cout << "Syncing: Root    : " << meta_id_str << " (" << short_id_str << ")" << std::endl;
+	if (meta_entry == nullptr) {
+	    std::cout << "         Not found" << std::endl;
+	    return false;
+	}
+	std::cout << "         Height  : " << meta_entry->get_height() << std::endl;
+	std::cout << "         DB      : " << mode << std::endl;
+	std::cout << "         Progress: " << progress << "%" << " [";
+	size_t n = 50 * progress / 100;
+	std::cout << std::string(n, '*') << std::string(50-n, ' ') << "]" << std::endl;
+	return true;
+    } else {
+	assert(arity == 1);
+	term lst = interp.EMPTY_LIST;
+	if (mode == "meta") {
+	    auto current = interp.self().syncer().get_at_meta_block();
+	    lst = interp.new_dotted_pair(
+	     interp.new_term(con_cell("height",1),{ int_cell(current) }), lst);
+	    
+	    lst = interp.new_dotted_pair(
+	     interp.new_term(con_cell("mode",1), { con_cell("meta",0)}), lst);
+	} else if (mode == "wait") {
+	    lst = interp.new_dotted_pair(
+	     interp.new_term(con_cell("mode",1), { con_cell("wait",0)}), lst);
+	} else {
+	    lst = interp.new_dotted_pair(
+	        interp.new_term(interp.functor("progress",1),
+			{ int_cell(static_cast<int64_t>(progress)) }), lst);
+	    lst = interp.new_dotted_pair(
+		interp.new_term(con_cell("db", 1),
+			   { interp.functor(mode,0) }), lst);
+	    lst = interp.new_dotted_pair(
+	        interp.new_term(con_cell("root",1), { meta_id_term }),lst);
+	    lst = interp.new_dotted_pair(
+		interp.new_term(con_cell("mode",1), { con_cell("db",0)}), lst);
+	}
+	return interp.unify(args[0], lst);
+    }
+}
+
+bool me_builtins::sync_point_2(interpreter_base &interp0, size_t arity, term args[]) {
+    auto &interp = to_local(interp0);
+    auto locked = interp.lock_node();    
+    auto &g = interp.self().global();
+
+    std::string name = "sync_point/" + boost::lexical_cast<std::string>(arity);
+    int64_t height = 0;
+    term result;
+    if (arity == 2) {
+	auto height_term = args[0];
+	if (height_term.tag() != tag_t::INT) {
+	    throw interpreter_exception_wrong_arg_type(name + ": First argument must be an integer (a negative integer represents relative height from the tip.");
+	}
+	height = reinterpret_cast<int_cell &>(height_term).value();
+	result = args[1];
+    } else {
+	height = 0;
+	result = args[0];
+    }
+    
+    auto sync_id = g.get_blockchain().sync_point(height);
+    term term_sync_id = sync_id.to_term(interp);
+    return interp.unify(result, term_sync_id);
 }
 
 bool me_builtins::ignore_pow_1(interpreter_base &interp0, size_t arity, term args[])
 {
     auto &interp = to_local(interp0);
+    auto locked = interp.lock_node();    
     if (args[0].tag().is_ref()) {
 	auto c = interp.self().check_pow() ? con_cell("false",0) : con_cell("true",0);
 	return interp.unify(args[0], c);
@@ -1403,48 +1685,50 @@ bool me_builtins::ignore_pow_1(interpreter_base &interp0, size_t arity, term arg
     return true;
 }
 
-term me_builtins::build_leaf_term(interpreter_base &interp0, const merkle_leaf &lf)
+term me_builtins::build_leaf_term(interpreter_base &interp0, const merkle_leaf *lf, size_t pos)
 {
     auto &interp = to_local(interp0);
 
-    auto key = lf.key();
+    auto key = lf->key();
 
-    auto hash_term = interp.new_big(lf.hash_size()*8);
-    interp.set_big(hash_term, lf.hash(), lf.hash_size());
+    auto hash_term = interp.new_big(lf->hash_size()*8);
+    interp.set_big(hash_term, lf->hash(), lf->hash_size());
     term data_term = interp.EMPTY_LIST;
-    if (lf.has_data()) {
-	auto const &data = lf.data();
-	data_term = interp.new_big(data.size()*8);
-	interp.set_big(data_term, data.data(), data.size());
+    if (lf->has_data()) {
+	auto const &data = lf->data();
+	if (data.data() != nullptr) {
+	    data_term = interp.new_big(data.size()*8);
+	    interp.set_big(data_term, data.data(), data.size());
+	}
     }
-    auto pos = int_cell(lf.position());
     auto leaf_term = interp.new_term(con_cell("leaf",4),
 				     {hash_term,
-				      pos,
+				      int_cell(checked_cast<int64_t>(pos)),
 				      int_cell(checked_cast<int64_t>(key)),
 				      data_term});
     return leaf_term;
 }
 
-term me_builtins::build_tree_term(interpreter_base &interp0, const merkle_branch &br)
+term me_builtins::build_tree_term(interpreter_base &interp0, const merkle_branch *br, size_t pos)
 {
     auto &interp = to_local(interp0);    
     
     term tail = interp.EMPTY_LIST;
     term lst = tail;
 
-    std::vector<const merkle_node *> children;
-    br.get_children(children);
-    
-    for (auto &child : children) {
-	auto const &node = *child;
+    auto m = br->mask();
+    while (m) {
+	size_t sub_index = common::lsb(m);
+	m &= (static_cast<uint32_t>(-1) << sub_index) << 1;
+	auto const &child = br->get_child(sub_index);
+	auto const *node = child.get();
 	term node_term;
-	if (node.type() == merkle_node::BRANCH) {
-	    auto const &sub_br = reinterpret_cast<const merkle_branch &>(node);
-	    node_term = build_tree_term(interp0, sub_br);
+	if (node->type() == merkle_node::BRANCH) {
+	    auto const *sub_br = reinterpret_cast<const merkle_branch *>(node);
+	    node_term = build_tree_term(interp0, sub_br, sub_index);
 	} else {
-	    auto const &lf = reinterpret_cast<const merkle_leaf &>(node);
-	    node_term = build_leaf_term(interp0, lf);
+	    auto const *sub_lf = reinterpret_cast<const merkle_leaf *>(node);
+	    node_term = build_leaf_term(interp0, sub_lf, sub_index);
 	}
 	if (tail == interp.EMPTY_LIST) {
 	    lst = tail = interp.new_dotted_pair(node_term, tail);
@@ -1454,10 +1738,14 @@ term me_builtins::build_tree_term(interpreter_base &interp0, const merkle_branch
 	    tail = new_tail;
 	}
     }
-    auto hash_term = interp.new_big(br.hash_size()*8);
-    interp.set_big(hash_term, br.hash(), br.hash_size());
-    auto pos = int_cell(br.position());
-    return interp.new_term(con_cell("branch", 3), {hash_term, pos, lst});
+    term hash_term = interp.EMPTY_LIST;
+    if (br->hash_size() != 0) {
+	hash_term = interp.new_big(br->hash_size()*8);
+	interp.set_big(hash_term, br->hash(), br->hash_size());
+    }
+    auto pos1 = int_cell(checked_cast<int64_t>(pos));
+    auto depth = int_cell(checked_cast<int64_t>(br->depth()));
+    return interp.new_term(con_cell("branch", 4), {hash_term,depth,pos1,lst});
 }
 
 //
@@ -1467,6 +1755,7 @@ term me_builtins::build_tree_term(interpreter_base &interp0, const merkle_branch
 //
 term me_builtins::db_get(interpreter_base &interp0, const std::string &name, size_t arity, term args[], bool compute_size_only) {
     auto &interp = to_local(interp0);
+    auto locked = interp.lock_node();
 
     auto id = get_meta_id(interp, name, args[0]);
     
@@ -1482,6 +1771,10 @@ term me_builtins::db_get(interpreter_base &interp0, const std::string &name, siz
 	throw interpreter_exception_wrong_arg_type(name + ": Second argument must be 'heap', 'closure', 'symbols' or 'program'");
     }
 
+    if (root_id.is_zero()) {
+	throw interpreter_exception_wrong_arg_type(name + ": Data is unavailable.");
+    }
+
     auto from_key = args[2];
     if (from_key.tag() != tag_t::INT) {
 	throw interpreter_exception_wrong_arg_type(name + ": Key must be an integer; was " + interp.to_string(from_key));
@@ -1495,36 +1788,30 @@ term me_builtins::db_get(interpreter_base &interp0, const std::string &name, siz
     auto from_key_val = reinterpret_cast<int_cell &>(from_key).value();
     auto to_key_val = reinterpret_cast<int_cell &>(to_key).value();
 
-    auto it = db->begin(root_id, from_key_val);
-
-    size_t limit = 2*triedb_params::MB; // Not more than 2 MB
-    
-    // Build a merkle tree with data until it exceeds limit
     merkle_root mtree;
-    while (!it.at_end()) {
-	auto k = checked_cast<int64_t>(it->key());
-	if (k >= to_key_val) {
-	    break;
+    mtree.set_limit(2*triedb_params::MB); // Not more than 2 MB
+    bool include_data = !compute_size_only;
+
+    if (!db->get(root_id, from_key_val, to_key_val, include_data, mtree)) {
+	if (mtree.total_size() > mtree.limit_size()) {
+	    throw interpreter_exception_wrong_arg_type(name + ": Size of data set exceeded limit " + boost::lexical_cast<std::string>(mtree.limit_size()));
 	}
-	it.add_current(mtree, !compute_size_only);
-	++it;
-	if (mtree.size() > limit) {
-	    break;
-	}
+	throw interpreter_exception_wrong_arg_type(name + ": Failed to get datal.");
     }
 
-    term result;
+    term result = interp.EMPTY_LIST;
+
     if (compute_size_only) {
 	result = int_cell(static_cast<int64_t>(mtree.total_size()));
     } else {
-	result = build_tree_term(interp, mtree);
+	result = build_tree_term(interp, &mtree, 0);
     }
     return result;
 }
 
 //
 //         <id>    <type> <from key> <to key>
-// db_key(<root id>, heap, 10,         2000,                 X)
+// db_get(<root id>, heap, 10,         2000,                 X)
 //  X will become a tree of data.
 //
 bool me_builtins::db_get_5(interpreter_base &interp0, size_t arity, term args[]) {
@@ -1533,6 +1820,87 @@ bool me_builtins::db_get_5(interpreter_base &interp0, size_t arity, term args[])
     return interp.unify(result, args[4]);
 }
 
+static size_t merkle_leaf_count(interpreter_base &interp0, term mtree_term, uint64_t from_key, uint64_t to_key)
+{
+    if (mtree_term.tag() != tag_t::STR) {
+	return 0;
+    }
+    auto f = interp0.functor(mtree_term);
+    size_t n = 0;
+    if (f == con_cell("branch",4)) {
+	auto children = interp0.arg(mtree_term, 3);
+	while (interp0.is_dotted_pair(children)) {
+	    auto child = interp0.arg(children, 0);
+	    n += merkle_leaf_count(interp0, child, from_key, to_key);
+	    children = interp0.arg(children, 1);
+	}
+    } else if (f == con_cell("leaf",4)) {
+	auto key = interp0.arg(mtree_term, 2);
+	if (key.tag() == tag_t::INT) {
+	    auto k = reinterpret_cast<int_cell &>(key).value();
+	    if (from_key <= k && k <= to_key) {
+		n++;
+	    }
+	}
+    }
+    return n;
+}
+
+//
+// db_num(<root id>, <type>, Num)
+// Current number of symbols in database (used to calculate progress)
+//
+bool me_builtins::db_num_3(interpreter_base &interp0, size_t arity, term args[]) {
+    auto &interp = to_local(interp0);
+    auto locked = interp.lock_node();
+    
+    std::string name = "db_num/3";
+
+    auto id = get_meta_id(interp, name, args[0]);
+
+    if (args[1].tag() != tag_t::CON) {
+	throw interpreter_exception_wrong_arg_type(name + ": Second argument must be an atom.");
+    }
+
+    triedb *db = nullptr;
+    root_id root_id;
+
+    std::tie(db,root_id) = get_db_root(interp0, args[1], id);
+    if (db == nullptr) {
+	throw interpreter_exception_wrong_arg_type(name + ": Second argument must be 'heap', 'closure', 'symbols' or 'program'");
+    }
+
+    if (root_id.is_zero()) {
+	return interp.unify(args[2], int_cell(0));
+    }
+
+    return interp.unify(args[2], int_cell(static_cast<int64_t>(db->num_entries(root_id))));
+}
+
+bool me_builtins::db_num_4(interpreter_base &interp0, size_t arity, term args[]) {
+    auto &interp = to_local(interp0);
+
+    std::string name = "db_num/4";
+    
+    auto mtree_term = args[0];
+
+    auto from_key = args[1];
+    if (from_key.tag() != tag_t::INT) {
+	throw interpreter_exception_wrong_arg_type(name + ": Key must be an integer; was " + interp.to_string(from_key));
+    }
+    
+    auto to_key = args[2];
+    if (to_key.tag() != tag_t::INT) {
+	throw interpreter_exception_wrong_arg_type(name + ": Key must be an integer; was " + interp.to_string(to_key));
+    }
+
+    auto from_key_val = reinterpret_cast<int_cell &>(from_key).value();
+    auto to_key_val = reinterpret_cast<int_cell &>(to_key).value();
+
+    auto n = merkle_leaf_count(interp0, mtree_term, from_key_val, to_key_val);
+
+    return interp.unify(args[3], int_cell(static_cast<int64_t>(n)));
+}
 
 bool me_builtins::db_size_5(interpreter_base &interp0, size_t arity, term args[]) {
     auto &interp = to_local(interp0);    
@@ -1557,8 +1925,8 @@ std::pair<triedb *, root_id> me_builtins::get_db_root(interpreter_base &interp0,
 	db = &chain.heap_db();
 	rid = e->get_root_id_heap();
     } else if (db_name == CLOSURE) {
-	db = &chain.closures_db();
-	rid = e->get_root_id_closures();
+	db = &chain.closure_db();
+	rid = e->get_root_id_closure();
     } else if (db_name == SYMBOLS) {
 	db = &chain.symbols_db();
 	rid = e->get_root_id_symbols();
@@ -1570,10 +1938,42 @@ std::pair<triedb *, root_id> me_builtins::get_db_root(interpreter_base &interp0,
     return std::make_pair(db, rid);
 }
 
-bool me_builtins::db_key_5(interpreter_base &interp0, size_t arity, term args[]) {
-    static const std::string name = "db_key/5";
-    
+void me_builtins::set_db_root(interpreter_base &interp0, term db_name, const global::meta_id &id, const db::root_id &new_root_id) {
+    static con_cell HEAP("heap", 0);
+    static con_cell CLOSURE("closure",0);
+    static con_cell SYMBOLS("symbols",0);
+    static con_cell PROGRAM("program",0);
     auto &interp = to_local(interp0);
+    auto &chain = interp.self().global().get_blockchain();
+
+    auto ep = chain.get_meta_entry(id);
+    if (ep == nullptr) {
+	throw interpreter_exception_wrong_arg_type("Cannot find meta entry for id");
+    }
+
+    auto e = *ep;
+
+    if (db_name == HEAP) {
+	e.set_root_id_heap(new_root_id);
+    } else if (db_name == CLOSURE) {
+	e.set_root_id_closure(new_root_id);
+    } else if (db_name == SYMBOLS) {
+	e.set_root_id_symbols(new_root_id);
+    } else if (db_name == PROGRAM) {
+	e.set_root_id_program(new_root_id);
+    }
+
+    chain.update_meta_entry(e);
+}
+
+//
+// db_keys(<root id>, <type>, <from key>, <num key>, X)
+//
+bool me_builtins::db_keys_5(interpreter_base &interp0, size_t arity, term args[]) {
+    static const std::string name = "db_keys/5";
+
+    auto &interp = to_local(interp0);
+    auto locked = interp.lock_node();
 
     auto id = get_meta_id(interp, name, args[0]);
     
@@ -1589,47 +1989,131 @@ bool me_builtins::db_key_5(interpreter_base &interp0, size_t arity, term args[])
 	throw interpreter_exception_wrong_arg_type(name + ": Second argument must be 'heap', 'closure', 'symbols' or 'program'");	
     }
 
+    if (root_id.is_zero()) {
+	throw interpreter_exception_wrong_arg_type(name + ": Data is unavailable.");
+    }    
+
     auto from_key = args[2];
     if (from_key.tag() != tag_t::INT) {
 	throw interpreter_exception_wrong_arg_type(name + ": Key must be an integer; was " + interp.to_string(from_key));
     }
     
-    auto to_key = args[3];
-    if (to_key.tag() != tag_t::INT) {
-	throw interpreter_exception_wrong_arg_type(name + ": Key must be an integer; was " + interp.to_string(to_key));
+    auto num_keys = args[3];
+    if (num_keys.tag() != tag_t::INT) {
+	throw interpreter_exception_wrong_arg_type(name + ": Number of keys must be an integer; was " + interp.to_string(num_keys));
     }
 
     auto from_key_val = reinterpret_cast<int_cell &>(from_key).value();
-    auto to_key_val = reinterpret_cast<int_cell &>(to_key).value();
+    auto num_keys_val = reinterpret_cast<int_cell &>(num_keys).value();
 
-    auto it = db->begin(root_id, from_key_val);
+    merkle_root mtree;
 
-    size_t limit = 10000; // Not more than 10000 entries
-    
-    term lst = interp.EMPTY_LIST;
-    term tail = lst;
-    size_t cnt = 0;
-    while (!it.at_end()) {
-        auto key = checked_cast<int64_t>(it->key());
-	if (key >= to_key_val) {
-	    break;
+    size_t limit = 2*triedb_params::MB; // Not more than 2 MB
+    mtree.set_limit(limit);
+    mtree.set_num_keys(num_keys_val);
+
+    if (!db->get(root_id, from_key_val, std::numeric_limits<uint64_t>::max(),
+		 true, mtree)) {
+	if (mtree.total_size() > mtree.limit_size()) {
+	    throw interpreter_exception_wrong_arg_type(name + ": Size of data set exceeded limit " + boost::lexical_cast<std::string>(mtree.limit_size()));
 	}
-	if (++cnt > limit) {
-	    break;
-	}
-	auto new_tail = interp.new_dotted_pair(int_cell(checked_cast<int64_t>(key)), interp.EMPTY_LIST);
-	if (tail == interp.EMPTY_LIST) {
-	    lst = new_tail;
-	} else {
-	    interp.set_arg(tail, 1, new_tail);
-	}
-	tail = new_tail;
-	++it;
     }
 
-    term result = lst;
+    auto result = build_tree_term(interp, &mtree, 0);
 
     return interp.unify(result, args[4]);
+}
+
+term me_builtins::build_key_list(interpreter_base &interp0, const std::vector<uint64_t> &keys)
+{
+    term result = interp0.EMPTY_LIST;
+    term tail = result;
+    for (auto key : keys) {
+	auto new_tail = interp0.new_dotted_pair(int_cell(static_cast<int64_t>(key)),
+						interp0.EMPTY_LIST);
+	if (interp0.is_empty_list(tail)) {
+	    tail = new_tail;
+	    result = tail;
+	} else {
+	    interp0.set_arg(tail, 1, new_tail);
+	    tail = new_tail;
+	}
+    }
+    return result;
+}
+
+//
+// db_keys(MerkleTree, FromKey, NumKeys, Keys)
+//
+// Validate tree and extract keys
+//
+bool me_builtins::db_keys_4(interpreter_base &interp0, size_t arity, term args[]) {
+    static const std::string name = "db_keys/4";
+    
+    auto &interp = to_local(interp0);
+
+    merkle_root mtree;
+    size_t pos = 0;
+    if (!build_merkle_tree(interp0, args[0], mtree, pos)) {
+	return false;
+    }
+
+    auto from_key = args[1];
+    if (from_key.tag() != tag_t::INT) {
+	throw interpreter_exception_wrong_arg_type(name + ": Key must be an integer; was " + interp.to_string(from_key));
+    }
+    
+    auto num_keys = args[2];
+    if (num_keys.tag() != tag_t::INT) {
+	throw interpreter_exception_wrong_arg_type(name + ": Number of keys must be an integer; was " + interp.to_string(num_keys));
+    }
+    
+    auto from_key_val = reinterpret_cast<int_cell &>(from_key).value();
+    auto num_keys_val = reinterpret_cast<int_cell &>(num_keys).value();
+    
+    std::vector<uint64_t> keys;
+    mtree.get_keys(from_key_val, num_keys_val, keys);
+
+    if (!keys.empty()) {
+	uint64_t min_key = keys[0];
+	uint64_t max_key = keys.back();
+
+	if (!mtree.validate(nullptr, min_key, max_key)) {
+	    return false;
+	}
+    } else {
+	if (!mtree.validate_end(nullptr, from_key_val)) {
+	    return false;
+	}
+    }
+		
+    auto result = build_key_list(interp0, keys);
+
+    return interp.unify(args[3], result);
+}
+
+//
+// db_end(MerkleTree, Key)
+//
+// Check if Key is the last key (or in the range of the empty sub-tree
+// at the right of the last key)
+//
+bool me_builtins::db_end_2(interpreter_base &interp0, size_t arity, term args[]) {
+    static const std::string name = "db_end/2";
+
+    merkle_root mtree;
+    size_t pos = 0;
+    if (!build_merkle_tree(interp0, args[0], mtree, pos)) {
+	return false;
+    }
+
+    auto key_term = args[1];
+    if (key_term.tag() != tag_t::INT) {
+	throw interpreter_exception_wrong_arg_type(name + ": Key must be an integer; was " + interp0.to_string(key_term));
+    }
+    auto key = reinterpret_cast<int_cell &>(key_term).value();
+
+    return mtree.validate_end(nullptr, key);
 }
 
 bool me_builtins::set_hash(interpreter_base &interp0, term t, merkle_node &mnode) {
@@ -1651,7 +2135,7 @@ bool me_builtins::set_hash(interpreter_base &interp0, term t, merkle_node &mnode
     return true;
 }
 
-bool me_builtins::set_position(interpreter_base &interp0, term t, merkle_node &mnode) {
+bool me_builtins::set_depth(interpreter_base &interp0, term t, merkle_branch &mbr) {
     if (t.tag() != tag_t::INT) {
 	return false;
     }
@@ -1659,65 +2143,89 @@ bool me_builtins::set_position(interpreter_base &interp0, term t, merkle_node &m
     if (ic.value() < 0 || ic.value() > 255) {
 	return false;
     }
-    mnode.set_position(checked_cast<size_t>(ic.value()));
+    mbr.set_depth(checked_cast<size_t>(ic.value()));
 
     return true;
 }
 
-bool me_builtins::build_merkle_tree(interpreter_base &interp0, term t, merkle_branch &br)
+bool me_builtins::check_position(interpreter_base &interp0, term t) {
+    if (t.tag() != tag_t::INT) {
+	return false;
+    }
+    int_cell &ic = reinterpret_cast<int_cell &>(t);
+    if (ic.value() < 0 || ic.value() > 255) {
+	return false;
+    }
+
+    return true;
+}
+
+bool me_builtins::build_merkle_tree(interpreter_base &interp0, term t, merkle_branch &br, size_t &pos)
 {
     if (t.tag() != tag_t::STR) {
 	return false;
     }
     auto f = interp0.functor(t);
-    if (f != con_cell("branch", 3)) {
+    if (f != con_cell("branch", 4)) {
 	return false;
     }
     auto hash_term = interp0.arg(t, 0);
     if (!set_hash(interp0, hash_term, br)) {
 	return false;
     }
-    auto pos_term = interp0.arg(t, 1);
-    if (!set_position(interp0, pos_term, br)) {
+    auto depth_term = interp0.arg(t, 1);
+    if (!set_depth(interp0, depth_term, br)) {
 	return false;
     }
-    auto children = interp0.arg(t, 2);
+    auto pos_term = interp0.arg(t, 2);
+    if (!check_position(interp0, pos_term)) {
+	return false;
+    }
+    pos = checked_cast<size_t>(reinterpret_cast<int_cell &>(pos_term).value());
+
+    auto children = interp0.arg(t, 3);
     if (!interp0.is_list(children)) {
 	return false;
     }
 
+    uint64_t num = 0;
     while (interp0.is_dotted_pair(children)) {
 	term child = interp0.arg(children, 0);
 	if (child.tag() != tag_t::STR) {
 	    return false;
 	}
+	f = interp0.functor(child);
 	merkle_node *child_node = nullptr;
-	if (f == con_cell("branch", 3)) {
+	size_t child_pos = 0;
+	if (f == con_cell("branch", 4)) {
 	    auto *branch_child = new merkle_branch();
 	    child_node = branch_child;
-	    if (!build_merkle_tree(interp0, child, *branch_child)) {
+	    if (!build_merkle_tree(interp0, child, *branch_child, child_pos)) {
 		delete branch_child;
 		return false;
 	    }
+	    num += branch_child->num_entries();
 	} else if (f == con_cell("leaf", 4)) {
 	    auto *leaf_child = new merkle_leaf();
 	    child_node = leaf_child;
-	    if (!build_merkle_tree(interp0, child, *leaf_child)) {
+	    if (!build_merkle_tree(interp0, child, *leaf_child, child_pos)) {
 		delete leaf_child;
 		return false;
 	    }
+	    num++;
 	} else {
 	    return false;
 	}
 	std::unique_ptr<merkle_node> child_ptr(child_node);
-	br.add_child(child_ptr);
+	br.set_child(child_pos, child_ptr);
+	br.set_num_entries(num);
 	children = interp0.arg(children, 1);
     }
 
     return true;
 }
 
-bool me_builtins::build_merkle_tree(interpreter_base &interp0, term t, merkle_leaf &lf)
+bool me_builtins::build_merkle_tree(interpreter_base &interp0, term t, merkle_leaf &lf, size_t &pos)
 {
     if (t.tag() != tag_t::STR) {
 	return false;
@@ -1731,9 +2239,10 @@ bool me_builtins::build_merkle_tree(interpreter_base &interp0, term t, merkle_le
 	return false;
     }
     auto pos_term = interp0.arg(t, 1);
-    if (!set_position(interp0, pos_term, lf)) {
+    if (!check_position(interp0, pos_term)) {
 	return false;
     }
+    pos = checked_cast<size_t>(reinterpret_cast<int_cell &>(pos_term).value());
     auto key_term = interp0.arg(t, 2);
     if (key_term.tag() != tag_t::INT) {
 	return false;
@@ -1753,18 +2262,18 @@ bool me_builtins::build_merkle_tree(interpreter_base &interp0, term t, merkle_le
 	auto &bc = reinterpret_cast<big_cell &>(data_term);
 	auto num_bits = interp0.num_bits(bc);
 	auto num_bytes = (num_bits + 7) / 8;
-	std::unique_ptr<custom_data_t> data(new custom_data_t(num_bytes));
+	std::unique_ptr<custom_data_t> data(new custom_data_t(num_bytes, true));
 	interp0.get_big(bc, data.get()->data(), num_bytes);
 	lf.set_data(data);
     }
     return true;
 }
 
-bool me_builtins::db_put_3(interpreter_base &interp0, size_t arity, term args[]) {
-    static const std::string name = "db_put/3";
+bool me_builtins::db_put_5(interpreter_base &interp0, size_t arity, term args[]) {
+    static const std::string name = "db_put/5";
     
     auto &interp = to_local(interp0);
-
+    auto locked = interp.lock_node();
     auto id = get_meta_id(interp, name, args[0]);
     
     if (args[1].tag() != tag_t::CON) {
@@ -1774,24 +2283,47 @@ bool me_builtins::db_put_3(interpreter_base &interp0, size_t arity, term args[])
     triedb *db = nullptr;
     root_id root_id;
 
-    std::tie(db, root_id) = get_db_root(interp0, args[1], id);
+    auto db_name = args[1];
+    
+    std::tie(db, root_id) = get_db_root(interp0, db_name, id);
     if (db == nullptr) {
 	throw interpreter_exception_wrong_arg_type(name + ": Second argument must be 'heap', 'closure', 'symbols' or 'program'");
     }
 
-    term merkle_term = args[2];
+    auto from_key = args[2];
+    if (from_key.tag() != tag_t::INT) {
+	throw interpreter_exception_wrong_arg_type(name + ": Key must be an integer; was " + interp.to_string(from_key));
+    }
+    
+    auto to_key = args[3];
+    if (to_key.tag() != tag_t::INT) {
+	throw interpreter_exception_wrong_arg_type(name + ": Key must be an integer; was " + interp.to_string(to_key));
+    }
+
+    auto from_key_val = reinterpret_cast<int_cell &>(from_key).value();
+    auto to_key_val = reinterpret_cast<int_cell &>(to_key).value();
+
+    term merkle_term = args[4];
 
     merkle_root mr;
-    if (!build_merkle_tree(interp0, merkle_term, mr)) {
+    size_t pos = 0;
+    if (!build_merkle_tree(interp0, merkle_term, mr, pos)) {
 	return false;
     }
 
-    if (!mr.validate(*db)) {
+    if (!mr.validate(db, from_key_val, to_key_val)) {
 	return false;
     }
 
+    if (root_id.is_zero()) {
+	// Create a new root
+	root_id = db->new_root();
+    }
+    
     // At this point we assume it is safe to insert it
     db->update(root_id, mr);
+
+    set_db_root(interp0, db_name, id, root_id);
 
     return true;
 }
@@ -1804,6 +2336,11 @@ local_interpreter::local_interpreter(in_session_state &session)
     auto fs = new file_stream(*this, 0, "<stdout>");
     fs->open(standard_output_);
     tell_standard_output(*fs);
+}
+
+node_locker local_interpreter::lock_node()
+{
+    return self().lock_node();
 }
 
 self_node & local_interpreter::self()
@@ -1884,7 +2421,8 @@ void local_interpreter::setup_local_builtins()
     load_builtin(ME, functor("connections",0), &me_builtins::connections_0);
     load_builtin(ME, functor("connections",1), &me_builtins::connections_1);
     load_builtin(ME, functor("add_address",2), &me_builtins::add_address_2);
-    load_builtin(ME, con_cell("ready", 1), &me_builtins::ready_1);
+    load_builtin(ME, con_cell("ready", 1), &me_builtins::ready_2);
+    load_builtin(ME, con_cell("ready", 2), &me_builtins::ready_2);
 
     // Mailbox
     load_builtin(ME, con_cell("mailbox",1), &me_builtins::mailbox_1);
@@ -1905,7 +2443,7 @@ void local_interpreter::setup_local_builtins()
     // chain/0: View chain
     load_builtin(ME, con_cell("chain", 0), &me_builtins::chain_0);
     load_builtin(ME, con_cell("chain", 2), &me_builtins::chain_3);
-    load_builtin(ME, con_cell("chain", 3), &me_builtins::chain_3);    
+    load_builtin(ME, con_cell("chain", 3), &me_builtins::chain_3);
     // advance/0: Go to next state
     load_builtin(ME, con_cell("advance", 0), &me_builtins::advance_0);
     // discard/0: Discard recent changes (since last advance/0)
@@ -1914,12 +2452,18 @@ void local_interpreter::setup_local_builtins()
     load_builtin(ME, con_cell("switch", 1), &me_builtins::switch_1);
     // height/1: Current height
     load_builtin(ME, con_cell("height", 1), &me_builtins::height_1);
+    load_builtin(ME, functor("max_height", 1), &me_builtins::max_height_1);
     // current/1: Current id
     load_builtin(ME, con_cell("current",1), &me_builtins::current_1);
     // goals/2: Retrieve a local goals block
     load_builtin(ME, con_cell("goals", 2), &me_builtins::goals_2);
     // meta/2: Retrive meta information about a block
     load_builtin(ME, con_cell("meta", 2), &me_builtins::meta_2);
+    // meta_more/2: Retrive meta information and more to enable
+    //              DB synchronization and validation
+    load_builtin(ME, functor("meta_more", 2), &me_builtins::meta_more_2);
+    // validate_meta/1: Check that meta record matches the db roots
+    load_builtin(ME, functor("validate_meta", 1), &me_builtins::validate_meta_1);
     // metas/3: Retrive meta information for several blocks
     load_builtin(ME, con_cell("metas", 3), &me_builtins::metas_3);
     // meta_roots/4: Retrive meta id root information with spacing
@@ -1943,14 +2487,23 @@ void local_interpreter::setup_local_builtins()
     // Fast sync primitives
     load_builtin(ME, functor("sync_init", 1), &me_builtins::sync_init_1);
     load_builtin(ME, con_cell("sync", 0), &me_builtins::sync_0);
+    load_builtin(ME, con_cell("sync", 1), &me_builtins::sync_1);
     load_builtin(ME, functor("sync_complete", 1), &me_builtins::sync_complete_1);
     load_builtin(ME, functor("sync_mode", 1), &me_builtins::sync_mode_1);
     load_builtin(ME, functor("syncing_meta", 1), &me_builtins::syncing_meta_1);
+    load_builtin(ME, functor("sync_point", 1), &me_builtins::sync_point_2);
+    load_builtin(ME, functor("sync_point", 2), &me_builtins::sync_point_2);
+    load_builtin(ME, functor("sync_progress", 0), &me_builtins::sync_progress_1);    
+    load_builtin(ME, functor("sync_progress", 1), &me_builtins::sync_progress_1);
     load_builtin(ME, functor("ignore_pow", 1), &me_builtins::ignore_pow_1);
     load_builtin(ME, con_cell("db_get", 5), &me_builtins::db_get_5);
+    load_builtin(ME, con_cell("db_num", 3), &me_builtins::db_num_3);    
+    load_builtin(ME, con_cell("db_num", 4), &me_builtins::db_num_4);
     load_builtin(ME, con_cell("db_size", 5), &me_builtins::db_size_5);
-    load_builtin(ME, con_cell("db_key", 5), &me_builtins::db_key_5);
-    load_builtin(ME, con_cell("db_put", 3), &me_builtins::db_put_3);
+    load_builtin(ME, con_cell("db_keys", 5), &me_builtins::db_keys_5);
+    load_builtin(ME, con_cell("db_keys", 4), &me_builtins::db_keys_4);
+    load_builtin(ME, con_cell("db_end", 2), &me_builtins::db_end_2);
+    load_builtin(ME, con_cell("db_put", 5), &me_builtins::db_put_5);
 
     set_current_module(old_mod);
 

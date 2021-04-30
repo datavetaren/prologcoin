@@ -131,3 +131,20 @@ foo10(K) :-
 
 ?- foo10(K).
 % Expect: K = bar(4711,42)
+
+%
+% Critical sections.
+%
+
+critical(L) :-
+    freeze(X, (write(hello2), nl, assert(criticalcheck(4711)))),
+    critical_section((
+	X = 1234,
+	assert(criticalcheck(42))
+		     )),
+    write(hello),nl,
+    findall(A, criticalcheck(A), L).
+
+?- critical(L).
+% Expect: L = [42,4711]
+    

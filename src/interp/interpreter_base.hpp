@@ -571,6 +571,7 @@ public:
     void load_clause(const std::string &str);
     void load_clause(std::istream &is);
     void load_clause(term t, clause_position pos);
+    void remove_clauses(const qname &qn);
 
     con_cell clause_module(term clause)
     {
@@ -1520,7 +1521,6 @@ protected:
 	    set_qr(ef1->qr);
 	    set_pr(ef1->pr);
 	    set_p(ef1->p);
-	    inside_frozen_closure_count_--;
 	    break;
 	    }
 	case ENV_NAIVE: {
@@ -1716,12 +1716,12 @@ public:
 protected:
     void tidy_trail();
 
-    bool inside_frozen_closure() const {
-	return inside_frozen_closure_count_ > 0;
+    bool in_critical_section() const {
+	return in_critical_section_;
     }
 
-    size_t inside_frozen_closure_count() const {
-	return inside_frozen_closure_count_;
+    void set_critical_section(bool b) {
+	in_critical_section_ = b;
     }
     
 private:
@@ -1804,7 +1804,7 @@ private:
     term register_qr_;     // Current query 
     con_cell register_pr_; // Current predicate (for profiling)
 
-    size_t inside_frozen_closure_count_;
+    bool in_critical_section_;
     
 public:
     static const con_cell COMMA;
@@ -2053,10 +2053,19 @@ public:
 	common::utime timeout_at;
 	term result;
 	term_env *result_src;
+	std::string exception_msg;
 	bool ready;
 	bool failed;
 	std::function<void()> processed_fn;
 	std::string standard_out;
+
+	bool is_exception() const {
+	    return !exception_msg.empty();
+	}
+	
+	void set_exception(const std::string &msg) {
+	    exception_msg = msg;
+	}
 
 	bool has_timeout() const {
 	    return timeout != std::numeric_limits<size_t>::max();
@@ -2072,6 +2081,10 @@ public:
 	void clear_timeout() {
 	    timeout = std::numeric_limits<size_t>::max();
         }
+
+	bool is_failed() const {
+	    return failed;
+	}
 
 	void set_failed() {
 	    failed = true;
@@ -2105,8 +2118,10 @@ public:
 		if (d->processed_fn) d->processed_fn();
 		delete d;
 		it = delayed_.erase(it);
-		boost::lock_guard<common::spinlock> lockit2(delayed_fast_lock_);
-		delayed_ready_--;
+		{
+		    boost::lock_guard<common::spinlock> lockit2(delayed_fast_lock_);
+		    delayed_ready_--;
+		}
 	    } else {
 		if (d->has_timeout()) {
 		    if (delayed_next_timeout_.is_zero() ||
@@ -2215,9 +2230,9 @@ inline bool predicate::matching_clauses(interpreter_base &interp, common::term h
 
 inline bool predicate::remove_clauses(interpreter_base &interp, common::term head, bool all)
 {
-    auto arg = interp.clause_first_arg(head);
+    auto arg = head == common::term() ? head : interp.clause_first_arg(head);
     bool found = false;
-    if (with_vars_ || arg.tag().is_ref()) {
+    if (with_vars_ || arg == common::term() || arg.tag().is_ref()) {
 	for (auto it = clauses_.begin(); it != clauses_.end();) {
             performance_count_++;
 	    auto mclause = *it;
@@ -2227,7 +2242,7 @@ inline bool predicate::remove_clauses(interpreter_base &interp, common::term hea
 	    }
 	    auto clause = mclause.clause();
 	    auto clause_head = interp.clause_head(clause);
-	    if (interp.can_unify(clause_head, head)) {
+	    if (head == common::term() || interp.can_unify(clause_head, head)) {
 	        if (!found) {
 	            found = true;
 		    filtered_.clear();
@@ -2336,47 +2351,23 @@ template<> inline environment_frozen_t * interpreter_base::allocate_environment<
     set_e(new_ef, ENV_FROZEN);
     
     save_state_fn_(this);
-
-    inside_frozen_closure_count_++;
     
     return new_ef;
 }
 
-inline void interpreter_base::check_delayed()
-{
-    process_delayed( [this](const delayed_t &dt) {
-	bool ok = false;
-	if (dt.result_src) {
-	    term result_copy = copy( dt.result, *dt.result_src);
-	    ok = unify(dt.query, result_copy);
-	}
-	if (!ok) {
-	    // Remote execution failed, so execute else clause (if present)
-	    if (dt.else_do != EMPTY_LIST) {
-		allocate_environment<ENV_FROZEN, environment_frozen_t *>();
-		allocate_environment<ENV_NAIVE, environment_naive_t *>();
-		set_cp(code_point(EMPTY_LIST));
-		set_p(code_point(dt.else_do));
-		set_qr(dt.else_do);
-	    }
-	}
-    });
-}
-
 inline void interpreter_base::check_frozen()
 {
+    // Do not execute frozen closures if inside critical section
+    if (in_critical_section()) {
+	return;
+    }
     bool do_check_delayed = false;
-    // Don't bind parallel variables when we're executing the body
-    // of a frozen closure. Keep the mental model simple for the user
-    // so that "new frozen closures" are not triggered randomly while
-    // executing the body of a frozen closure (unless the user explicitly
-    // binds some external variable.)
-    if (!inside_frozen_closure()) {
+    {
 	boost::lock_guard<common::spinlock> lockit(delayed_fast_lock_);
 	if (delayed_ready_) {
 	    do_check_delayed = true;
 	} else if (!delayed_next_timeout_.is_zero() &&
-		 common::utime::now() > delayed_next_timeout_) {
+		   common::utime::now() > delayed_next_timeout_) {
 	    do_check_delayed = true;
 	}
     }

@@ -6,6 +6,7 @@
 #include <iostream>
 #include "wam_interpreter.hpp"
 #include "../common/local_service.hpp"
+#include "interpreter_exception.hpp"
 
 namespace prologcoin { namespace interp {
 
@@ -31,12 +32,15 @@ private:
 
 class remote_return_t {
 public:
-    remote_return_t() : result_(), has_more_(false), at_end_(false) { }
-    remote_return_t(common::term r) : result_(r), has_more_(false), at_end_(false) { }
+    remote_return_t() : result_(), has_more_(false), at_end_(false), cost_(0) { }
+    remote_return_t(const std::string &exception_msg) : result_(), exception_(exception_msg), has_more_(false), at_end_(false), cost_(0) { }
+    remote_return_t(common::term r) : result_(r), has_more_(false), at_end_(false), cost_(0) { }
     remote_return_t(common::term r, bool has_more, bool at_end, uint64_t cost) : result_(r), has_more_(has_more), at_end_(at_end), cost_(cost) { }
     remote_return_t(const remote_return_t &other) = default;
 
     common::term result() const { return result_; }
+    bool is_exception() const { return !exception_.empty(); }
+    const std::string & get_exception() const { return exception_; }
     bool failed() const { return result_ == common::term(); }
     bool has_more() const { return has_more_; }
     bool at_end() const { return at_end_; }
@@ -44,6 +48,7 @@ public:
 
 private:
     common::term result_;
+    std::string exception_;
     bool has_more_;
     bool at_end_;
     uint64_t cost_;
@@ -225,6 +230,9 @@ public:
 		interp_.set_qr(else_do);
 		return true;
 	    } else {
+		if (result.is_exception()) {
+		    throw interpreter_remote_exception(result.get_exception());
+		}
 		return false;
 	    }
 	}
@@ -237,9 +245,9 @@ public:
 	}
 	if (mode_ != MODE_NORMAL) {
 	    return true;
-	} else {
-	    return interp_.unify(result.result(), query);
 	}
+	
+	return interp_.unify(result.result(), query);
     }
 
     bool mode() const {

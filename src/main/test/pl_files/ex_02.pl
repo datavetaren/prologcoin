@@ -76,10 +76,23 @@ advance(N,Node) :-
 % At this point we'll wait until sync is done
 %
 
+sync_progress(Progress, Node) :-
+    sync_progress(P) @ node(Node),
+    sync_progress1(P, Progress).
+
+sync_progress1([], 0).
+sync_progress1([progress(P)|_], P).
+sync_progress1([_|Rest], P) :- sync_progress1(Rest, P).
+
 wait_sync_complete(40, _) :- !, write('Waiting for too long. Giving up.'), nl, fail.
 wait_sync_complete(N, Node) :-
-    (sync_mode(Mode), syncing_meta(Block), inside_frozen_count(Frozen)) @ node(Node),
-    write('Waiting iteration='), write(N), write(' mode='), write(Mode), write(' progress='), write(Block), write(' frozen='), write(Frozen), write(' connections='), connections(Cs) @ node(Node), write(Cs), nl,
+    sync_mode(Mode) @ node(Node),
+    sync_progress(Progress, Node),
+    write('Waiting iteration='), write(N), write(' mode='), write(Mode), write(' progress='), write(Progress), write('% connections='), connections(Cs) @ node(Node), write(Cs), nl,
+    (Mode = wait ->
+	 (max_height(M), chain(M, [Id|_]), sync(Id)) @ node(Node),
+	 write('Syncing at height '), write(M), write(' id='), write(Id), nl
+    ; true),
     sleep(5000),
     (sync_complete(true) @ node(Node) -> write('Sync is done'), nl
        ; N1 is N + 1, wait_sync_complete(N1,Node)).

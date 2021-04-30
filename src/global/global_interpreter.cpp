@@ -38,6 +38,8 @@ void global_interpreter::init()
     init_from_program_db();
 
     heap_setup_new_atom_function( call_new_atom, this );
+    heap_setup_load_atom_name_function( call_load_atom_name, this );
+    heap_setup_load_atom_index_function( call_load_atom_index, this );
     heap_setup_modified_block_function( call_modified_heap_block, this );
 
     setup_standard_lib();
@@ -359,6 +361,22 @@ size_t global_interpreter::new_atom(const std::string &atom_name)
     return atom_id;
 }
 
+void global_interpreter::load_atom_name(size_t index)
+{
+    auto name = get_global().db_get_symbol_name(index);
+    if (!name.empty()) {
+	set_atom_index(name, index);
+    }
+}
+
+void global_interpreter::load_atom_index(const std::string &name)
+{
+    auto index = get_global().db_get_symbol_index(name);
+    if (index != 0) {
+	set_atom_index(name, index);
+    }
+}
+
 heap_block * global_interpreter::db_get_heap_block(size_t block_index) {
     common::heap_block *block = get_global().db_get_heap_block(block_index);
     block_cache_.insert(block_index, block);
@@ -407,17 +425,17 @@ void global_interpreter::get_frozen_closures(size_t from_addr,
 					     size_t max_closures,
 			     std::vector<std::pair<size_t,term> > &closures)
 {
-    auto root = get_global().get_blockchain().closures_root();
+    auto root = get_global().get_blockchain().closure_root();
     size_t k = max_closures;
 
     bool reversed = heap_size() == from_addr && to_addr <= from_addr;
 
     const auto none = term();
 
-    auto &closures_db = get_global().get_blockchain().closures_db();
+    auto &closure_db = get_global().get_blockchain().closure_db();
     
-    auto it1 = reversed ? closures_db.end(root) : 
-	                  closures_db.begin(root, from_addr);
+    auto it1 = reversed ? closure_db.end(root) : 
+	                  closure_db.begin(root, from_addr);
     if (reversed) --it1;
     size_t prev_last_addr = from_addr;
     size_t last_addr = from_addr;

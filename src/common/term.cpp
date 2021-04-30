@@ -286,6 +286,10 @@ void heap::reset()
     modified_block_fn_context_ = nullptr;
     new_atom_fn_ = &new_atom_default;
     new_atom_fn_context_ = nullptr;
+    load_atom_name_fn_ = &load_atom_name_default;
+    load_atom_name_fn_context_ = nullptr;
+    load_atom_index_fn_ = &load_atom_index_default;
+    load_atom_index_fn_context_ = nullptr;
     trim_fn_ = &trim_default;
     trim_fn_context_ = nullptr;
     
@@ -445,6 +449,8 @@ bool heap::check_term(const term t, std::string *name) const
 
 size_t heap::resolve_atom_index(const std::string &name) const
 {
+    load_atom_index_fn_(const_cast<heap &>(*this),
+			load_atom_index_fn_context_, name);
     auto it = atom_name_to_index_table_.find(name);
     if (it != atom_name_to_index_table_.end()) {
 	return it->second;

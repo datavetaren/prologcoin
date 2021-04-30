@@ -200,7 +200,6 @@ void wam_compiler::clear()
     }
     merges_.clear();
     argument_pos_.clear();
-    term_map_.clear();
     regs_a_.clear();
     regs_x_.clear();
     regs_y_.clear();
@@ -229,7 +228,6 @@ std::vector<wam_compiler::prim_unification> wam_compiler::flatten(
 
     bool is_predicate = is_predicate_call;
 
-    term_map_.clear();
     argument_pos_.clear();
 
     while (!worklist.empty()) {
@@ -259,27 +257,17 @@ std::vector<wam_compiler::prim_unification> wam_compiler::flatten(
 		        continue;
 		    }
 		}
-		auto found = term_map_.find(common::eq_term(env_,arg));
-		common::ref_cell ref;
-		bool is_found = found != term_map_.end();
 
-		if (is_found && !is_predicate) {
-		    ref = found->second;
-		} else {
-		    auto ref1 = env_.new_ref();
-  		    auto ref0 = reinterpret_cast<const common::ref_cell &>(ref1);
-	  	    ref = ref0;
-		    term_map_.insert(std::make_pair(common::eq_term(env_,arg), ref));
-		}
+		auto ref1 = env_.new_ref();
+		auto ref = reinterpret_cast<const common::ref_cell &>(ref1);
+
 		if (is_predicate) {
 		    argument_pos_[ref] = pos;
 		}
 
 		prim_unification p1 = new_unification(ref, arg);
 		env_.set_arg(rhs, pos, ref);
-		if (!is_found || is_predicate) {
-		    worklist.push(p1);
-		}
+		worklist.push(p1);
 	    }
 	    if (!is_predicate) {
 	        prims.push_back(p);
@@ -297,6 +285,7 @@ std::vector<wam_compiler::prim_unification> wam_compiler::flatten(
 	    break;
 	}
 	}
+	
 	is_predicate = false;
     }
 

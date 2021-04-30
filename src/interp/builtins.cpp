@@ -138,14 +138,6 @@ bool builtins::term_size_2(interpreter_base &interp, size_t arity, common::term 
 }
 
 //
-// inside_frozen_count/1	
-//
-bool builtins::inside_frozen_count_1(interpreter_base &interp, size_t arity, common::term args[]) {
-    auto result = int_cell(static_cast<int64_t>(interp.inside_frozen_closure_count()));
-    return interp.unify(args[0], result);
-}
-	
-//
 // Simple
 //
 
@@ -1139,7 +1131,7 @@ bool builtins::freeze_2(interpreter_base &interp, size_t arity, common::term arg
     }
 
     args[1] = interp.rewrite_freeze_body(args[0], args[1]);
-
+    
     // At this point args[1] should be '$freeze':<id>( .... )
 								 
     auto index = reinterpret_cast<ref_cell &>(args[0]).index();
@@ -1154,6 +1146,47 @@ bool builtins::freeze_2(interpreter_base &interp, size_t arity, common::term arg
     interp.set_cp(code_point(interpreter_base::EMPTY_LIST));
     
     return true;
+}
+
+bool builtins::critical_section_1(interpreter_base &interp, size_t arity, common::term args[])
+{
+    if (interp.in_critical_section()) {
+	throw interpreter_exception_already_in_critical_section(
+	   "critical_section/1: Already executing in a critical section.");
+    }
+    
+    term code = args[0];
+
+    interp.new_meta_context<meta_context>(&critical_section_meta);
+    interp.set_top_e();
+    interp.allocate_choice_point(code_point::fail());
+    interp.set_top_b(interp.b());
+    interp.set_b0(interp.b());
+    interp.set_p(code_point(code));
+    interp.set_cp(code_point(interpreter_base::EMPTY_LIST));
+
+    interp.set_critical_section(true);
+
+    return true;
+}
+
+bool builtins::critical_section_meta(interpreter_base &interp,
+				     const meta_reason_t &reason)
+{
+    interp.release_last_meta_context();
+    interp.set_critical_section(false);
+
+    if (reason == interp::meta_reason_t::META_DELETE) {
+	return true;
+    }
+
+    bool failed = interp.is_top_fail();
+    interp.set_p(interp.cp());
+    interp.set_cp(code_point(interpreter_base::EMPTY_LIST));
+    interp.set_top_fail(false);
+    interp.set_complete(false);
+    
+    return !failed;
 }
 
 bool builtins::use_module_1(interpreter_base &interp, size_t arity, common::term args[] ) {
@@ -1619,7 +1652,7 @@ qname builtins::check_predicate(interpreter_base &interp, const std::string &pna
     }
     
     if (!interp.is_functor(arg) || interp.functor(arg) != SLASH) {
-        throw interpreter_exception_wrong_arg_type(pname + ": Only an instantiated term like f/a is supported.");
+        throw interpreter_exception_wrong_arg_type(pname + ": Only an instantiated term like f/a is supported; was " + interp.to_string(arg));
     }
     if (!interp.is_atom(interp.arg(arg, 0))) {
         throw interpreter_exception_wrong_arg_type(pname + ": Expected predicate name; was " + interp.to_string(interp.arg(arg,0)));
@@ -1750,6 +1783,7 @@ void builtins::load(interpreter_base &interp) {
     i.load_builtin(con_cell("\\+", 1), builtin(&builtins::operator_disprove,true));
     i.load_builtin(con_cell("findall",3), builtin(&builtins::findall_3,true));
     i.load_builtin(con_cell("freeze",2), builtin(&builtins::freeze_2,true));
+    i.load_builtin(i.functor("critical_section",1), builtin(&builtins::critical_section_1,true));
 
     // call/n with n [1..11]
     for (size_t j = 1; j <= 11; j++) {
@@ -1775,7 +1809,6 @@ void builtins::load(interpreter_base &interp) {
     i.load_builtin(con_cell("toc",1), builtin(&builtins::toc_1));
     i.load_builtin(interp.functor("term_size", 1), &builtins::term_size_2);
     i.load_builtin(interp.functor("term_size", 2), &builtins::term_size_2);
-    i.load_builtin(interp.functor("inside_frozen_count", 1), &builtins::inside_frozen_count_1);
 
     // Program database
     i.load_builtin(con_cell("show",0), builtin(&builtins::show_0));

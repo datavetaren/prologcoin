@@ -61,6 +61,9 @@ public:
     inline void set_command(const term t)
     { set_term(env_->new_term(common::con_cell("command",1),{t})); }
 
+    bool is_error() const;
+    bool is_exception();
+    std::string get_exception();
     term get_result() const;
     term get_result_goal() const;
     std::string get_standard_out();

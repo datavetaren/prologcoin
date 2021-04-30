@@ -158,6 +158,18 @@ private:
 	return gi->new_atom(atom_name);
     }
 
+    static inline void call_load_atom_name(common::heap &h, void *context, size_t atom_index)
+    {
+        auto *gi = reinterpret_cast<global_interpreter *>(context);
+	gi->load_atom_name(atom_index);
+    }
+
+    static inline void call_load_atom_index(common::heap &h, void *context, const std::string &atom_name)
+    {
+        auto *gi = reinterpret_cast<global_interpreter *>(context);
+	gi->load_atom_index(atom_name);	
+    }
+
     static inline void call_trim_heap(common::heap &h, void *context, size_t new_size)
     {
         auto *gi = reinterpret_cast<global_interpreter *>(context);
@@ -165,6 +177,8 @@ private:
     }
 
     size_t new_atom(const std::string &atom_name);
+    void load_atom_name(size_t atom_index);
+    void load_atom_index(const std::string &atom_name);
 
     void trim_global_heap(size_t new_size)
     {

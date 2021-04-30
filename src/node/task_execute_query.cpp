@@ -136,6 +136,12 @@ void task_execute_query::process()
 	result_ready_ = true;
 	if (delayed_) {
 	    if (result_ == term()) {
+		if (is_error()) {
+		    delayed_->set_failed();
+		}
+		if (is_exception()) {
+		    delayed_->set_exception(get_exception());
+		}
 		delayed_->result = env().EMPTY_LIST;
 	    } else {
 		delayed_->result = result_;

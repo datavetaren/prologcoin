@@ -74,4 +74,3 @@ dp7(A) :-
 ?- dp7(Q7).
 % Expect: Q7 = 100
 % Expect: end
-

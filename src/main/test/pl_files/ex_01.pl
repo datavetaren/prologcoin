@@ -129,7 +129,7 @@ tmp:send1b(Count, EndCount, Addresses, Tx) :-
 %
 % What does the global state look like?
 %
-?- chain(5, [Id]) @ node(n1), db_key(Id, heap, 0, 1000, X) @ node(n1).
+?- chain(5, [Id]) @ node(n1), db_keys(Id, heap, 0, 1000, X) @ node(n1), db_keys(X, 0, 1000, Keys) @ node(n1).
 % Expect: true/*
 
 ?- chain(5, [Id]) @ node(n1), db_size(Id, heap, 8, 20, X) @ node(n1).

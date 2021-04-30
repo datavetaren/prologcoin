@@ -132,6 +132,7 @@ public:
     }
 
     size_t current_height() const;
+    size_t max_height() const;
     void increment_height();
 
     void advance() {
@@ -319,10 +320,10 @@ public:
     }
 
     size_t db_num_frozen_closures() const {
-	if (blockchain_.closures_db().is_empty()) {
+	if (blockchain_.closure_db().is_empty()) {
 	    return 0;
 	}
-	return common::checked_cast<size_t>(blockchain_.closures_db().num_entries(blockchain_.closures_root()));
+	return common::checked_cast<size_t>(blockchain_.closure_db().num_entries(blockchain_.closure_root()));
     }
 
     size_t num_frozen_closures() {
@@ -341,7 +342,7 @@ public:
     //
 
     term db_get_closure(size_t addr) {
-	auto leaf = blockchain_.closures_db().find(blockchain_.closures_root(),
+	auto leaf = blockchain_.closure_db().find(blockchain_.closure_root(),
 						   addr);
 	if (leaf == nullptr) {
 	    return common::heap::EMPTY_LIST;
@@ -351,13 +352,13 @@ public:
     }
 
     void db_remove_closure(size_t addr) {
-	blockchain_.closures_db().remove(blockchain_.closures_root(), addr);
+	blockchain_.closure_db().remove(blockchain_.closure_root(), addr);
     }
 
     void db_set_closure(size_t addr, term t) {
 	uint8_t buffer[sizeof(uint64_t)];
 	db::write_uint64(buffer, t.raw_value());
-	blockchain_.closures_db().update(blockchain_.closures_root(), addr,
+	blockchain_.closure_db().update(blockchain_.closure_root(), addr,
 					 buffer, sizeof(buffer));
     }
 
@@ -372,7 +373,7 @@ public:
     term db_get_goal_block(common::term_env &dst, const meta_entry &e);
     void db_set_goal_block(size_t height, const buffer_t &buf);
 
-    term db_get_meta(common::term_env &dst, const meta_id &id);
+    term db_get_meta(common::term_env &dst, const meta_id &id, bool more);
     size_t db_get_meta_length(const meta_id &root_id, size_t lookahead_n);
     term db_get_meta_roots(common::term_env &dst, const meta_id &id, size_t spacing, size_t n);
     bool db_put_meta(common::term_env &src, common::term meta_term);

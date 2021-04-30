@@ -13,7 +13,7 @@ blockchain::blockchain(const std::string &data_dir) :
     db_meta_dir_((boost::filesystem::path(data_dir_) / "db" / "meta").string()),
     db_goal_blocks_dir_((boost::filesystem::path(data_dir_) / "db" / "goals").string()),
     db_heap_dir_((boost::filesystem::path(data_dir_) / "db" / "heap").string()),
-    db_closures_dir_((boost::filesystem::path(data_dir_) / "db" / "closures").string()),
+    db_closure_dir_((boost::filesystem::path(data_dir_) / "db" / "closure").string()),
     db_symbols_dir_((boost::filesystem::path(data_dir_) / "db" / "symbols").string()),
     db_program_dir_((boost::filesystem::path(data_dir_) / "db" / "program").string()) {
    init();
@@ -23,32 +23,32 @@ void blockchain::update_meta_id()
 {
     blake2b_state s;
     blake2b_init(&s, BLAKE2B_OUTBYTES);
-    
+
+    // Add previous id
+    blake2b_update(&s, tip_.get_previous_id().hash(), meta_id::HASH_SIZE);
+
     // Hash all root hashes from state databases
     auto &t = tip_;
     auto &h1 = heap_db().get_root_hash(t.get_root_id_heap());
     blake2b_update(&s, h1.hash(), h1.hash_size());
-    auto &h2 = closures_db().get_root_hash(t.get_root_id_closures());
+    auto &h2 = closure_db().get_root_hash(t.get_root_id_closure());
     blake2b_update(&s, h2.hash(), h2.hash_size());
     auto &h3 = symbols_db().get_root_hash(t.get_root_id_symbols());
     blake2b_update(&s, h3.hash(), h3.hash_size());
     auto &h4 = program_db().get_root_hash(t.get_root_id_program());
     blake2b_update(&s, h4.hash(), h4.hash_size());
 
-    // Add previous id
-    blake2b_update(&s, tip_.get_previous_id().hash(), meta_id::HASH_SIZE);
+    // Reuse this data buffer for everything.
+    uint8_t data[1024];
 
-    // Reuse this data buffer for everything. pow-proof is the biggest.
-    uint8_t data[64];
-
-    // Hash all number of entries for each daatbase
-    db::write_uint64(data, checked_cast<uint64_t>(heap_db().num_entries(t.get_root_id_heap())));
+    // Add number of entries in heap, closures, symbols and program.
+    db::write_uint64(data, heap_db().num_entries(t.get_root_id_heap()));
     blake2b_update(&s, data, sizeof(uint64_t));
-    db::write_uint64(data, checked_cast<uint64_t>(closures_db().num_entries(t.get_root_id_closures())));
+    db::write_uint64(data, closure_db().num_entries(t.get_root_id_closure()));
     blake2b_update(&s, data, sizeof(uint64_t));
-    db::write_uint64(data, checked_cast<uint64_t>(symbols_db().num_entries(t.get_root_id_symbols())));
+    db::write_uint64(data, symbols_db().num_entries(t.get_root_id_symbols()));
     blake2b_update(&s, data, sizeof(uint64_t));
-    db::write_uint64(data, checked_cast<uint64_t>(program_db().num_entries(t.get_root_id_program())));
+    db::write_uint64(data, program_db().num_entries(t.get_root_id_program()));
     blake2b_update(&s, data, sizeof(uint64_t));
 
     // Add version
@@ -71,6 +71,10 @@ void blockchain::update_meta_id()
     memset(data, 0, sizeof(data));
     blake2b_final(&s, data, BLAKE2B_OUTBYTES);
     
+    // The above hash can then be used as seed (and key) for
+    // verifying the pow proof. Thus the pow proof itself is not part
+    // of the hash.
+    
     tip_.set_id(meta_id(data));
 }
 
@@ -79,7 +83,7 @@ void blockchain::init()
     db_meta_ = nullptr;
     db_goal_blocks_ = nullptr;
     db_heap_ = nullptr;
-    db_closures_ = nullptr;
+    db_closure_ = nullptr;
     db_symbols_ = nullptr;
     db_program_ = nullptr;
     
@@ -114,7 +118,10 @@ void blockchain::init()
 		chains_.insert(std::make_pair(entry.get_id(), entry));
 		at_height_[entry.get_height()].insert(entry.get_id());
 		if (!entry.is_partial()) {
-		    best = entry;
+		    // Check if DB is really available (integrity check)
+		    if (dbs_available(entry)) {
+			best = entry;
+		    }
 		}
 	    }
 	}
@@ -199,7 +206,7 @@ std::set<meta_id> blockchain::find_entries(size_t height, const uint8_t *prefix,
 void blockchain::flush_db() {
     goal_blocks_db().flush();
     heap_db().flush();
-    closures_db().flush();
+    closure_db().flush();
     symbols_db().flush();
     program_db().flush();
     meta_db().flush();
@@ -211,7 +218,7 @@ void blockchain::advance() {
     db::root_id next_meta;
     db::root_id next_goal_blocks;
     db::root_id next_heap;
-    db::root_id next_closures;
+    db::root_id next_closure;
     db::root_id next_symbols;
     db::root_id next_program;
 
@@ -221,7 +228,7 @@ void blockchain::advance() {
 	next_meta = meta_db().new_root();
 	next_goal_blocks = goal_blocks_db().new_root();
 	next_heap = heap_db().new_root();
-	next_closures = closures_db().new_root();
+	next_closure = closure_db().new_root();
 	next_symbols = symbols_db().new_root();
 	next_program = program_db().new_root();
 	genesis = true;
@@ -229,7 +236,7 @@ void blockchain::advance() {
 	next_meta = meta_db().new_root(tip().get_root_id_meta());
 	next_goal_blocks = goal_blocks_db().new_root(tip().get_root_id_goal_blocks());
 	next_heap = heap_db().new_root(tip().get_root_id_heap());
-	next_closures = closures_db().new_root(tip().get_root_id_closures());
+	next_closure = closure_db().new_root(tip().get_root_id_closure());
 	next_symbols = symbols_db().new_root(tip().get_root_id_symbols());
 	next_program = program_db().new_root(tip().get_root_id_program());
     }
@@ -248,10 +255,9 @@ void blockchain::advance() {
     new_tip.set_root_id_meta(next_meta);
     new_tip.set_root_id_goal_blocks(next_goal_blocks);
     new_tip.set_root_id_heap(next_heap);
-    new_tip.set_root_id_closures(next_closures);
+    new_tip.set_root_id_closure(next_closure);
     new_tip.set_root_id_symbols(next_symbols);
     new_tip.set_root_id_program(next_program);
-
     tip_ = new_tip;
 }
 
@@ -264,17 +270,21 @@ void blockchain::add_meta_entry(meta_entry &e)
 	assert(prev_entry != nullptr);
 	e.set_root_id_meta(meta_db().new_root(prev_entry->get_root_id_meta()));
     }
-	
+    update_meta_entry(e);
+}
+
+void blockchain::update_meta_entry(const meta_entry &e)
+{	
     const size_t data_size = meta_entry::serialization_size();
     uint8_t data[ data_size ];
     e.write(data);
     meta_db().update(e.get_root_id_meta(),
 		     e.get_height(),
 		     data, data_size);
-    chains_.insert(std::make_pair(e.get_id(), e));
+    chains_[e.get_id()] = e;
     at_height_[e.get_height()].insert(e.get_id());
 }
-	
+
 void blockchain::update_tip() {
     update_meta_id();
 
@@ -287,4 +297,88 @@ void blockchain::update_tip() {
     add_meta_entry(tip());
 }
 
+size_t blockchain::depth(const meta_id &from_id, size_t max_depth)
+{
+    if (max_depth == 0) {
+	return 0;
+    }
+    size_t d = 0;
+    auto next_ids = follows(from_id);
+    for (auto &next_id : next_ids) {
+	auto next_depth = depth(next_id, max_depth - 1) + 1;
+	if (next_depth > d) {
+	    d = next_depth;
+	}
+    }
+    return d;
+}
+
+// TODO: We should look at accumulated difficulty
+meta_id blockchain::next(const meta_id &from_id, size_t max_lookahead) {
+    if (max_lookahead == 0) {
+	return from_id;
+    }
+    auto next_ids = follows(from_id);
+    size_t best_depth = 0;
+    meta_id best_id;
+    for (auto &next_id : next_ids) {
+	size_t d = depth(next_id, max_lookahead - 1);
+	if (d > best_depth) {
+	    best_depth = d;
+	    best_id = next_id;
+	}
+    }
+    return best_id;
+}
+
+meta_id blockchain::sync_point(int64_t height)
+{
+    if (at_height_.empty()) {
+	return meta_id();
+    }
+    size_t abs_height = 0;
+    if (height < 0) {
+	size_t total_height = at_height_.rbegin()->first;
+	if (static_cast<size_t>(-height) > total_height) {
+	    abs_height = 0;
+	} else {
+	    abs_height = static_cast<size_t>(total_height - height);
+	}
+    } else {
+	abs_height = static_cast<size_t>(height);
+    }
+    // If the chain at height abs_height is ambiguous, then go to
+    // previous height until it isn't.
+    while (abs_height > 0 && at_height_[abs_height].size() != 1) {
+	abs_height--;
+    }
+    meta_id from_id = *(at_height_[abs_height].begin());
+    // From this id we go forward and find the first branchpoint
+    // that has two chains for which both are longer than 6.
+    for (;;) {
+	auto next_ids = follows(from_id);
+	if (next_ids.size() == 0) {
+	    break;
+	}
+	if (next_ids.size() == 1) {
+	    from_id = *(next_ids.begin());
+	    continue;
+	}
+	size_t found = 0;
+	for (auto &next_id : next_ids) {
+	    size_t d = depth(next_id, BRANCH_DEPTH);
+	    if (d >= BRANCH_DEPTH) {
+		found++;
+	    }
+	}
+	if (found > 1) {
+	    break;
+	}
+	from_id = next(from_id, BRANCH_DEPTH);
+    }
+    
+    
+    return from_id;
+}
+	
 }}

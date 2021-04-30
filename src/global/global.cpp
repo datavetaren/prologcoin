@@ -192,7 +192,7 @@ static term to_number(term_env &dst, uint64_t v)
     }
 }
 
-term global::db_get_meta(term_env &dst, const meta_id &root_id) {
+term global::db_get_meta(term_env &dst, const meta_id &root_id, bool more) {
     auto *e = blockchain_.get_meta_entry(root_id);
     if (e == nullptr) {
 	return common::heap::EMPTY_LIST;
@@ -204,6 +204,49 @@ term global::db_get_meta(term_env &dst, const meta_id &root_id) {
     auto height = dst.new_term( con_cell("height",1), { int_cell(static_cast<int64_t>(e->get_height())) });
     auto nonce = dst.new_term( con_cell("nonce",1), { to_number(dst, e->get_nonce()) });
     auto time = dst.new_term( con_cell("time",1), { int_cell(static_cast<int64_t>(e->get_timestamp().in_ss())) });
+
+    if (more) {
+	static con_cell HEAP = con_cell("heap",0);
+	static con_cell CLOSURE = con_cell("closure",0);
+	static con_cell SYMBOLS = con_cell("symbols",0);
+	static con_cell PROGRAM = con_cell("program",0);
+
+	auto &b = get_blockchain();
+	
+	auto &heap_root_hash = b.heap_db().get_root_hash(e->get_root_id_heap());
+	auto num_heap = b.heap_db().num_entries(e->get_root_id_heap());
+
+	auto &closure_root_hash = b.closure_db().get_root_hash(e->get_root_id_closure());
+	auto num_closure = b.closure_db().num_entries(e->get_root_id_closure());
+
+	auto &symbols_root_hash = b.symbols_db().get_root_hash(e->get_root_id_symbols());
+	auto num_symbols = b.symbols_db().num_entries(e->get_root_id_symbols());
+	
+	auto &program_root_hash = b.program_db().get_root_hash(e->get_root_id_program());
+	auto num_program = b.program_db().num_entries(e->get_root_id_program());
+
+	auto heap_term = dst.new_term(
+	  con_cell("db",3),
+	  { HEAP, int_cell(static_cast<int64_t>(num_heap)),
+	    dst.new_big(heap_root_hash.hash(), heap_root_hash.hash_size()) });
+	auto closure_term = dst.new_term(
+	  con_cell("db",3),
+	  { CLOSURE, int_cell(static_cast<int64_t>(num_closure)),
+	    dst.new_big(closure_root_hash.hash(), closure_root_hash.hash_size()) });
+	auto symbols_term = dst.new_term(
+	  con_cell("db",3),
+	  { SYMBOLS, int_cell(static_cast<int64_t>(num_symbols)),
+	    dst.new_big(symbols_root_hash.hash(), symbols_root_hash.hash_size()) });
+	auto program_term = dst.new_term(
+	  con_cell("db",3),
+	  { PROGRAM, int_cell(static_cast<int64_t>(num_program)),
+	    dst.new_big(program_root_hash.hash(), program_root_hash.hash_size()) });
+    
+	lst = dst.new_dotted_pair(program_term, lst);
+	lst = dst.new_dotted_pair(symbols_term, lst);
+	lst = dst.new_dotted_pair(closure_term, lst);
+	lst = dst.new_dotted_pair(heap_term, lst);
+    }		
     lst = dst.new_dotted_pair(time, lst);
     lst = dst.new_dotted_pair(nonce, lst);
     lst = dst.new_dotted_pair(height, lst);
@@ -392,7 +435,7 @@ term global::db_get_metas(term_env &dst, const meta_id &root_id, size_t n)
     std::vector<meta_id> branches;
     branches.push_back(root_id);
 
-    term m = db_get_meta(dst, root_id);
+    term m = db_get_meta(dst, root_id, false);
     lst = dst.new_dotted_pair(m, lst);
     term head = lst, tail = lst;
     bool has_more = true;
@@ -413,7 +456,7 @@ term global::db_get_metas(term_env &dst, const meta_id &root_id, size_t n)
 	    bool first = true;
 	    for (auto const &fid : follows) {
 		has_more = true;
-		term m = db_get_meta(dst, fid);
+		term m = db_get_meta(dst, fid, false);
 		term new_term = dst.new_dotted_pair(m, common::heap::EMPTY_LIST);
 		dst.set_arg(tail, 1, new_term);
 		tail = new_term;
@@ -442,6 +485,10 @@ void global::db_put_metas(term_env &src, term lst)
 
 size_t global::current_height() const {
     return blockchain_.tip().get_height();
+}
+
+size_t global::max_height() const {
+    return blockchain_.max_height();
 }
 
 void global::increment_height()

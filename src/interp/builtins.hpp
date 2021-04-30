@@ -208,6 +208,9 @@ typedef std::pair<common::con_cell, common::con_cell> qname;
 	static bool findall_3(interpreter_base &interp, size_t arity, common::term args[]);
 	static bool findall_3_meta(interpreter_base &interp, const meta_reason_t &reason);
         static bool freeze_2(interpreter_base &interp, size_t arity, common::term args[]);
+	// to prevent frozen closures from executing while in an critical section
+	static bool critical_section_1(interpreter_base &interp, size_t arity, common::term args[]);
+        static bool critical_section_meta(interpreter_base &interp, const meta_reason_t &reason);
 
 	//
 	// System

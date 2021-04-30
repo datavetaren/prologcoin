@@ -168,8 +168,8 @@ void triedb_branch::read(const uint8_t *buffer)
     p += sizeof(uint32_t);
     assert(((p - buffer) + sizeof(uint32_t)) <= sz);
 
-    // Read max key bits (1 byte)
-    max_key_bits_ = *p; p++;
+    // Read depths (1 byte)
+    depth_ = *p; p++;
     // Read hash size (1 byte)
     assert(((p - buffer) + sizeof(uint32_t)) <= sz);
     auto hash_sz = *p; p++;
@@ -179,6 +179,10 @@ void triedb_branch::read(const uint8_t *buffer)
     // Read leaf bits
     assert(((p - buffer) + sizeof(uint32_t)) <= sz);
     leaf_ = read_uint32(p); p += sizeof(uint32_t);
+    // Read number of entries
+    assert(((p - buffer) + sizeof(uint64_t)) <= sz);
+    num_ = read_uint64(p); p += sizeof(uint64_t);
+    
     // Compute number of children (based on mask)
     size_t n = num_children();
     // Allocate space for children
@@ -204,14 +208,16 @@ void triedb_branch::write(uint8_t *buffer) const
     // First write total size of this node
     write_uint32(p, common::checked_cast<uint32_t>(sz)); p += sizeof(uint32_t);
 
-    // Write max key bits (1 byte)
-    *p = max_key_bits_; p++;
+    // Write depth (1 byte)
+    *p = depth_; p++;
     // Write hash size (1 byte)
     *p = checked_cast<uint8_t>(hash_size()); p++;
     // Write mask (32 bits)
     write_uint32(p, mask_); p += sizeof(uint32_t);
     // Write leaf bits (32 bits)
     write_uint32(p, leaf_); p += sizeof(uint32_t);
+    // Write number of entries (64 bits)
+    write_uint64(p, num_); p += sizeof(uint64_t);
     // Compute number of children (based on mask)
     size_t n = num_children();
     // Write each child pointer (64 bits)
@@ -237,6 +243,9 @@ void triedb::branch_hasher(triedb_branch *branch) {
 
     blake2b_state s;
     blake2b_init(&s, sizeof(final_hash));
+    uint8_t depth_buffer[1];
+    depth_buffer[0] = branch->depth();
+    blake2b_update(&s, depth_buffer, sizeof(depth_buffer));
     uint32_t m = branch->mask();
     uint8_t mask_buffer[sizeof(uint32_t)];
     write_uint32(mask_buffer, m);
@@ -337,7 +346,7 @@ void triedb::flush()
 
 root_id triedb::new_root() {
     auto *new_branch = new triedb_branch();
-    new_branch->set_max_key_bits(5);
+    new_branch->set_depth(1);
     branch_hasher(new_branch);
     auto ptr = append_branch_node(new_branch);
 
@@ -402,6 +411,10 @@ const triedb_root & triedb::get_root(const root_id &id) const {
     return it->second;
 }
 
+bool triedb::has_root(const root_id &id) const {
+    return roots_.find(id) != roots_.end();
+}
+
 void triedb::insert(const root_id &at_root, uint64_t key, const uint8_t *data, size_t data_size) {
     return insert_or_update(at_root, key, data, data_size, true);
 }
@@ -417,7 +430,7 @@ void triedb::insert_or_update(const root_id &at_root, uint64_t key, const uint8_
         // Grow with at most one height at a time
 	if (roots_.empty() == 0) {
 	     auto *new_branch = new triedb_branch();
-	     new_branch->set_max_key_bits(5);
+	     new_branch->set_depth(1);
 	     branch_hasher(new_branch);
 	     auto ptr = append_branch_node(new_branch);
 	     set_root(at_root, ptr);
@@ -428,14 +441,17 @@ void triedb::insert_or_update(const root_id &at_root, uint64_t key, const uint8_
     const triedb_branch *current_root = get_branch(current_root_ptr);
     const triedb_branch *new_branch = nullptr;
     uint64_t new_branch_ptr = 0;
-    size_t current_key_bits = current_root->max_key_bits();
+    size_t current_depth = current_root->depth();
+    size_t current_key_bits = current_depth * triedb_params::MAX_BRANCH_BITS;
     size_t key_bits = triedb_branch::compute_max_key_bits(key);
     while (key_bits > current_key_bits) {
         // Increase height of tree until current_key_bits == key_bits
 	current_key_bits += triedb_params::MAX_BRANCH_BITS;
+	current_depth++;
         auto *new_root = new triedb_branch();
-	new_root->set_max_key_bits(current_key_bits);
+	new_root->set_depth(current_depth);
 	new_root->set_child_pointer(0, current_root_ptr);
+	branch_hasher(new_root);
         auto new_root_ptr = append_branch_node(new_root);
 	current_root = new_root;
 	current_root_ptr = new_root_ptr;
@@ -455,10 +471,8 @@ std::pair<const triedb_branch *, uint64_t> triedb::update_part(const triedb_bran
 							 bool do_insert,
 							 bool &new_entry)
 {
-    size_t max_key_bits = node->max_key_bits();
-
-    size_t sub_index = (key >> (max_key_bits - MAX_BRANCH_BITS))
-                        & (MAX_BRANCH-1);
+    size_t depth = node->depth();
+    size_t sub_index = (key >> ((depth-1) * MAX_BRANCH_BITS)) & (MAX_BRANCH-1);
 
     // If the child is empty, then create a new node at that position
     if (node->is_empty(sub_index)) {
@@ -473,6 +487,7 @@ std::pair<const triedb_branch *, uint64_t> triedb::update_part(const triedb_bran
 	auto *new_branch = new triedb_branch(*node);
 	new_branch->set_child_pointer(sub_index, leaf_ptr);
 	new_branch->set_leaf(sub_index);
+	new_branch->add_num_entries(1);
 	branch_hasher(new_branch);
 	auto ptr = append_branch_node(new_branch);
 	new_entry = true;
@@ -507,18 +522,20 @@ std::pair<const triedb_branch *, uint64_t> triedb::update_part(const triedb_bran
 	    // leaf at that position by pushing it down one level. However,
 	    // this new node will be directly recursed into and thus will
 	    // not needed to be stored on disk.
-  	    size_t sub_key_bits = max_key_bits - MAX_BRANCH_BITS;
-  	    size_t sub_sub_index = (leaf->key() >> (sub_key_bits - MAX_BRANCH_BITS)) & (MAX_BRANCH-1);
+  	    size_t sub_depth = depth - 1;
+  	    size_t sub_sub_index = (leaf->key() >> ((sub_depth-1) * MAX_BRANCH_BITS)) & (MAX_BRANCH-1);
 	    triedb_branch tmp_branch;
-	    tmp_branch.set_max_key_bits(sub_key_bits);
+	    tmp_branch.set_depth(sub_depth);
             tmp_branch.set_child_pointer(sub_sub_index, node->get_child_pointer(sub_index));
 	    tmp_branch.set_leaf(sub_sub_index);
 	    const triedb_branch *new_child = nullptr;
             uint64_t new_child_ptr = 0;
+	    bool before_new_entry = new_entry;
             std::tie(new_child, new_child_ptr) = update_part(&tmp_branch, key, data, data_size, do_insert, new_entry);
             auto *new_branch = new triedb_branch(*node);
             new_branch->set_child_pointer(sub_index, new_child_ptr);
             new_branch->set_branch(sub_index);
+	    if (before_new_entry != new_entry) new_branch->add_num_entries(1);
 	    branch_hasher(new_branch);
             auto ptr = append_branch_node(new_branch);
             return std::make_pair(new_branch, ptr);
@@ -528,9 +545,13 @@ std::pair<const triedb_branch *, uint64_t> triedb::update_part(const triedb_bran
     auto *child = get_branch(node, sub_index);
     const triedb_branch *new_child = nullptr;
     uint64_t new_child_ptr = 0;
+    bool before_new_entry = new_entry;
     std::tie(new_child, new_child_ptr) = update_part(child, key, data, data_size, do_insert, new_entry);
     auto *new_branch = new triedb_branch(*node);
     new_branch->set_child_pointer(sub_index, new_child_ptr);
+    if (before_new_entry != new_entry) {
+	new_branch->add_num_entries(1);
+    }
     branch_hasher(new_branch);
     auto new_branch_ptr = append_branch_node(new_branch);
     return std::make_pair(new_branch, new_branch_ptr);
@@ -547,14 +568,14 @@ void triedb::remove(const root_id &at_root, uint64_t key) {
     const triedb_branch *current_root = get_branch(current_root_ptr);
     const triedb_branch *new_branch = nullptr;
     uint64_t new_branch_ptr = 0;
-    size_t current_key_bits = current_root->max_key_bits();
+    size_t current_depth = current_root->depth();
     size_t key_bits = triedb_branch::compute_max_key_bits(key);
-    if (key_bits > current_key_bits) {
+    if (key_bits > current_depth * MAX_BRANCH_BITS) {
         std::stringstream msg;
 	msg << "Key '" << key << "' not found at root " << at_root.value();
         throw triedb_key_not_found_exception(msg.str());
     }
-      
+
     std::tie(new_branch, new_branch_ptr) = remove_part(at_root, current_root, key);
     decrement_num_entries(at_root);
     set_root(at_root, new_branch_ptr);
@@ -564,10 +585,8 @@ std::pair<const triedb_branch *, uint64_t> triedb::remove_part(const root_id &at
 							 const triedb_branch *node,
 							 uint64_t key)
 {
-    size_t max_key_bits = node->max_key_bits();
-
-    size_t sub_index = (key >> (max_key_bits - MAX_BRANCH_BITS))
-                        & (MAX_BRANCH-1);
+    size_t depth = node->depth();
+    size_t sub_index = (key >> ((depth-1) * MAX_BRANCH_BITS)) & (MAX_BRANCH-1);
 
     // If the child is empty, then create a new node at that position
     if (node->is_empty(sub_index)) {
@@ -585,6 +604,7 @@ std::pair<const triedb_branch *, uint64_t> triedb::remove_part(const root_id &at
 	}
 	auto *new_branch = new triedb_branch(*node);
 	new_branch->set_empty(sub_index);
+	new_branch->sub_num_entries(1);
 	branch_hasher(new_branch);
 	auto ptr = append_branch_node(new_branch);
 	return std::make_pair(new_branch, ptr);
@@ -601,6 +621,7 @@ std::pair<const triedb_branch *, uint64_t> triedb::remove_part(const root_id &at
     } else {
         new_branch->set_child_pointer(sub_index, new_child_ptr);
     }
+    new_branch->sub_num_entries(1);
     branch_hasher(new_branch);
     auto new_branch_ptr = append_branch_node(new_branch);
     return std::make_pair(new_branch, new_branch_ptr);
@@ -609,39 +630,128 @@ std::pair<const triedb_branch *, uint64_t> triedb::remove_part(const root_id &at
 void triedb::update(const root_id &at_root, const merkle_root &part)
 {
     auto *br = get_root_branch(at_root);
-    auto ptr = update(br, part);
+    uint64_t ptr;
+    std::tie(ptr, std::ignore) = update(br, part);
+    auto tbr = get_branch(ptr);
+    set_num_entries(at_root, tbr->num_entries());
     set_root(at_root, ptr);
 }
 
-uint64_t triedb::update(const triedb_branch *br, const merkle_branch &mbr)
+std::pair<uint64_t, uint64_t> triedb::update(const triedb_branch *br, const merkle_branch &mbr)
 {
-    std::vector<const merkle_node *> children;
-    auto mmask = mbr.get_children(children);
+    auto mmask = mbr.mask();
 
     triedb_branch *new_branch = br ? new triedb_branch(*br) : new triedb_branch();
     if (br) mmask |= br->mask();
+    
     new_branch->set_mask(mmask);
-    for (auto child : children) {
+    new_branch->set_depth(mbr.depth());
+    uint64_t new_entries = 0;
+    auto const &children = mbr.get_children();
+    for (size_t i = 0; i < triedb_params::MAX_BRANCH; i++) {
+	auto const &child = children[i];
+	if (child == nullptr) {
+	    continue;
+	}
+	auto sub_index = i;
 	if (child->type() == merkle_node::LEAF) {
-	    auto *mlf = reinterpret_cast<const merkle_leaf *>(child);
+	    if (new_branch->get_child_pointer(sub_index) == 0) {
+		new_entries++;
+	    }
+	    auto *mlf = reinterpret_cast<const merkle_leaf *>(child.get());
 	    triedb_leaf new_leaf(mlf->key(), mlf->data().data(), mlf->data().size());
 	    new_leaf.set_hash(mlf->hash(), mlf->hash_size());
 	    auto ptr = append_leaf_node(new_leaf);
-	    auto sub_index = mlf->position();
 	    new_branch->set_leaf(sub_index);
 	    new_branch->set_child_pointer(sub_index, ptr);
 	} else {
-	    auto *submbr = reinterpret_cast<const merkle_branch *>(child);
-	    auto sub_index = submbr->position();
+	    auto *submbr = reinterpret_cast<const merkle_branch *>(child.get());
 	    auto *subbr = br != nullptr && br->is_branch(sub_index) ?
 		get_branch(br, sub_index) : nullptr;
-	    auto ptr = update(subbr, *submbr);
+	    uint64_t ptr;
+	    uint64_t sub_new_entries;
+	    std::tie(ptr, sub_new_entries) = update(subbr, *submbr);
+	    new_entries += sub_new_entries;
+	    subbr = get_branch(ptr);
 	    new_branch->set_branch(sub_index);
 	    new_branch->set_child_pointer(sub_index, ptr);
 	}
     }
     new_branch->set_hash(mbr.hash(), mbr.hash_size());
-    return append_branch_node(new_branch);
+    new_branch->add_num_entries(new_entries);
+    return std::make_pair(append_branch_node(new_branch), new_entries);
+}
+
+bool triedb::get(const root_id &at_root,
+		 uint64_t from_key, uint64_t to_key,
+		 bool include_data,
+		 merkle_root &result)
+{
+    auto const *br = get_root_branch(at_root);
+    uint64_t key_offset = 0;
+    uint64_t key_step = static_cast<uint64_t>(1) << (br->depth() * triedb_params::MAX_BRANCH_BITS);
+    size_t limit_size = result.limit_size();
+    size_t current_size = 0;
+    size_t num_keys = 0;
+    size_t limit_num_keys = result.num_keys();
+    bool r = get(br, from_key, to_key, include_data, &result, key_offset, key_step,
+		 current_size, limit_size, num_keys, limit_num_keys);
+    result.set_total_size(current_size);
+    return r;
+}
+
+bool triedb::get(const triedb_branch *br, uint64_t from_key, uint64_t to_key,
+		 bool include_data, merkle_branch *mbr, 
+		 uint64_t key_offset, uint64_t key_step,
+		 size_t &current_size, size_t limit_size,
+		 size_t &num_keys, size_t limit_num_keys)
+{
+    mbr->set_depth(br->depth());
+    if (mbr->hash_size() == 0) {
+	mbr->set_hash(br->hash(), br->hash_size());
+    }
+    uint64_t key_end = key_offset + key_step - 1;
+    bool ranges_intersect = key_offset <= to_key && key_end >= from_key;
+    if (!ranges_intersect) {
+	// Key ranges are disjoint. Nothing to include.
+	return true;
+    }
+    // Don't recurse if we've already exceeded number of keys
+    if (num_keys >= limit_num_keys) {
+	return true;
+    }
+    
+    auto m = br->mask();
+    size_t sub_step = key_step >> triedb_params::MAX_BRANCH_BITS;
+    while (m) {
+	size_t sub_index = common::lsb(m);
+	size_t sub_offset = key_offset + sub_index*sub_step;
+	m &= (static_cast<uint32_t>(-1) << sub_index) << 1;
+	if (br->is_branch(sub_index)) {
+	    auto const *sub_branch = get_branch(br, sub_index);
+	    auto *sub_merkle = mbr->new_branch(sub_index);
+	    get(sub_branch, from_key, to_key, include_data,
+		sub_merkle, sub_offset, sub_step,
+		current_size, limit_size, num_keys, limit_num_keys);
+	    current_size += sub_merkle->size();
+	    num_keys++;
+	} else {
+	    auto *sub_leaf = get_leaf(br, sub_index);
+	    auto *sub_merkle = mbr->new_leaf(sub_index);
+	    sub_merkle->set_key(sub_leaf->key());
+	    sub_merkle->set_hash(sub_leaf->hash(), sub_leaf->hash_size());
+	    auto *data = sub_leaf->custom_data();
+	    auto data_size = sub_leaf->custom_data_size();
+	    auto *data_entry = include_data ? new custom_data_t(data, data_size) : new custom_data_t(data_size, false);
+	    auto p = std::unique_ptr<custom_data_t>(data_entry);
+	    sub_merkle->set_data(p);
+	    current_size += sub_merkle->size();
+	}
+	if (current_size > limit_size) {
+	    return false;
+	}
+    }
+    return true;
 }
 
 boost::filesystem::path triedb::roots_file_path() const {
@@ -754,7 +864,7 @@ size_t triedb::scan_last_bucket() const {
     }
     if (!something_found) {
         // Nothing found!
-        return static_cast<size_t>(-1);
+       return static_cast<size_t>(-1);
     }
     // Return previous bucket    
     return i - 1;
@@ -962,7 +1072,7 @@ void triedb_iterator::start_from_key(uint64_t parent_ptr, uint64_t key) {
     auto m = parent->mask();
     // Is the key bigger than what is represented by the root node,
     // then it's not present.
-    if (common::msb(key) >= parent->max_key_bits()) {
+    if (common::msb(key) >= parent->depth()*triedb_params::MAX_BRANCH_BITS) {
         return;
     }
     if (parent->is_empty(sub_index)) {
@@ -973,6 +1083,7 @@ void triedb_iterator::start_from_key(uint64_t parent_ptr, uint64_t key) {
 	}
 	spine_.push_back(cursor(parent, parent_ptr, sub_index));
 	leftmost();
+	adjust(key);
 	return;
     }
     
@@ -991,15 +1102,22 @@ void triedb_iterator::start_from_key(uint64_t parent_ptr, uint64_t key) {
 	    sub_index = triedb_params::MAX_BRANCH - 1;
 	    spine_.push_back(cursor(parent, parent_ptr, sub_index));
 	    next();
+	    adjust(key);
 	    return;
 	}
 	spine_.push_back(cursor(parent, parent_ptr, sub_index));
 	leftmost();
+	adjust(key);
 	return;
     }
     
     spine_.push_back(cursor(parent, parent_ptr, sub_index));
-    
+
+    adjust(key);
+}
+
+void triedb_iterator::adjust(uint64_t key)
+{
     bool found = false;
     while (!spine_.empty() && !found) {
 	auto parent_ptr = spine_.back().parent_ptr;
@@ -1008,7 +1126,7 @@ void triedb_iterator::start_from_key(uint64_t parent_ptr, uint64_t key) {
 	auto *leaf = db_.get_leaf(parent, sub_index);
 	found = leaf->key() >= key;
 	if (!found) {
-	        next();
+	    next();
 	}
     }
 }
@@ -1069,100 +1187,60 @@ void triedb_iterator::previous() {
     rightmost();
 }
 
-void triedb_iterator::add_current(merkle_root &root, bool include_leaf_data)
-{
-    merkle_node *node = &root;
-    const merkle_root &rootc = root;
-    auto const &c0 = path().front();
-    if (rootc.hash_size() == 0) {
-	root.set_hash(c0.parent->hash(), c0.parent->hash_size());
-    } else {
-	assert(rootc.hash_with_size() == c0.parent->hash_with_size());
-    }
+bool merkle_branch::validate(const triedb *db, uint64_t key_offset, uint64_t key_step, uint64_t from_key, uint64_t to_key) const {
+    // std::cout << "validate: key_offset=" << key_offset << " key_step=" << key_step << std::endl;
+    uint64_t key_start = key_offset;
+    uint64_t key_end = key_offset + key_step - 1;
     
-    for (auto const &c : path()) {
-	assert(node->type() == merkle_node::BRANCH);
-	auto *br = reinterpret_cast<merkle_branch *>(node);
-
-	// Read hashes from all children
-	bool found = false;
-	if (c.parent->is_branch(c.sub_index)) {
-	    auto sub_br = db_.get_branch(c.parent, c.sub_index);
-	    auto *child = br->find_child(*sub_br);
-	    if (child != nullptr) {
-		node = child->get();
-		found = true;
-	    }
-	} else {
-	    auto sub_lf = db_.get_leaf(c.parent, c.sub_index);
-	    auto *child = br->find_child(*sub_lf);
-	    if (child != nullptr) {
-		node = child->get();
-		found = true;
-	    }
-	}
-	if (!found) {
-	    auto m = c.parent->mask();
-	    while (m) {
-		size_t sub_index = common::lsb(m);
-		m &= ~(1 << sub_index);
-		bool is_branch = c.parent->is_branch(sub_index);
-		if (is_branch) {
-		    auto sub_br = db_.get_branch(c.parent, sub_index);
-		    auto *mrk_br = new merkle_branch();
-		    mrk_br->set_position(sub_index);
-		    mrk_br->set_hash(sub_br->hash(), sub_br->hash_size());
-		    std::unique_ptr<merkle_node> mrk_br1(mrk_br);
-		    br->add_child(mrk_br1);
-		} else {
-		    auto sub_lf = db_.get_leaf(c.parent, sub_index);
-		    custom_data_t *dat0 = include_leaf_data ?
-			new custom_data_t(*sub_lf)
-		      : new custom_data_t(sub_lf->custom_data_size());
-		    std::unique_ptr<custom_data_t> dat(dat0);
-		    merkle_leaf *mrk_lf = new merkle_leaf(sub_lf->key(), dat);
-		    mrk_lf->set_position(sub_index);
-		    mrk_lf->set_hash(sub_lf->hash(), sub_lf->hash_size());
-		    std::unique_ptr<merkle_node> mrk_lf1(mrk_lf);
-		    br->add_child(mrk_lf1);
-		}
-	    }
-	    if (c.parent->is_branch(c.sub_index)) {
-		auto sub_br = db_.get_branch(c.parent, c.sub_index);
-	        node = br->find_child(*sub_br)->get();
-	    } else {
-		auto sub_lf = db_.get_leaf(c.parent, c.sub_index);
-	        node = br->find_child(*sub_lf)->get();
-	    }
-	}
-    }
-}
-
-bool merkle_branch::validate(const triedb &db) const {
-    if (num_children() == 0) {
-	// We don't have the sub-tree available, so we take
-	// the provided hash value for granted; nothing to validate
-	// against.
+    bool ranges_intersect = key_start <= to_key && key_end >= from_key;
+    if (!ranges_intersect) {
+	// Key ranges are disjoint. Nothing to validage.
 	return true;
     }
-    
-    std::vector<const merkle_node *> children;
-    uint32_t m = get_children(children);
+
+    // In case the ranges intersect, we can only validate within the
+    // range we're considering, so limit from_key and to_key to be
+    // within this range.
+
+    if (from_key < key_start) from_key = key_start;
+    if (to_key > key_end) to_key = key_end;
 
     uint8_t final_hash[32];
 
     blake2b_state s;
     blake2b_init(&s, sizeof(final_hash));
 
+    uint8_t depth_buffer[1];
+    depth_buffer[0] = depth();
+    blake2b_update(&s, depth_buffer, sizeof(depth_buffer));
+    
+    auto m = mask();
+
     uint8_t mask_buffer[sizeof(uint32_t)];
     write_uint32(mask_buffer, m);
     blake2b_update(&s, mask_buffer, sizeof(mask_buffer));
 
-    for (auto node : children) {
-	if (!node->validate(db)) {
+    for (size_t i = 0; i < triedb_params::MAX_BRANCH; i++) {
+	auto const &child = get_child(i);
+	bool has_child = (m & (1 << i)) != 0;
+	if (child == nullptr) {
+	    if (has_child) {
+		return false;
+	    }
+	    continue;
+	} else {
+	    if (!has_child) {
+		return false;
+	    }
+	}
+	auto sub_index = i;
+	size_t sub_step = key_step >> triedb_params::MAX_BRANCH_BITS;
+	size_t sub_offset = key_offset + sub_index * sub_step;
+	if (!child->validate(db, sub_offset, sub_step, from_key, to_key)) {
 	    return false;
 	}
-	blake2b_update(&s, node->hash(), node->hash_size());
+	auto const *childp = child.get();
+	blake2b_update(&s, childp->hash(), childp->hash_size());
     }
 
     blake2b_final(&s, &final_hash[0], sizeof(final_hash));
@@ -1175,10 +1253,70 @@ bool merkle_branch::validate(const triedb &db) const {
     return memcmp(h, final_hash, 32) == 0;
 }
 
-bool merkle_leaf::validate(const triedb &db) const {
+bool merkle_branch::validate_end(const triedb *db, uint64_t key_offset, uint64_t key_step, uint64_t from_key) const {
+    // Is key outside the range? Then no point looking at anything as this
+    // tree does not encode it.
+    uint64_t end_range = key_offset + key_step - 1;
+    if (from_key > end_range) {
+	return true;
+    }
+    
+    size_t sub_index = (from_key >> ((depth()-1) * triedb_params::MAX_BRANCH_BITS)) & (triedb_params::MAX_BRANCH-1);
+    
+    auto m = mask() >> sub_index;
+    if (m == 0) {
+	return true;
+    }
+    if (m > 1) {
+	return false;
+    }
+    auto const &child = get_child(sub_index);
+    if (child == nullptr) {
+	return false;
+    }
+    if (child->type() == merkle_node::LEAF) {
+	auto const *lf = reinterpret_cast<const merkle_leaf *>(child.get());
+	if (lf->key() > from_key) {
+	    return false;
+	}
+	return true;
+    }
+    assert(child->type() == merkle_node::BRANCH);
+    auto const *br = reinterpret_cast<const merkle_branch *>(child.get());
+    auto sub_step = key_step >> triedb_params::MAX_BRANCH_BITS;
+    auto sub_offset = key_offset + sub_index*sub_step;
+    return br->validate_end(db, sub_offset, sub_step, from_key);
+}
+
+bool merkle_leaf::validate(const triedb *db, uint64_t key_offset, uint64_t key_step, uint64_t from_key, uint64_t to_key) const {
+    (void)from_key;
+    (void)to_key;
+
+    uint64_t range_start = key_offset;
+    uint64_t range_end = key_offset + key_step - 1;
+
+    uint64_t k = key();
+    
+    // std::cout << "VALIDATE: " << k << " in " << range_start << ".." << range_end << " step=" << key_step << std::endl;
+
+    // Check that this key has the expected value
+    if (k < range_start || k > range_end) {
+	return false;
+    }
+
+    if (db == nullptr) {
+	return true;
+    }
+    
     triedb_leaf leaf(key(), data().data(), data().size());
-    db.get_leaf_hasher()(&leaf);
+    db->get_leaf_hasher()(&leaf);
     return equal_hash(leaf);
+}
+
+bool merkle_leaf::validate_end(const triedb *db, uint64_t key_offset, uint64_t key_step, uint64_t from_key) const {
+    (void)key_offset;
+    (void)key_step;
+    return key() <= from_key;
 }
 
 }}

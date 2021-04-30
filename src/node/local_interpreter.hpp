@@ -6,6 +6,7 @@
 #include "../interp/interpreter.hpp"
 #include "../common/term_serializer.hpp"
 #include "../global/global.hpp"
+#include "node_locker.hpp"
 #include <boost/filesystem.hpp>
 
 namespace prologcoin { namespace node {
@@ -52,7 +53,7 @@ public:
     static bool add_address_2(interpreter_base &interp, size_t arity, term args[]);
     static bool connections_0(interpreter_base &interp, size_t arity, term args[]);
     static bool connections_1(interpreter_base &interp, size_t arity, term args[]);    
-    static bool ready_1(interpreter_base &interp, size_t arity, term args[]);
+    static bool ready_2(interpreter_base &interp, size_t arity, term args[]);
 
     // Mailboxes
     static bool mailbox_1(interpreter_base &interp, size_t arity, term args[]);
@@ -78,8 +79,11 @@ public:
     static bool discard_0(interpreter_base &interp, size_t arity, term args[]);
     static bool switch_1(interpreter_base &interp, size_t arity, term args[]);
     static bool height_1(interpreter_base &interp, size_t arity, term args[]);
+    static bool max_height_1(interpreter_base &interp, size_t arity, term args[]);
     static bool goals_2(interpreter_base &interp, size_t arity, term args[]);
     static bool meta_2(interpreter_base &interp, size_t arity, term args[]);
+    static bool meta_more_2(interpreter_base &interp, size_t arity, term args[]);
+    static bool validate_meta_1(interpreter_base &interp, size_t arity, term args[]);
     static bool meta_roots_4(interpreter_base &interp, size_t arity, term args[]);
     static bool metas_3(interpreter_base &interp, size_t arity, term args[]);
     
@@ -103,25 +107,35 @@ public:
     static bool sync_init_1(interpreter_base &interp, size_t arity, term args[]);
     static bool sync_0(interpreter_base &interp, size_t arity, term args[]);
     static bool sync_complete_1(interpreter_base &interp, size_t arity, term args[]);
+    static bool sync_1(interpreter_base &interp, size_t arity, term args[]);
     static bool sync_mode_1(interpreter_base &interp, size_t arity, term args[]);
-    static bool syncing_meta_1(interpreter_base &interp, size_t arity, term args[]);    
+    static bool syncing_meta_1(interpreter_base &interp, size_t arity, term args[]);
+    static bool sync_progress_1(interpreter_base &interp, size_t arity, term args[]);
+    static bool sync_point_2(interpreter_base &interp, size_t arity, term args[]);
     static bool ignore_pow_1(interpreter_base &interp, size_t arity, term args[]);
 
 
-    static term build_leaf_term(interpreter_base &interp0, const db::merkle_leaf &lf);
-    static term build_tree_term(interpreter_base &interp0, const db::merkle_branch &br);
+    static term build_leaf_term(interpreter_base &interp0, const db::merkle_leaf *lf, size_t pos);
+    static term build_tree_term(interpreter_base &interp0, const db::merkle_branch *br, size_t pos);
     static term db_get(interpreter_base &interp, const std::string &name,
 		       size_t arity, term args[], bool compute_size_only);
     static bool db_get_5(interpreter_base &interp, size_t arity, term args[]);
     static bool db_size_5(interpreter_base &interp, size_t arity, term args[]);
-    static bool db_key_5(interpreter_base &interp, size_t arity, term args[]);
+    static bool db_num_3(interpreter_base &interp, size_t arity, term args[]);
+    static bool db_num_4(interpreter_base &interp, size_t arity, term args[]);
+    static bool db_keys_5(interpreter_base &interp, size_t arity, term args[]);
+    static term build_key_list(interpreter_base &interp, const std::vector<uint64_t> &keys);
+    static bool db_keys_4(interpreter_base &interp, size_t arity, term args[]);
+    static bool db_end_2(interpreter_base &interp, size_t arity, term args[]);
 
     static std::pair<db::triedb *, db::root_id> get_db_root(interpreter_base &interp, term name, const global::meta_id &id);
+    static void set_db_root(interpreter_base &interp, term name, const global::meta_id &id, const db::root_id &new_root_id);
     static bool set_hash(interpreter_base &interp0, term hash_term, db::merkle_node &mnode);
-    static bool set_position(interpreter_base &interp0, term hash_term, db::merkle_node &mnode);
-    static bool build_merkle_tree(interpreter_base &interp0, term t, db::merkle_branch &br);
-    static bool build_merkle_tree(interpreter_base &interp0, term t, db::merkle_leaf &lf);
-    static bool db_put_3(interpreter_base &interp, size_t arity, term args[]);
+    static bool set_depth(interpreter_base &interp0, term hash_term, db::merkle_branch &mbr);    
+    static bool check_position(interpreter_base &interp0, term t);
+    static bool build_merkle_tree(interpreter_base &interp0, term t, db::merkle_branch &br, size_t &pos);
+    static bool build_merkle_tree(interpreter_base &interp0, term t, db::merkle_leaf &lf, size_t &pos);
+    static bool db_put_5(interpreter_base &interp, size_t arity, term args[]);
 };
 
 class local_interpreter_exception : public interp::interpreter_exception {
@@ -168,6 +182,8 @@ public:
     local_interpreter(in_session_state &session);
 
     void ensure_initialized();
+
+    node_locker lock_node();
 
     bool reset();
     void local_reset();

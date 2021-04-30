@@ -1049,7 +1049,13 @@ public:
         if (cell.is_direct()) {
 	    return cell.name();
         } else {
-  	    return atom_index_to_name_table_[cell.atom_index()];
+	    size_t index = cell.atom_index();
+	    auto it = atom_index_to_name_table_.find(index);
+	    if (it == atom_index_to_name_table_.end()) {
+	        load_atom_name_fn_(const_cast<heap &>(*this), load_atom_name_fn_context_, index);
+		it = atom_index_to_name_table_.find(index);
+	    }
+  	    return it->second;
 	}
     }
 
@@ -1058,7 +1064,7 @@ public:
         if (cell.is_direct()) {
 	    return cell.name_length() >= 1 && ((cell.get_name_byte(0) & 0x7f) == '$');
         } else {
-  	    const std::string &name = atom_index_to_name_table_[cell.atom_index()];
+	    std::string name = atom_name(cell);
 	    return !name.empty() && name[0] == '$';
 	}
     }
@@ -1526,6 +1532,14 @@ public:
 	return h.atom_name_to_index_table_.size();
     }
 
+    static inline void load_atom_name_default(heap &h, void * /* context */, size_t index)
+    {
+    }
+
+    static inline void load_atom_index_default(heap &, void * /* context */, const std::string &name)
+    {
+    }
+
     static inline void trim_default(heap &h, void * /* context */, size_t new_size) {
 	h.internal_trim(new_size);
     }
@@ -1680,11 +1694,15 @@ public:
     typedef heap_block & (*get_block_fn)(heap &h, void *context, size_t block_index);
     typedef void (*modified_block_fn)(heap_block &block, void *context);
     typedef size_t (*new_atom_fn)(const heap &h, void *context, const std::string &atom_name);
+    typedef void (*load_atom_name_fn)(heap &h, void *context, size_t atom_index);
+    typedef void (*load_atom_index_fn)(heap &h, void *context, const std::string &atom_name);
     typedef void (*trim_fn)(heap &h, void *context, size_t new_size);
   
     inline void setup_get_block_fn(get_block_fn fn, void *context) { get_block_fn_ = fn; get_block_fn_context_ = context; }
     inline void setup_modified_block_fn(modified_block_fn fn, void *context) { modified_block_fn_ = fn; modified_block_fn_context_ = context; }
     inline void setup_new_atom_fn(new_atom_fn fn, void *context) { new_atom_fn_ = fn; new_atom_fn_context_ = context; }
+    inline void setup_load_atom_name_fn(load_atom_name_fn fn, void *context) { load_atom_name_fn_ = fn; load_atom_name_fn_context_ = context; }    
+    inline void setup_load_atom_index_fn(load_atom_index_fn fn, void *context) { load_atom_index_fn_ = fn; load_atom_index_fn_context_ = context; }
     inline void setup_trim_fn(trim_fn fn, void *context) { trim_fn_ = fn; trim_fn_context_ = context; }
 
 private:
@@ -1697,6 +1715,12 @@ private:
 
     new_atom_fn new_atom_fn_;
     void *new_atom_fn_context_;
+
+    load_atom_name_fn load_atom_name_fn_;
+    void *load_atom_name_fn_context_;
+
+    load_atom_index_fn load_atom_index_fn_;
+    void *load_atom_index_fn_context_;    
 
     trim_fn trim_fn_;
     void *trim_fn_context_;

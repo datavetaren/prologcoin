@@ -55,6 +55,11 @@ self_node::~self_node()
     delete sync_;
 }
 
+node_locker self_node::lock_node()
+{
+    return node_locker(*this);
+}
+
 void self_node::start()
 {
     stopped_ = false;
@@ -65,6 +70,8 @@ void self_node::start()
     acceptor_.listen();
 
     thread_ = boost::thread([&](){ run(); });
+
+    sync_ = new sync(this);
 }
 
 void self_node::stop()
@@ -85,15 +92,12 @@ void self_node::run()
 
 void self_node::start_sync()
 {
-    if (!sync_) {
-	sync_ = new sync(this);
-	sync_->start();
-    }
+    sync_->start();
 }
 
 void self_node::stop_sync()
 {
-    if (sync_) sync_->stop();
+    sync_->stop();
 }
 
 void self_node::close(connection *conn)
@@ -257,7 +261,10 @@ interp::remote_return_t self_node::schedule_execute_wait_for_result(task_execute
 {
     task->wait_for_result();
     if (task->failed()) {
-        return interp::remote_return_t();
+	if (task->is_exception()) {
+	    return interp::remote_return_t(task->get_exception());
+	}
+	return interp::remote_return_t("Unknown error");
     }
 
     term result_term = task->get_result();

@@ -71,7 +71,7 @@ static void start()
     }
 
     node.start();
-    node.start_sync();
+    // node.start_sync();
 
     prologcoin::main::interactive_prompt prompt;
     if (!prompt.connect_node(port)) {

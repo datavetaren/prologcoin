@@ -362,10 +362,20 @@ private:
 	inline common::ref_cell lhs() const { return lhs_; }
 	inline term rhs() const { return rhs_; }
 
+	inline bool operator == (const prim_unification &other) const {
+	    return lhs_ == other.lhs_;
+	}
+	
+	inline std::string to_string(common::term_env &env) const {
+	    return env.to_string(lhs()) + " = " + env.to_string(rhs());
+	}
+
     private:
 	common::ref_cell lhs_;
 	term rhs_;
     };
+
+    
 
     enum compile_type { COMPILE_QUERY, COMPILE_PROGRAM };
 
@@ -585,7 +595,6 @@ private:
     common::term_env &env_;
 
     std::unordered_map<common::ref_cell, size_t> argument_pos_;
-    std::unordered_map<common::eq_term, common::ref_cell> term_map_;
 
     register_pool regs_a_;
     register_pool regs_x_;
@@ -648,7 +657,6 @@ inline wam_interim_instruction<INTERIM_MERGE>::wam_interim_instruction(wam_compi
 	from_->push_back(cp);
     }
 }
-
 
 }}
 

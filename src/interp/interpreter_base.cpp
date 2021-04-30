@@ -99,7 +99,7 @@ void interpreter_base::init()
     delayed_ready_ = 0;
     has_updated_predicates_ = false;
     register_pr_ = con_cell("",0);
-    inside_frozen_closure_count_ = 0;
+    in_critical_section_ = false;
     arith_.total_reset();
     locale_.total_reset();
     current_module_ = con_cell("system",0);
@@ -313,8 +313,6 @@ void interpreter_base::reset()
     // (e.g. the entry variables for the query.)
     set_register_hb(static_cast<size_t>(0));
     tidy_trail();
-
-    inside_frozen_closure_count_ = 0;
 }
 
 std::string code_point::to_string(const interpreter_base &interp) const
@@ -446,8 +444,9 @@ void interpreter_base::preprocess_freeze_body(term goal)
         // '$freeze':'<id>'(<Var> <Closure Vars> ...) :- Body.
         term freezeVar = arg(goal, 0);
 	term freezeBody = arg(goal, 1);
+
 	preprocess_freeze_body(freezeBody);
-	
+
 	set_arg(goal, 1, rewrite_freeze_body(freezeVar, freezeBody));
     }
 }
@@ -514,6 +513,7 @@ term interpreter_base::rewrite_freeze_body(term freezeVar, term freezeBody)
     set_current_module(freeze_module);
     load_clause(freeze_clause, LAST_CLAUSE);
     set_current_module(old_module);
+    
     // get_predicate(qname).add_clause(*this, freeze_clause);
 
     auto closure_head = new_str(qname.second);
@@ -616,6 +616,17 @@ void interpreter_base::load_clause(term t, clause_position pos)
     internal_updated_predicate_post(qn);
 
     heap_limit();
+}
+
+void interpreter_base::remove_clauses(const qname &qn)
+{
+    auto &pred = get_predicate(qn);
+
+    if (pred.num_clauses()) {
+	updated_predicate_pre(qn);
+	pred.remove_clauses(*this, term(), true);
+	updated_predicate_post(qn);
+    }
 }
 
 void interpreter_base::load_builtin(const qname &qn, builtin b)
@@ -1135,6 +1146,32 @@ void interpreter_base::add_delayed(delayed_t *dt)
 	    delayed_next_timeout_ = dt->timeout_at;
 	}
     }
+}
+
+void interpreter_base::check_delayed()
+{
+    process_delayed( [this](const delayed_t &dt) {
+	bool ok = false;
+	if (dt.result_src) {
+	    term result_copy = copy( dt.result, *dt.result_src);
+	    ok = unify(dt.query, result_copy);
+	    if (!ok) {
+		std::cout << "FAILED DELAYED" << std::endl;
+		std::cout << "QUERY: " << to_string(dt.query) << std::endl;
+		std::cout << "RESULT:" << to_string(result_copy) << std::endl;
+	    }
+	}
+	if (!ok) {
+	    // Remote execution failed, so execute else clause (if present)
+	    if (dt.else_do != EMPTY_LIST) {
+		allocate_environment<ENV_FROZEN, environment_frozen_t *>();
+		allocate_environment<ENV_NAIVE, environment_naive_t *>();
+		set_cp(code_point(EMPTY_LIST));
+		set_p(code_point(dt.else_do));
+		set_qr(dt.else_do);
+	    }
+	}
+    });
 }
 
 }}

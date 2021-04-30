@@ -44,6 +44,10 @@ public:
 	difficulty_.read(bytes);
     }
 
+    bool operator == (const pow_difficulty &other) const {
+	return difficulty_ == other.difficulty_;
+    }
+
     inline void get_target(uint8_t target[32]) const {
 	static const flt1648 ONE(1);
 	if (difficulty_ == ONE) {
@@ -79,6 +83,10 @@ public:
     inline pow_proof(uint32_t proof[TOTAL_SIZE]) {
 	memcpy(&data_[0], &proof[0], TOTAL_SIZE_BYTES);
     }
+
+    inline size_t serialization_size() const {
+	return TOTAL_SIZE_BYTES;
+    }    
 
     inline void write(const std::string &path) const {
 	std::ofstream f(path, std::ios::out | std::ios::binary);

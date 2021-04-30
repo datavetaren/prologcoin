@@ -148,6 +148,9 @@ public:
         { T::get_heap().setup_modified_block_fn(fn, context); }
     inline void heap_setup_new_atom_function( heap::new_atom_fn fn, void *context)
         { T::get_heap().setup_new_atom_fn(fn, context); }
+    inline void heap_setup_load_atom_name_function( heap::load_atom_name_fn fn, void *context) { T::get_heap().setup_load_atom_name_fn(fn, context); }
+    inline void heap_setup_load_atom_index_function( heap::load_atom_index_fn fn, void *context) { T::get_heap().setup_load_atom_index_fn(fn, context); }
+
     inline void heap_setup_trim_function( heap::trim_fn fn, void *context)
         { T::get_heap().setup_trim_fn(fn, context); }
 

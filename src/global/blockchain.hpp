@@ -11,6 +11,8 @@ namespace prologcoin { namespace global {
 class blockchain {
 public:
     static const uint64_t VERSION = 1;
+
+    static const size_t BRANCH_DEPTH = 6;
     
     blockchain(const std::string &data_dir);
 
@@ -33,6 +35,7 @@ public:
     void advance();
     void update_tip();
     void add_meta_entry(meta_entry &e);
+    void update_meta_entry(const meta_entry &e);
 
     inline db::triedb & get_db_instance(std::unique_ptr<db::triedb> &var,
 					const std::string &dir) const {
@@ -51,11 +54,11 @@ public:
     inline db::triedb & heap_db() {
 	return get_db_instance(db_heap_, db_heap_dir_);
     }
-    inline db::triedb & closures_db() {
-        return get_db_instance(db_closures_, db_closures_dir_);
+    inline db::triedb & closure_db() {
+        return get_db_instance(db_closure_, db_closure_dir_);
     }
-    inline const db::triedb & closures_db() const {
-        return get_db_instance(db_closures_, db_closures_dir_);
+    inline const db::triedb & closure_db() const {
+        return get_db_instance(db_closure_, db_closure_dir_);
     }    
     inline db::triedb & symbols_db() {
         return get_db_instance(db_symbols_, db_symbols_dir_);      
@@ -72,8 +75,8 @@ public:
 	return tip_.get_root_id_heap();
     }
 
-    inline db_root_id closures_root() const {
-	return tip_.get_root_id_closures();
+    inline db_root_id closure_root() const {
+	return tip_.get_root_id_closure();
     }  
 
     inline db_root_id symbols_root() const {
@@ -86,6 +89,14 @@ public:
 
     inline db_root_id goal_blocks_root() const {
 	return tip_.get_root_id_goal_blocks();
+    }
+
+    inline bool dbs_available(const meta_entry &entry)
+    {
+	return heap_db().has_root(entry.get_root_id_heap()) &&
+	       closure_db().has_root(entry.get_root_id_closure()) &&
+    	       symbols_db().has_root(entry.get_root_id_symbols()) &&
+	       program_db().has_root(entry.get_root_id_program());
     }
 
     inline meta_entry & tip() {
@@ -150,6 +161,17 @@ public:
 	return *ids.begin();
     }
 
+    size_t depth(const meta_id &id, size_t max_depth);
+    meta_id next(const meta_id &id, size_t max_lookahead);
+    meta_id sync_point(int64_t height);
+
+    inline size_t max_height() const {
+	if (at_height_.empty()) {
+	    return 0;
+	}
+	return at_height_.rbegin()->first;
+    }
+
     inline size_t num_symbols() {
 	return symbols_db().num_entries(tip().get_root_id_symbols());
     }
@@ -162,19 +184,19 @@ private:
     std::string db_meta_dir_;
     std::string db_goal_blocks_dir_;
     std::string db_heap_dir_;
-    std::string db_closures_dir_;
+    std::string db_closure_dir_;
     std::string db_symbols_dir_;  
     std::string db_program_dir_;
 
     mutable std::unique_ptr<db::triedb> db_meta_;
     mutable std::unique_ptr<db::triedb> db_goal_blocks_;
     mutable std::unique_ptr<db::triedb> db_heap_;
-    mutable std::unique_ptr<db::triedb> db_closures_;
+    mutable std::unique_ptr<db::triedb> db_closure_;
     mutable std::unique_ptr<db::triedb> db_symbols_;
     mutable std::unique_ptr<db::triedb> db_program_;
 
     meta_entry tip_;
-    std::unordered_map<size_t, std::set<meta_id> > at_height_;
+    std::map<size_t, std::set<meta_id> > at_height_;
     std::map<meta_id, meta_entry> chains_;
 
     uint64_t version_;

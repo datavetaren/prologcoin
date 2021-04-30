@@ -44,6 +44,7 @@ public:
     test_wam_compiler() : interp_("test"), comp_(interp_) { }
 
     void test_flatten();
+    void test_flatten2();    
     void test_compile();
     void test_partition();
     void test_compile2();
@@ -70,6 +71,22 @@ static void test_flatten()
 
     test_wam_compiler test;
     test.test_flatten();
+}
+
+void test_wam_compiler::test_flatten2()
+{
+    term t = interp_.parse(
+	    R"PROG((write(' '), write(A), write(' '), write(B)).)PROG");
+    auto fl = comp_.flatten(t, wam_compiler::COMPILE_QUERY, false);
+    comp_.print_prims(fl);
+}
+
+static void test_flatten2()
+{
+    header("test_flatten2");
+
+    test_wam_compiler test;
+    test.test_flatten2();
 }
 
 void test_wam_compiler::test_compile()
@@ -456,6 +473,7 @@ static void test_unsafe_set_unify()
 int main( int argc, char *argv[] )
 {
     test_flatten();
+    test_flatten2();    
     test_instruction_sequence();
     test_partition();
     test_compile();

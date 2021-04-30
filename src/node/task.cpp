@@ -45,6 +45,42 @@ self_node & out_task::self()
 void out_task::stop()
 { connection().stop(); }
 
+bool out_task::is_error() const
+{
+    term r = get_term();    
+    if (r.tag() != tag_t::STR) {
+	return false;
+    }
+    if (env().functor(r) == con_cell("error",1)) {
+	return true;
+    }
+    return false;
+}
+
+bool out_task::is_exception()
+{
+    if (!is_error()) {
+	return false;
+    }
+    term r = get_term();    
+    r = env().arg(r, 0);
+    if (env().functor(r) == env().functor("remote_exception",1)) {
+	return true;
+    }
+    return false;
+}
+
+std::string out_task::get_exception()
+{
+    if (!is_exception()) {
+	return "";
+    }
+    term r = get_term();
+    r = env().arg(r, 0);
+    r = env().arg(r, 0);
+    return env().list_to_string(r);
+}
+	
 term out_task::get_result() const
 {
     static const con_cell ok_1("ok",1);

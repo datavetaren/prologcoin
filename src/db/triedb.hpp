@@ -16,6 +16,7 @@
 #include <set>
 #include "../common/lru_cache.hpp"
 #include "../common/bits.hpp"
+#include "../common/checked_cast.hpp"
 #include "util.hpp"
 #include "triedb_params.hpp"
 
@@ -89,8 +90,8 @@ public:
 	}
 	size_ = sz;
     }
-    custom_data_t(size_t sz) {
-	data_ = nullptr;
+    custom_data_t(size_t sz, bool allocate) {
+	data_ = allocate ? new uint8_t[sz] : nullptr;
 	size_ = sz;
     }
     ~custom_data_t() {
@@ -189,43 +190,23 @@ public:
 	LEAF, BRANCH
     };
 
-    merkle_node_t type() const {
-	return type_;
-    }
-    size_t size() const {
-	return size_;
-    }
-    virtual size_t total_size() const {
-	return size();
+    virtual merkle_node_t type() const = 0;
+
+    virtual size_t size() const {
+	return sizeof(merkle_node) + hash_size();
     }
 
-    virtual bool validate(const triedb &db) const = 0;
+    virtual bool validate(const triedb *db, uint64_t key_offset, uint64_t key_step, uint64_t from_key, uint64_t to_key) const = 0;
+    virtual bool validate_end(const triedb *db, uint64_t key_offset, uint64_t key_step, uint64_t from_key) const = 0;
 
-    size_t position() const {
-	return position_;
-    }
     virtual ~merkle_node() = default;
 
     void set_hash(const uint8_t *hash, size_t sz) {
-	subtract_size(hash_size());
 	node_hash::set_hash(hash, sz);
-	add_size(hash_size());
-    }
-
-    void set_position(size_t pos) {
-	position_ = pos;
     }
     
 protected:
-    merkle_node(merkle_node_t t) : type_(t), position_(0), size_(0) { }
-
-    void subtract_size(size_t sz) { size_ -= sz; }
-    void add_size(size_t sz) { size_ += sz; }
-
-private:
-    merkle_node_t type_;
-    size_t position_;
-    size_t size_;
+    friend class triedb;
 };
 
 }}
@@ -242,87 +223,16 @@ namespace std {
 
 namespace prologcoin { namespace db {
 
-class merkle_branch : public merkle_node {
-public:
-    merkle_branch() : merkle_node(BRANCH) {
-    }
-    
-    std::unique_ptr<merkle_node> * find_child(const node_hash &hash) {
-	auto it = children_.find(hash);
-	if (it == children_.end()) {
-	    return nullptr;
-	}
-	return &(it->second);
-    }
-
-    const std::unique_ptr<merkle_node> * find_child(const node_hash &hash) const {
-	auto it = children_.find(hash);
-	if (it == children_.end()) {
-	    return nullptr;
-	}
-	return &(it->second);
-    }
-
-    size_t num_children() const {
-	return children_.size();
-    }
-
-    // Order children in position order
-    uint32_t get_children(std::vector<const merkle_node *> &children) const {
-	children.clear();
-	const merkle_node * arr[triedb_params::MAX_BRANCH];
-	memset(&arr[0], 0, sizeof(arr));
-	uint32_t m = 0;
-	for (auto &child : children_) {
-	    arr[child.second->position()] = (child.second).get();
-	    m |= 1 << child.second->position();
-	}
-	uint32_t mi = m;
-	while (mi) {
-	    size_t i = common::lsb(mi);
-	    mi &= (static_cast<uint32_t>(-1) << i) << 1;
-	    if (arr[i]) children.push_back(arr[i]);
-	}
-	return m;
-    }
-    
-    std::unique_ptr<merkle_node> & add_child(std::unique_ptr<merkle_node> &node) {
-	const node_hash &nh = *node;
-	if (auto *current = find_child(nh)) {
-	    subtract_size((*current)->size());
-	    add_size(node->size());
-	    *current = std::move(node);
-	    return *current;
-	}
-	add_size(node->size());
-	std::pair<node_hash, std::unique_ptr<merkle_node> > p(nh, std::move(node));
-	bool b;
-        typename decltype(children_)::iterator it;
-	std::tie(it, b) = children_.insert(std::move(p));
-	return it->second;
-    }
-
-    size_t total_size() const override {
-	size_t sz = size();
-	std::vector<const merkle_node *> children;
-	get_children(children);
-	for (auto node : children) {
-	    sz += node->total_size();
-	}
-	return sz;
-    }
-
-    bool validate(const triedb &db) const override;
-private:
-    std::map<node_hash, std::unique_ptr<merkle_node> > children_;
-};
-
 class merkle_leaf : public merkle_node {
 public:
-    merkle_leaf() : merkle_node(LEAF), key_(0) { }
-    merkle_leaf(uint64_t key) : merkle_node(LEAF), key_(key) { }
+    merkle_leaf() : key_(0) { }
+    merkle_leaf(uint64_t key) : key_(key) { }
     merkle_leaf(uint64_t key, std::unique_ptr<custom_data_t> &data)
-	: merkle_node(LEAF), key_(key), data_(std::move(data)) { }
+	: key_(key), data_(std::move(data)) { }
+
+    merkle_node_t type() const override {
+	return LEAF;
+    }
 
     uint64_t key() const {
 	return key_;
@@ -344,18 +254,182 @@ public:
 	data_ = std::move(data);
     }
 
-    size_t total_size() const override {
-	return sizeof(uint64_t) + size() + data().size();
+    size_t size() const override {
+	return merkle_node::size() + sizeof(uint64_t) + sizeof(uint64_t) + data().size();
     }
 
-    bool validate(const triedb &db) const override;
+    bool validate(const triedb *db, uint64_t key_offset, uint64_t key_step,
+		  uint64_t from_key, uint64_t to_key) const override;
+    bool validate_end(const triedb *db, uint64_t key_offset, uint64_t key_step,
+		      uint64_t from_key) const override;
 
 private:
     uint64_t key_;
     std::unique_ptr<custom_data_t> data_;
 };
 
+class merkle_branch : public merkle_node {
+public:
+    merkle_branch() : depth_(0), mask_(0), num_(0) {
+    }
+
+    merkle_node_t type() const override {
+	return BRANCH;
+    }    
+
+    size_t size() const override {
+	return merkle_node::size() +
+	       sizeof(uint8_t) + sizeof(uint32_t) +
+	       sizeof(uint64_t) * triedb_params::MAX_BRANCH;
+    }
+    
+    uint32_t mask() const {
+	return mask_;
+    }
+    
+    void set_depth(size_t d) {
+	depth_ = common::checked_cast<uint8_t>(d);
+    }
+
+    size_t depth() const {
+	return depth_;
+    }
+
+    uint64_t num_entries() const {
+	return num_;
+    }
+
+    void set_num_entries(uint64_t n) {
+	num_ = n;
+    }
+
+    bool has_child(size_t sub_index) const {
+	return children_[sub_index] != nullptr;
+    }
+    
+    const std::unique_ptr<merkle_node> & get_child(size_t sub_index) const {
+	return children_[sub_index];
+    }
+
+    void set_child(size_t sub_index, std::unique_ptr<merkle_node> &child) {
+	children_[sub_index] = std::move(child);
+	mask_ |= (1 << sub_index);
+    }
+
+    merkle_branch * new_branch(size_t sub_index) {
+	auto *new_br = new merkle_branch();
+	children_[sub_index] = std::unique_ptr<merkle_node>(new_br);
+	mask_ |= (1 << sub_index);
+	return new_br;
+    }
+
+    merkle_leaf * new_leaf(size_t sub_index) {
+	auto *new_lf = new merkle_leaf();
+	children_[sub_index] = std::unique_ptr<merkle_node>(new_lf);
+	mask_ |= (1 << sub_index);
+	return new_lf;
+    }
+
+    const std::array<std::unique_ptr<merkle_node>, triedb_params::MAX_BRANCH> & get_children() const {
+	return children_;
+    }
+
+    bool validate(const triedb *db, uint64_t key_offset, uint64_t key_step,
+		  uint64_t from_key, uint64_t to_key) const override;
+    bool validate_end(const triedb *db, uint64_t key_offset, uint64_t key_step,
+		      uint64_t from_key) const override;
+private:
+    uint8_t depth_;
+    uint32_t mask_;
+    uint64_t num_;
+    std::array<std::unique_ptr<merkle_node>, triedb_params::MAX_BRANCH> children_;
+};
+
 class merkle_root : public merkle_branch {
+public:
+    merkle_root() : limit_size_(std::numeric_limits<size_t>::max()), total_size_(0), limit_num_keys_(std::numeric_limits<size_t>::max()) { }
+
+    bool validate(const triedb *db, uint64_t key_offset, uint64_t key_step, uint64_t from_key, uint64_t to_key) const {
+	return merkle_branch::validate(db, key_offset, key_step, from_key, to_key);
+    }
+
+    bool validate_end(const triedb *db, uint64_t key_offset, uint64_t key_step, uint64_t from_key) const {
+	return merkle_branch::validate_end(db, key_offset, key_step, from_key);
+    }
+    
+    bool validate(const triedb *db, uint64_t from_key, uint64_t to_key) const {
+	uint64_t key_offset = 0;
+	uint64_t key_step =  static_cast<uint64_t>(1) << (depth() * triedb_params::MAX_BRANCH_BITS);
+	uint64_t key_end = key_offset + key_step - 1;
+	if (to_key > key_end) to_key = key_end;
+	return merkle_branch::validate(db, key_offset, key_step, from_key, to_key);
+    }
+
+    bool validate_end(const triedb *db, uint64_t from_key) const {
+	uint64_t key_offset = 0;
+	uint64_t key_step = static_cast<uint64_t>(1) << (depth() *triedb_params::MAX_BRANCH_BITS);
+	return merkle_branch::validate_end(db, key_offset, key_step, from_key);
+    }
+
+    void get_keys(uint64_t from_key, size_t num_keys, std::vector<uint64_t> &keys)
+    {
+	get_keys(this, from_key, num_keys, keys);
+    }
+
+    size_t limit_size() const {
+	return limit_size_;
+    }
+
+    void set_limit(size_t limit)
+    {
+	limit_size_ = limit;
+    }
+
+    size_t total_size() const {
+	return total_size_;
+    }
+
+    void set_total_size(size_t t) {
+	total_size_ = t;
+    }
+
+    size_t num_keys() const {
+	return limit_num_keys_;
+    }
+
+    void set_num_keys(size_t n) {
+	limit_num_keys_ = n;
+    }
+
+private:
+    void get_keys(const merkle_branch *br, uint64_t from_key, size_t num_keys, std::vector<uint64_t> &keys) {
+	if (keys.size() >= num_keys) {
+	    return;
+	}
+	auto const &children = br->get_children();
+	for (auto &child : children) {
+	    if (child == nullptr) {
+		continue;
+	    }
+	    if (child->type() == merkle_node::BRANCH) {
+		auto *br = reinterpret_cast<const merkle_branch *>(child.get());
+		get_keys(br, from_key, num_keys, keys);
+	    } else {
+		auto *lf = reinterpret_cast<const merkle_leaf *>(child.get());
+		auto k = lf->key();
+		if (k >= from_key) {
+		    keys.push_back(k);
+		    if (keys.size() == num_keys) {
+			return;
+		    }
+		}
+	    }
+	}
+    }
+
+    size_t limit_size_;
+    size_t total_size_;
+    size_t limit_num_keys_;
 };
 	
 //
@@ -421,12 +495,12 @@ public:
 	height_ = h;
     }
 
-    inline size_t num_entries() const {
-	return static_cast<size_t>(num_entries_);
+    inline uint64_t num_entries() const {
+	return num_entries_;
     }
 
-    inline void set_num_entries(size_t n) {
-	num_entries_ = static_cast<uint64_t>(n);
+    inline void set_num_entries(uint64_t n) {
+	num_entries_ = n;
     }
 
     inline void increment_num_entries() {
@@ -465,7 +539,7 @@ private:
     root_id previous_id_;
     uint64_t ptr_;
     size_t height_;
-    size_t num_entries_;
+    uint64_t num_entries_;
 };
 
 
@@ -559,24 +633,22 @@ class triedb_branch : public triedb_node {
 public:
     static const size_t MAX_SIZE_IN_BYTES = 1024;
 
-    inline triedb_branch() : max_key_bits_(0), mask_(0), leaf_(0), ptr_(nullptr) { }
+    inline triedb_branch() : depth_(0), mask_(0), leaf_(0), num_(0), ptr_(nullptr) { }
     inline triedb_branch(const triedb_branch &other)
-        : triedb_node(other), max_key_bits_(other.max_key_bits_), mask_(other.mask_), leaf_(other.leaf_), ptr_(nullptr) {
+        : triedb_node(other), depth_(other.depth_), mask_(other.mask_), leaf_(other.leaf_), num_(other.num_), ptr_(nullptr) {
         size_t n = num_children();
         ptr_ = new uint64_t[n];
 	memcpy(ptr_, other.ptr_, sizeof(uint64_t)*n);
     }
 
-    static inline uint32_t compute_max_key_bits(uint64_t key) {
+    static inline size_t compute_max_key_bits(uint64_t key) {
         size_t required = common::msb(key) + 1;
 	required = ((required + triedb_params::MAX_BRANCH_BITS - 1) / triedb_params::MAX_BRANCH_BITS) * triedb_params::MAX_BRANCH_BITS;
 	return required;	
     }
   
-    inline void set_max_key_bits(size_t m) { max_key_bits_ = m; }
-    inline uint32_t max_key_bits() const {
-        return max_key_bits_;
-    }
+    inline void set_depth(size_t d) { depth_ = d; }
+    inline size_t depth() const { return depth_; }
   
     inline uint32_t mask() const { return mask_; }
     void set_mask(uint32_t m);
@@ -591,6 +663,22 @@ public:
 	leaf_ |= (1 << sub_index); 
     }
 
+    inline uint64_t num_entries() const {
+	return num_;
+    }
+
+    void set_num_entries(uint64_t n) {
+	num_ = n;
+    }
+
+    void add_num_entries(size_t dn) {
+	num_ += dn;
+    }
+
+    void sub_num_entries(size_t dn) {
+	num_ -= dn;
+    }
+    
     inline bool is_branch(size_t sub_index) const {
         return !is_empty(sub_index) && !is_leaf(sub_index);
     }
@@ -620,6 +708,7 @@ public:
 	           sizeof(uint8_t) + // hash size
                    sizeof(uint32_t) + // mask
                    sizeof(uint32_t) +  // leaf
+	           sizeof(uint64_t) + // total number of entries
                    sizeof(uint64_t)*num_children() + // ptrs
 	           hash_size(); // hash itself
        assert(sz < MAX_SIZE_IN_BYTES);
@@ -654,9 +743,10 @@ public:
 private:
     // The biggest key in this node
     // We use this to limit the height of the trie (to avoid all prefix 0s)
-    uint8_t max_key_bits_; // A key is less than 64 bits
+    uint8_t depth_; // Depth (beneath this)
     uint32_t mask_;
     uint32_t leaf_;
+    uint64_t num_;
     uint64_t *ptr_;
 };
     
@@ -693,6 +783,7 @@ public:
     root_id find_root(size_t height) const;
     
     const triedb_root & get_root(const root_id &id) const;
+    bool has_root(const root_id &id) const;
 
     root_id new_root();
     root_id new_root(const root_id &parent);
@@ -705,9 +796,9 @@ public:
     void remove(const root_id &at_root, uint64_t key);
 
     void update(const root_id &at_root, const merkle_root &part);
-
+    
 private:
-    uint64_t update(const triedb_branch *br, const merkle_branch &mbr);
+    std::pair<uint64_t, uint64_t> update(const triedb_branch *br, const merkle_branch &mbr);
     
 public:
     
@@ -718,6 +809,17 @@ public:
     triedb_iterator begin(const root_id &at_root) const;
     triedb_iterator begin(const root_id &at_root, uint64_t key) const;
     triedb_iterator end(const root_id &at_root) const;
+
+    bool get(const root_id &at_root,
+	     uint64_t from_key, uint64_t to_key, bool include_data,
+	     merkle_root &result);
+private:
+    bool get(const triedb_branch *br, uint64_t from_key, uint64_t to_key,
+	     bool include_data, merkle_branch *mbr,
+	     uint64_t key_offset, uint64_t key_step,
+	     size_t &current_size, size_t limit_size,
+	     size_t &num_keys, size_t limit_num_keys);
+public:
 
     const triedb_leaf * get_leaf(const triedb_branch *parent, size_t sub_index) const {
         auto file_offset = parent->get_child_pointer(sub_index);
@@ -740,6 +842,9 @@ public:
     }
 
     size_t num_entries(const root_id &at_root) const {
+	if (at_root.is_zero()) {
+	    return 0;
+	}
 	return get_root(at_root).num_entries();
     }
 
@@ -774,6 +879,9 @@ private:
     }
     inline void decrement_num_entries(const root_id &id) {
 	roots_[id].decrement_num_entries();
+    }
+    inline void set_num_entries(const root_id &id, uint64_t n) {
+	roots_[id].set_num_entries(n);
     }
     void set_root(const root_id &at_root, uint64_t offset);
     boost::filesystem::path bucket_dir_location(size_t bucket_index) const;
@@ -962,11 +1070,12 @@ private:
     void leftmost();
     void rightmost();
     inline size_t get_sub_index(const triedb_branch *parent, uint64_t key) const {
-      return (key >> (parent->max_key_bits() - triedb_params::MAX_BRANCH_BITS))
+	return (key >> ((parent->depth()-1) * triedb_params::MAX_BRANCH_BITS))
 	        & (triedb_params::MAX_BRANCH-1);
     }
 
     void start_from_key(uint64_t parent_ptr, uint64_t key);
+    void adjust(uint64_t key);
   
     void next();
     void previous();
@@ -994,8 +1103,6 @@ public:
     inline const std::vector<cursor> & path() const {
         return spine_;
     }
-
-    void add_current(merkle_root &root, bool include_leaf_data);
 };
 
 inline triedb_iterator triedb::begin(const root_id &at_root) const {

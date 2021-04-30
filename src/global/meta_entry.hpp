@@ -110,7 +110,7 @@ public:
 	  root_id_meta_(),
 	  root_id_goal_blocks_(),
 	  root_id_heap_(),
-	  root_id_closures_(),
+	  root_id_closure_(),
 	  root_id_symbols_(),
 	  root_id_program_() {
     }
@@ -187,7 +187,10 @@ public:
     bool validate_pow() const;
 
     bool is_partial() const {
-	return get_root_id_goal_blocks().is_zero();
+	return get_root_id_heap().is_zero() ||
+	       get_root_id_closure().is_zero() ||
+	       get_root_id_symbols().is_zero() ||
+	       get_root_id_program().is_zero();
     }
 
     const db_root_id get_root_id_meta() const {
@@ -211,11 +214,11 @@ public:
 	root_id_heap_ = id;
     }
 
-    const db_root_id get_root_id_closures() const {
-	return root_id_closures_;
+    const db_root_id get_root_id_closure() const {
+	return root_id_closure_;
     }
-    void set_root_id_closures(const db_root_id id) {
-	root_id_closures_ = id;
+    void set_root_id_closure(const db_root_id id) {
+	root_id_closure_ = id;
     }
 
     const db_root_id get_root_id_symbols() const {
@@ -240,11 +243,10 @@ public:
 	       sizeof(common::utime) + // timestamp 8 bytes (uint64_t)
 	       pow::pow_proof::TOTAL_SIZE_BYTES + // currently 576 bytes
   	       8 + // pow difficulty, flt1648 is serialized in 8 bytes
-	       sizeof(db_root_id) + // 8 bytes (uint64_t)
-	       sizeof(db_root_id) + // 8 bytes (uint64_t)
-	       sizeof(db_root_id) + // 8 bytes (uint64_t)
-	       sizeof(db_root_id) + // 8 bytes (uint64_t)
-	       sizeof(db_root_id);  // 8 bytes
+	       5*sizeof(db_root_id) + // 5*8 bytes (5*uint64_t) = 40
+	       4*sizeof(uint64_t); // number of entries for each
+	                           // database (heap, symbol, program, closure)
+	                           // 4*8 bytes (4*uint64_t) = 32
     }
 
     void read(const uint8_t *data) {
@@ -258,7 +260,7 @@ public:
 	pow_proof_.read(p); p += pow::pow_proof::TOTAL_SIZE_BYTES;
 	root_id_goal_blocks_ = db_root_id(db::read_uint64(p)); p += sizeof(uint64_t);
 	root_id_heap_ = db_root_id(db::read_uint64(p)); p += sizeof(uint64_t);
-	root_id_closures_ = db_root_id(db::read_uint64(p)); p += sizeof(uint64_t);
+	root_id_closure_ = db_root_id(db::read_uint64(p)); p += sizeof(uint64_t);
 	root_id_symbols_ = db_root_id(db::read_uint64(p)); p += sizeof(uint64_t);
 	root_id_program_ = db_root_id(db::read_uint64(p)); p += sizeof(uint64_t);
     }
@@ -274,9 +276,23 @@ public:
 	pow_proof_.write(p); p += pow::pow_proof::TOTAL_SIZE_BYTES;
 	db::write_uint64(p, root_id_goal_blocks_.value()); p += sizeof(uint64_t);
 	db::write_uint64(p, root_id_heap_.value()); p += sizeof(uint64_t);
-	db::write_uint64(p, root_id_closures_.value()); p += sizeof(uint64_t);
+	db::write_uint64(p, root_id_closure_.value()); p += sizeof(uint64_t);
 	db::write_uint64(p, root_id_symbols_.value()); p += sizeof(uint64_t);
 	db::write_uint64(p, root_id_program_.value()); p += sizeof(uint64_t);
+    }
+
+    bool operator == (const meta_entry &other) const {
+	return get_id() == other.get_id() &&
+	       get_previous_id() == other.get_previous_id() &&
+	       get_version() == other.get_version() &&
+	       get_height() == other.get_height() &&
+	       get_nonce() == other.get_nonce() &&
+	       get_timestamp() == other.get_timestamp() &&
+	       get_pow_difficulty() == other.get_pow_difficulty();
+    }
+
+    bool operator != (const meta_entry &other) const {
+	return ! operator == (other);
     }
 
 private:
@@ -291,7 +307,7 @@ private:
     db_root_id root_id_meta_; // Local id for where this entry is stored
     db_root_id root_id_goal_blocks_;
     db_root_id root_id_heap_;
-    db_root_id root_id_closures_;
+    db_root_id root_id_closure_;
     db_root_id root_id_symbols_;
     db_root_id root_id_program_;
 };

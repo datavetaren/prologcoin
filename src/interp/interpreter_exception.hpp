@@ -5,7 +5,6 @@
 
 #include "../common/term_env.hpp"
 
-
 namespace prologcoin { namespace interp {
 
 // Syntax exceptions...
@@ -145,6 +144,20 @@ public:
 	: interpreter_exception(msg) { }
 };
 
+class interpreter_exception_already_in_critical_section : public interpreter_exception
+{
+public:
+    interpreter_exception_already_in_critical_section(const std::string &msg)
+	: interpreter_exception(msg) { }
+};
+
+class interpreter_remote_exception : public interpreter_exception
+{
+public:
+    interpreter_remote_exception(const std::string &msg)
+	: interpreter_exception(msg) { }
+};
+	
 }}
 
 #endif

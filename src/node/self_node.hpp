@@ -20,6 +20,7 @@
 #include "address_book.hpp"
 #include "../global/global.hpp"
 #include "../terminal/terminal.hpp"
+#include "node_locker.hpp"
 
 namespace prologcoin { namespace node {
 
@@ -131,6 +132,8 @@ public:
 
     void start();
     void start_sync();
+    bool has_syncer() { return sync_ != nullptr; }
+    sync & syncer() { return *sync_; }
     void stop();
     void join();
     template<uint64_t C> inline bool join( common::utime::dt<C> t ) {
@@ -233,22 +236,8 @@ public:
 
     std::string check_mail();
 
-    class locker;
-    friend class locker;
-
-    class locker : public boost::noncopyable {
-    public:
-	inline locker(self_node &node) : lock_(&node.lock_) { lock_->lock(); }
-	inline locker(locker &&other) : lock_(std::move(other.lock_)) { }
-	inline ~locker() { lock_->unlock(); }
-
-    private:
-	boost::recursive_mutex *lock_;
-    };
-
-    inline locker locked() {
-	return locker(*this);
-    }
+    friend class node_locker;
+    node_locker lock_node();
 
     inline void add_parallel(task_execute_query *t) {
 	parallel_.push_back(t);
@@ -282,45 +271,6 @@ public:
 	return it->second == 1;
     }
 
-    bool is_sync_complete() {
-	boost::lock_guard<boost::recursive_mutex> guard(lock_);	
-	return sync_complete_;
-    }
-
-    void set_sync_complete(bool b) {
-	boost::lock_guard<boost::recursive_mutex> guard(lock_);
-	sync_complete_ = b;
-    }
-
-    void set_sync_init(const std::string &str) {
-	boost::lock_guard<boost::recursive_mutex> guard(lock_);	
-	sync_init_ = str;
-    }
-
-    std::string get_sync_init() {
-	boost::lock_guard<boost::recursive_mutex> guard(lock_);	
-	return sync_init_;
-    }
-
-    std::string get_sync_mode() {
-	boost::lock_guard<boost::recursive_mutex> guard(lock_);
-	return sync_mode_;
-    }
-    
-    void set_sync_mode(const std::string &mode) {
-	boost::lock_guard<boost::recursive_mutex> guard(lock_);	
-	sync_mode_ = mode;
-    }
-
-    size_t get_syncing_meta_block() {
-	boost::lock_guard<boost::recursive_mutex> guard(lock_);
-	return syncing_meta_block_;
-    }
-
-    void set_syncing_meta_block(size_t m) {
-	boost::lock_guard<boost::recursive_mutex> guard(lock_);
-	syncing_meta_block_ = m;
-    }    
 
 private:
     bool join_us(uint64_t microsec);
@@ -425,11 +375,6 @@ private:
     boost::condition_variable parallel_changed_;
 
     sync *sync_{nullptr};
-    bool sync_complete_{false};
-    std::string sync_init_; // Source code before running sync thread
-                            // Useful for testing
-    std::string sync_mode_;
-    size_t syncing_meta_block_{0};
 };
 
 inline address_book_wrapper::address_book_wrapper(self_node &self, address_book &book) : self_(self), book_(book)

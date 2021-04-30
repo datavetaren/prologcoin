@@ -18,7 +18,7 @@
 ?- newkey(A,B).
 % Expect: true/*
 
-?- commit(reward(58'1MfD7vFBpdzwC1rJPyAAmnmKkmgUas59My)) @ node.
+?- commit(reward(58'11uia4BfsJzo1QnUnvi2URFmDgcbEbKSYS)) @ node.
 % Expect: true/*
 
 ?- sync.
@@ -27,7 +27,7 @@
 ?- balance(X).
 % Expect: X = 21000000000
 
-?- commit(reward(58'1MfD7vFBpdzwC1rJPyAAmnmKkmgUas59My)) @ node.
+?- commit(reward(58'11uia4BfsJzo1QnUnvi2URFmDgcbEbKSYS)) @ node.
 % Expect: true/*
 
 ?- sync.
