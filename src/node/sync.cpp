@@ -249,6 +249,7 @@ sync_run(wait) :-
          write('hello7'), nl,
          retract(tmp:runmore),
          write('hello8'), nl,
+         write(Result), nl,
          validate_meta(Result),
          write('hello9'), nl,
          (current_predicate(sync:db/3) -> retractall(db(_,_,_)) ; true),
