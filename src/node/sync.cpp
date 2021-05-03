@@ -232,40 +232,22 @@ sync_run(meta) :-
 sync_run(wait) :-
     !,
     current_predicate(sync:rootid/1),
-    write('hello1'), nl,
-    (current_predicate(tmp:runmore/0) -> true,
-      write('hello1.1'), nl
+    (current_predicate(tmp:runmore/0) -> true
     ; assert(tmp:runmore),
-      write('hello2'), nl,
       sync:rootid(Root),
-      write('hello3'), nl,
       sync:'timeout'(Timeout),
-      write('hello4'), nl,
       ready(Connection),
-      write('hello5'), nl,
       (meta_more(Root, Result) @= (Connection else (Result = fail) timeout Timeout)),
-      write('hello6'), nl,
       freeze(Result, critical_section((
-         write('hello7'), nl,
          retract(tmp:runmore),
-         write('hello8'), nl,
-         write(Result), nl,
          validate_meta(Result),
-         write('hello9'), nl,
          (current_predicate(sync:db/3) -> retractall(db(_,_,_)) ; true),
-         write('hello10'), nl,
          Result = meta(Info),
-         write('hello11'), nl,
          extract_info(Info),
-         write('hello12'), nl,
          retract(sync:mode(wait)),
-         write('hello13'), nl,
          retract(sync:step(_)),
-         write('hello14'), nl,
          sync_db_default_step(symbols, Step),
-         write('hello15'), nl,
          assert(sync:step(Step)),
-         write('hello16'), nl,
          assert(sync:mode(symbols)))))).
 
 extract_info([]).
@@ -571,6 +553,7 @@ sync_db_process_gets_one(DB,Root,UsedConn,Connection) :-
                    ActualDBRoot == ExpectedDBRoot,
                    (db_put(Root, DB, Key, KeyEnd, Result) ->
                       db_num(Result, Key, KeyEnd, NumKeys),
+                      write('Add '), write(Key), write('..'), write(KeyEnd), write(' N='), write(NumKeys), write(' DB='), write(DB), write_short_root(Root), nl,
                       % --Debug>>> (Add response to database)
                       debug((write('Add '), write(Key), write('..'), write(KeyEnd), write(' N='), write(NumKeys), write(' DB='), write(DB), write_short_root(Root), nl)),
                       % --Debug<<<
