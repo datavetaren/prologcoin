@@ -146,6 +146,9 @@ void task_execute_query::process()
 	    } else {
 		delayed_->result = result_;
 	    }
+	    if (delayed_->result == con_cell("true",0)) {
+		std::cout << "WE HAVE: " << env().to_string(get_term()) << std::endl;
+	    }
 	    delayed_->result_src = &env();
 	    delayed_->standard_out = get_standard_out();
 	    delayed_->interp->delayed_ready(delayed_);
