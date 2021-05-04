@@ -19,7 +19,7 @@ AROUT := -cr
 DBG :=
 UNAME := $(shell uname -s)
 ifeq ($(UNAME),Linux)
-   DBG := gdb -batch -return-child-result -ex run
+   DBG := gdb -batch -return-child-result -ex run --args timeout 600s
 endif
 
 GCCLIBPATH := $(shell g++ -Xlinker -v  2>&1 |sed -n 's/^[[:space:]]*\(\/.*\)/\1/p')

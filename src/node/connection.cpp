@@ -303,8 +303,7 @@ void connection::trigger_now()
 
 in_connection::in_connection(self_node &self)
     : connection(self, CONNECTION_IN, env_),
-      session_(nullptr),
-      silent_(false)
+      session_(nullptr)
 {
     setup_commands();
     prepare_receive();
@@ -506,7 +505,7 @@ void in_connection::command_local_reset(const term cmd)
 
 void in_connection::command_next(const term cmd)
 {
-    process_execution(cmd, true, silent_);
+    process_execution(cmd, true, false);
 }
 
 void in_connection::process_command(const term cmd)
@@ -542,7 +541,6 @@ void in_connection::process_query()
 	    term qr;
 	    try {
 		bool silent = e.arg(t,1) == con_cell("true",0);
-		set_silent(silent);
 		uint64_t cost = 0;
 		qr = session_->env().copy(e.arg(t,0), e, cost);
 		process_execution(qr, false, silent);
