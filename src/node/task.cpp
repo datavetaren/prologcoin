@@ -15,7 +15,19 @@ out_task::~out_task()
 {
     // printf("Deleted: %p\n", this);
 }
-
+   
+std::string out_task::get_state_name() const
+{
+   switch (get_state()) {
+    case IDLE: return "IDLE";
+    case SEND: return "SEND";
+    case RECEIVED: return "RECEIVED";
+    case WAIT: return "WAIT";
+    case KILLED: return "KILLED";
+    default: return "?";
+   }
+}
+   
 bool out_task::comparator(const out_task *t1, const out_task *t2)
 {
     return t1->get_when() > t2->get_when();

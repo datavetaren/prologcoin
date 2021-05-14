@@ -2,6 +2,7 @@
 #include "../common/utime.hpp"
 #include "../common/term_match.hpp"
 #include "../common/checked_cast.hpp"
+#include "../common/log.hpp"
 #include "connection.hpp"
 #include "session.hpp"
 #include "self_node.hpp"
@@ -589,6 +590,7 @@ void in_connection::process_execution(const term cmd, bool in_query, bool silent
 		}
 	    }
 	    auto qr = cmd;
+
 	    bool r = in_query ? session_->next() : session_->execute(qr);
 	    term standard_out = e.EMPTY_LIST;
 	    if (!session_->get_text_out().empty()) {
@@ -613,7 +615,7 @@ void in_connection::process_execution(const term cmd, bool in_query, bool silent
 		if (silent) {
 		    result = e.new_term(e.functor("result",5),
 					{con_cell("true",0),
-					 common::term_env::EMPTY_LIST,
+                                         e.EMPTY_LIST,
 					 get_state_atom(),
 					 standard_out,
 					 int_cell(last_cost) } );
@@ -628,6 +630,7 @@ void in_connection::process_execution(const term cmd, bool in_query, bool silent
 					 standard_out,
 					 int_cell(last_cost) } );
 		}
+	       
 		reply_ok(result);
 	    }
 	}
@@ -735,7 +738,21 @@ void out_connection::reschedule(out_task *task, utime t)
     if (task->get_state() == out_task::SEND) {
 	work_.pop();
     }
-    
+
+    // Never touch the item currently processing. This causes problems          
+    // for the send/receive protocol (e.g. the current job may be               
+    // garbled by a new task.)
+    if (!work_.empty()) {
+        out_task *t_next = work_.top();
+        if (t_next != task && t_next->get_state() != out_task::IDLE) {
+	   if (t <= t_next->get_when()) {
+	      t = t_next->get_when();
+	      t++;
+	   }
+	}
+       
+    }
+
     task->set_when(t);
     if (t > last_in_work_) {
 	last_in_work_ = t;
@@ -887,7 +904,7 @@ void out_connection::print_task_queue() const
     auto temp = work_;
     while (!temp.empty()) {
 	auto task = temp.top();
-	std::cout << task->get_when().str() << ": " << task->description() << std::endl;
+	std::cout << task->get_when().str() << ": " << task->get_state_name() << " " << task->description() << std::endl;
 	temp.pop();
     }
 }

@@ -738,7 +738,7 @@ bool me_builtins::chain_0(interpreter_base &interp0, size_t arity, term args[]) 
     using meta_id = global::meta_id;
     
     auto &interp = to_local(interp0);
-    auto locked = interp.lock_node();    
+    auto locked = interp.lock_node();
     auto &g = interp.self().global();
     auto &chain = g.get_blockchain();
     auto &tip = chain.tip();
@@ -2327,6 +2327,20 @@ bool me_builtins::db_put_5(interpreter_base &interp0, size_t arity, term args[])
 
     return true;
 }
+   
+bool me_builtins::ptask_0(interpreter_base &interp0, size_t arity, term args[]) {
+    static const std::string name = "ptask/0";
+    auto &interp = to_local(interp0);
+    auto locked = interp.lock_node();
+   
+    interp.self().for_each_out_connection(
+	[](out_connection *conn) {
+	   std::cout << "------------ " << conn->name() << std::endl;
+	   conn->print_task_queue();
+	});
+    return true;
+}
+
 
 local_interpreter::local_interpreter(in_session_state &session)
     : interp::interpreter("node"), session_(session), initialized_(false), ignore_text_(false)
@@ -2504,6 +2518,7 @@ void local_interpreter::setup_local_builtins()
     load_builtin(ME, con_cell("db_keys", 4), &me_builtins::db_keys_4);
     load_builtin(ME, con_cell("db_end", 2), &me_builtins::db_end_2);
     load_builtin(ME, con_cell("db_put", 5), &me_builtins::db_put_5);
+    load_builtin(ME, con_cell("ptask", 0), &me_builtins::ptask_0);
 
     set_current_module(old_mod);
 

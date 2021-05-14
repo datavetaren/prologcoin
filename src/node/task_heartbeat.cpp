@@ -25,6 +25,7 @@ void task_heartbeat::process()
     case RECEIVED:
 	// Update address entry with most recent time
 	self().book()().update_time(ip());
+        set_state(IDLE);
 	reschedule(utime::us(self().get_timer_interval_microseconds()));
 	break;
     case SEND:

@@ -86,6 +86,8 @@ public:
 
     inline state_t get_state() const { return state_; }
     inline void set_state(state_t st) { state_ = st; }
+   
+    std::string get_state_name() const;
 
     inline utime get_when() const { return when_; }
     inline void set_when(utime when) { when_ = when; }

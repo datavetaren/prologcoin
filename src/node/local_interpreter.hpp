@@ -136,6 +136,7 @@ public:
     static bool build_merkle_tree(interpreter_base &interp0, term t, db::merkle_branch &br, size_t &pos);
     static bool build_merkle_tree(interpreter_base &interp0, term t, db::merkle_leaf &lf, size_t &pos);
     static bool db_put_5(interpreter_base &interp, size_t arity, term args[]);
+    static bool ptask_0(interpreter_base &interp, size_t arity, term args[]);     
 };
 
 class local_interpreter_exception : public interp::interpreter_exception {
