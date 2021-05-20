@@ -846,7 +846,7 @@ private:
       size_t offset = wami->to_code_addr(instr);
       auto beginning_offset = *(--(wami->label_offsets.lower_bound(offset)));
       int i = 0;
-      int max_y = -1;
+      size_t max_y = -1;
       for(auto current_instr = wami->to_code(beginning_offset); current_instr <= instr;) {
         //        	std::cout << "Instr " << i << ": ";
         //                current_instr->print(std::cout, *wami);
