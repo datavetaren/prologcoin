@@ -81,7 +81,7 @@ void garbage_collector::push_children(size_t index, std::vector<size_t> &worklis
   case tag_t::CON: {
     auto &con = reinterpret_cast<const con_cell &>(c);
     auto arity = con.arity();
-    for(int i = 1; i <= arity; i++) {
+    for(size_t i = 1; i <= arity; i++) {
       //      std::cout << "Pushing index: " << index + i << "\n";
       worklist.push_back(index+i);
     }
@@ -225,7 +225,7 @@ size_t garbage_collector::do_collection(std::vector<ptr_cell *> &roots)
   live_t live;
   live.resize(heap_.num_blocks());
   std::cout << "num_blocks: " << heap_.num_blocks() << "\n";
-  for(int i = 0; i < live.size(); i++) {
+  for(size_t i = 0; i < live.size(); i++) {
     live[i] = nullptr;
   }
   mark(roots, live);
