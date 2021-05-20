@@ -1214,7 +1214,7 @@ void interpreter_base::get_stack_roots(std::vector<common::ptr_cell *> &roots) {
 	  // Assumption: there will always be an environment below
 	  // the last choice point.
 	  add_root(roots, &(cur_cp->qr));
-	  for (int i = 0; i < cur_cp->arity; i++) {
+	  for (size_t i = 0; i < cur_cp->arity; i++) {
 	    add_root(roots, &cur_cp->ai[i]);
 	  }
           cur_cp = cur_cp->b;
@@ -1226,7 +1226,7 @@ void interpreter_base::get_stack_roots(std::vector<common::ptr_cell *> &roots) {
         auto num_y = ((newer_e_w - older_e_w) - base_size_w - choice_points_size)/term_size_w;
 
         auto wamenv = reinterpret_cast<environment_t*>(older_e);
-	for(int i = 0; i < num_y; i++) {
+	for(size_t i = 0; i < num_y; i++) {
 	  add_root(roots, &wamenv->yn[i]);
 	}
       }
@@ -1328,7 +1328,7 @@ void interpreter_base::dump_stack() {
 
         auto wamenv = reinterpret_cast<environment_t*>(older_e);
 	std::cout << "WAM env: " << wamenv << "\n";
-	for(int i = 0; i < num_y; i++) {
+	for(size_t i = 0; i < num_y; i++) {
 	  common::term yi = (wamenv == nullptr) ? e()->yn[i] : wamenv->yn[i];
 	  std::cout << "y[" << i << "]: " << yi.tag().str();
 	  if(yi.tag() == common::tag_t::REF ||
@@ -1373,7 +1373,7 @@ void interpreter_base::dump_choice_points() {
       std::cout << "Qr: " << to_string(current_b->qr) << "\n";
     }
     std::cout << "Meta: " << current_b->m << "\n";
-    for(int i = 0; i < barity; i++) {
+    for(size_t i = 0; i < barity; i++) {
       std::cout << "Arg[" << i << "]: " << to_string(current_b->ai[i]) << "\n";
     }
     current_b = current_b->b;
