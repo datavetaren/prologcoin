@@ -1562,7 +1562,7 @@ std::string term_parser::report_string(term_env &env,
 std::string term_parser::errorize(const std::string &str)
 {
     std::stringstream ss;
-    int p = 0;
+    size_t p = 0;
     size_t next_ln;
 
     do {
