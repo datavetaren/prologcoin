@@ -101,7 +101,7 @@ program_state_check :-
     member(num_frozen_closures(0), X),
     member(temp_trail_size(0), X),
     member(temp_size(0), X),
-    member(num_predicates(P), X), P < 32,
+    member(num_predicates(P), X), P < 33,
     member(num_clauses(C), X), C < 50.
     
 ?- program_state @ global, program_state_check.
