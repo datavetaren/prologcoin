@@ -1498,20 +1498,23 @@ void term_parser::clear_var_names()
 }
 
 std::string term_parser::report_string(term_env &env,
-				       term_parse_exception &ex)
+				       term_parse_exception &ex,
+				       const std::string *context)
 {
-    return report_string(env, &ex, nullptr);
+    return report_string(env, &ex, nullptr, context);
 }
 
 std::string term_parser::report_string(term_env &env,
-				       token_exception &ex)
+				       token_exception &ex,
+				       const std::string *context)
 {
-    return report_string(env, nullptr, &ex);
+    return report_string(env, nullptr, &ex, context);
 }
 
 std::string term_parser::report_string(term_env &env,
 				       term_parse_exception *parse_ex,
-				       token_exception *token_ex) {
+				       token_exception *token_ex,
+				       const std::string *context) {
     std::string msg;
 
     std::stringstream nl_ss;
@@ -1548,8 +1551,70 @@ std::string term_parser::report_string(term_env &env,
     } else {
         msg += "[ERROR]: Unknown" + nl;
     }
+    if (context) {
+	std::istringstream is(*context);
+	msg += errorize(get_excerpt(is, line_no, column_no));
+    }
 
     return msg;
+}
+
+std::string term_parser::errorize(const std::string &str)
+{
+    std::stringstream ss;
+    int p = 0;
+    size_t next_ln;
+
+    do {
+	next_ln = str.find("\n", p);
+	auto line = str.substr(p, next_ln);
+	ss << "[ERROR]: ";
+	ss << line;
+	ss << std::endl;
+	p = next_ln;
+	if (next_ln != std::string::npos) {
+	    p++;
+	}
+    } while (p < str.size());
+    return ss.str();
+}
+
+std::string term_parser::get_excerpt(std::istream &is,
+				     int line_no,
+				     int column_no) {
+    int l = 1;
+    int c = 1;
+
+    while (l < line_no && !is.eof()) {
+	if (l == line_no) {
+	    break;
+	}
+
+	int ch = is.get();
+	switch (ch) {
+	case '\n': l++; c = 1; break;
+	case '\t': c += (8 - (c % 8)); break;
+	default: if (ch >= ' ') c++; break;
+	}
+    }
+    std::stringstream ss;
+    while (!is.eof()) {
+	int ch = is.get();
+	if (ch >= ' ') ss << (char)ch;
+	if (ch == '\n') break;
+    }
+
+    std::stringstream excerpt;
+    excerpt << ss.str();
+    excerpt << std::endl;
+    while (c < column_no) {
+	excerpt << ' ';
+	c++;
+    }
+    excerpt << "^";
+    excerpt << std::endl;
+
+    return excerpt.str();
 }
 
 }}

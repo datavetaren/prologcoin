@@ -233,6 +233,8 @@ term term_serializer::read(const buffer_t &bytes, size_t n,
     size_t result_index = 0;
     size_t result_set = false;
 
+    bool single_cell =  (offset + sizeof(cell)) == n;
+    
     while (offset < n) {
         size_t new_index = 0;
         size_t old_index =
@@ -256,7 +258,14 @@ term term_serializer::read(const buffer_t &bytes, size_t n,
 	    auto &con = reinterpret_cast<const con_cell &>(c);
 
 	    if (con.is_direct()) {
-	      new_index = env_.new_cell0(c);
+		// If this is a single cell and it's the empty list
+		// then we don't create anything on the heap. This way
+		// executing the empty list is equal to running
+		// "advance" without executing anything in the interpreter.
+		if (single_cell && con == env_.EMPTY_LIST) {
+		    return con;
+		}
+	        new_index = env_.new_cell0(c);
 	    } else {
 		if (!is_indexed(con.to_atom())) {
 		    throw serializer_exception_missing_index(con.to_atom());

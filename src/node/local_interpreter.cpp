@@ -555,11 +555,6 @@ bool me_builtins::gstat_1(interpreter_base &interp0, size_t arity, term args[]) 
 			        {int_cell(g.current_height())}),
 		result);
 
-	result = interp.new_dotted_pair(
-		interp.new_term(interp.functor("height",1),
-				{int_cell(g.current_height())}),
-		result);	    
-
 	auto &prev_id = g.get_blockchain().tip().get_previous_id();
 	term prev_hash = interp.new_big(prev_id.hash(), prev_id.hash_size());
 	result = interp.new_dotted_pair(
@@ -975,6 +970,15 @@ bool me_builtins::switch_1(interpreter_base &interp0, size_t arity, term args[])
     return true;
 }
 
+bool me_builtins::tip_1(interpreter_base &interp0, size_t arity, term args[]) {
+    auto &interp = to_local(interp0);
+    auto locked = interp.lock_node();    
+    auto &g = interp.self().global();
+    auto const &id = g.tip_id();
+    auto id_term = id.to_term(interp);
+    return interp.unify(args[0], id_term);
+}
+
 bool me_builtins::current_1(interpreter_base &interp0, size_t arity, term args[]) {
     auto &interp = to_local(interp0);
     auto locked = interp.lock_node();    
@@ -1003,8 +1007,52 @@ bool me_builtins::goals_2(interpreter_base &interp0, size_t arity, term args[]) 
     auto &g = interp.self().global();
 
     auto id = get_meta_id(interp0, "goals/2", args[0]);
-    term result = g.db_get_goal_block(interp0, id);
+    term result = g.db_get_block(interp0, id, false);
     return interp.unify(result, args[1]);
+}
+
+bool me_builtins::block_3(interpreter_base &interp0, size_t arity, term args[]) {
+    std::string name = "block/" + boost::lexical_cast<std::string>(arity);
+    auto &interp = to_local(interp0);
+    auto locked = interp.lock_node();    
+    auto &g = interp.self().global();
+
+    auto id = get_meta_id(interp0, name, args[0]);
+    term block = g.db_get_block(interp0, id, true);
+    if (!interp.unify(block, args[1])) {
+	return false;
+    }
+    if (arity > 2) {
+	term meta_info = g.db_get_meta(interp0, id, true);
+	if (!interp.unify(meta_info, args[2])) {
+	    return false;
+	} 
+    }
+    return true;
+}
+
+bool me_builtins::block_hash_2(interpreter_base &interp0, size_t arity, term args[]) {
+    auto &interp = to_local(interp0);
+    if (args[0].tag() != tag_t::BIG) {
+	throw interpreter_exception_wrong_arg_type("block_hash/2: First argument must be a bignum; was " + interp.to_string(args[0]));
+    }
+    auto &big = reinterpret_cast<big_cell &>(args[0]);
+    auto n = interp.num_bytes(big);
+    std::vector<uint8_t> data(n);
+    interp.get_big(big, &data[0], n);
+
+    auto locked = interp.lock_node();
+    auto &g = interp.self().global();
+    auto hasher = g.get_blockchain().blocks_db().get_leaf_hasher();
+    
+    triedb_leaf leaf;
+    leaf.read(&data[0]);
+    hasher(&leaf);
+    auto const &cleaf = leaf;
+    const uint8_t *hash = cleaf.hash();
+
+    term result = interp.new_big(hash, leaf.hash_size());
+    return interp.unify(args[1], result);
 }
 
 bool me_builtins::meta_2(interpreter_base &interp0, size_t arity, term args[]) {
@@ -1042,8 +1090,8 @@ bool me_builtins::validate_meta_1(interpreter_base &interp0, size_t arity, term 
 	return false;
     }
 
-    node_hash heap_hash, closure_hash, symbols_hash, program_hash;
-    uint64_t heap_num = 0, closure_num = 0, symbols_num = 0, program_num = 0;
+    node_hash block_hash, heap_hash, closure_hash, symbols_hash, program_hash;
+    uint64_t block_num = 0, heap_num = 0, closure_num = 0, symbols_num = 0, program_num = 0;
 
     term lst = interp.arg(args[0], 0);
     while (interp.is_dotted_pair(lst)) {
@@ -1052,7 +1100,10 @@ bool me_builtins::validate_meta_1(interpreter_base &interp0, size_t arity, term 
 	    node_hash *hash_p = nullptr;
 	    uint64_t *num_p = nullptr;
 	    auto dbname = interp.arg(prop, 0);
-	    if (dbname == con_cell("heap",0)) {
+	    if (dbname == con_cell("block",0)) {
+		hash_p = &block_hash;
+		num_p = &block_num;
+	    } else if (dbname == con_cell("heap",0)) {
 		hash_p = &heap_hash;
 		num_p = &heap_num;
 	    }  else if (dbname == con_cell("closure",0)) {
@@ -1096,10 +1147,12 @@ bool me_builtins::validate_meta_1(interpreter_base &interp0, size_t arity, term 
     // Add previous id
     blake2b_update(&s, entry.get_previous_id().hash(), global::meta_id::HASH_SIZE);
 
+    auto const &block_hash_const = block_hash;
     auto const &heap_hash_const = heap_hash;
     auto const &closure_hash_const = closure_hash;
     auto const &symbols_hash_const = symbols_hash;
     auto const &program_hash_const = program_hash;
+    blake2b_update(&s, block_hash_const.hash(), block_hash_const.hash_size());
     blake2b_update(&s, heap_hash_const.hash(), heap_hash_const.hash_size());
     blake2b_update(&s, closure_hash_const.hash(), closure_hash_const.hash_size());
     blake2b_update(&s, symbols_hash_const.hash(), symbols_hash_const.hash_size());
@@ -1119,6 +1172,10 @@ bool me_builtins::validate_meta_1(interpreter_base &interp0, size_t arity, term 
     
     // Add version
     db::write_uint64(data, entry.get_version());
+    blake2b_update(&s, data, sizeof(uint64_t));
+
+    // Add height
+    db::write_uint32(data, entry.get_height());
     blake2b_update(&s, data, sizeof(uint32_t));
 
     // Add nonce
@@ -1393,6 +1450,27 @@ bool me_builtins::branches_2(interpreter_base &interp0, size_t arity, term args[
     return interp.unify(args[1], head);
 }
 
+bool me_builtins::follow_3(interpreter_base &interp0, size_t arity, term args[]) {
+    std::string name = "follow/2";
+    auto &interp = to_local(interp0);
+    auto locked = interp.lock_node();
+    global::global &g = interp.self().global();
+    global::meta_id id = get_meta_id(interp0, name, args[0]);
+
+    auto num_term = args[1];
+    if (num_term.tag() != tag_t::INT) {
+	interp.abort(interpreter_exception_wrong_arg_type(name + ": Second argument must be an integer; was " + interp.to_string(num_term)));
+    }
+    int64_t v = reinterpret_cast<int_cell &>(num_term).value();
+    if (v < 1 || v > 1000) {
+	throw interpreter_exception_wrong_arg_type(name + ": Second argument must be a number within 1..1000; was " + boost::lexical_cast<std::string>(v));
+    }
+    size_t n = static_cast<size_t>(v);
+    term path = g.db_best_path(interp, id, n);
+
+    return interp.unify(args[2], path);
+}
+
 bool me_builtins::setup_commit_1(interpreter_base &interp0, size_t arity, term args[]) {
     auto &interp = to_local(interp0);
     auto locked = interp.lock_node();    
@@ -1412,12 +1490,32 @@ bool me_builtins::commit(local_interpreter &interp, term_serializer::buffer_t &b
     auto locked = interp.lock_node();
     global::global &g = interp.self().global();
 
+    if (!g.has_interp()) {
+	return false;
+    }
+    
+    g.check_interp();
+    
     g.set_naming(naming);
 
-    // First serialize
-    term_serializer ser(interp);
-    buf.clear();
-    ser.write(buf, t);
+    if (t.tag() == tag_t::BIG) {
+	// Assume this is an encoded leaf
+	auto &big = reinterpret_cast<big_cell &>(t);
+	auto n = interp.num_bytes(big);
+	buf.resize(n);
+	interp.get_big(big, &buf[0], n);
+	triedb_leaf leaf;
+	leaf.read(&buf[0]);
+	n = leaf.custom_data_size();
+	auto *p = leaf.custom_data();
+	buf.resize(n);
+	std::copy(&p[0], &p[n], &buf[0]);
+    } else {
+	// Serialize term
+	term_serializer ser(interp);
+	buf.clear();
+	ser.write(buf, t);
+    }
 
     if (!g.execute_commit(buf)) {
 	return false;
@@ -1495,7 +1593,6 @@ bool me_builtins::global_silent_1(interpreter_base &interp0, size_t arity, term 
 {
     return global_impl(interp0, arity, args, true);
 }
-
 //
 // Useful for testing. Adding arbitrary code to run when initializing syncing.
 //
@@ -1591,12 +1688,6 @@ bool me_builtins::sync_progress_1(interpreter_base &interp0, size_t arity, term 
 	    std::cout << "Completed" << std::endl;
 	    return true;
 	}
-	if (mode == "meta") {
-	    auto current = interp.self().syncer().get_at_meta_block();
-	    
-	    std::cout << "Syncing meta blocks: height=" << current << std::endl;
-	    return true;
-	}
 	if (mode == "wait") {
 	    std::cout << "Waiting for selected root..." << std::endl;
 	    return true;
@@ -1620,11 +1711,17 @@ bool me_builtins::sync_progress_1(interpreter_base &interp0, size_t arity, term 
 	if (mode == "meta") {
 	    auto current = interp.self().syncer().get_at_meta_block();
 	    lst = interp.new_dotted_pair(
+	        interp.new_term(interp.functor("progress",1),
+			{ int_cell(static_cast<int64_t>(progress)) }), lst);
+	    lst = interp.new_dotted_pair(
 	     interp.new_term(con_cell("height",1),{ int_cell(current) }), lst);
 	    
 	    lst = interp.new_dotted_pair(
 	     interp.new_term(con_cell("mode",1), { con_cell("meta",0)}), lst);
 	} else if (mode == "wait") {
+	    lst = interp.new_dotted_pair(
+	        interp.new_term(interp.functor("progress",1),
+			{ int_cell(static_cast<int64_t>(progress)) }), lst);
 	    lst = interp.new_dotted_pair(
 	     interp.new_term(con_cell("mode",1), { con_cell("wait",0)}), lst);
 	} else {
@@ -1768,7 +1865,7 @@ term me_builtins::db_get(interpreter_base &interp0, const std::string &name, siz
 
     std::tie(db,root_id) = get_db_root(interp0, args[1], id);
     if (db == nullptr) {
-	throw interpreter_exception_wrong_arg_type(name + ": Second argument must be 'heap', 'closure', 'symbols' or 'program'");
+	throw interpreter_exception_wrong_arg_type(name + ": Second argument must be 'block', 'heap', 'closure', 'symbols' or 'program'");
     }
 
     if (root_id.is_zero()) {
@@ -1912,6 +2009,7 @@ std::pair<triedb *, root_id> me_builtins::get_db_root(interpreter_base &interp0,
     db::triedb *db = nullptr;
     db::root_id rid;
 
+    static con_cell BLOCK("block", 0);
     static con_cell HEAP("heap", 0);
     static con_cell CLOSURE("closure",0);
     static con_cell SYMBOLS("symbols",0);
@@ -1921,7 +2019,10 @@ std::pair<triedb *, root_id> me_builtins::get_db_root(interpreter_base &interp0,
 
     auto e = chain.get_meta_entry(id);    
 
-    if (db_name == HEAP) {
+    if (db_name == BLOCK) {
+	db = &chain.blocks_db();
+	rid = e->get_root_id_blocks();
+    } else if (db_name == HEAP) {
 	db = &chain.heap_db();
 	rid = e->get_root_id_heap();
     } else if (db_name == CLOSURE) {
@@ -1939,6 +2040,7 @@ std::pair<triedb *, root_id> me_builtins::get_db_root(interpreter_base &interp0,
 }
 
 void me_builtins::set_db_root(interpreter_base &interp0, term db_name, const global::meta_id &id, const db::root_id &new_root_id) {
+    static con_cell BLOCK("block",0);
     static con_cell HEAP("heap", 0);
     static con_cell CLOSURE("closure",0);
     static con_cell SYMBOLS("symbols",0);
@@ -1953,7 +2055,9 @@ void me_builtins::set_db_root(interpreter_base &interp0, term db_name, const glo
 
     auto e = *ep;
 
-    if (db_name == HEAP) {
+    if (db_name == BLOCK) {
+	e.set_root_id_blocks(new_root_id);
+    } else if (db_name == HEAP) {
 	e.set_root_id_heap(new_root_id);
     } else if (db_name == CLOSURE) {
 	e.set_root_id_closure(new_root_id);
@@ -2327,7 +2431,111 @@ bool me_builtins::db_put_5(interpreter_base &interp0, size_t arity, term args[])
 
     return true;
 }
-   
+
+/*
+ * db_put(Root, DB, Key, Value)
+ */
+bool me_builtins::db_put_4(interpreter_base &interp0, size_t arity, term args[]) {
+    static const std::string name = "db_put/4";
+    
+    auto &interp = to_local(interp0);
+    auto locked = interp.lock_node();
+    auto id = get_meta_id(interp, name, args[0]);
+    
+    if (args[1].tag() != tag_t::CON) {
+	throw interpreter_exception_wrong_arg_type(name + ": Second argument must be an atom.");
+    }
+
+    triedb *db = nullptr;
+    root_id root_id;
+
+    auto db_name = args[1];
+    
+    std::tie(db, root_id) = get_db_root(interp, db_name, id);
+    if (db == nullptr) {
+	throw interpreter_exception_wrong_arg_type(name + ": Second argument must be 'block', 'heap', 'closure', 'symbols' or 'program'");
+    }
+
+    auto key = args[2];
+    if (key.tag() != tag_t::INT) {
+	throw interpreter_exception_wrong_arg_type(name + ": Key must be an integer; was " + interp.to_string(key));
+    }
+
+    auto key_val = reinterpret_cast<int_cell &>(key).value();
+
+    if (root_id.is_zero()) {
+	// Create a new root
+	root_id = db->new_root();
+    }
+    
+    auto data = args[3];
+    if (data.tag() == tag_t::BIG) {
+	auto &big = reinterpret_cast<big_cell &>(data);
+	size_t n = interp.num_bytes(big);
+	std::vector<uint8_t> buf(n);
+	interp.get_big(big, &buf[0], n);
+	db->update(root_id, key_val, &buf[0], n);
+    } else {
+	// Serialize data
+        term_serializer::buffer_t buf;
+	term_serializer ser(interp0);
+	ser.write(buf, data);
+	db->update(root_id, key_val, &buf[0], buf.size());
+    }
+
+    set_db_root(interp0, db_name, id, root_id);
+    
+    return true;
+}
+
+/*
+ * db_put(Root, DB, SerializedLeaf)
+ */
+bool me_builtins::db_put_3(interpreter_base &interp0, size_t arity, term args[]) {
+    static const std::string name = "db_put/3";
+    
+    auto &interp = to_local(interp0);
+    auto locked = interp.lock_node();
+    auto id = get_meta_id(interp, name, args[0]);
+    
+    if (args[1].tag() != tag_t::CON) {
+	throw interpreter_exception_wrong_arg_type(name + ": Second argument must be an atom.");
+    }
+
+    triedb *db = nullptr;
+    root_id root_id;
+
+    auto db_name = args[1];
+    
+    std::tie(db, root_id) = get_db_root(interp, db_name, id);
+    if (db == nullptr) {
+	throw interpreter_exception_wrong_arg_type(name + ": Second argument must be 'block', 'heap', 'closure', 'symbols' or 'program'");
+    }
+
+    auto leaf_data = args[2];
+    if (leaf_data.tag() != tag_t::BIG) {
+	throw interpreter_exception_wrong_arg_type(name + ": Serialized leaf data must be a bignum; " + interp.to_string(leaf_data));
+    }
+    auto &big = reinterpret_cast<big_cell &>(leaf_data);
+    size_t n = interp.num_bytes(big);
+    std::vector<uint8_t> buf(n);
+    interp.get_big(big, &buf[0], n);
+    
+    triedb_leaf leaf;
+    leaf.read(&buf[0]);
+
+    if (root_id.is_zero()) {
+	// Create a new root
+	root_id = db->new_root();
+    }
+    
+    db->update(root_id, leaf.key(), leaf.custom_data(), leaf.custom_data_size());
+
+    set_db_root(interp0, db_name, id, root_id);
+
+    return true;
+}
+
 bool me_builtins::ptask_0(interpreter_base &interp0, size_t arity, term args[]) {
     static const std::string name = "ptask/0";
     auto &interp = to_local(interp0);
@@ -2464,6 +2672,8 @@ void local_interpreter::setup_local_builtins()
     load_builtin(ME, con_cell("discard", 0), &me_builtins::discard_0);
     // switch/1: Go to a different state
     load_builtin(ME, con_cell("switch", 1), &me_builtins::switch_1);
+    // tip/1: Get current tip id
+    load_builtin(ME, con_cell("tip", 1), &me_builtins::tip_1);
     // height/1: Current height
     load_builtin(ME, con_cell("height", 1), &me_builtins::height_1);
     load_builtin(ME, functor("max_height", 1), &me_builtins::max_height_1);
@@ -2471,6 +2681,11 @@ void local_interpreter::setup_local_builtins()
     load_builtin(ME, con_cell("current",1), &me_builtins::current_1);
     // goals/2: Retrieve a local goals block
     load_builtin(ME, con_cell("goals", 2), &me_builtins::goals_2);
+    // block/2: Retrieve the raw data of the goals block
+    load_builtin(ME, con_cell("block", 2), &me_builtins::block_3);
+    load_builtin(ME, con_cell("block", 3), &me_builtins::block_3);    
+    // block_hash/2: Retrieve the hash from the raw data of the goals block
+    load_builtin(ME, functor("block_hash", 2), &me_builtins::block_hash_2);
     // meta/2: Retrive meta information about a block
     load_builtin(ME, con_cell("meta", 2), &me_builtins::meta_2);
     // meta_more/2: Retrive meta information and more to enable
@@ -2489,6 +2704,7 @@ void local_interpreter::setup_local_builtins()
     load_builtin(ME, functor("delay_put_metas", 1), &me_builtins::delay_put_metas_1);
     // branches/2: Given a list of meta information, find all its branches
     load_builtin(ME, functor("branches", 2), &me_builtins::branches_2);
+    load_builtin(ME, con_cell("follow", 3), &me_builtins::follow_3);
     
     // Commit to the global interpreter
     load_builtin(ME, functor("setup_commit", 1), &me_builtins::setup_commit_1);
@@ -2518,6 +2734,8 @@ void local_interpreter::setup_local_builtins()
     load_builtin(ME, con_cell("db_keys", 4), &me_builtins::db_keys_4);
     load_builtin(ME, con_cell("db_end", 2), &me_builtins::db_end_2);
     load_builtin(ME, con_cell("db_put", 5), &me_builtins::db_put_5);
+    load_builtin(ME, con_cell("db_put", 4), &me_builtins::db_put_4);
+    load_builtin(ME, con_cell("db_put", 3), &me_builtins::db_put_3);
     load_builtin(ME, con_cell("ptask", 0), &me_builtins::ptask_0);
 
     set_current_module(old_mod);

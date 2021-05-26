@@ -848,11 +848,12 @@ public:
 	return get_root(at_root).num_entries();
     }
 
+    static void leaf_hasher(triedb_leaf *leaf);
+
 private:
     friend class triedb_iterator;
   
     void branch_hasher(triedb_branch *branch);
-    static void leaf_hasher(triedb_leaf *leaf);
 
     std::function<void (triedb_leaf *leaf)> leaf_hasher_fn_{&triedb::leaf_hasher};
 
@@ -1124,6 +1125,9 @@ inline const triedb_leaf * triedb::find(const root_id &at_root, uint64_t key,
 				    std::pair<const triedb_branch *, size_t> >
 				      *path_opt) const
 {
+    if (at_root.is_zero()) {
+	return nullptr;
+    }
     auto it = begin(at_root, key);
     if (it == end(at_root)) {
         return nullptr;

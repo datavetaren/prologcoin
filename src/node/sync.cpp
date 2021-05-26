@@ -227,11 +227,51 @@ debug(X) :- (current_predicate(sync_impl:debug_on/0) -> call(X) ; true).
 sync_run(meta) :-
     !,
     meta_run_roots,
+    meta_update_progress,
     (meta_process_delayed_results ; true),
     (meta_blocks(10,[]) ; true),
     (current_predicate(sync:root/4) -> true ;
      retract(sync:mode(_)),
      assert(sync:mode(wait))).
+
+meta_update_progress :-
+    (current_predicate(tmp:height/1) -> true ; (meta_broadcast_get_height(10,[]) ; true)), !,
+    (current_predicate(sync:progress/1) -> retract(sync:progress(_)) ; true),
+    (current_predicate(tmp:height/1), current_predicate(sync:low/1) ->
+        tmp:height(TotalHeight),
+        sync:low(Height),
+	Progress is 10*Height // TotalHeight,
+	assert(sync:progress(Progress))
+     ;  assert(sync:progress(0))).
+
+meta_broadcast_get_height(N, UsedConn) :-
+    N > 0, !,
+    ready(Conn, UsedConn),
+    NewUsed = [Conn|UsedConn],
+    (current_predicate(tmp:broadcast/1), tmp:broadcast(Conn) -> true
+    ;  assert(tmp:broadcast(Conn)),
+       sync:'timeout'(Timeout),
+       (max_height(H) @= (Conn else (H = fail) timeout Timeout)),
+       freeze(H, critical_section((
+         debug((write('Height='), write(H), write(' from '), write(Conn), nl)),
+         (number(H) -> assert(tmp:received_height(H,Conn)) 
+         ; retract(tmp:broadcast(Conn))))))),
+    !, N1 is N - 1, meta_broadcast_get_height(N1, NewUsed).
+
+meta_broadcast_get_height(_, _) :-
+    (current_predicate(tmp:received_height/2) -> 
+     findall(H-Conn, tmp:received_height(H,Conn), L) ; L = []),
+    sort(L, Sorted),
+    length(Sorted, N),
+    (N > 0 ->
+       N2 is N // 2,
+       nth0(N2, Sorted, M-_), % Median
+       (current_predicate(tmp:height/1) -> retract(tmp:height(OldHeight)) ; OldHeight = []),
+       (M \= OldHeight ->
+           debug((write('Summarized Height is '), write(M), nl)) ; true),
+       assert(tmp:height(M))
+    ; true).
+    
 
 sync_run(wait) :-
     !,
@@ -245,14 +285,12 @@ sync_run(wait) :-
       freeze(Result, critical_section((
          retract(tmp:runmore),
          validate_meta(Result),
-         (current_predicate(sync:db/3) -> retractall(db(_,_,_)) ; true),
+         (current_predicate(sync:db/3) -> retractall(sync:db(_,_,_)) ; true),
          Result = meta(Info),
          extract_info(Info),
          retract(sync:mode(wait)),
          retract(sync:step(_)),
-         db_default_step(symbols, Step),
-         assert(sync:step(Step)),
-         assert(sync:mode(symbols)))))).
+         assert(sync:mode(block)))))).
 
 extract_info([]).
 extract_info([db(DB, N, Root) | Rest]) :-
@@ -262,7 +300,47 @@ extract_info([db(DB, N, Root) | Rest]) :-
 extract_info([_ | Rest]) :-
      extract_info(Rest).
 
-sync_run(done).
+sync_run(done) :- !.
+
+%
+% Download block with goals first
+%
+sync_run(block) :-
+    !,
+    current_predicate(sync:rootid/1),
+    sync:rootid(Root),
+    (current_predicate(tmp:getblock/0) -> 
+        true 
+      ; assert(tmp:getblock),
+        sync:'timeout'(Timeout),
+        ready(Connection),
+        (block(Root, Result) @= (Connection else (Result = fail) timeout Timeout)),
+        freeze(Result, critical_section((
+            retract(tmp:getblock),
+            sync:db(block, Height, ExpectedHash),
+            block_hash(Result, ResultHash),
+            (ResultHash == ExpectedHash ->
+                DB = block,
+                db_put(Root, DB, Result),
+                retract(sync:mode(_)),
+                db_done(DB, NextDB),
+                assert(sync:mode(NextDB)),
+                (current_predicate(sync:step/1) -> retract(sync:step(_)) ; true),
+                db_default_step(NextDB, Step),
+                assert(sync:step(Step))
+            ))))).
+
+sync_run(catchup) :-
+%     (current_predicate(sync_impl:debug_on/0) -> true ; assert(sync_impl:debug_on)),
+     !,
+     (sync_delayed ; true), !,
+     (sync_fill_catchup_queue ; true), !,
+     sync_block_download(10, []),
+     (current_predicate(tmp:getblock/2) -> 
+        true
+      ; % Syncing is done
+        retract(sync:mode(_)),
+        assert(sync:mode(done))).
 
 sync_run(DB) :-
     current_predicate(sync:rootid/1),
@@ -287,7 +365,7 @@ sync_run(DB) :-
 db_update_progress :-
     sync:rootid(Root),
     db_progress([symbols, program, closure, heap], Root, 0, 0, Acc, Tot),
-    Progress is 100*Acc // Tot,
+    Progress is 10 + 80*Acc // Tot,
     (current_predicate(sync:progress/1) -> retract(sync:progress(_)) ; true),
     assert(sync:progress(Progress)).
 
@@ -299,15 +377,18 @@ db_progress([DB|Rest], Root, Acc0, Tot0, Acc, Tot) :-
     Tot1 is Tot0 + Num,
     db_progress(Rest, Root, Acc1, Tot1, Acc, Tot).
 
+db_done(block, symbols).
 db_done(symbols, program).
 db_done(program, closure).
 db_done(closure, heap).
-db_done(heap, done).
+db_done(heap, catchup).
+db_done(catchup, done).
 
 db_default_step(symbols, 10000).
 db_default_step(closure, 10000).
 db_default_step(program, 10000).
 db_default_step(heap, 16).
+db_default_step(catchup, 10).
 db_default_step(done, 10000).
 
 )PROG";
@@ -807,10 +888,173 @@ average_list([X|Xs], Acc, Avg) :-
 
 )PROG";
 
+    std::string template_source_4 = R"PROG(
+
+%--------------------------------------------------------
+% Catch up syncing: downloading and running blocks
+%--------------------------------------------------------
+
+%
+% sync_block_download(N, UsedConn)
+%
+% Download N times from various connections
+%
+
+sync_block_download(N, UsedConn) :-
+     N > 0,
+     (sync_catchup_next(Id, Height) ->
+         ready(Connection, UsedConn),
+         debug((write('Download '), write(Id), write(' Height='), write(Height), nl)),
+         assert(tmp:run(Id)),
+	 sync:'timeout'(Timeout),
+         NewUsedConn = [Connection|UsedConn],
+         (block(Id, Block, Meta) @= (Connection else (Meta = fail, Block = fail) timeout Timeout)),
+	 freeze(Block, critical_section(
+             (retract(tmp:run(Id)),
+	      sync:rootid(Root),
+              (Root == Id -> retract(tmp:getblock(Id, _)) ;
+                  block_hash(Block, Hash),
+	          Meta = meta(Params),
+                  member(previd(PrevId), Params), !,
+	          meta(Id, meta(OurParams)),
+	          member(previd(PrevId), OurParams), !,
+                  member(db(block, _, ExpectedHash), Params), !,
+	          (Hash == ExpectedHash -> 
+                      (Root == PrevId ->
+		          sync_add_block(Id, Height, Block, Connection)
+	    	        ; sync_delay_block(Id, Height, Block, Connection))
+                  ; sync_fail_download(Id, Height, Connection)))))),
+      	 N1 is N - 1,
+         !,
+         sync_block_download(N1, NewUsedConn)).
+sync_block_download(_, _) :- !.
+
+%
+% sync_add_block(Id, Height, Block, Connection)
+%
+% Add downloaded block to chain (only if successful.)
+%
+
+sync_add_block(Id, Height, Block, _) :-
+    debug((write('Add '), write(Id), write(' Height='), write(Height), nl)),
+    meta(Id, Meta),
+    Meta = meta(Params),
+    member(previd(PrevId), Params), !,
+    switch(PrevId),
+    setup_commit(Meta),
+    commit(Block),
+    tip(TipId),
+    retract(tmp:getblock(Id, _)),
+    retract(sync:rootid(_)),
+    assert(sync:rootid(Id)), 
+    retract(sync:progress(_)),
+    max_height(TotalHeight),
+    Progress is 90 + (10*Height // TotalHeight),
+    assert(sync:progress(Progress)),
+    !.
+sync_add_block(Id, Height, _, Connection) :-
+    sync_fail_download(Id, Height, Connection).
+
+%
+% sync_fail_download(Id, Height, Connection)
+% 
+% We failed to download this block from this connection, so record that
+% and reschedule.
+%
+
+sync_fail_download(Id, Height, Connection) :-
+    (current_predicate(tmp:fail/2), tmp:fail(Connection, N) ->
+      retract(tmp:fail(Connection,_)),
+      N1 is N + 1,
+      assert(tmp:fail(Connection,N1))
+    ; assert(tmp:fail(Connection,1))),
+    tmp:fail(Connection,Fail),
+    debug((write('Fail '), write(Id), write(' Height='), write(Height), write(' Connection='), write(Connection), write(' Fail='), write(Fail), nl)),
+    assert(tmp:getblock(Id, Height)).
+
+%
+% sync_delay_block(Id, Height, Block,Connection)
+% 
+% Block arrived in out of order. Delay adding it until the prior blocks
+% have been added first.
+%
+
+sync_delay_block(Id, Height, Block, Connection) :-
+    debug((write('Delay '), write(Id), write(' Height='), write(Height), nl)),
+    retract(tmp:getblock(Id, _)),
+    assert(tmp:delay(Id, Height, Block, Connection)).
+
+%
+% sync_delayed
+%
+% Process delayed blocks
+%
+
+sync_delayed :-
+    current_predicate(tmp:delay/3),
+    tmp:delay(Id, Block, Connection),
+    meta(Id, meta(Params)),
+    member(previd(PrevId), Params),
+    sync:rootid(Root),
+    (PrevId == Root -> sync_add_block(Id, Block, Connection)).
+
+%
+% sync_fill_catchup_queue
+%
+% Fill with download instructions
+%
+
+sync_fill_catchup_queue :-
+     current_predicate(sync:rootid/1),
+     sync:rootid(Root),
+     sync:step(Step),
+     (current_predicate(tmp:getblock/2) ->
+          findall(Id-H, tmp:getblock(Id, H), L),
+          length(L, N),
+	  (N < Step ->
+               N1 is Step - N,
+               follow(Root, N1, [_|Ids]),
+               Ids \= [],
+               sync_fill_catchup_queue(Ids)
+             ; true)
+      ; follow(Root, Step, [_|Ids]),
+        Ids \= [],
+        sync_fill_catchup_queue(Ids)).
+
+sync_fill_catchup_queue([]).
+sync_fill_catchup_queue([Id|Ids]) :-
+     (current_predicate(tmp:getblock/2), tmp:getblock(Id, _) -> true
+     ; meta(Id, meta(Params)),
+       member(height(Height), Params), !, 
+       assert(tmp:getblock(Id, Height))),
+   sync_fill_catchup_queue(Ids).
+
+%
+% sync_catchup_next(Id, Height)
+%
+% Get the next block to download.
+%
+
+sync_catchup_next(Id, Height) :-
+     current_predicate(tmp:getblock/2),
+     tmp:getblock(Id, Height),
+     (\+ current_predicate(tmp:run/1) ; \+ tmp:run(Id)).
+
+)PROG";                
+
     con_cell old_module = interp_.current_module();
     interp_.set_current_module(interp_.functor("sync_impl",0));
     interp_.use_module(interp_.ME);
     set_complete(false);
+
+    std::string template_source;
+    template_source += template_source_1;
+    template_source += template_source_2;
+    template_source += template_source_3;
+    template_source += template_source_4;
+
+    auto context = &template_source;
+    
     try {
 	// First load init
 	std::string init_str = get_init();
@@ -819,11 +1063,6 @@ average_list([X|Xs], Acc, Avg) :-
 	    interp_.load_program(init_str);
         }
 
-        std::string template_source;
-        template_source += template_source_1;
-        template_source += template_source_2;
-        template_source += template_source_3;
-
 	// Load template code above
         interp_.load_program(template_source);
     } catch (interpreter_exception &ex) {
@@ -831,10 +1070,10 @@ average_list([X|Xs], Acc, Avg) :-
         std::cout << ex.what() << std::endl;
     } catch (term_parse_exception &ex) {
         std::cout << "Error while loading internal sync_impl source:" << std::endl;      
-        std::cout << term_parser::report_string(interp_, ex) << std::endl;
+        std::cout << term_parser::report_string(interp_, ex, context) << std::endl;
     } catch (token_exception &ex) {
         std::cout << "Error while loading internal sync_impl source:" << std::endl;      
-        std::cout << term_parser::report_string(interp_, ex) << std::endl;
+        std::cout << term_parser::report_string(interp_, ex, context) << std::endl;
     }
     interp_.compile();
 

@@ -59,6 +59,9 @@ void global_interpreter::init()
     new_predicates_ = 0;
     old_heap_size_ = heap_size();
 
+    // Setup empty goals
+    get_global().init_empty_goals();
+
     get_global().get_blockchain().flush_db();
 }
 

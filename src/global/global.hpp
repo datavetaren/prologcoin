@@ -81,6 +81,10 @@ public:
         global_interpreter::setup_consensus_lib(interp);
     }
 
+    inline bool has_interp() const {
+	return interp_ != nullptr;
+    }
+
     inline void reset() {
 	if (interp_) return interp_->reset();
     }
@@ -105,6 +109,8 @@ public:
 	check_interp();
         return interp_->execute_goal(const_cast<buffer_t &>(buf), true);
     }
+
+    void init_empty_goals();
 
     void setup_commit(const buffer_t &buf);
     bool execute_commit(const buffer_t &buf);
@@ -369,15 +375,16 @@ public:
     // to the query.
     //
     
-    term db_get_goal_block(common::term_env &dst, const meta_id &id);
-    term db_get_goal_block(common::term_env &dst, const meta_entry &e);
-    void db_set_goal_block(size_t height, const buffer_t &buf);
+    term db_get_block(common::term_env &dst, const meta_id &id, bool raw);
+    term db_get_block(common::term_env &dst, const meta_entry &e, bool raw);
+    void db_set_block(size_t height, const buffer_t &buf);
 
     term db_get_meta(common::term_env &dst, const meta_id &id, bool more);
     size_t db_get_meta_length(const meta_id &root_id, size_t lookahead_n);
     term db_get_meta_roots(common::term_env &dst, const meta_id &id, size_t spacing, size_t n);
     bool db_put_meta(common::term_env &src, common::term meta_term);
     term db_get_metas(common::term_env &dst, const meta_id &id, size_t n);
+    term db_best_path(common::term_env &dst, const meta_id &id, size_t n);
     void db_put_metas(common::term_env &src, common::term meta_terms);
     bool db_parse_meta(common::term_env &src, common::term meta_term, meta_entry &out);
 
@@ -412,6 +419,7 @@ private:
     blockchain blockchain_;
     std::unique_ptr<global_interpreter> interp_;
     uint64_t commit_version_;
+    uint32_t commit_height_;
     uint64_t commit_nonce_;
     common::utime commit_time_;
     buffer_t commit_goals_;

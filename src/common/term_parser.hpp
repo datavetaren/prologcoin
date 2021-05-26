@@ -5,6 +5,7 @@
 
 #include <memory>
 #include <vector>
+#include <fstream>
 #include "term.hpp"
 #include "term_ops.hpp"
 #include "term_tokenizer.hpp"
@@ -69,9 +70,22 @@ public:
     term parse();
 
     static std::string report_string(term_env &env,
-				     term_parse_exception &parse_ex);
+				     term_parse_exception &parse_ex,
+				     const std::string *context = nullptr);
     static std::string report_string(term_env &env,
-				     token_exception &token_ex);
+				     token_exception &token_ex,
+				     const std::string *context = nullptr);
+
+    static std::string get_excerpt(const std::string &path,
+				   int line_no,
+				   int column_no) {
+	std::ifstream is(path);
+	return get_excerpt(is, line_no, column_no);
+    }
+
+    static std::string get_excerpt(std::istream &is,
+				   int line_no,
+				   int column_no);
   
     const term_tokenizer::token & first_non_whitespace_token() const;  
     const term_tokenizer::token & last_non_whitespace_token() const;
@@ -106,7 +120,10 @@ private:
 
     static std::string report_string(term_env &env,
 				     term_parse_exception *parse_ex,
-				     token_exception *token_ex);
+				     token_exception *token_ex,
+				     const std::string *context);
+
+    static std::string errorize(const std::string &str);
   
     term_parser_impl *impl_;
 };

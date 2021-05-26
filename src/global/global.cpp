@@ -13,6 +13,7 @@ global::global(const std::string &data_dir)
       blockchain_(data_dir),
       interp_(nullptr),
       commit_version_(blockchain::VERSION),
+      commit_height_(0),
       commit_nonce_(0),
       commit_time_(),
       commit_goals_() {
@@ -146,26 +147,31 @@ bool global::db_set_predicate(const qname &qn,
     return true;
 }
 
-term global::db_get_goal_block(term_env &dst, const meta_id &root_id) {
+term global::db_get_block(term_env &dst, const meta_id &root_id, bool raw) {
     auto *e = blockchain_.get_meta_entry(root_id);
     if (e == nullptr) {
 	return common::heap::EMPTY_LIST;
     }
-    return db_get_goal_block(dst, *e);
+    return db_get_block(dst, *e, raw);
 }
 	
-term global::db_get_goal_block(term_env &dst, const meta_entry &e) {
+term global::db_get_block(term_env &dst, const meta_entry &e, bool raw) {
     size_t height = e.get_height();
-    auto leaf = blockchain_.goal_blocks_db().find(e.get_root_id_goal_blocks(), height);
+    auto leaf = blockchain_.blocks_db().find(e.get_root_id_blocks(), height);
     if (leaf == nullptr) {
 	return common::heap::EMPTY_LIST;
     }
-    term_serializer::buffer_t buf(&leaf->custom_data()[0],
-				  &leaf->custom_data()[leaf->custom_data_size()]);
-    
+    if (raw) {
+	term_serializer::buffer_t buf(leaf->serialization_size());
+	leaf->write(&buf[0]);
+	auto data_term = dst.new_big(&buf[0], buf.size());
+	return data_term;
+    }
     term_serializer ser(dst);
     try {
-        term blk = ser.read(buf);
+	term_serializer::buffer_t buf(leaf->custom_data_size());
+	std::copy(leaf->custom_data(), leaf->custom_data()+leaf->custom_data_size(), &buf[0]);
+        term blk = ser.read(buf, buf.size());
 	return blk;
     } catch (serializer_exception &ex) {
 	if (&dst == &(*interp_)) reset();
@@ -173,10 +179,10 @@ term global::db_get_goal_block(term_env &dst, const meta_entry &e) {
     }
 }
 
-void global::db_set_goal_block(size_t height, const term_serializer::buffer_t &buf)
+void global::db_set_block(size_t height, const term_serializer::buffer_t &buf)
 {
-    blockchain_.goal_blocks_db().update(blockchain_.goal_blocks_root(), height,
-					&buf[0], buf.size());
+    blockchain_.blocks_db().update(blockchain_.blocks_root(), height,
+				   &buf[0], buf.size());
 }
 
 static term to_number(term_env &dst, uint64_t v)
@@ -206,12 +212,17 @@ term global::db_get_meta(term_env &dst, const meta_id &root_id, bool more) {
     auto time = dst.new_term( con_cell("time",1), { int_cell(static_cast<int64_t>(e->get_timestamp().in_ss())) });
 
     if (more) {
+	static con_cell BLOCK = con_cell("block",0);
 	static con_cell HEAP = con_cell("heap",0);
 	static con_cell CLOSURE = con_cell("closure",0);
 	static con_cell SYMBOLS = con_cell("symbols",0);
 	static con_cell PROGRAM = con_cell("program",0);
 
 	auto &b = get_blockchain();
+
+	auto *block = b.blocks_db().find(e->get_root_id_blocks(),
+					 e->get_height());
+	assert(block != nullptr);
 	
 	auto &heap_root_hash = b.heap_db().get_root_hash(e->get_root_id_heap());
 	auto num_heap = b.heap_db().num_entries(e->get_root_id_heap());
@@ -224,7 +235,11 @@ term global::db_get_meta(term_env &dst, const meta_id &root_id, bool more) {
 	
 	auto &program_root_hash = b.program_db().get_root_hash(e->get_root_id_program());
 	auto num_program = b.program_db().num_entries(e->get_root_id_program());
-
+	
+	auto block_term = dst.new_term(
+          con_cell("db",3),
+	  { BLOCK, int_cell(static_cast<int64_t>(e->get_height())),
+	    dst.new_big(block->hash(), block->hash_size()) });
 	auto heap_term = dst.new_term(
 	  con_cell("db",3),
 	  { HEAP, int_cell(static_cast<int64_t>(num_heap)),
@@ -241,11 +256,11 @@ term global::db_get_meta(term_env &dst, const meta_id &root_id, bool more) {
 	  con_cell("db",3),
 	  { PROGRAM, int_cell(static_cast<int64_t>(num_program)),
 	    dst.new_big(program_root_hash.hash(), program_root_hash.hash_size()) });
-    
 	lst = dst.new_dotted_pair(program_term, lst);
 	lst = dst.new_dotted_pair(symbols_term, lst);
 	lst = dst.new_dotted_pair(closure_term, lst);
 	lst = dst.new_dotted_pair(heap_term, lst);
+	lst = dst.new_dotted_pair(block_term, lst);
     }		
     lst = dst.new_dotted_pair(time, lst);
     lst = dst.new_dotted_pair(nonce, lst);
@@ -474,6 +489,48 @@ term global::db_get_metas(term_env &dst, const meta_id &root_id, size_t n)
     return head;
 }
 
+//
+// Extract ids of the path that we'd like to follow
+//
+term global::db_best_path(term_env &dst, const meta_id &root_id, size_t n)
+{
+    term lst = dst.EMPTY_LIST;
+    if (n == 0) {
+	return lst;
+    }
+    auto id = root_id;
+    auto id_term = id.to_term(dst);
+    term head = dst.new_dotted_pair(id_term, dst.EMPTY_LIST);
+    term tail = head;
+    n--;
+    while (n > 0) {
+	auto follows = blockchain_.follows(id);
+	if (follows.empty()) {
+	    break;
+	}
+	if (follows.size() == 1) {
+	    id = *follows.begin();
+	} else {
+	    meta_id best_id;
+	    size_t best_len = 0;
+	    for (auto &fid : follows) {
+		auto len = db_get_meta_length(fid, 100);
+		if (len > best_len) {
+		    best_len = len;
+		    best_id = fid;
+		}
+	    }
+	    id = best_id;
+	}
+	n--;
+
+	term new_list = dst.new_dotted_pair(id.to_term(dst), dst.EMPTY_LIST);
+	dst.set_arg(tail, 1, new_list);
+	tail = new_list;
+    }
+    return head;
+}
+
 void global::db_put_metas(term_env &src, term lst)
 {
     while (src.is_dotted_pair(lst)) {
@@ -494,6 +551,7 @@ size_t global::max_height() const {
 void global::increment_height()
 {
     get_blockchain().set_version(commit_version_);
+    get_blockchain().set_height(commit_height_);
     get_blockchain().set_nonce(commit_nonce_);
     get_blockchain().set_time(commit_time_);
     get_blockchain().advance();
@@ -501,11 +559,16 @@ void global::increment_height()
     interp().commit_closures();
     interp().commit_symbols();
     interp().commit_program();
-    if (!commit_goals_.empty()) {
-	db_set_goal_block(current_height(), commit_goals_);
-	commit_goals_.clear();
-    }
+    db_set_block(current_height(), commit_goals_);
+    init_empty_goals();
     get_blockchain().update_tip();
+}
+
+void global::init_empty_goals() {
+    commit_goals_.clear();
+    term_env env;
+    term_serializer ser(env);
+    ser.write(commit_goals_, env.EMPTY_LIST);
 }
 
 void global::setup_commit(const term_serializer::buffer_t &buf) {
@@ -524,6 +587,12 @@ void global::setup_commit(const term_serializer::buffer_t &buf) {
 		throw global_db_exception( "version must be an integer; was " + env.to_string(val));
 	    }
 	    commit_version_ = static_cast<uint64_t>(reinterpret_cast<int_cell &>(val).value());
+	} else if (env.functor(el) == con_cell("height",1)) {
+	    auto val = env.arg(el, 0);
+	    if (val.tag() != tag_t::INT) {
+		throw global_db_exception( "height must be an integer; was " + env.to_string(val));
+	    }
+	    commit_height_ = static_cast<uint32_t>(reinterpret_cast<int_cell &>(val).value());
 	} else if (env.functor(el) == con_cell("nonce",1)) {
 	    auto val = env.arg(el, 0);
 	    if (val.tag() != tag_t::INT &&
@@ -563,6 +632,7 @@ bool global::execute_commit(const term_serializer::buffer_t &buf) {
     assert(is_clean());
     commit_goals_ = buf;
     advance();
+    
     return true;
 }
     

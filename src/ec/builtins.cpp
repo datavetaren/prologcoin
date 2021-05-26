@@ -754,6 +754,39 @@ bool builtins::hash_2(interpreter_base &interp, size_t arity, term args[] )
     return r;
 }
 
+bool builtins::hash_3(interpreter_base &interp, size_t arity, term args[])
+{
+    static con_cell BLAKE2B = con_cell("blake2b",0);
+    
+    if (args[1].tag() != tag_t::CON || args[1] != BLAKE2B) {
+         throw interpreter_exception_wrong_arg_type(
+	   "ec:hash/3: Second argument must be a hash type; was " +
+	   interp.to_string(args[1]));
+    }
+
+    term_serializer::buffer_t buf;
+    if (args[0].tag() == tag_t::BIG) {
+	auto &big = reinterpret_cast<big_cell &>(args[0]);
+	auto n = interp.num_bytes(big);
+	buf.resize(n);
+	interp.get_big(big, &buf[0], n);
+    } else {
+	term_serializer ser(interp);
+	ser.write(buf, args[0]);
+    }
+
+    uint8_t hash[32];
+    
+    blake2b_state s;
+    blake2b_init(&s, sizeof(hash));
+    blake2b_update(&s, &buf[0], buf.size());
+    blake2b_final(&s, hash, sizeof(hash));
+
+    auto result = interp.new_big(hash, sizeof(hash));
+
+    return interp.unify(args[2], result);
+}
+
 bool builtins::compute_pedersen_commit(interpreter_base &interp,
 				       const term blinding,
 				       const term value,
@@ -1856,6 +1889,7 @@ void builtins::load(interpreter_base &interp, con_cell *module0)
     interp.load_builtin(M, con_cell("sign", 3), &builtins::sign_3);
     interp.load_builtin(M, interp.functor("validate", 3), &builtins::validate_3);
     interp.load_builtin(M, con_cell("hash", 2), &builtins::hash_2);
+    interp.load_builtin(M, con_cell("hash", 3), &builtins::hash_3);
 
     interp.load_builtin(M, interp.functor("pubkey_tweak_add", 3), &builtins::pubkey_tweak_add_3);
     interp.load_builtin(M, interp.functor("privkey_tweak_add", 3), &builtins::privkey_tweak_add_3);    

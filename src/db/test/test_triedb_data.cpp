@@ -274,62 +274,59 @@ static void test_merkle2()
     triedb::erase_all(test_dir);
     triedb::erase_all(test_dir2);
 
+    static const size_t NUM_KEYS = 32;
+    static uint64_t keys [NUM_KEYS] = {0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,591022121,625332297,641043111,644421183,762255860,2759700102,2769940342,2782320143,2979721756,3029154268,3094669871,3167732245,3179456549,4115743924,4148293780,4206663161};
+    
     triedb db(test_dir);
+    triedb db2(test_dir2);
 
     auto at_root = db.new_root();
-    for (size_t i = 0; i < TEST_NUM_ENTRIES; i++) {
-        custom_data_leaf data;
-	for (size_t j = 0; j < 65536; j++) {
+    for (size_t i = 0; i < NUM_KEYS; i++) {
+        custom_data_leaf2 data;
+	for (size_t j = 0; j < 16; j++) {
 	    uint8_t b = (i + j) & 0xff;
-	    data.heap_block[j] = b;
+	    data.data[j] = b;
 	}
-        db.insert(at_root, 123+17*i, reinterpret_cast<uint8_t *>(&data), sizeof(data));
+        db.insert(at_root, keys[i], reinterpret_cast<uint8_t *>(&data), sizeof(data));
 	at_root = db.new_root(at_root);
     }
 
-    // Check root hash
-    // at_root = db.find_root(TEST_NUM_ENTRIES-1);
+    auto at_root2 = db2.new_root();
 
-    // Extract 1/3rd of keys from key 9990
-    size_t n = TEST_NUM_ENTRIES / 3;
-    auto it = db.begin(at_root, 9990);
-    uint64_t smallest = 0;
-    uint64_t biggest = 0;
-    std::vector<uint64_t> keys;
-    for (size_t i = 0; i < n; i++, ++it) {
-	if (i == 0) smallest = it->key();
-	biggest = it->key();
-	keys.push_back(it->key());
-    }
+    const size_t NUM_RANGES = 16;
+
+    uint64_t ranges[NUM_RANGES*2] = { 0, 10000, 10000, 20000, 20000, 30000, 30000, 40000, 40000, 50000, 50000, 60000, 60000, 70000, 70000, 80000, 80000, 90000, 90000, 100000, 591022121, 591022121, 2842817865, 5094613609, 591022121, 2842817865, 2842817865, 5094613609, 5094613609, 7346409353, 7346409353, 9598205097 };
     
-    merkle_root mr;
-    db.get(at_root, smallest, biggest, true, mr);
+    for (size_t i = 0; i < NUM_RANGES; i++) {
+	uint64_t start_key = ranges[i*2];
+	uint64_t end_key = ranges[i*2+1];
 
-    std::cout << "Size of sub-tree: " << mr.total_size() << std::endl;
-    bool r = mr.validate(&db, smallest, biggest);
-    std::cout << "Validated sub-tree: " << r << std::endl;
-    assert(r);
+	std::cout << "Extract range " << start_key << ".." << end_key << std::endl;
 
-    // Let's create a new database and insert the sub-tree
+	// Get this range of keys (and data)
+	merkle_root mr;
+	db.get(at_root, start_key, end_key, true, mr);
 
-    root_id at_root2;
-    {
-	triedb db2(test_dir2);
-	at_root2 = db2.new_root();
+	std::cout << "Validate range " << start_key << ".." << end_key << ": Ok=" << mr.validate(&db, start_key, end_key) << std::endl;
+	
+	std::cout << "Add range " << start_key << ".." << end_key << std::endl;	
+	// Transfer it to DB2
 	db2.update(at_root2, mr);
     }
 
-    // Let's see if we can enumerate 1/3rd of the keys.
-    triedb db2(test_dir2);
-    triedb_iterator it2 = db2.begin(at_root2, 10000);
+    // Let's see if we can find all keys
+    triedb_iterator it2 = db2.begin(at_root2);
     triedb_iterator it2_end = db2.end(at_root2);
     size_t j;
-    for (j = 0; it2 != it2_end && j < keys.size(); ++it2, ++j) {
+    for (j = 0; it2 != it2_end && j < NUM_KEYS; ++it2, ++j) {
 	auto &leaf = *it2;
+	std::cout << "Check key: expect=" << keys[j] << " actual=" << leaf.key() << std::endl;
 	assert( leaf.key() == keys[j] );
     }
 
-    assert(j == keys.size());
+    assert(j == NUM_KEYS);
+
+    std::cout << "Num keys in root: " << db2.num_entries(at_root2) << std::endl;
 }
 
 int main(int argc, char *argv[])

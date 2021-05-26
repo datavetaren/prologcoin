@@ -85,6 +85,13 @@ length(Xs, N) :- '$length'(Xs,N,0).
 '$length'([], N, N) :- !.
 '$length'([_|Xs], N, I) :- I1 is I + 1, '$length'(Xs, N, I1).
 
+%
+% nth0/3
+%
+
+nth0(0, [X|_], X).
+nth0(N, [_|Xs], X) :- N > 0, N1 is N - 1, nth0(N1,Xs,X).
+
 )PROG";
 
     auto old_mod = current_module();

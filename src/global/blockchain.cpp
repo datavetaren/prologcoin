@@ -11,7 +11,7 @@ namespace prologcoin { namespace global {
 blockchain::blockchain(const std::string &data_dir) :
     data_dir_(data_dir),
     db_meta_dir_((boost::filesystem::path(data_dir_) / "db" / "meta").string()),
-    db_goal_blocks_dir_((boost::filesystem::path(data_dir_) / "db" / "goals").string()),
+    db_blocks_dir_((boost::filesystem::path(data_dir_) / "db" / "blocks").string()),
     db_heap_dir_((boost::filesystem::path(data_dir_) / "db" / "heap").string()),
     db_closure_dir_((boost::filesystem::path(data_dir_) / "db" / "closure").string()),
     db_symbols_dir_((boost::filesystem::path(data_dir_) / "db" / "symbols").string()),
@@ -27,8 +27,19 @@ void blockchain::update_meta_id()
     // Add previous id
     blake2b_update(&s, tip_.get_previous_id().hash(), meta_id::HASH_SIZE);
 
-    // Hash all root hashes from state databases
     auto &t = tip_;
+
+    // Add the hash of the block that got us here
+    // (If we add this, then we have the ability to falsify the whole
+    //  meta-entry and mark it as invalid - otherwise we may attempt
+    //  to infinitely look in vain for the proper version of its meta entry.)
+    if (tip_.get_height() != 0) {
+	auto *block = blocks_db().find(t.get_root_id_blocks(), tip_.get_height());
+	assert(block != nullptr);
+	blake2b_update(&s, block->hash(), block->hash_size());
+    }	
+    
+    // Hash all root hashes from state databases
     auto &h1 = heap_db().get_root_hash(t.get_root_id_heap());
     blake2b_update(&s, h1.hash(), h1.hash_size());
     auto &h2 = closure_db().get_root_hash(t.get_root_id_closure());
@@ -53,6 +64,10 @@ void blockchain::update_meta_id()
 
     // Add version
     db::write_uint64(data, tip_.get_version());
+    blake2b_update(&s, data, sizeof(uint64_t));
+
+    // Add height
+    db::write_uint32(data, tip_.get_height());
     blake2b_update(&s, data, sizeof(uint32_t));
 
     // Add nonce
@@ -81,7 +96,7 @@ void blockchain::update_meta_id()
 void blockchain::init()
 {
     db_meta_ = nullptr;
-    db_goal_blocks_ = nullptr;
+    db_blocks_ = nullptr;
     db_heap_ = nullptr;
     db_closure_ = nullptr;
     db_symbols_ = nullptr;
@@ -204,7 +219,7 @@ std::set<meta_id> blockchain::find_entries(size_t height, const uint8_t *prefix,
 }
 
 void blockchain::flush_db() {
-    goal_blocks_db().flush();
+    blocks_db().flush();
     heap_db().flush();
     closure_db().flush();
     symbols_db().flush();
@@ -216,7 +231,7 @@ void blockchain::advance() {
     flush_db();
 
     db::root_id next_meta;
-    db::root_id next_goal_blocks;
+    db::root_id next_blocks;
     db::root_id next_heap;
     db::root_id next_closure;
     db::root_id next_symbols;
@@ -226,7 +241,7 @@ void blockchain::advance() {
     
     if (tip().get_root_id_meta().is_zero()) {
 	next_meta = meta_db().new_root();
-	next_goal_blocks = goal_blocks_db().new_root();
+	next_blocks = blocks_db().new_root();
 	next_heap = heap_db().new_root();
 	next_closure = closure_db().new_root();
 	next_symbols = symbols_db().new_root();
@@ -234,7 +249,7 @@ void blockchain::advance() {
 	genesis = true;
     } else {
 	next_meta = meta_db().new_root(tip().get_root_id_meta());
-	next_goal_blocks = goal_blocks_db().new_root(tip().get_root_id_goal_blocks());
+	next_blocks = blocks_db().new_root(tip().get_root_id_blocks());
 	next_heap = heap_db().new_root(tip().get_root_id_heap());
 	next_closure = closure_db().new_root(tip().get_root_id_closure());
 	next_symbols = symbols_db().new_root(tip().get_root_id_symbols());
@@ -253,7 +268,7 @@ void blockchain::advance() {
     new_tip.set_nonce(nonce_);
     new_tip.set_height(new_height);
     new_tip.set_root_id_meta(next_meta);
-    new_tip.set_root_id_goal_blocks(next_goal_blocks);
+    new_tip.set_root_id_blocks(next_blocks);
     new_tip.set_root_id_heap(next_heap);
     new_tip.set_root_id_closure(next_closure);
     new_tip.set_root_id_symbols(next_symbols);
@@ -290,7 +305,14 @@ void blockchain::update_tip() {
 
     auto find_it = chains_.find(tip().get_id());
     if (find_it != chains_.end()) {
-	tip_ = find_it->second;
+	auto &existing_tip = find_it->second;
+	if (tip_.get_id() == existing_tip.get_id()) {
+	    existing_tip.set_root_id_heap(tip_.get_root_id_heap());
+	    existing_tip.set_root_id_closure(tip_.get_root_id_closure());
+	    existing_tip.set_root_id_symbols(tip_.get_root_id_symbols());
+	    existing_tip.set_root_id_program(tip_.get_root_id_program());
+	    existing_tip.set_root_id_blocks(tip_.get_root_id_blocks());
+	}
 	return;
     }
 

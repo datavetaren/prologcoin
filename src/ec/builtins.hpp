@@ -78,6 +78,9 @@ public:
     // hash(Data, Hash) true iff Hash is the hash of Data.
     static bool hash_2(interpreter_base &interp, size_t arity, term args[] );
 
+    // hash(Data, Mode, Hash) true iff Hash is the hash of Data.
+    static bool hash_3(interpreter_base &interp, size_t arity, term args[] );
+
     // pubkey_tweak_add(X, Y, Z)
     // Z = X + G*Y
     static bool pubkey_tweak_add_3(interpreter_base &interp, size_t arity, term args[] );
