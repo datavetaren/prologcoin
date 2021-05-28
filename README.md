@@ -153,7 +153,7 @@ amount and Spent is either unbound which means the coin is available
 for spending or '[]' (the empty list) when spent.
 
 There are two built-in predicates (by the system) that allows you
-joining or spliting coins and only these preciates are allowed to work
+joining or splitting coins and only these preciates are allowed to work
 on '$coin' terms. cjoin0/3 is a helper predicate for cjoin/2 and is not
 considered available directly from the user code.
 
@@ -258,7 +258,7 @@ and PubKey validate, where Hash has been computed by the operating
 system (and not by user code.) And if it does, then CoinOut will
 become available for spending.
 
-So for example, let's say there's some a previous transaction with a
+So for example, let's say there's some previous transaction with a
 coin (on the global expandable query) that the user would like to
 spend. Then the user first computes the signatures:
 
@@ -290,7 +290,7 @@ And the user can now create two commits:
 
 This somewhat complicated way of creating transactions is to ensure
 that once commits are broadcasted to the network, they cannot be
-modified by an attacker while in transit (to the miners.) The
+modified by an attacker while in transit (to the miners). The
 signatures are thus separated from the action and thus make the
 signatures non-mallable.
 
@@ -409,7 +409,7 @@ tx(CoinIn, Hash, Script, Args, CoinOut) :-
 	   CoinOut = '$coin'(V, _)).
 ```
 
-Can can then formulate the variants as:
+We can then reformulate the variants.
 
 First is pay-to-pubkey-hash:
 
@@ -527,7 +527,7 @@ myswapin( ... Args ...)
 
 will be rewritten by the system to pass in the current state for that
 token as well as what the output state is. Note that these states are
-still declarative (i.e. they don't destructively update anything.)
+still declarative, so they don't destructively update anything.
 This is similar to state monads in lazy functional programming
 languages.
 
